@@ -1,0 +1,28 @@
+{
+  "name": "bloodline-bowl-sleeper-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Read-only Sleeper API data bridge for the Bloodline Bowl fantasy football league.",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "next": "15.5.4",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.1",
+    "@types/node": "22.18.1",
+    "@types/react": "19.1.13",
+    "eslint": "9.36.0",
+    "eslint-config-next": "15.5.4",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.2"
+  }
+}
