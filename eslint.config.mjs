@@ -1,8 +1,10 @@
-import { FlatCompat } from "@eslint/eslintrc";
-
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+// Flat config. eslint-config-next v16 ships flat configs directly, so the
+// @eslint/eslintrc FlatCompat shim that Next 15 required is no longer needed.
+import coreWebVitals from "eslint-config-next/core-web-vitals";
+import typescript from "eslint-config-next/typescript";
 
 export default [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-  { ignores: [".next/**", "node_modules/**"] },
+  ...coreWebVitals,
+  ...typescript,
+  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
 ];

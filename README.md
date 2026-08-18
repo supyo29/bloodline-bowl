@@ -412,6 +412,8 @@ npm run lint
 npm test
 ```
 
+`npm run lint` drives ESLint directly — Next 16 removed the `next lint` command.
+
 `npm test` runs 52 tests: normalization unit tests against a synthetic league built from **real**
 Sleeper player IDs, plus live end-to-end tests against the actual Bloodline Bowl league and error
 paths (404, timeout, degraded player database). The live tests require network access.
@@ -464,8 +466,5 @@ or a browser can fetch the endpoint directly.
 
 ### Dependency advisories
 
-`npm audit` reports three high-severity advisories in Next.js's bundled `postcss` and `sharp`.
-Both are build-time/optional subsystems this app never exercises: there is not a single CSS file in
-the project (the status page uses inline style props) and no images or `next/image` usage. Clearing
-them requires upgrading to Next 16, a semver-major move that also removes `next lint`. The
-deployment-blocking *critical* Next.js advisory has been fixed by pinning `next@15.5.23`.
+`npm audit` reports **0 vulnerabilities**. The project runs Next 16, which clears the earlier
+`postcss` and `sharp` advisories carried by the Next 15 line.
