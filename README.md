@@ -6,7 +6,7 @@ single, self-describing JSON document an AI can fetch and reason about directly.
 Point any model at one URL:
 
 ```text
-https://<your-deployment>.vercel.app/api/league
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/league
 ```
 
 …and it can answer "who owns each team", "what does every roster look like", "who holds which
@@ -82,7 +82,7 @@ Allowed: `league`, `users`, `rosters`, `drafts`, `traded_picks`, `state`, `draft
 `draft_picks` additionally requires a numeric `&draft_id=`.
 
 ```bash
-curl "http://localhost:3000/api/raw?resource=rosters"
+curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/raw?resource=rosters"
 ```
 
 The full player database is deliberately **not** exposed here.
@@ -428,15 +428,23 @@ No credentials are needed — Sleeper's read endpoints are public and unauthenti
 
 ## Deploying to Vercel
 
-Zero configuration — this is a standard Next.js App Router project.
+Already deployed:
+
+| | |
+| --- | --- |
+| Production | <https://bloodline-bowl-sleeper-bridge.vercel.app> |
+| Main endpoint | <https://bloodline-bowl-sleeper-bridge.vercel.app/api/league> |
+| Vercel project | `supyo29s-projects/bloodline-bowl-sleeper-bridge` |
+
+To ship subsequent changes:
 
 ```bash
-npm i -g vercel
-vercel
 vercel --prod
 ```
 
-Or connect the repository at [vercel.com/new](https://vercel.com/new) and deploy from the dashboard.
+The project is linked via `.vercel/project.json` (gitignored). Vercel Authentication is enabled for
+preview and deployment-specific URLs; the production alias above is public, which is what lets an
+external AI fetch it.
 
 `/api/league` runs on the Node.js runtime with `maxDuration = 60` to absorb the occasional cold
 start where the player database has to be re-downloaded. Warm requests return in milliseconds.
@@ -453,3 +461,11 @@ or a browser can fetch the endpoint directly.
   numeric, so no caller-supplied string ever reaches a Sleeper URL.
 - `SLEEPER_LEAGUE_ID` is validated as numeric before use.
 - No secrets are required or stored.
+
+### Dependency advisories
+
+`npm audit` reports three high-severity advisories in Next.js's bundled `postcss` and `sharp`.
+Both are build-time/optional subsystems this app never exercises: there is not a single CSS file in
+the project (the status page uses inline style props) and no images or `next/image` usage. Clearing
+them requires upgrading to Next 16, a semver-major move that also removes `next lint`. The
+deployment-blocking *critical* Next.js advisory has been fixed by pinning `next@15.5.23`.
