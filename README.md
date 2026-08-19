@@ -44,6 +44,16 @@ Original Sleeper IDs are preserved everywhere, so nothing is lost for debugging 
 
 ## API
 
+Two layers of endpoints:
+
+- **Snapshot endpoints** (`/api/league`, `/api/draft`, `/api/scoring`) — the original bridge, each a
+  self-contained normalized view.
+- **Factual analytics layer** (`/api/history`, `/api/transactions`, `/api/matchups`,
+  `/api/standings`, `/api/managers`, `/api/value`, `/api/weekly-stats`, `/api/roster-analysis`,
+  `/api/snapshot`) — facts and transparent derived metrics only. See
+  [Factual analytics layer](#factual-analytics-layer) below for the design philosophy and every
+  endpoint's data sources, formulas, and known limitations.
+
 ### `GET /api/league`
 
 The main endpoint. One consolidated, normalized snapshot.
@@ -423,6 +433,15 @@ app/
     draft/debug/route.ts  sanitized raw draft fields
     scoring/route.ts     normalized scoring rules, derived metrics, diagnostics
     scoring/calculate/route.ts  POST: apply live scoring to a caller-supplied stat line
+    history/route.ts           season lineage + factual results
+    transactions/route.ts      normalized trades/waivers/free agents/drops
+    matchups/route.ts          weekly matchup results + score rank
+    standings/route.ts         records + weekly-score statistics
+    managers/route.ts          career aggregation by stable user_id
+    value/route.ts             player values (provider currently unavailable)
+    weekly-stats/route.ts      raw NFL stats scored via Bloodline Bowl rules
+    roster-analysis/route.ts   structural roster facts, no grading
+    snapshot/route.ts          compact AI-friendly current-state view
     health/route.ts     liveness probe
     raw/route.ts        allowlisted raw passthrough
   page.tsx              minimal status page
@@ -447,6 +466,26 @@ lib/
     sensitivity.ts        modest scoring-change impact analysis
     diagnostics.ts        evidence-based scoring-balance flags
     scoring-service.ts    /api/scoring orchestration
+  analytics/
+    types.ts             shared metadata + DerivedValue types
+    lineage.ts            safe previous_league_id traversal (cycle/depth guarded)
+    season-data.ts        shared per-season loader: league/users/rosters/matchups/brackets
+    matchups.ts            pairs weekly rows into games, computes weekly_score_rank
+    standings.ts            win%, weekly stats, playoff finish from bracket data only
+    transactions.ts         trade/waiver/free-agent/drop normalization
+    roster.ts                composition, age, FLEX-aware slot coverage, auction spend
+    weekly-stats.ts          applies the scoring engine to raw stats, computes ranks
+    history.ts                season-by-season factual results
+    managers.ts                career aggregation by stable Sleeper user_id
+    value.ts                   player-value facts with source attribution
+    snapshot.ts                composes /api/snapshot from already-built pieces
+    query.ts                   shared, allowlisted query-parameter validation
+  stats/
+    types.ts              PlayerStatsProvider interface
+    provider.ts            Sleeper-stats-endpoint-backed implementation
+  values/
+    types.ts               PlayerValueProvider interface
+    provider.ts              "unavailable" implementation (no source configured)
 
 test/
   fixtures.ts             synthetic league using real Sleeper player IDs
@@ -457,6 +496,8 @@ test/
   draft-live.test.ts      /api/draft end-to-end against the real league
   scoring.test.ts          scoring engine: yardage/TD math, archetypes, sensitivity, diagnostics
   scoring-live.test.ts     /api/scoring end-to-end against the real league's live settings
+  analytics.test.ts        standings math, transactions, roster analysis, weekly-stat ranking
+  analytics-live.test.ts   analytics layer end-to-end + a scan for forbidden subjective fields
 ```
 
 The layering is deliberate: `normalize.ts` is pure and has no knowledge of HTTP, so it is directly
@@ -599,16 +640,209 @@ reception value does not fully offset the rushing-touchdown premium here. `sensi
 exactly how much that would shift under a modest scoring change (e.g. `reception_plus_0_5` adds
 +4 to the receiving RB).
 
+## Factual analytics layer
+
+> **Facts and transparent derived metrics belong in the bridge. Interpretation belongs to the AI
+> consumer.**
+
+This layer exists to separate four distinct concerns:
+
+```text
+SOURCE DATA  ->  NORMALIZED FACTS  ->  TRANSPARENT DERIVED METRICS  ->  AI INTERPRETATION
+```
+
+The bridge stops at the third layer. Every field here is either a fact read straight from Sleeper
+(or a named external source) or a derived metric with a visible formula and inputs. **None of these
+endpoints produce grades, rankings-by-quality, or labels** — no `manager_skill`, `roster_grade`,
+`trade_grade`, `power_rank`, `contender`/`rebuild`, `draft_winner`, or `championship_probability`
+field exists anywhere in this layer, and a live test (`analytics-live.test.ts`) scans every
+response for exactly those patterns. If a metric can't be expressed as a deterministic calculation
+with visible inputs, it is left out — that judgment belongs to whatever AI is reading the response.
+
+### Missing data
+
+A value the bridge cannot determine is `null`, never a fabricated `0`. For example, a manager who
+has made no waiver claims reports `faab_spent: null` (there is nothing to sum), not `0`. Every
+analytics response carries `metadata.warnings[]` explaining _why_ something is null when that isn't
+self-evident (e.g. "No matchup data is available for week 2 of 2026 yet").
+
+### Common response metadata
+
+Every analytics endpoint's response includes:
+
+```json
+{
+  "metadata": {
+    "schema_version": 1,
+    "generated_at": "ISO_TIMESTAMP",
+    "league_id": "1395549281678532608",
+    "season": "2026",
+    "sources": [{ "name": "Sleeper", "type": "league_data" }],
+    "data_freshness": { "standings": "1m" },
+    "warnings": []
+  }
+}
+```
+
+### `GET /api/history`
+
+Walks Sleeper's season lineage via `previous_league_id` and reports each season's settings, roster
+positions, standings, and — **only when an actual bracket final has been decided** — champion and
+runner-up. A championship is never inferred from regular-season record.
+
+**Safety:** traversal stops on a missing/deleted league, a repeated league id (circular-chain
+guard), or after `MAX_LINEAGE_DEPTH` (15) seasons — whichever comes first — and reports why via
+`metadata.warnings`, never by throwing.
+
+**Bloodline Bowl today:** a single season (`previous_league_id` is `null`), so `/api/history`
+returns one entry with `champion: null` and `runner_up: null` (the bracket exists but no game has
+been played).
+
+### `GET /api/transactions`
+
+Normalized trades, waivers, free-agent moves, and drops. `?season`, `?week`, `?type`, `?manager`
+(a Sleeper `user_id`), `?roster_id` are all validated. A trade's `sides[]` shows each roster's
+received players/picks/FAAB — there is no fairness or value-differential field.
+
+Historical seasons are resolved to their actual `league_id` via the same lineage walk as
+`/api/history` (Sleeper issues a new `league_id` per season) — requesting a season outside the
+discovered lineage returns `404`, not a silent reuse of the current league's data.
+
+### `GET /api/matchups`
+
+Pairs Sleeper's per-roster weekly rows (which share a `matchup_id`) into games and reports
+`result` (`win`/`loss`/`tie`), `margin`, and `weekly_score_rank` (e.g. `"2 of 10"`, ties sharing a
+rank). No "fortunate"/"unfortunate" labeling of close results.
+
+### `GET /api/standings`
+
+Factual records plus formula-backed weekly statistics:
+
+| Field                                                | Formula                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `win_percentage`                                     | `(wins + ties * 0.5) / games_played`                               |
+| `average_points_for`                                 | `points_for / games_played`                                        |
+| `median_weekly_score`                                | median of that roster's weekly scores                              |
+| `standard_deviation_weekly_score`                    | **population** standard deviation of weekly scores                 |
+| `weekly_high_score_count` / `weekly_low_score_count` | weeks this roster posted the league's single highest/lowest score  |
+| `regular_season_finish`                              | rank by `wins`, then `points_for` (Sleeper's own default tiebreak) |
+
+`championship`/`runner_up` again only ever come from a decided bracket final. Explicitly **not**
+computed here: luck, expected wins, power rank, strength grade.
+
+### `GET /api/managers`
+
+Aggregates career facts by Sleeper's `user_id` — the one identifier Sleeper keeps stable for the
+same person across every season in the discovered lineage (a roster's `owner_id` can be reused by a
+different person season to season on some platforms, but not on Sleeper). `all_time` is implicit: a
+manager's `career` always spans every season discovered by the lineage walk.
+
+This is the most expensive analytics call — it sweeps all 18 possible weeks of transactions per
+season to total trades/waivers/free-agent adds/drops/FAAB, so it leans on the longer cache tier.
+
+### `GET /api/value`
+
+**No player-value provider is currently configured.** Rather than fabricate a number or silently
+wire in a paid API, the endpoint reports this honestly:
+
+```json
+{
+  "provider": {
+    "name": "none",
+    "available": false,
+    "unavailable_reason": "..."
+  }
+}
+```
+
+The architecture (`lib/values/{types,provider}.ts`, a `PlayerValueProvider` interface) is real and
+ready — a future ADP/auction-value/dynasty-ranking/projection source only has to implement
+`getValues(playerIds)` and return values with mandatory source attribution
+(`source`, `source_type`, `updated_at`, `format`). Multiple sources are never averaged into an
+unlabeled consensus number; if a consensus is ever added, its formula and included sources will be
+exposed explicitly, not hidden behind a single value.
+
+### `GET /api/weekly-stats`
+
+**NFL stats provider: Sleeper's own stats endpoint** (`GET /v1/stats/nfl/regular/{season}/{week}`).
+It's undocumented but public and same-domain (`api.sleeper.app`) — not a third-party scrape, not a
+paid service. Its stat keys line up with `scoring_settings` keys, which is what lets Bloodline
+Bowl's own scoring engine (`calculateFantasyPoints`, the same function `/api/scoring` and
+`/api/draft` use) be applied to the **raw counting stats** directly. Sleeper's own precomputed
+`pts_std`/`pts_ppr`/`pts_half_ppr` fields are read and discarded — they are never this bridge's
+source of truth.
+
+One correctness fix found during validation: Sleeper's stats endpoint includes ~32 synthetic
+`TEAM_XXX` rows carrying team-level offensive aggregates (not real players, not present in
+`/players/nfl`). Left unfiltered, these scored huge bogus point totals and dominated the rankings;
+they are now excluded in the provider before anything downstream sees them
+(`lib/stats/provider.ts`).
+
+`overall_weekly_rank`/`position_weekly_rank` are computed **only among players who have a returned
+stat line that week** — the response's `methodology.description` says so explicitly, since a rank
+is meaningless without the pool it was computed against.
+
+The provider abstraction (`PlayerStatsProvider`) means a different source can be swapped in later
+without changing anything downstream.
+
+### `GET /api/roster-analysis`
+
+Deterministic structural facts only — composition, age, slot coverage, auction spend, draft-pick
+ownership. **FLEX/SUPER_FLEX handling reuses the exact same logic `/api/draft` already uses**
+(`computeRosterNeeds` in `lib/sleeper/draft.ts`), so a roster is never described as "needing a WR"
+merely because a FLEX slot is open — that distinction (`strict_slots_filled` vs.
+`flexible_slots_remaining`) is enforced in one place across the whole bridge. Auction spend
+(`total_spend`, `average_acquisition_cost`, `remaining_budget`) is `null` — not `0` — for any
+roster with no known acquisition prices.
+
+### `GET /api/snapshot`
+
+The compact, AI-friendly current-state view — composed from already-built pieces of `/api/league`,
+`/api/draft`, `/api/scoring`, and this analytics layer, **not a concatenation of their full
+payloads** (`/api/league`'s per-player detail and `/api/draft`'s available-player pool are both
+deliberately left out). Optimized for "analyze my league", "what happened recently", "what do the
+standings look like" style questions. Typically ~10 KB.
+
+### Manager identity, summarized
+
+Sleeper's `user_id` is the one stable identity across a league's entire lineage — it survives
+league renames, roster reassignment, and season-to-season `league_id` churn. Every analytics
+endpoint that aggregates "by manager" (`/api/managers`, trade `sides[]`) keys off `user_id`, never
+off a roster's `owner_id` in isolation (which is only stable _within_ one season) or off
+`display_name` (which a manager can change at any time).
+
+### Known limitations
+
+- **Single season of real data.** Bloodline Bowl has no `previous_league_id`, so `/api/history` and
+  `/api/managers` currently report on one season; the lineage-walking and cross-season aggregation
+  code is exercised by unit tests against synthetic multi-season fixtures, not yet against a real
+  multi-season Bloodline Bowl history.
+- **No player-value provider configured** (see `/api/value` above) — this is a documented,
+  intentional gap, not an oversight.
+- **`/api/managers`'s transaction sweep costs up to 18 Sleeper calls per season** it aggregates.
+  Fine for one season; would need the longer historical cache tier to matter once seasons pile up
+  (it already gets it).
+- **Weekly stats depend on Sleeper's undocumented stats endpoint.** It has been reliable and public
+  throughout this project, but it is not part of Sleeper's official API surface, so a future
+  provider swap (behind the existing `PlayerStatsProvider` interface) may become necessary.
+
 ## Caching
 
-| Data                                  | Strategy                                             | Why                                                               |
-| ------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
-| League, users, rosters, drafts, picks | Next data cache, 5 min                               | Changes slowly; keeps Sleeper calls low                           |
-| `/api/league` response                | CDN `s-maxage=300, stale-while-revalidate=900`       | Vercel serves instantly, refreshes in background                  |
-| `/players/nfl` (~14 MB)               | In-memory, 24 h TTL, module scope                    | Sleeper's docs: _"use this call sparingly… once per day at most"_ |
-| Draft object + picks (during a draft) | Uncached (`no-store`)                                | Live bidding must be current                                      |
-| `/api/draft` response                 | 5s while drafting, 30s pre-draft, 300s once complete | Fresh enough to poll, cheap enough to spam                        |
-| `/api/health`                         | `no-store`                                           | Must reflect live state                                           |
+| Data                                            | Strategy                                             | Why                                                               |
+| ----------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
+| League, users, rosters, drafts, picks           | Next data cache, 5 min                               | Changes slowly; keeps Sleeper calls low                           |
+| `/api/league` response                          | CDN `s-maxage=300, stale-while-revalidate=900`       | Vercel serves instantly, refreshes in background                  |
+| `/players/nfl` (~14 MB)                         | In-memory, 24 h TTL, module scope                    | Sleeper's docs: _"use this call sparingly… once per day at most"_ |
+| Draft object + picks (during a draft)           | Uncached (`no-store`)                                | Live bidding must be current                                      |
+| `/api/draft` response                           | 5s while drafting, 30s pre-draft, 300s once complete | Fresh enough to poll, cheap enough to spam                        |
+| Historical seasons (all analytics endpoints)    | Next data cache, 24 h                                | A finished season's results never change                          |
+| Current-season league/users/rosters (analytics) | Next data cache, 1-5 min                             | Same freshness tier as `/api/league`'s core resources             |
+| Current-week matchups / transactions            | Next data cache, 60s                                 | Changes during the week, but not second to second                 |
+| Weekly stats: a completed week                  | Next data cache, 1 h                                 | The box score is final                                            |
+| Weekly stats: the current week                  | Next data cache, 5 min                               | Stats can still update as late games finish                       |
+| `/api/value`                                    | CDN 1 h                                              | No live source configured; nothing to invalidate quickly          |
+| `/api/snapshot`                                 | CDN `s-maxage=30, stale-while-revalidate=60`         | Composed from live pieces; kept close to real-time                |
+| `/api/health`                                   | `no-store`                                           | Must reflect live state                                           |
 
 The player database is too large for Next's data cache (2 MB per entry), so it is fetched with
 `no-store`, trimmed to ~13 fields per player on the way in, and held in module scope — which
@@ -643,11 +877,13 @@ npm test
 
 `npm run lint` drives ESLint directly — Next 16 removed the `next lint` command.
 
-`npm test` runs 183 tests: normalization and draft-logic units against a synthetic league built
+`npm test` runs 230 tests: normalization and draft-logic units against a synthetic league built
 from **real** Sleeper player IDs, a simulated mid-auction exercising the full team-assembly
-pipeline, the scoring engine's yardage/TD/archetype/sensitivity math, and live end-to-end tests
-against the actual Bloodline Bowl league — including its actual scoring settings — plus error
-paths (404, timeout, degraded player database). The live tests require network access.
+pipeline, the scoring engine's yardage/TD/archetype/sensitivity math, the factual analytics layer's
+standings/transaction/roster/weekly-stat calculations, and live end-to-end tests against the actual
+Bloodline Bowl league — including a scan of every analytics response for forbidden subjective
+fields — plus error paths (404, timeout, degraded player database). The live tests require network
+access.
 
 ### Configuration
 

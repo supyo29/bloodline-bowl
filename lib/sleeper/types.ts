@@ -511,3 +511,76 @@ export interface DraftResponse {
     build_ms: number;
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Transactions, matchups, brackets, weekly stats                              */
+/* -------------------------------------------------------------------------- */
+
+export interface RawTransaction {
+  transaction_id: string;
+  type: string; // "trade" | "waiver" | "free_agent" | "commissioner"
+  status: string;
+  status_updated: number | null;
+  created: number | null;
+  /** The week this transaction was processed in, if applicable. */
+  leg: number | null;
+  roster_ids: number[];
+  /** player_id -> roster_id that acquired it. Null when nothing was added. */
+  adds: Record<string, number> | null;
+  /** player_id -> roster_id that dropped it. Null when nothing was dropped. */
+  drops: Record<string, number> | null;
+  draft_picks: Array<{
+    season: string;
+    round: number;
+    roster_id: number;
+    previous_owner_id: number;
+    owner_id: number;
+  }> | null;
+  waiver_budget: Array<{
+    sender: number;
+    receiver: number;
+    amount: number;
+  }> | null;
+  settings: Record<string, number> | null;
+  /** Roster ids that agreed to a trade. Null for non-trade transactions. */
+  consenter_ids: number[] | null;
+}
+
+/** One roster's entry for a given week; two share a `matchup_id` to form a game. */
+export interface RawMatchup {
+  roster_id: number;
+  matchup_id: number | null;
+  points: number | null;
+  players: string[] | null;
+  starters: string[] | null;
+  players_points: Record<string, number> | null;
+  starters_points: Record<string, number> | null;
+  custom_points: number | null;
+}
+
+/** One playoff bracket match, from `/winners_bracket` or `/losers_bracket`. */
+export interface RawBracketMatch {
+  /** Match id, unique within the bracket. */
+  m: number;
+  /** Round number. */
+  r: number;
+  /** Winner's roster_id, once played. Null before completion. */
+  w: number | null;
+  /** Loser's roster_id, once played. Null before completion. */
+  l: number | null;
+  t1: number | null;
+  t2: number | null;
+  t1_from?: { w?: number; l?: number };
+  t2_from?: { w?: number; l?: number };
+  /** Final standing this match determines (1 = championship), when applicable. */
+  p?: number;
+}
+
+/**
+ * A raw weekly stat line from Sleeper's stats endpoint. Keys overlap heavily
+ * with `scoring_settings` keys (e.g. `pass_yd`, `rec`, `fgm`), plus Sleeper's
+ * own precomputed `pts_*` fields, which are deliberately NOT used as this
+ * bridge's source of truth — Bloodline Bowl's own scoring engine is applied to
+ * the raw counting stats instead.
+ */
+export type RawPlayerWeeklyStats = Record<string, number>;

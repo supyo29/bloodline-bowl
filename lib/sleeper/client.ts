@@ -14,14 +14,18 @@
  */
 
 import type {
+  RawBracketMatch,
   RawDraft,
   RawDraftPick,
   RawLeague,
   RawLeagueUser,
+  RawMatchup,
   RawNflState,
   RawPlayer,
+  RawPlayerWeeklyStats,
   RawRoster,
   RawTradedPick,
+  RawTransaction,
   NormalizedPlayer,
 } from "./types";
 
@@ -163,26 +167,103 @@ export function getNflState(): Promise<RawNflState> {
   return fetchSleeper<RawNflState>("/state/nfl");
 }
 
-export function getLeague(leagueId: string): Promise<RawLeague> {
-  return fetchSleeper<RawLeague>(`/league/${leagueId}`);
+export function getLeague(
+  leagueId: string,
+  options: { revalidate?: number } = {},
+): Promise<RawLeague> {
+  return fetchSleeper<RawLeague>(`/league/${leagueId}`, options);
 }
 
-export function getLeagueUsers(leagueId: string): Promise<RawLeagueUser[]> {
-  return fetchSleeper<RawLeagueUser[]>(`/league/${leagueId}/users`);
+export function getLeagueUsers(
+  leagueId: string,
+  options: { revalidate?: number } = {},
+): Promise<RawLeagueUser[]> {
+  return fetchSleeper<RawLeagueUser[]>(`/league/${leagueId}/users`, options);
 }
 
-export function getLeagueRosters(leagueId: string): Promise<RawRoster[]> {
-  return fetchSleeper<RawRoster[]>(`/league/${leagueId}/rosters`);
+export function getLeagueRosters(
+  leagueId: string,
+  options: { revalidate?: number } = {},
+): Promise<RawRoster[]> {
+  return fetchSleeper<RawRoster[]>(`/league/${leagueId}/rosters`, options);
 }
 
-export function getLeagueDrafts(leagueId: string): Promise<RawDraft[]> {
-  return fetchSleeper<RawDraft[]>(`/league/${leagueId}/drafts`);
+export function getLeagueDrafts(
+  leagueId: string,
+  options: { revalidate?: number } = {},
+): Promise<RawDraft[]> {
+  return fetchSleeper<RawDraft[]>(`/league/${leagueId}/drafts`, options);
 }
 
 export function getLeagueTradedPicks(
   leagueId: string,
 ): Promise<RawTradedPick[]> {
   return fetchSleeper<RawTradedPick[]>(`/league/${leagueId}/traded_picks`);
+}
+
+/** Long-lived: fully historical seasons rarely need re-fetching. */
+export const HISTORICAL_REVALIDATE_SECONDS = 24 * 60 * 60;
+/** Short-lived: current-season league facts that change during the week. */
+export const LIVE_REVALIDATE_SECONDS = 60;
+
+export function getLeagueTransactions(
+  leagueId: string,
+  week: number,
+  options: { revalidate?: number } = {},
+): Promise<RawTransaction[]> {
+  return fetchSleeper<RawTransaction[]>(
+    `/league/${leagueId}/transactions/${week}`,
+    options,
+  );
+}
+
+export function getMatchups(
+  leagueId: string,
+  week: number,
+  options: { revalidate?: number } = {},
+): Promise<RawMatchup[]> {
+  return fetchSleeper<RawMatchup[]>(
+    `/league/${leagueId}/matchups/${week}`,
+    options,
+  );
+}
+
+export function getWinnersBracket(
+  leagueId: string,
+  options: { revalidate?: number } = {},
+): Promise<RawBracketMatch[]> {
+  return fetchSleeper<RawBracketMatch[]>(
+    `/league/${leagueId}/winners_bracket`,
+    options,
+  );
+}
+
+export function getLosersBracket(
+  leagueId: string,
+  options: { revalidate?: number } = {},
+): Promise<RawBracketMatch[]> {
+  return fetchSleeper<RawBracketMatch[]>(
+    `/league/${leagueId}/losers_bracket`,
+    options,
+  );
+}
+
+/**
+ * Sleeper's own weekly stats dump: player_id -> raw counting stats. This is an
+ * undocumented but public, same-domain Sleeper endpoint — not a third-party
+ * scrape and not a paid service. Its keys overlap with `scoring_settings`
+ * keys, which is what lets Bloodline Bowl's own scoring engine be applied to
+ * the raw stats directly instead of trusting Sleeper's precomputed points.
+ */
+export function getWeeklyStats(
+  season: string,
+  week: number,
+  options: { revalidate?: number } = {},
+): Promise<Record<string, RawPlayerWeeklyStats>> {
+  return fetchSleeper<Record<string, RawPlayerWeeklyStats>>(
+    `/stats/nfl/regular/${season}/${week}`,
+    options,
+  );
 }
 
 export function getDraftPicks(

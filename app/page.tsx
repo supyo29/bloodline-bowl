@@ -23,6 +23,15 @@ const endpoints = [
       "Scoring rules, derived metrics, archetype examples, sensitivity, and diagnostics.",
   },
   {
+    path: "/api/snapshot",
+    description: "Compact, AI-friendly current-state view of the whole league.",
+  },
+  {
+    path: "/api/standings",
+    description:
+      "Factual records plus weekly-score statistics. See README for the full analytics layer.",
+  },
+  {
     path: "/api/health",
     description: "Liveness probe and player-cache status.",
   },
