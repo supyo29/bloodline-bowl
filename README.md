@@ -15,6 +15,10 @@ draft picks", and "what are the scoring rules" without a single screenshot or ma
 During the draft, point it at `/api/draft` instead for a live war-room view: who has been taken,
 what they cost, who is left, and exactly how much each rival can still bid.
 
+To evaluate the league's scoring rules — is a rushing QB favored over a pocket passer, does the
+reception value overvalue possession receivers, how would a small scoring tweak ripple across
+positions — point it at `/api/scoring`.
+
 **League ID:** `1395549281678532608`
 
 ---
@@ -25,14 +29,14 @@ Sleeper's public API is normalized for storage, not for analysis. Rosters are ar
 player IDs, managers are separate from teams, lineup slots are positional, and traded picks only
 appear when they've changed hands. This bridge does the joins:
 
-| Sleeper gives you | The bridge gives you |
-| --- | --- |
-| `"players": ["4046", "6794"]` | Full player objects with name, position, NFL team, age, injury status |
-| `owner_id` on a roster, users in a separate call | A `manager` object attached to each team |
-| `"starters": ["4046", "0", …]` positional array | Each starter paired with the lineup slot it fills, empty slots flagged |
-| Only *traded* picks | Every roster's complete pick inventory, filed under its current owner |
-| A 14 MB player database | Only the players this league actually references |
-| Terse settings like `waiver_type: 2` | A `key_settings` gloss (`"waiver_type": "faab"`) alongside the raw values |
+| Sleeper gives you                                | The bridge gives you                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `"players": ["4046", "6794"]`                    | Full player objects with name, position, NFL team, age, injury status     |
+| `owner_id` on a roster, users in a separate call | A `manager` object attached to each team                                  |
+| `"starters": ["4046", "0", …]` positional array  | Each starter paired with the lineup slot it fills, empty slots flagged    |
+| Only _traded_ picks                              | Every roster's complete pick inventory, filed under its current owner     |
+| A 14 MB player database                          | Only the players this league actually references                          |
+| Terse settings like `waiver_type: 2`             | A `key_settings` gloss (`"waiver_type": "faab"`) alongside the raw values |
 
 Original Sleeper IDs are preserved everywhere, so nothing is lost for debugging or future joins.
 
@@ -74,10 +78,10 @@ Answers, at any moment: who has been drafted and by whom, what each player cost,
 who remains available, how much budget each manager has left, **the largest bid each
 manager can still make**, and what positions each roster still needs.
 
-| Query parameter | Default | Notes |
-| --- | --- | --- |
-| `available_limit` | `300` | 1–1000. Caps the available-player pool. |
-| `position` | none | One of `QB`, `RB`, `WR`, `TE`, `K`, `DEF`. Validated against the league's own roster positions. |
+| Query parameter   | Default | Notes                                                                                           |
+| ----------------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `available_limit` | `300`   | 1–1000. Caps the available-player pool.                                                         |
+| `position`        | none    | One of `QB`, `RB`, `WR`, `TE`, `K`, `DEF`. Validated against the league's own roster positions. |
 
 ```bash
 curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/draft?position=RB&available_limit=20"
@@ -91,6 +95,65 @@ Sanitized dump of the raw Sleeper draft fields — draft settings, the metadata 
 Sleeper actually returns on picks, and whether an `amount` field is present. Exists to
 verify auction-price behavior on draft night. Takes no parameters and is safe to delete;
 nothing else imports it.
+
+### `GET /api/scoring`
+
+Normalized Bloodline Bowl scoring rules plus derived metrics, cross-category
+comparisons, player-archetype examples, sensitivity analysis, and evidence-based
+diagnostics — built for an AI to assess scoring balance without hand-parsing
+Sleeper's raw keys.
+
+```text
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/scoring
+```
+
+Answers questions like "are rushing touchdowns worth more than passing touchdowns",
+"how much does a 0.5-point reception bump favor pass-catching backs over pocket
+passers", and "is field-goal distance rewarded at all" directly from the league's
+live `scoring_settings` — nothing is hardcoded to a generic PPR/half-PPR/standard
+format.
+
+Every raw Sleeper scoring key is preserved verbatim in `scoring.raw` and also
+appears in `scoring.normalized` with a readable label and category. A key with no
+built-in label still appears (never dropped) with a generated label and a warning
+in `metadata.warnings`.
+
+`archetype_examples` and `sensitivity` are both computed by the same scoring engine
+that powers `/api/scoring/calculate` — nothing in either section is hardcoded.
+
+### `POST /api/scoring/calculate`
+
+Apply the league's live scoring settings to an arbitrary stat line — useful for
+simulations. Read-only and stateless; no authentication.
+
+```bash
+curl -X POST "https://bloodline-bowl-sleeper-bridge.vercel.app/api/scoring/calculate" \
+  -H "Content-Type: application/json" \
+  -d '{"stats": {"pass_yd": 300, "pass_td": 2, "pass_int": 1, "rush_yd": 20}}'
+```
+
+```json
+{
+  "fantasy_points": 20,
+  "breakdown": [
+    {
+      "stat": "pass_yd",
+      "label": "Passing yard",
+      "category": "passing",
+      "value": 300,
+      "multiplier": 0.04,
+      "points": 12
+    }
+  ],
+  "warnings": []
+}
+```
+
+Only stat keys the league's own scoring settings actually define are accepted — an
+unrecognized key is dropped with a warning rather than silently scored as zero
+without explanation, and a request containing _only_ unrecognized keys is rejected
+with `400`. The body is capped at 16KB and 60 stat keys, and each value is bounded
+to keep this from being usable as an arbitrary compute sink.
 
 ### `GET /api/health`
 
@@ -358,6 +421,8 @@ app/
     league/route.ts     HTTP handling, status codes, cache headers
     draft/route.ts      live draft view (query validation + cache policy)
     draft/debug/route.ts  sanitized raw draft fields
+    scoring/route.ts     normalized scoring rules, derived metrics, diagnostics
+    scoring/calculate/route.ts  POST: apply live scoring to a caller-supplied stat line
     health/route.ts     liveness probe
     raw/route.ts        allowlisted raw passthrough
   page.tsx              minimal status page
@@ -373,6 +438,15 @@ lib/
     budget.ts           pure auction budget math
     draft.ts            pure draft logic: needs, availability, team assembly
     draft-service.ts    /api/draft orchestration + tiered fetch freshness
+  scoring/
+    types.ts             scoring-analysis response types
+    catalog.ts           Sleeper scoring-key -> label/category lookup
+    calculate.ts         the scoring engine: calculateFantasyPoints()
+    normalize.ts         derived metrics, comparisons, classification
+    archetypes.ts        fixed diagnostic player stat lines
+    sensitivity.ts        modest scoring-change impact analysis
+    diagnostics.ts        evidence-based scoring-balance flags
+    scoring-service.ts    /api/scoring orchestration
 
 test/
   fixtures.ts             synthetic league using real Sleeper player IDs
@@ -381,6 +455,8 @@ test/
   draft.test.ts           budget, needs, availability, query validation
   draft-simulation.test.ts  full team assembly against a simulated mid-auction
   draft-live.test.ts      /api/draft end-to-end against the real league
+  scoring.test.ts          scoring engine: yardage/TD math, archetypes, sensitivity, diagnostics
+  scoring-live.test.ts     /api/scoring end-to-end against the real league's live settings
 ```
 
 The layering is deliberate: `normalize.ts` is pure and has no knowledge of HTTP, so it is directly
@@ -397,7 +473,7 @@ This is the subtlest part. Per Sleeper's docs, `/league/{id}/traded_picks` retur
 
 Critically, it only returns picks that have **changed hands**. Picks still held by their original
 owner are never listed. So to answer "what draft capital does each team control", the bridge
-*synthesizes* the full inventory — every roster starts owning its own pick in every round — and
+_synthesizes_ the full inventory — every roster starts owning its own pick in every round — and
 then applies the trades on top. Each pick carries `rounds_source` (`draft`, `league_settings`, or
 `traded_picks`) so you can see where the round count came from.
 
@@ -441,7 +517,7 @@ reserve    = (slots_remaining - 1) * minimum_bid
 max_bid    = remaining - reserve
 ```
 
-The reserve is what a manager must hold back to fill every *other* remaining slot at
+The reserve is what a manager must hold back to fill every _other_ remaining slot at
 the minimum bid. A manager with $83 and 6 slots left can bid at most **$78**; with one
 slot left they can spend everything.
 
@@ -451,7 +527,7 @@ Sleeper exposes **no minimum-bid setting**, so $1 is assumed and labelled as suc
 ### Positional needs and FLEX
 
 `needs.required` lists only **strict** starting slots that are genuinely unfilled. A
-team with two RBs and an empty FLEX is *not* reported as needing a third RB — flex
+team with two RBs and an empty FLEX is _not_ reported as needing a third RB — flex
 capacity is reported separately as `flexible_slots_remaining`.
 
 Acquired players are matched to slots with a most-constrained-first greedy assignment,
@@ -469,16 +545,70 @@ Unfiltered responses therefore guarantee a minimum number of candidates per requ
 starting position before filling the rest by rank. Defenses are returned in
 deterministic alphabetical order, since Sleeper provides no ranking to sort them by.
 
+## Scoring analysis
+
+### Bloodline Bowl's actual classification
+
+Read live from Sleeper, not assumed:
+
+```text
+base: half_ppr (0.5 points per reception)
+```
+
+Features actually present in the live settings (only what the settings evidence, nothing assumed):
+
+- 4-point passing touchdown
+- 6-point rushing touchdown (a 2-point premium over passing)
+- 6-point receiving touchdown (a 2-point premium over passing)
+- 2QB (two dedicated starting quarterback slots — not Superflex)
+- Points-allowed penalty for team defense, continuous rather than tiered (all point-allowed
+  tier bonuses are set to zero; defense loses 0.25 points per point allowed instead)
+- Flat field-goal scoring — a field goal is worth 3 points regardless of distance (all
+  distance-tier bonuses are zero)
+- Quarterback-sacked penalty (-1 point)
+- 2-point conversions scored
+
+No TE-premium bonus is configured, so that diagnostic correctly never fires.
+
+### Notable tendencies the diagnostics surface
+
+- **Rushing and receiving touchdowns are worth 2 more points than passing touchdowns**
+  (6 vs. 4) — `rushing_td_premium` and `receiving_td_premium`, both `notable`.
+- **Rushing yardage is worth 2.5x passing yardage per yard** (0.1 vs. 0.04) —
+  `rushing_yardage_premium`, `notable`. Combined with the TD premium above, dual-threat
+  quarterbacks and touchdown-scoring backs are structurally favored over pocket passers on a
+  per-play basis.
+- **Team defense scoring is a continuous points-allowed penalty**, not the tiered bonus most
+  leagues use — `defense_points_allowed_penalty`, `notable`.
+- Reception value (0.5), the sack penalty (-1), and flat kicker scoring are all present but
+  only `informational` — none represents an unusual departure from common league norms.
+
+These are diagnostics, not verdicts — the endpoint surfaces evidence (`severity` +
+a plain-English `message` naming the exact settings compared) for an AI or a commissioner to
+weigh, not a judgment that the scoring system is unbalanced.
+
+### Player archetypes: the same engine, no hardcoded totals
+
+`archetype_examples` and `sensitivity` both call the same `calculateFantasyPoints()` used by
+`POST /api/scoring/calculate` — there is no separate hardcoded table to drift out of sync. A test
+(`scoring.test.ts`) asserts every archetype total matches a fresh call to the engine.
+
+Under the live settings, the receiving RB archetype (50 rush yd, 8 rec, 70 rec yd) scores lower
+than the workhorse RB (100 rush yd, 1 rush TD, 3 rec, 20 rec yd) — 16 vs. 19.5 — because half-PPR
+reception value does not fully offset the rushing-touchdown premium here. `sensitivity` shows
+exactly how much that would shift under a modest scoring change (e.g. `reception_plus_0_5` adds
++4 to the receiving RB).
+
 ## Caching
 
-| Data | Strategy | Why |
-| --- | --- | --- |
-| League, users, rosters, drafts, picks | Next data cache, 5 min | Changes slowly; keeps Sleeper calls low |
-| `/api/league` response | CDN `s-maxage=300, stale-while-revalidate=900` | Vercel serves instantly, refreshes in background |
-| `/players/nfl` (~14 MB) | In-memory, 24 h TTL, module scope | Sleeper's docs: *"use this call sparingly… once per day at most"* |
-| Draft object + picks (during a draft) | Uncached (`no-store`) | Live bidding must be current |
-| `/api/draft` response | 5s while drafting, 30s pre-draft, 300s once complete | Fresh enough to poll, cheap enough to spam |
-| `/api/health` | `no-store` | Must reflect live state |
+| Data                                  | Strategy                                             | Why                                                               |
+| ------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
+| League, users, rosters, drafts, picks | Next data cache, 5 min                               | Changes slowly; keeps Sleeper calls low                           |
+| `/api/league` response                | CDN `s-maxage=300, stale-while-revalidate=900`       | Vercel serves instantly, refreshes in background                  |
+| `/players/nfl` (~14 MB)               | In-memory, 24 h TTL, module scope                    | Sleeper's docs: _"use this call sparingly… once per day at most"_ |
+| Draft object + picks (during a draft) | Uncached (`no-store`)                                | Live bidding must be current                                      |
+| `/api/draft` response                 | 5s while drafting, 30s pre-draft, 300s once complete | Fresh enough to poll, cheap enough to spam                        |
+| `/api/health`                         | `no-store`                                           | Must reflect live state                                           |
 
 The player database is too large for Next's data cache (2 MB per entry), so it is fetched with
 `no-store`, trimmed to ~13 fields per player on the way in, and held in module scope — which
@@ -513,17 +643,18 @@ npm test
 
 `npm run lint` drives ESLint directly — Next 16 removed the `next lint` command.
 
-`npm test` runs 124 tests: normalization and draft-logic units against a synthetic league built
+`npm test` runs 183 tests: normalization and draft-logic units against a synthetic league built
 from **real** Sleeper player IDs, a simulated mid-auction exercising the full team-assembly
-pipeline, and live end-to-end tests against the actual Bloodline Bowl league plus error paths
-(404, timeout, degraded player database). The live tests require network access.
+pipeline, the scoring engine's yardage/TD/archetype/sensitivity math, and live end-to-end tests
+against the actual Bloodline Bowl league — including its actual scoring settings — plus error
+paths (404, timeout, degraded player database). The live tests require network access.
 
 ### Configuration
 
 No credentials are needed — Sleeper's read endpoints are public and unauthenticated.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
+| Variable            | Default               | Purpose                                                  |
+| ------------------- | --------------------- | -------------------------------------------------------- |
 | `SLEEPER_LEAGUE_ID` | `1395549281678532608` | Point the bridge at a different league. Must be numeric. |
 
 ---
@@ -532,11 +663,11 @@ No credentials are needed — Sleeper's read endpoints are public and unauthenti
 
 Already deployed:
 
-| | |
-| --- | --- |
-| Production | <https://bloodline-bowl-sleeper-bridge.vercel.app> |
-| Main endpoint | <https://bloodline-bowl-sleeper-bridge.vercel.app/api/league> |
-| Vercel project | `supyo29s-projects/bloodline-bowl-sleeper-bridge` |
+|                |                                                               |
+| -------------- | ------------------------------------------------------------- |
+| Production     | <https://bloodline-bowl-sleeper-bridge.vercel.app>            |
+| Main endpoint  | <https://bloodline-bowl-sleeper-bridge.vercel.app/api/league> |
+| Vercel project | `supyo29s-projects/bloodline-bowl-sleeper-bridge`             |
 
 To ship subsequent changes:
 

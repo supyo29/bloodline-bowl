@@ -18,6 +18,11 @@ const endpoints = [
       "Live draft-night view: acquisitions, budgets, max bids, and available players.",
   },
   {
+    path: "/api/scoring",
+    description:
+      "Scoring rules, derived metrics, archetype examples, sensitivity, and diagnostics.",
+  },
+  {
     path: "/api/health",
     description: "Liveness probe and player-cache status.",
   },
