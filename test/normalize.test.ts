@@ -87,6 +87,7 @@ describe("player database", () => {
     assert.deepEqual(
       Object.keys(mahomes).sort(),
       [
+        "active",
         "age",
         "fantasy_positions",
         "first_name",
@@ -97,6 +98,7 @@ describe("player database", () => {
         "player_id",
         "position",
         "resolved",
+        "search_rank",
         "status",
         "team",
         "years_exp",

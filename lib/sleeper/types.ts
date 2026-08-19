@@ -176,6 +176,13 @@ export interface NormalizedPlayer {
   status: string | null;
   injury_status: string | null;
   number: number | null;
+  /** Whether Sleeper still lists the player as active in the NFL. */
+  active: boolean | null;
+  /**
+   * Sleeper's own relevance ordering (lower is more prominent). Used to rank
+   * the available-player pool during a draft rather than inventing rankings.
+   */
+  search_rank: number | null;
   /** False when the id was not found in Sleeper's player database. */
   resolved: boolean;
 }
@@ -363,6 +370,144 @@ export interface LeagueResponse {
     player_database_size: number;
     warnings: ResponseWarning[];
     /** Milliseconds spent assembling this response. */
+    build_ms: number;
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live draft endpoint (`GET /api/draft`)                                      */
+/* -------------------------------------------------------------------------- */
+
+/** A completed acquisition, trimmed for repeated polling during a draft. */
+export interface DraftAcquisition {
+  pick_no: number;
+  round: number;
+  draft_slot: number;
+  roster_id: number | null;
+  manager: {
+    user_id: string | null;
+    display_name: string | null;
+  };
+  player: NormalizedPlayer | null;
+  /** Winning auction bid, or null when Sleeper did not expose one. */
+  price: number | null;
+  is_keeper: boolean;
+}
+
+export interface DraftBudgetInfo {
+  /** True only for auction drafts that expose a per-team budget. */
+  supported: boolean;
+  /** Where prices come from, or null when unsupported. */
+  source: "sleeper_pick_metadata" | null;
+  /** Present only when `supported` is false. */
+  reason?: string;
+  starting_budget_per_team: number | null;
+  minimum_bid: number;
+  /** Sleeper exposes no minimum-bid setting, so this is normally assumed. */
+  minimum_bid_source: "draft_settings" | "assumed_default";
+  /**
+   * Whether completed picks actually carried prices. Null before any pick is
+   * made, since there is nothing to judge yet.
+   */
+  prices_available: boolean | null;
+  /** Completed picks with no price attached. */
+  picks_missing_price: number;
+}
+
+export interface DraftTeam {
+  roster_id: number;
+  draft_slot: number | null;
+  manager: {
+    user_id: string | null;
+    display_name: string | null;
+    team_name: string | null;
+    is_vacant: boolean;
+  };
+  players_acquired: Array<{
+    player_id: string;
+    full_name: string;
+    position: string | null;
+    team: string | null;
+    price: number | null;
+    pick_no: number;
+  }>;
+  roster: {
+    players_acquired: number;
+    slots_required: number;
+    slots_remaining: number;
+  };
+  /** Null for non-auction drafts. */
+  budget: {
+    starting: number;
+    spent: number;
+    remaining: number;
+    minimum_required_for_remaining_slots: number;
+    maximum_single_bid: number;
+    can_bid: boolean;
+  } | null;
+  positions: Record<string, number>;
+  needs: {
+    required: Array<{ position: string; minimum_needed: number }>;
+    flexible_slots_remaining: number;
+    bench_slots_remaining: number;
+    starters_filled: number;
+    starters_required: number;
+  };
+}
+
+export interface DraftResponse {
+  generated_at: string;
+  source: "Sleeper";
+  league_id: string;
+  draft: {
+    draft_id: string;
+    season: string;
+    status: string;
+    /** Plain-English gloss, since Sleeper's status values are terse. */
+    status_description: string;
+    type: string;
+    rounds: number;
+    total_picks: number;
+    completed_picks: number;
+    remaining_picks: number;
+    /** Sleeper's last-pick timestamp, when present. */
+    last_picked_at: string | null;
+    nomination_timer_seconds: number | null;
+    pick_timer_seconds: number | null;
+  } | null;
+  budget: DraftBudgetInfo;
+  last_pick: DraftAcquisition | null;
+  teams: DraftTeam[];
+  picks: DraftAcquisition[];
+  available_players: NormalizedPlayer[];
+  market: {
+    /** Null for non-auction drafts. */
+    highest_remaining_budget: number | null;
+    lowest_remaining_budget: number | null;
+    largest_max_bid: number | null;
+    /** Roster ids that can still outbid everyone else, most capable first. */
+    top_bidders: Array<{
+      roster_id: number;
+      display_name: string | null;
+      maximum_single_bid: number;
+      remaining: number;
+      slots_remaining: number;
+    }>;
+  };
+  metadata: {
+    polling_safe: boolean;
+    cache_seconds: number;
+    team_count: number;
+    available_players: {
+      returned: number;
+      total_matching: number;
+      limit: number;
+      position_filter: string | null;
+      /** How the pool was ordered and what coverage is guaranteed. */
+      ordering: string;
+    };
+    player_database_size: number;
+    warnings: ResponseWarning[];
     build_ms: number;
   };
 }

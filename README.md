@@ -12,6 +12,9 @@ https://bloodline-bowl-sleeper-bridge.vercel.app/api/league
 …and it can answer "who owns each team", "what does every roster look like", "who holds which
 draft picks", and "what are the scoring rules" without a single screenshot or manual export.
 
+During the draft, point it at `/api/draft` instead for a live war-room view: who has been taken,
+what they cost, who is left, and exactly how much each rival can still bid.
+
 **League ID:** `1395549281678532608`
 
 ---
@@ -59,9 +62,40 @@ Top-level keys:
 **Error responses:** `404` league not found, `429` rate limited, `502` upstream failure,
 `504` timeout, `500` internal. All return `{ ok: false, error, detail, status }`.
 
+### `GET /api/draft`
+
+Live draft-night view, built for repeated polling by an AI during the auction.
+
+```text
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/draft
+```
+
+Answers, at any moment: who has been drafted and by whom, what each player cost,
+who remains available, how much budget each manager has left, **the largest bid each
+manager can still make**, and what positions each roster still needs.
+
+| Query parameter | Default | Notes |
+| --- | --- | --- |
+| `available_limit` | `300` | 1–1000. Caps the available-player pool. |
+| `position` | none | One of `QB`, `RB`, `WR`, `TE`, `K`, `DEF`. Validated against the league's own roster positions. |
+
+```bash
+curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/draft?position=RB&available_limit=20"
+```
+
+Response headers carry `X-Draft-Status` and a status-dependent `Cache-Control`.
+
+### `GET /api/draft/debug`
+
+Sanitized dump of the raw Sleeper draft fields — draft settings, the metadata keys
+Sleeper actually returns on picks, and whether an `amount` field is present. Exists to
+verify auction-price behavior on draft night. Takes no parameters and is safe to delete;
+nothing else imports it.
+
 ### `GET /api/health`
 
-Liveness probe. Never calls Sleeper.
+Liveness probe. Makes no upstream calls by default; pass `?draft=1` to also report the
+active draft's id and status (two small cached Sleeper calls).
 
 ```json
 {
@@ -322,6 +356,8 @@ counts such as `claimed_teams` change as managers join.
 app/
   api/
     league/route.ts     HTTP handling, status codes, cache headers
+    draft/route.ts      live draft view (query validation + cache policy)
+    draft/debug/route.ts  sanitized raw draft fields
     health/route.ts     liveness probe
     raw/route.ts        allowlisted raw passthrough
   page.tsx              minimal status page
@@ -332,13 +368,19 @@ lib/
   sleeper/
     types.ts            raw Sleeper types + normalized output types
     client.ts           HTTP client: timeouts, retries, player-DB cache
-    normalize.ts        pure normalization functions (no HTTP)
-    service.ts          orchestration + graceful degradation
+    normalize.ts        pure normalization for /api/league (no HTTP)
+    service.ts          /api/league orchestration + graceful degradation
+    budget.ts           pure auction budget math
+    draft.ts            pure draft logic: needs, availability, team assembly
+    draft-service.ts    /api/draft orchestration + tiered fetch freshness
 
 test/
-  fixtures.ts           synthetic league using real Sleeper player IDs
-  normalize.test.ts     normalization unit tests
-  live.test.ts          end-to-end against the real Sleeper API
+  fixtures.ts             synthetic league using real Sleeper player IDs
+  normalize.test.ts       normalization unit tests
+  live.test.ts            end-to-end against the real Sleeper API
+  draft.test.ts           budget, needs, availability, query validation
+  draft-simulation.test.ts  full team assembly against a simulated mid-auction
+  draft-live.test.ts      /api/draft end-to-end against the real league
 ```
 
 The layering is deliberate: `normalize.ts` is pure and has no knowledge of HTTP, so it is directly
@@ -372,6 +414,61 @@ stubs (`resolved: false`) with their IDs intact rather than disappearing.
 
 ---
 
+## Draft night
+
+### Does Sleeper expose auction prices?
+
+**Yes — but undocumented.** Sleeper puts the winning bid in each pick's
+`metadata.amount`, as a string (`"amount": "42"`). This field appears in **no**
+official Sleeper documentation, so it is parsed defensively: a missing or
+unparseable value yields `price: null` rather than a fabricated number, and the
+response reports how many picks lacked one.
+
+Because the Bloodline Bowl draft has not run yet, this could not be confirmed
+against live picks. `/api/draft/debug` reports `metadata_keys_seen` and
+`has_amount_field` so the first real pick will settle it immediately. If the field
+turns out to be absent, `budget.prices_available` flips to `false` and a warning is
+emitted — the endpoint degrades honestly instead of reporting wrong budgets.
+
+### Budget and maximum bid
+
+Bloodline Bowl is a **$200 auction** filling **16 roster slots** per team.
+
+```text
+spent      = sum of acquisition prices (an unknown price counts as 0)
+remaining  = starting_budget - spent
+reserve    = (slots_remaining - 1) * minimum_bid
+max_bid    = remaining - reserve
+```
+
+The reserve is what a manager must hold back to fill every *other* remaining slot at
+the minimum bid. A manager with $83 and 6 slots left can bid at most **$78**; with one
+slot left they can spend everything.
+
+Sleeper exposes **no minimum-bid setting**, so $1 is assumed and labelled as such via
+`budget.minimum_bid_source: "assumed_default"`.
+
+### Positional needs and FLEX
+
+`needs.required` lists only **strict** starting slots that are genuinely unfilled. A
+team with two RBs and an empty FLEX is *not* reported as needing a third RB — flex
+capacity is reported separately as `flexible_slots_remaining`.
+
+Acquired players are matched to slots with a most-constrained-first greedy assignment,
+so a multi-position player is not wasted on a slot a single-position player could fill.
+Strict slots are filled before flex slots.
+
+### Available players
+
+Ordered by Sleeper's own `search_rank` (its relevance ordering) — no proprietary
+rankings are invented. Drafted and rostered players are excluded.
+
+One wrinkle: Sleeper leaves `search_rank` **null on all 32 team defenses**, so a purely
+rank-ordered list would never surface a DEF even though this league starts one.
+Unfiltered responses therefore guarantee a minimum number of candidates per required
+starting position before filling the rest by rank. Defenses are returned in
+deterministic alphabetical order, since Sleeper provides no ranking to sort them by.
+
 ## Caching
 
 | Data | Strategy | Why |
@@ -379,6 +476,8 @@ stubs (`resolved: false`) with their IDs intact rather than disappearing.
 | League, users, rosters, drafts, picks | Next data cache, 5 min | Changes slowly; keeps Sleeper calls low |
 | `/api/league` response | CDN `s-maxage=300, stale-while-revalidate=900` | Vercel serves instantly, refreshes in background |
 | `/players/nfl` (~14 MB) | In-memory, 24 h TTL, module scope | Sleeper's docs: *"use this call sparingly… once per day at most"* |
+| Draft object + picks (during a draft) | Uncached (`no-store`) | Live bidding must be current |
+| `/api/draft` response | 5s while drafting, 30s pre-draft, 300s once complete | Fresh enough to poll, cheap enough to spam |
 | `/api/health` | `no-store` | Must reflect live state |
 
 The player database is too large for Next's data cache (2 MB per entry), so it is fetched with
@@ -414,9 +513,10 @@ npm test
 
 `npm run lint` drives ESLint directly — Next 16 removed the `next lint` command.
 
-`npm test` runs 52 tests: normalization unit tests against a synthetic league built from **real**
-Sleeper player IDs, plus live end-to-end tests against the actual Bloodline Bowl league and error
-paths (404, timeout, degraded player database). The live tests require network access.
+`npm test` runs 124 tests: normalization and draft-logic units against a synthetic league built
+from **real** Sleeper player IDs, a simulated mid-auction exercising the full team-assembly
+pipeline, and live end-to-end tests against the actual Bloodline Bowl league plus error paths
+(404, timeout, degraded player database). The live tests require network access.
 
 ### Configuration
 

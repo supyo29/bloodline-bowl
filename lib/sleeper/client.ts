@@ -185,8 +185,26 @@ export function getLeagueTradedPicks(
   return fetchSleeper<RawTradedPick[]>(`/league/${leagueId}/traded_picks`);
 }
 
-export function getDraftPicks(draftId: string): Promise<RawDraftPick[]> {
-  return fetchSleeper<RawDraftPick[]>(`/draft/${draftId}/picks`);
+export function getDraftPicks(
+  draftId: string,
+  options: { revalidate?: number; noStore?: boolean } = {},
+): Promise<RawDraftPick[]> {
+  return fetchSleeper<RawDraftPick[]>(`/draft/${draftId}/picks`, options);
+}
+
+/** The single-draft endpoint, which carries auction settings and draft order. */
+export function getDraft(
+  draftId: string,
+  options: { revalidate?: number; noStore?: boolean } = {},
+): Promise<RawDraft> {
+  return fetchSleeper<RawDraft>(`/draft/${draftId}`, options);
+}
+
+export function getLeagueRostersFresh(
+  leagueId: string,
+  options: { revalidate?: number; noStore?: boolean } = {},
+): Promise<RawRoster[]> {
+  return fetchSleeper<RawRoster[]>(`/league/${leagueId}/rosters`, options);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -240,6 +258,8 @@ export function slimPlayer(
       status: null,
       injury_status: null,
       number: null,
+      active: null,
+      search_rank: null,
       resolved: false,
     };
   }
@@ -270,6 +290,8 @@ export function slimPlayer(
     status: toNullableString(raw.status),
     injury_status: toNullableString(raw.injury_status),
     number: toNullableNumber(raw.number),
+    active: typeof raw.active === "boolean" ? raw.active : null,
+    search_rank: toNullableNumber(raw.search_rank),
     resolved: true,
   };
 }
