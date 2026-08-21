@@ -15,6 +15,7 @@ import { resolveLeagueId } from "@/lib/sleeper/service";
 import { draftablePositions } from "@/lib/sleeper/draft";
 import { getStatsProvider } from "@/lib/stats/provider";
 import { buildWeeklyPlayerFacts } from "@/lib/analytics/weekly-stats";
+import { resolveSeasonLeagueId } from "@/lib/analytics/season-resolution";
 import { buildMetadata } from "@/lib/analytics/types";
 import {
   parseLeagueSelector,
@@ -46,11 +47,11 @@ export async function GET(request: Request): Promise<Response> {
         leagueSelectorResult.error,
       );
     }
-    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+    const defaultLeagueId = resolveLeagueId(leagueSelectorResult.value);
 
-    const league = await getLeague(leagueId);
+    const defaultLeague = await getLeague(defaultLeagueId);
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? league.season;
+    const currentSeason = nflState?.season ?? defaultLeague.season;
     const currentWeek = nflState?.week && nflState.week > 0 ? nflState.week : 1;
 
     const seasonResult = parseSeason(params.get("season"), currentSeason);
@@ -61,6 +62,36 @@ export async function GET(request: Request): Promise<Response> {
     if ("error" in weekResult) {
       return errorResponse(400, "invalid_query_parameter", weekResult.error);
     }
+
+    const season = seasonResult.value;
+
+    // Resolve to the ACTUAL league_id for the requested season, so a
+    // historical request never scores using the current season's settings —
+    // this was previously a real bug: /api/weekly-stats always used
+    // `defaultLeagueId`'s scoring_settings regardless of `season`.
+    const resolution = await resolveSeasonLeagueId(
+      defaultLeagueId,
+      season,
+      currentSeason,
+      defaultLeague,
+    );
+    if (!resolution.ok) {
+      return errorResponse(
+        resolution.status,
+        resolution.status === 404 ? "season_not_found" : "sleeper_upstream_error",
+        resolution.error,
+      );
+    }
+    const { league, isCurrentSeason: resolvedIsCurrentSeason } = resolution.result;
+    const leagueId = league.league_id;
+    if (league.season !== season) {
+      return errorResponse(
+        502,
+        "season_mismatch",
+        `Resolved league ${leagueId} reports season ${league.season}, not the requested ${season}.`,
+      );
+    }
+
     const allowedPositions = draftablePositions(league.roster_positions ?? []);
     const positionResult = parsePosition(
       params.get("position"),
@@ -82,11 +113,9 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
 
-    const season = seasonResult.value;
     const week = weekResult.value ?? currentWeek;
     const isHistoricalWeek =
-      season < currentSeason ||
-      (season === currentSeason && week < currentWeek);
+      !resolvedIsCurrentSeason || (season === currentSeason && week < currentWeek);
 
     const provider = getStatsProvider();
     if (!provider.isAvailable()) {

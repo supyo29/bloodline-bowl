@@ -172,6 +172,9 @@ Two layers of endpoints:
   `/api/snapshot`) — facts and transparent derived metrics only. See
   [Factual analytics layer](#factual-analytics-layer) below for the design philosophy and every
   endpoint's data sources, formulas, and known limitations.
+- **Historical weekly data** (`/api/player-weekly`, `/api/lineups`) — per-player weekly fantasy
+  scoring and per-roster weekly starter/bench ownership for any season a league's Sleeper
+  lineage covers. See [Historical weekly player scoring & lineups](#historical-weekly-player-scoring--lineups).
 
 ### `GET /api/league`
 
@@ -552,6 +555,8 @@ app/
     draft/debug/route.ts  sanitized raw draft fields
     scoring/route.ts     normalized scoring rules, derived metrics, diagnostics
     scoring/calculate/route.ts  POST: apply live scoring to a caller-supplied stat line
+    player-weekly/route.ts     historical weekly player fantasy scoring, any season
+    lineups/route.ts           historical weekly roster ownership + starters, any season
     history/route.ts           season lineage + factual results (all routes accept ?league=)
     transactions/route.ts      normalized trades/waivers/free agents/drops
     matchups/route.ts          weekly matchup results + score rank
@@ -601,6 +606,10 @@ lib/
     value.ts                   player-value facts with source attribution
     snapshot.ts                composes /api/snapshot from already-built pieces
     query.ts                   shared, allowlisted query-parameter validation
+    season-resolution.ts        shared previous_league_id walk: season -> actual league_id
+    historical-scoring.ts       weekly player scoring: Sleeper matchup points + raw-stat fallback
+    historical-lineups.ts       weekly roster ownership + starter-slot mapping
+    reconciliation.ts           sums starter scoring, checks it against matchup totals
   stats/
     types.ts              PlayerStatsProvider interface
     provider.ts            Sleeper-stats-endpoint-backed implementation
@@ -619,6 +628,8 @@ test/
   scoring-live.test.ts     /api/scoring end-to-end against the real league's live settings
   analytics.test.ts        standings math, transactions, roster analysis, weekly-stat ranking
   analytics-live.test.ts   analytics layer end-to-end + a scan for forbidden subjective fields
+  historical-data.test.ts       weekly scoring/lineup unit tests (synthetic fixtures)
+  historical-data-live.test.ts  full 2025 Devoted to the Game validation + the required trade check
 ```
 
 The layering is deliberate: `normalize.ts` is pure and has no knowledge of HTTP, so it is directly
@@ -947,6 +958,120 @@ off a roster's `owner_id` in isolation (which is only stable _within_ one season
   throughout this project, but it is not part of Sleeper's official API surface, so a future
   provider swap (behind the existing `PlayerStatsProvider` interface) may become necessary.
 
+## Historical weekly player scoring & lineups
+
+Two general-purpose endpoints expose per-week, per-player fantasy scoring and roster
+ownership/starter data — for any season a league's Sleeper lineage covers, not just the
+current one. They exist so external analysis (e.g. an R-based manager-efficiency study) can
+reconstruct exactly what happened in a given week without re-deriving Sleeper's own scoring.
+
+### `GET /api/player-weekly`
+
+One row per player-week.
+
+```text
+?league=devoted-to-the-game&season=2025            (full season, all weeks)
+?league=devoted-to-the-game&season=2025&week=4     (single week)
+```
+
+**Scoring method — two sources, in priority order** (see `lib/analytics/historical-scoring.ts`):
+
+1. **Rostered players:** Sleeper's own matchup-scored `players_points` from
+   `/league/{id}/matchups/{week}`. This is Sleeper's own scoring engine having already applied
+   that league's exact `scoring_settings` for that season — the single most authoritative
+   source available, so nothing is recomputed. `scoring_source: "sleeper_matchup_points"`.
+2. **Unrostered (free-agent) players:** scored locally from raw counting stats
+   (Sleeper's `/stats/nfl/regular/{season}/{week}`) using the resolved season's own
+   `scoring_settings`, through the same `calculateFantasyPoints` engine `/api/scoring` and
+   `/api/weekly-stats` use. `scoring_source: "bridge_calculated_from_raw_stats"`. This path
+   exists because "waiver value" analysis is meaningless without knowing what unrostered
+   players scored too.
+
+A rostered player with no points entry for a week (bye/inactive) reports `fantasy_points: 0`
+and `game_played: false` — never a fabricated positive value, and never treated as missing
+data (the roster snapshot itself is evidence of ownership).
+
+Every row carries `scoring_settings_hash` (a deterministic fingerprint of the exact
+`scoring_settings` object used) so a consumer can verify two rows were scored under identical
+rules without re-fetching the league.
+
+### `GET /api/lineups`
+
+One row per roster-player-week.
+
+```text
+?league=devoted-to-the-game&season=2025            (full season, all weeks)
+?league=devoted-to-the-game&season=2025&week=4     (single week)
+```
+
+**Source:** the same `/league/{id}/matchups/{week}` call, using its `players` (full roster
+that week) and `starters` (ordered starter ids) arrays — a genuine weekly snapshot, never
+inferred from end-of-season rosters, so mid-season trades and waiver moves are reflected
+correctly at the week they actually happened.
+
+**Slot mapping:** Sleeper positionally aligns `starters` with the league's `roster_positions`
+(bench/taxi/IR excluded) — the same convention `lib/sleeper/normalize.ts` already relies on
+for the live league, and verified here against real 2025 data before reuse. A flex pick is
+labeled with its true Sleeper `roster_position` (e.g. `"FLEX"`), never a fabricated
+`"FLEX1"`/`"RB3"` distinction Sleeper itself doesn't make. Any starter slot that can't be
+matched deterministically returns `roster_slot: "STARTER_UNKNOWN"` rather than guessing.
+
+**Known limitation:** Sleeper does not expose a per-historical-week IR flag — `reserve` only
+exists on the _current_ `/rosters` snapshot, not a historical week's matchup data. `ir` is
+therefore honestly `null` rather than inferred; only `starter` / `bench` / `not_owned` are
+distinguished.
+
+### Historical season resolution
+
+Both endpoints (and `/api/matchups`, `/api/transactions`, `/api/weekly-stats`, all sharing
+`lib/analytics/season-resolution.ts`) resolve `?season=` by walking the league's
+`previous_league_id` lineage to find the season whose league object actually reports that
+season — never by reusing the current league's id. Requesting a season the league's lineage
+doesn't cover returns `404 season_not_found` naming the seasons that do exist; a resolved
+league whose own `.season` field doesn't match the request returns `502 season_mismatch`
+rather than serving data under a silent assumption.
+
+**Verified:** `?league=devoted-to-the-game&season=2025` resolves to Sleeper league id
+`1264616401079914496` — the exact historical league id, distinct from the current (2026)
+league `1389735763649761280`, linked via that league's own `previous_league_id`.
+
+_This fixed a real pre-existing bug:_ `/api/weekly-stats` previously always used the
+**current** season's league object for scoring settings regardless of the requested `season`,
+which would have silently applied 2026 scoring rules to 2025 stats. It's now routed through
+the same shared resolver as everything else.
+
+### Reconciliation
+
+`/api/player-weekly` includes a `reconciliation` block: for every returned week, it sums each
+roster's starters' `fantasy_points` and compares against that roster's `points` total from the
+matchup data. **Verified against the full 2025 Devoted to the Game season: 216/216
+roster-weeks (12 rosters × 18 weeks) reconciled with zero discrepancy.**
+
+```json
+"reconciliation": {
+  "weeks_checked": [1, 2, "...", 18],
+  "rosters_checked": 216,
+  "rosters_within_tolerance": 216,
+  "max_absolute_difference": 0,
+  "status": "reconciled"
+}
+```
+
+### Sample requests (Devoted to the Game 2025)
+
+```bash
+curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/player-weekly?league=devoted-to-the-game&season=2025&week=1"
+curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/lineups?league=devoted-to-the-game&season=2025"
+```
+
+### Response metadata
+
+Both endpoints return, alongside their rows: `league_selector`, `league_id` (the _resolved_
+historical id), `season`, `weeks_returned`, `missing_weeks`, `row_count`,
+`unresolved_players`, and a `metadata` block with `generated_at`, `sources`, `warnings`, and
+`cache_seconds`. `/api/player-weekly` additionally reports `scoring_method` and
+`scoring_settings_provenance`; `/api/lineups` reports `starter_source` and `roster_source`.
+
 ## Caching
 
 | Data                                            | Strategy                                             | Why                                                               |
@@ -998,13 +1123,15 @@ npm test
 
 `npm run lint` drives ESLint directly — Next 16 removed the `next lint` command.
 
-`npm test` runs 261 tests: normalization and draft-logic units against a synthetic league built
+`npm test` runs 297 tests: normalization and draft-logic units against a synthetic league built
 from **real** Sleeper player IDs, a simulated mid-auction exercising the full team-assembly
 pipeline, the scoring engine's yardage/TD/archetype/sensitivity math, the factual analytics layer's
 standings/transaction/roster/weekly-stat calculations, the league registry's validation/dedup/
 disabled-target/malformed-id guarantees against synthetic fixtures, and live end-to-end tests
 against both the Bloodline Bowl and Devoted to the Game leagues — including a scan of every
-analytics response for forbidden subjective fields — plus error paths (404, timeout, degraded
+analytics response for forbidden subjective fields, full-season (18-week) reconciliation of
+Devoted to the Game's 2025 player scoring against Sleeper's own matchup totals, and the known
+2025 Judkins/Jennings trade's before/after roster ownership — plus error paths (404, timeout, degraded
 player database). The live tests require network access.
 
 ### Configuration

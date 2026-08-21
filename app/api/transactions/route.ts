@@ -15,7 +15,7 @@ import {
 } from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { normalizeTransaction } from "@/lib/analytics/transactions";
-import { traverseLeagueLineage } from "@/lib/analytics/lineage";
+import { resolveSeasonLeagueId } from "@/lib/analytics/season-resolution";
 import { buildMetadata } from "@/lib/analytics/types";
 import { allWeeks } from "@/lib/analytics/season-data";
 import {
@@ -81,30 +81,30 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const season = seasonResult.value;
-    const isCurrentSeason = season === currentSeason;
-    const revalidate = isCurrentSeason ? 60 : 24 * 60 * 60;
 
     // Sleeper assigns a new league_id each season; resolve the requested
     // season to its actual league_id by walking the same lineage /api/history
     // uses, rather than silently reusing the current league_id for a season
     // that never had it.
-    let targetLeagueId = leagueId;
-    const warnings: string[] = [];
-    if (!isCurrentSeason) {
-      const lineage = await traverseLeagueLineage(leagueId);
-      warnings.push(...lineage.warnings);
-      const match = lineage.seasons.find(
-        (entry) => entry.league.season === season,
+    const resolution = await resolveSeasonLeagueId(leagueId, season, currentSeason);
+    if (!resolution.ok) {
+      return errorResponse(
+        resolution.status,
+        resolution.status === 404 ? "season_not_found" : "sleeper_upstream_error",
+        resolution.error,
       );
-      if (!match) {
-        return errorResponse(
-          404,
-          "season_not_found",
-          `No linked season ${season} was found in this league's history.`,
-        );
-      }
-      targetLeagueId = match.league.league_id;
     }
+    const { league: resolvedLeague, isCurrentSeason, warnings: lineageWarnings } = resolution.result;
+    const targetLeagueId = resolvedLeague.league_id;
+    if (resolvedLeague.season !== season) {
+      return errorResponse(
+        502,
+        "season_mismatch",
+        `Resolved league ${targetLeagueId} reports season ${resolvedLeague.season}, not the requested ${season}.`,
+      );
+    }
+    const revalidate = isCurrentSeason ? 60 : 24 * 60 * 60;
+    const warnings: string[] = [...lineageWarnings];
 
     const weeks = weekResult.value !== null ? [weekResult.value] : allWeeks();
 
@@ -166,7 +166,7 @@ export async function GET(request: Request): Promise<Response> {
     );
 
     const metadata = buildMetadata({
-      league_id: leagueId,
+      league_id: targetLeagueId,
       season,
       sources: [{ name: "Sleeper", type: "transaction_data" }],
       data_freshness: { transactions: isCurrentSeason ? "1m" : "24h" },

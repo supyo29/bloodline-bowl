@@ -554,7 +554,8 @@ export interface RawMatchup {
   players: string[] | null;
   starters: string[] | null;
   players_points: Record<string, number> | null;
-  starters_points: Record<string, number> | null;
+  /** Positionally parallel to `starters`, NOT keyed by player_id despite the name. */
+  starters_points: number[] | null;
   custom_points: number | null;
 }
 
