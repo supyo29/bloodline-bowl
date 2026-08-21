@@ -985,7 +985,12 @@ One row per player-week.
    `scoring_settings`, through the same `calculateFantasyPoints` engine `/api/scoring` and
    `/api/weekly-stats` use. `scoring_source: "bridge_calculated_from_raw_stats"`. This path
    exists because "waiver value" analysis is meaningless without knowing what unrostered
-   players scored too.
+   players scored too. Bounded to positions this league can actually draft/start (reusing
+   `draftablePositions`/`eligiblePositions` from `lib/sleeper/draft.ts`) — Sleeper's raw stats
+   endpoint returns a line for every NFL player who recorded anything that week, including
+   offensive linemen, punters, and IDP positions, none of which belong in a standard-lineup
+   fantasy analysis. Rostered players (source 1) are never filtered this way — real ownership
+   is reported regardless of position.
 
 A rostered player with no points entry for a week (bye/inactive) reports `fantasy_points: 0`
 and `game_played: false` — never a fabricated positive value, and never treated as missing
