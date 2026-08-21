@@ -20,11 +20,23 @@ import {
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { resolveSeasonLeagueId } from "@/lib/analytics/season-resolution";
 import { buildPlayerWeeklyRows } from "@/lib/analytics/historical-scoring";
-import { reconcileWeek, summarizeReconciliation } from "@/lib/analytics/reconciliation";
+import {
+  reconcileWeek,
+  summarizeReconciliation,
+} from "@/lib/analytics/reconciliation";
 import { getStatsProvider } from "@/lib/stats/provider";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parseLeagueSelector, parseSeason, parseWeek } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import {
+  parseLeagueSelector,
+  parseSeason,
+  parseWeek,
+} from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 import type { RawMatchup } from "@/lib/sleeper/types";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +46,9 @@ export const maxDuration = 60;
 const MAX_WEEK = 18;
 
 function describeError(error: unknown): string {
-  return error instanceof SleeperError || error instanceof Error ? error.message : String(error);
+  return error instanceof SleeperError || error instanceof Error
+    ? error.message
+    : String(error);
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -42,14 +56,19 @@ export async function GET(request: Request): Promise<Response> {
 
   const leagueSelectorResult = parseLeagueSelector(params.get("league"));
   if ("error" in leagueSelectorResult) {
-    return errorResponse(400, "invalid_query_parameter", leagueSelectorResult.error);
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
   }
   const leagueSelector = params.get("league") ?? "bloodline-bowl";
   const defaultLeagueId = resolveLeagueId(leagueSelectorResult.value);
 
   try {
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? new Date().getFullYear().toString();
+    const currentSeason =
+      nflState?.season ?? new Date().getFullYear().toString();
 
     const seasonResult = parseSeason(params.get("season"), currentSeason);
     if ("error" in seasonResult) {
@@ -61,15 +80,25 @@ export async function GET(request: Request): Promise<Response> {
     }
     const season = seasonResult.value;
 
-    const resolution = await resolveSeasonLeagueId(defaultLeagueId, season, currentSeason);
+    const resolution = await resolveSeasonLeagueId(
+      defaultLeagueId,
+      season,
+      currentSeason,
+    );
     if (!resolution.ok) {
       return errorResponse(
         resolution.status,
-        resolution.status === 404 ? "season_not_found" : "sleeper_upstream_error",
+        resolution.status === 404
+          ? "season_not_found"
+          : "sleeper_upstream_error",
         resolution.error,
       );
     }
-    const { league, isCurrentSeason, warnings: lineageWarnings } = resolution.result;
+    const {
+      league,
+      isCurrentSeason,
+      warnings: lineageWarnings,
+    } = resolution.result;
     const leagueId = league.league_id;
     // Explicit safety check per Phase 5: never let a resolved league's season
     // silently disagree with what was requested.
@@ -82,7 +111,10 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const revalidate = isCurrentSeason ? 60 : 24 * 60 * 60;
-    const weeks = weekResult.value !== null ? [weekResult.value] : Array.from({ length: MAX_WEEK }, (_, i) => i + 1);
+    const weeks =
+      weekResult.value !== null
+        ? [weekResult.value]
+        : Array.from({ length: MAX_WEEK }, (_, i) => i + 1);
 
     const warnings: string[] = [...lineageWarnings];
     const playerIndex = await getPlayerIndex();
@@ -98,7 +130,9 @@ export async function GET(request: Request): Promise<Response> {
           matchupsByWeek.set(week, rows);
         } catch (error) {
           missingWeeks.push(week);
-          warnings.push(`Could not load week ${week} matchups: ${describeError(error)}`);
+          warnings.push(
+            `Could not load week ${week} matchups: ${describeError(error)}`,
+          );
           matchupsByWeek.set(week, []);
         }
       }),
@@ -118,7 +152,9 @@ export async function GET(request: Request): Promise<Response> {
         try {
           statLines = await provider.getWeeklyStats(season, week);
         } catch (error) {
-          warnings.push(`Could not load raw stats for week ${week}: ${describeError(error)}`);
+          warnings.push(
+            `Could not load raw stats for week ${week}: ${describeError(error)}`,
+          );
         }
       }
 
@@ -132,6 +168,7 @@ export async function GET(request: Request): Promise<Response> {
         scoringSettings: league.scoring_settings ?? {},
         playerIndex,
         generatedAt,
+        rosterPositions: league.roster_positions ?? [],
       });
 
       allRows.push(...rows);
@@ -139,7 +176,9 @@ export async function GET(request: Request): Promise<Response> {
       reconciliationResults.push(...reconcileWeek(week, matchups, rows));
     }
 
-    const weeksReturned = weeks.filter((w) => (matchupsByWeek.get(w)?.length ?? 0) > 0);
+    const weeksReturned = weeks.filter(
+      (w) => (matchupsByWeek.get(w)?.length ?? 0) > 0,
+    );
     const reconciliation = summarizeReconciliation(reconciliationResults);
     if (reconciliation.status === "discrepancies_found") {
       warnings.push(
@@ -154,7 +193,9 @@ export async function GET(request: Request): Promise<Response> {
         { name: "Sleeper", type: "matchup_scored_points" },
         { name: "Sleeper", type: "nfl_statistics" },
       ],
-      data_freshness: { player_weekly: isCurrentSeason ? "1m" : "24h (historical, immutable)" },
+      data_freshness: {
+        player_weekly: isCurrentSeason ? "1m" : "24h (historical, immutable)",
+      },
       warnings,
     });
 
@@ -179,7 +220,9 @@ export async function GET(request: Request): Promise<Response> {
       },
       {
         headers: {
-          "Cache-Control": isCurrentSeason ? cacheHeader(60, 300) : cacheHeader(86400, 172800),
+          "Cache-Control": isCurrentSeason
+            ? cacheHeader(60, 300)
+            : cacheHeader(86400, 172800),
         },
       },
     );
@@ -187,7 +230,11 @@ export async function GET(request: Request): Promise<Response> {
     if (error instanceof SleeperError) {
       return errorResponse(502, "sleeper_upstream_error", error.message);
     }
-    return errorResponse(500, "internal_error", error instanceof Error ? error.message : "Unknown error");
+    return errorResponse(
+      500,
+      "internal_error",
+      error instanceof Error ? error.message : "Unknown error",
+    );
   }
 }
 

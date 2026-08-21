@@ -25,10 +25,12 @@
 
 import { slimPlayer, type PlayerIndex } from "@/lib/sleeper/client";
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
+import { draftablePositions, eligiblePositions } from "@/lib/sleeper/draft";
 import type { PlayerStatLine } from "@/lib/stats/types";
 import type { NormalizedPlayer, RawMatchup } from "@/lib/sleeper/types";
 
-export type ScoringSource = "sleeper_matchup_points" | "bridge_calculated_from_raw_stats";
+export type ScoringSource =
+  "sleeper_matchup_points" | "bridge_calculated_from_raw_stats";
 export type ScoringMethod = "sleeper_authoritative" | "local_scoring_engine";
 
 export interface PlayerWeeklyRow {
@@ -60,7 +62,9 @@ export interface PlayerWeeklyRow {
 }
 
 /** Cheap, deterministic fingerprint of a scoring_settings object for provenance. */
-export function hashScoringSettings(scoringSettings: Record<string, number>): string {
+export function hashScoringSettings(
+  scoringSettings: Record<string, number>,
+): string {
   const sorted = Object.entries(scoringSettings)
     .filter(([, value]) => typeof value === "number")
     .sort(([a], [b]) => a.localeCompare(b));
@@ -72,7 +76,10 @@ export function hashScoringSettings(scoringSettings: Record<string, number>): st
   return `sha_${(hash >>> 0).toString(16)}_n${sorted.length}`;
 }
 
-function resolvePlayer(playerId: string, playerIndex: PlayerIndex): NormalizedPlayer {
+function resolvePlayer(
+  playerId: string,
+  playerIndex: PlayerIndex,
+): NormalizedPlayer {
   return playerIndex.get(playerId) ?? slimPlayer(playerId, undefined);
 }
 
@@ -87,6 +94,16 @@ export interface BuildPlayerWeeklyRowsInput {
   scoringSettings: Record<string, number>;
   playerIndex: PlayerIndex;
   generatedAt: string;
+  /**
+   * This league's own `roster_positions`. Bounds the free-agent (unrostered)
+   * fallback pool to positions this league can actually draft/start —
+   * Sleeper's raw stats endpoint returns a stat line for every NFL player who
+   * recorded anything that week, including offensive linemen, IDP positions,
+   * and punters, none of which belong in a standard-lineup fantasy analysis.
+   * Rostered players (Source 1) are never filtered this way: if a manager
+   * actually owned the player, that ownership is reported regardless.
+   */
+  rosterPositions: string[];
 }
 
 export function buildPlayerWeeklyRows(input: BuildPlayerWeeklyRowsInput): {
@@ -103,10 +120,12 @@ export function buildPlayerWeeklyRows(input: BuildPlayerWeeklyRowsInput): {
     scoringSettings,
     playerIndex,
     generatedAt,
+    rosterPositions,
   } = input;
 
   const settingsHash = hashScoringSettings(scoringSettings);
   const unresolved = new Set<string>();
+  const draftable = draftablePositions(rosterPositions);
 
   // Rostered players this week, keyed by player_id -> Sleeper's own scored points.
   const rosteredPoints = new Map<string, number>();
@@ -174,9 +193,14 @@ export function buildPlayerWeeklyRows(input: BuildPlayerWeeklyRowsInput): {
 
   // Source 2: unrostered players (free agents that week), scored locally from
   // raw stats using the resolved historical league's own scoring settings.
+  // Bounded to this league's actual draftable positions — see the
+  // `rosterPositions` field docstring above for why.
   if (statLines) {
     for (const line of statLines) {
       if (rosteredPlayerIds.has(line.player_id)) continue; // already covered above
+      const candidate = resolvePlayer(line.player_id, playerIndex);
+      const eligible = eligiblePositions(candidate);
+      if (!eligible.some((position) => draftable.has(position))) continue;
       const result = calculateFantasyPoints(line.stats, scoringSettings);
       pushRow(
         line.player_id,
@@ -189,7 +213,11 @@ export function buildPlayerWeeklyRows(input: BuildPlayerWeeklyRowsInput): {
     }
   }
 
-  rows.sort((a, b) => b.fantasy_points - a.fantasy_points || a.player_id.localeCompare(b.player_id));
+  rows.sort(
+    (a, b) =>
+      b.fantasy_points - a.fantasy_points ||
+      a.player_id.localeCompare(b.player_id),
+  );
 
   return { rows, unresolvedPlayerIds: [...unresolved].sort() };
 }

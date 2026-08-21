@@ -117,6 +117,7 @@ describe("historical scoring: player-weekly rows", () => {
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
 
     const row = rows.find((r) => r.player_id === PLAYER_IDS.mahomes);
@@ -147,6 +148,7 @@ describe("historical scoring: player-weekly rows", () => {
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
     const row = rows.find((r) => r.player_id === PLAYER_IDS.mahomes);
     assert.equal(row?.fantasy_points, 0);
@@ -172,6 +174,7 @@ describe("historical scoring: player-weekly rows", () => {
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
     const row = rows.find((r) => r.player_id === PLAYER_IDS.jefferson);
     // 8 receptions * 1 (full PPR) + 100 yd * 0.1 = 18
@@ -190,7 +193,12 @@ describe("historical scoring: player-weekly rows", () => {
       matchups,
       statLines: [
         {
-          player_id: "kicker1",
+          // A real, resolvable Sleeper kicker id — an unresolved identity has
+          // no known position, so it is correctly excluded from the
+          // free-agent pool by the draftable-position filter (see the
+          // "marks an unrecognized player id as unresolved" test below for
+          // that exclusion behavior itself).
+          player_id: "12185",
           season: "2025",
           week: 1,
           // One 45-49yd make (4pts), one 55yd make (5pts), one miss (-1), 2 XP (2pts).
@@ -200,8 +208,9 @@ describe("historical scoring: player-weekly rows", () => {
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
-    const row = rows.find((r) => r.player_id === "kicker1");
+    const row = rows.find((r) => r.player_id === "12185");
     // 4 + 5 - 1 + 2*1 = 10
     assert.equal(row?.fantasy_points, 10);
   });
@@ -225,6 +234,7 @@ describe("historical scoring: player-weekly rows", () => {
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
     const row = rows.find((r) => r.player_id === "SF");
     // 7 (points allowed 1-6) + 3*1 (sacks) + 1*2 (int) + 1*1 (ff) = 13
@@ -241,13 +251,15 @@ describe("historical scoring: player-weekly rows", () => {
       week: 1,
       matchups,
       statLines: [
-        { player_id: "rb1", season: "2025", week: 1, stats: { rush_yd: 33 } },
+        // A real, resolvable RB id (Derrick Henry) — see the kicker test above.
+        { player_id: "3198", season: "2025", week: 1, stats: { rush_yd: 33 } },
       ],
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
-    const row = rows.find((r) => r.player_id === "rb1");
+    const row = rows.find((r) => r.player_id === "3198");
     assert.equal(row?.fantasy_points, 3.3); // not 3.3000000000000003
   });
 
@@ -270,6 +282,7 @@ describe("historical scoring: player-weekly rows", () => {
       scoringSettings: FULL_PPR_SETTINGS,
       playerIndex,
       generatedAt: "2026-01-01T00:00:00.000Z",
+      rosterPositions: ROSTER_POSITIONS,
     });
     const row = rows.find((r) => r.player_id === "totally_fake_id_999");
     assert.equal(row?.resolved, false);
@@ -299,6 +312,7 @@ describe("historical scoring: player-weekly rows", () => {
         scoringSettings: FULL_PPR_SETTINGS,
         playerIndex,
         generatedAt: "2026-01-01T00:00:00.000Z",
+        rosterPositions: ROSTER_POSITIONS,
       });
     assert.deepEqual(build().rows, build().rows);
   });

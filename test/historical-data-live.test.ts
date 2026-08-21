@@ -133,6 +133,7 @@ describe("live: player-weekly scoring (2025)", () => {
       scoringSettings: league.scoring_settings,
       playerIndex,
       generatedAt: new Date().toISOString(),
+      rosterPositions: league.roster_positions,
     });
     assert.ok(rows.length > 0);
     const resolvedCount = rows.filter((r) => r.resolved).length;
@@ -154,6 +155,7 @@ describe("live: player-weekly scoring (2025)", () => {
       scoringSettings: league.scoring_settings,
       playerIndex,
       generatedAt: new Date().toISOString(),
+      rosterPositions: league.roster_positions,
     });
     const defenses = rows.filter((r) => r.position === "DEF");
     assert.ok(defenses.length > 0);
@@ -172,6 +174,7 @@ describe("live: player-weekly scoring (2025)", () => {
       scoringSettings: league.scoring_settings,
       playerIndex,
       generatedAt: new Date().toISOString(),
+      rosterPositions: league.roster_positions,
     });
     const expectedHash = hashScoringSettings(league.scoring_settings);
     assert.ok(rows.length > 0);
@@ -200,6 +203,7 @@ describe("live: player-weekly and lineups reconciliation (multiple sampled weeks
         scoringSettings: league.scoring_settings,
         playerIndex,
         generatedAt: new Date().toISOString(),
+        rosterPositions: league.roster_positions,
       });
 
       const results = reconcileWeek(week, matchups, rows);
