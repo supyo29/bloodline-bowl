@@ -31,7 +31,9 @@ export interface LineageResult {
  * not a thrown error), a league id repeats (circular chain guard), or
  * {@link MAX_LINEAGE_DEPTH} is reached.
  */
-export async function traverseLeagueLineage(leagueId: string): Promise<LineageResult> {
+export async function traverseLeagueLineage(
+  leagueId: string,
+): Promise<LineageResult> {
   const seasons: LineageEntry[] = [];
   const warnings: string[] = [];
   const visited = new Set<string>();

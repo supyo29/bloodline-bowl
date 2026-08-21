@@ -40,17 +40,22 @@ export function buildWeeklyPlayerFacts(
   playerIndex: PlayerIndex,
 ): { facts: WeeklyPlayerFacts[]; methodology: RankMethodology } {
   const scored = statLines.map((line) => {
-    const player = playerIndex.get(line.player_id) ?? slimPlayer(line.player_id, undefined);
+    const player =
+      playerIndex.get(line.player_id) ?? slimPlayer(line.player_id, undefined);
     const result = calculateFantasyPoints(line.stats, scoringSettings);
     return { line, player, result };
   });
 
-  const overallRanked = [...scored].sort((a, b) => b.result.fantasy_points - a.result.fantasy_points);
+  const overallRanked = [...scored].sort(
+    (a, b) => b.result.fantasy_points - a.result.fantasy_points,
+  );
   const overallRankById = new Map<string, number>();
   overallRanked.forEach((entry, index) => {
     const prev = overallRanked[index - 1];
     const rank =
-      index > 0 && prev && prev.result.fantasy_points === entry.result.fantasy_points
+      index > 0 &&
+      prev &&
+      prev.result.fantasy_points === entry.result.fantasy_points
         ? (overallRankById.get(prev.line.player_id) ?? index + 1)
         : index + 1;
     overallRankById.set(entry.line.player_id, rank);
@@ -73,7 +78,9 @@ export function buildWeeklyPlayerFacts(
     ranked.forEach((entry, index) => {
       const prev = ranked[index - 1];
       const rank =
-        index > 0 && prev && prev.result.fantasy_points === entry.result.fantasy_points
+        index > 0 &&
+        prev &&
+        prev.result.fantasy_points === entry.result.fantasy_points
           ? (positionRankById.get(prev.line.player_id) ?? index + 1)
           : index + 1;
       positionRankById.set(entry.line.player_id, rank);
@@ -83,17 +90,25 @@ export function buildWeeklyPlayerFacts(
   const facts = scored.map(({ line, player, result }): WeeklyPlayerFacts => {
     const overallRank = overallRankById.get(line.player_id);
     const positionRank = positionRankById.get(line.player_id);
-    const positionPool = positionPoolSize.get(player.position ?? "UNKNOWN") ?? 0;
+    const positionPool =
+      positionPoolSize.get(player.position ?? "UNKNOWN") ?? 0;
 
     return {
       player,
       season: line.season,
       week: line.week,
       stats: line.stats,
-      bloodline_points: { total: result.fantasy_points, breakdown: result.breakdown },
-      overall_weekly_rank: overallRank ? `${overallRank} of ${scored.length}` : null,
+      bloodline_points: {
+        total: result.fantasy_points,
+        breakdown: result.breakdown,
+      },
+      overall_weekly_rank: overallRank
+        ? `${overallRank} of ${scored.length}`
+        : null,
       position_weekly_rank:
-        positionRank && player.position ? `${positionRank} of ${positionPool}` : null,
+        positionRank && player.position
+          ? `${positionRank} of ${positionPool}`
+          : null,
     };
   });
 

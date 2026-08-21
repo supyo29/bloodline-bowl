@@ -6,7 +6,11 @@
 
 import { slimPlayer, type PlayerIndex } from "@/lib/sleeper/client";
 import type { ManagerRef } from "./types";
-import type { RawLeagueUser, RawRoster, RawTransaction } from "@/lib/sleeper/types";
+import type {
+  RawLeagueUser,
+  RawRoster,
+  RawTransaction,
+} from "@/lib/sleeper/types";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
 export interface TransactionPlayerMove {
@@ -62,7 +66,10 @@ function managerRef(
   };
 }
 
-function resolvePlayer(playerId: string, playerIndex: PlayerIndex): NormalizedPlayer {
+function resolvePlayer(
+  playerId: string,
+  playerIndex: PlayerIndex,
+): NormalizedPlayer {
   return playerIndex.get(playerId) ?? slimPlayer(playerId, undefined);
 }
 
@@ -85,7 +92,9 @@ function buildTradeSides(
   }
 
   for (const [playerId, rosterId] of Object.entries(transaction.adds ?? {})) {
-    sides.get(rosterId)?.received_players.push(resolvePlayer(playerId, playerIndex));
+    sides
+      .get(rosterId)
+      ?.received_players.push(resolvePlayer(playerId, playerIndex));
   }
   for (const pick of transaction.draft_picks ?? []) {
     sides.get(pick.owner_id)?.received_picks.push({
@@ -111,27 +120,27 @@ export function normalizeTransaction(
   rostersById: Map<number, RawRoster>,
   usersById: Map<string, RawLeagueUser>,
 ): TransactionFact {
-  const adds: TransactionPlayerMove[] = Object.entries(transaction.adds ?? {}).map(
-    ([playerId, rosterId]) => ({
-      roster_id: rosterId,
-      player: resolvePlayer(playerId, playerIndex),
-    }),
-  );
-  const drops: TransactionPlayerMove[] = Object.entries(transaction.drops ?? {}).map(
-    ([playerId, rosterId]) => ({
-      roster_id: rosterId,
-      player: resolvePlayer(playerId, playerIndex),
-    }),
-  );
-  const draftPicks: TransactionDraftPickMove[] = (transaction.draft_picks ?? []).map(
-    (pick) => ({
-      season: pick.season,
-      round: pick.round,
-      original_roster_id: pick.roster_id,
-      previous_owner_roster_id: pick.previous_owner_id,
-      new_owner_roster_id: pick.owner_id,
-    }),
-  );
+  const adds: TransactionPlayerMove[] = Object.entries(
+    transaction.adds ?? {},
+  ).map(([playerId, rosterId]) => ({
+    roster_id: rosterId,
+    player: resolvePlayer(playerId, playerIndex),
+  }));
+  const drops: TransactionPlayerMove[] = Object.entries(
+    transaction.drops ?? {},
+  ).map(([playerId, rosterId]) => ({
+    roster_id: rosterId,
+    player: resolvePlayer(playerId, playerIndex),
+  }));
+  const draftPicks: TransactionDraftPickMove[] = (
+    transaction.draft_picks ?? []
+  ).map((pick) => ({
+    season: pick.season,
+    round: pick.round,
+    original_roster_id: pick.roster_id,
+    previous_owner_roster_id: pick.previous_owner_id,
+    new_owner_roster_id: pick.owner_id,
+  }));
 
   // A waiver claim's own bid amount lives in `settings.waiver_bid`, distinct
   // from `waiver_budget`, which records FAAB moved as part of a trade.
@@ -146,7 +155,9 @@ export function normalizeTransaction(
     week: transaction.leg,
     type: transaction.type,
     status: transaction.status,
-    created_at: transaction.created ? new Date(transaction.created).toISOString() : null,
+    created_at: transaction.created
+      ? new Date(transaction.created).toISOString()
+      : null,
     rosters_involved: transaction.roster_ids,
     adds,
     drops,

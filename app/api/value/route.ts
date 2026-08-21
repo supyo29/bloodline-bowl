@@ -6,30 +6,60 @@
  * availability with no player list.
  */
 
-import { SleeperError, getLeagueRosters, getPlayerIndex } from "@/lib/sleeper/client";
+import {
+  SleeperError,
+  getLeagueRosters,
+  getPlayerIndex,
+} from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { buildValueFacts } from "@/lib/analytics/value";
 import { getValueProvider } from "@/lib/values/provider";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parsePlayerId, parseRosterId } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import {
+  parseLeagueSelector,
+  parsePlayerId,
+  parseRosterId,
+} from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const playerIdResult = parsePlayerId(params.get("player_id"));
     if ("error" in playerIdResult) {
-      return errorResponse(400, "invalid_query_parameter", playerIdResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        playerIdResult.error,
+      );
     }
     const rosterIdResult = parseRosterId(params.get("roster_id"));
     if ("error" in rosterIdResult) {
-      return errorResponse(400, "invalid_query_parameter", rosterIdResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        rosterIdResult.error,
+      );
     }
 
     let playerIds: string[] = [];
@@ -57,7 +87,9 @@ export async function GET(request: Request): Promise<Response> {
 
     const metadata = buildMetadata({
       league_id: leagueId,
-      sources: [{ name: provider.name, type: "player_value", updated_at: null }],
+      sources: [
+        { name: provider.name, type: "player_value", updated_at: null },
+      ],
       data_freshness: {},
       warnings,
     });

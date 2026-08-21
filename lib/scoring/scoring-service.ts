@@ -25,8 +25,15 @@ import {
 import { buildSensitivity } from "./sensitivity";
 import type { ScoringResponse } from "./types";
 
-export async function buildScoringBundle(): Promise<ScoringResponse> {
-  const leagueId = resolveLeagueId();
+/**
+ * @param leagueId Resolved league id to build scoring facts for. Callers
+ *   should resolve `?league=` via `resolveLeagueId` themselves; this defaults
+ *   to the bridge's default league only when omitted, preserving the original
+ *   zero-argument call sites.
+ */
+export async function buildScoringBundle(
+  leagueId: string = resolveLeagueId(),
+): Promise<ScoringResponse> {
   const league = await getLeague(leagueId);
 
   const raw = league.scoring_settings ?? {};

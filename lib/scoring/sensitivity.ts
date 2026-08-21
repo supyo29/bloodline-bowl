@@ -54,10 +54,12 @@ const SCENARIOS: Record<SensitivityKey, ScenarioDefinition> = {
 function scoreAllArchetypes(
   scoringSettings: Record<string, number>,
 ): Record<ArchetypeKey, number> {
-  const entries = Object.entries(ARCHETYPE_STAT_LINES).map(([key, { stats }]) => [
-    key,
-    calculateFantasyPoints(stats, scoringSettings).fantasy_points,
-  ]) as Array<[ArchetypeKey, number]>;
+  const entries = Object.entries(ARCHETYPE_STAT_LINES).map(
+    ([key, { stats }]) => [
+      key,
+      calculateFantasyPoints(stats, scoringSettings).fantasy_points,
+    ],
+  ) as Array<[ArchetypeKey, number]>;
   return Object.fromEntries(entries) as Record<ArchetypeKey, number>;
 }
 
@@ -74,13 +76,17 @@ export function buildSensitivity(
   baseline: Record<ArchetypeKey, ArchetypeResult>,
 ): Record<SensitivityKey, SensitivityScenario> {
   const baselinePoints = Object.fromEntries(
-    Object.entries(baseline).map(([key, result]) => [key, result.fantasy_points]),
+    Object.entries(baseline).map(([key, result]) => [
+      key,
+      result.fantasy_points,
+    ]),
   ) as Record<ArchetypeKey, number>;
 
   const entries = Object.entries(SCENARIOS).map(([scenarioKey, definition]) => {
     const adjusted = {
       ...scoringSettings,
-      [definition.key]: (scoringSettings[definition.key] ?? 0) + definition.delta,
+      [definition.key]:
+        (scoringSettings[definition.key] ?? 0) + definition.delta,
     };
     const adjustedPoints = scoreAllArchetypes(adjusted);
 
@@ -99,5 +105,8 @@ export function buildSensitivity(
     return [scenarioKey, scenario] as const;
   });
 
-  return Object.fromEntries(entries) as Record<SensitivityKey, SensitivityScenario>;
+  return Object.fromEntries(entries) as Record<
+    SensitivityKey,
+    SensitivityScenario
+  >;
 }

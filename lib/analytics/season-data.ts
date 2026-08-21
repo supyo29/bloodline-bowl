@@ -61,11 +61,15 @@ export async function loadSeasonData(
 
   const [users, rosters] = await Promise.all([
     getLeagueUsers(leagueId, { revalidate }).catch((error: unknown) => {
-      warnings.push(`Could not load users for league ${leagueId}: ${describeError(error)}`);
+      warnings.push(
+        `Could not load users for league ${leagueId}: ${describeError(error)}`,
+      );
       return [];
     }),
     getLeagueRosters(leagueId, { revalidate }).catch((error: unknown) => {
-      warnings.push(`Could not load rosters for league ${leagueId}: ${describeError(error)}`);
+      warnings.push(
+        `Could not load rosters for league ${leagueId}: ${describeError(error)}`,
+      );
       return [];
     }),
   ]);
@@ -83,7 +87,10 @@ export async function loadSeasonData(
       weeks.map(async (week) => {
         try {
           const matchups = await getMatchups(leagueId, week, { revalidate });
-          return [week, Array.isArray(matchups) ? matchups : []] as [number, RawMatchup[]];
+          return [week, Array.isArray(matchups) ? matchups : []] as [
+            number,
+            RawMatchup[],
+          ];
         } catch (error) {
           warnings.push(
             `Could not load week ${week} matchups for league ${leagueId}: ${describeError(error)}`,

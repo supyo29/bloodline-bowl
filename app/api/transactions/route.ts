@@ -19,25 +19,41 @@ import { traverseLeagueLineage } from "@/lib/analytics/lineage";
 import { buildMetadata } from "@/lib/analytics/types";
 import { allWeeks } from "@/lib/analytics/season-data";
 import {
+  parseLeagueSelector,
   parseRosterId,
   parseSeason,
   parseTransactionType,
   parseUserId,
   parseWeek,
 } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? new Date().getFullYear().toString();
+    const currentSeason =
+      nflState?.season ?? new Date().getFullYear().toString();
 
     const seasonResult = parseSeason(params.get("season"), currentSeason);
     if ("error" in seasonResult) {
@@ -53,7 +69,11 @@ export async function GET(request: Request): Promise<Response> {
     }
     const rosterIdResult = parseRosterId(params.get("roster_id"));
     if ("error" in rosterIdResult) {
-      return errorResponse(400, "invalid_query_parameter", rosterIdResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        rosterIdResult.error,
+      );
     }
     const managerResult = parseUserId(params.get("manager"));
     if ("error" in managerResult) {
@@ -73,7 +93,9 @@ export async function GET(request: Request): Promise<Response> {
     if (!isCurrentSeason) {
       const lineage = await traverseLeagueLineage(leagueId);
       warnings.push(...lineage.warnings);
-      const match = lineage.seasons.find((entry) => entry.league.season === season);
+      const match = lineage.seasons.find(
+        (entry) => entry.league.season === season,
+      );
       if (!match) {
         return errorResponse(
           404,
@@ -97,7 +119,9 @@ export async function GET(request: Request): Promise<Response> {
     const weekResults = await Promise.all(
       weeks.map(async (week) => {
         try {
-          return await getLeagueTransactions(targetLeagueId, week, { revalidate });
+          return await getLeagueTransactions(targetLeagueId, week, {
+            revalidate,
+          });
         } catch (error) {
           warnings.push(
             `Could not load week ${week} transactions: ${
@@ -114,14 +138,18 @@ export async function GET(request: Request): Promise<Response> {
     let transactions = weekResults
       .flat()
       .filter((t) => t.status === "complete")
-      .map((t) => normalizeTransaction(t, season, playerIndex, rostersById, usersById));
+      .map((t) =>
+        normalizeTransaction(t, season, playerIndex, rostersById, usersById),
+      );
 
     if (typeResult.value !== null) {
       transactions = transactions.filter((t) => t.type === typeResult.value);
     }
     if (rosterIdResult.value !== null) {
       const rosterId = rosterIdResult.value;
-      transactions = transactions.filter((t) => t.rosters_involved.includes(rosterId));
+      transactions = transactions.filter((t) =>
+        t.rosters_involved.includes(rosterId),
+      );
     }
     if (managerResult.value !== null) {
       const managerId = managerResult.value;
@@ -133,7 +161,9 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
 
-    transactions.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+    transactions.sort((a, b) =>
+      (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+    );
 
     const metadata = buildMetadata({
       league_id: leagueId,

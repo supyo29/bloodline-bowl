@@ -9,17 +9,31 @@
 import assert from "node:assert/strict";
 import { before, describe, it } from "node:test";
 
+import { getLeague } from "../lib/sleeper/client";
 import {
   DEFAULT_AVAILABLE_LIMIT,
   buildDraftBundle,
 } from "../lib/sleeper/draft-service";
+import { flexSlots, strictStartingSlots } from "../lib/sleeper/draft";
 import { BLOODLINE_BOWL_LEAGUE_ID } from "../lib/sleeper/service";
 import type { DraftResponse } from "../lib/sleeper/types";
 
 let response: DraftResponse;
 let cacheSeconds: number;
+/** Expected strict-slot counts, derived live rather than hardcoded — the
+ * league's roster_positions can (and has) changed between test runs. */
+let expectedRequiredSlots: Record<string, number>;
+let expectedFlexSlotCount: number;
 
 before(async () => {
+  const league = await getLeague(BLOODLINE_BOWL_LEAGUE_ID);
+  const rosterPositions = league.roster_positions ?? [];
+  expectedRequiredSlots = {};
+  for (const slot of strictStartingSlots(rosterPositions)) {
+    expectedRequiredSlots[slot] = (expectedRequiredSlots[slot] ?? 0) + 1;
+  }
+  expectedFlexSlotCount = flexSlots(rosterPositions).length;
+
   const bundle = await buildDraftBundle(BLOODLINE_BOWL_LEAGUE_ID, {
     availableLimit: DEFAULT_AVAILABLE_LIMIT,
     position: null,
@@ -48,12 +62,15 @@ describe("live draft snapshot", () => {
     assert.equal(response.budget.minimum_bid_source, "assumed_default");
   });
 
-  it("represents all ten managers", () => {
-    assert.equal(response.teams.length, 10);
-    assert.equal(response.metadata.team_count, 10);
+  it("represents one team per roster in the league", () => {
+    // Team count is read from the live league rather than hardcoded, since
+    // the commissioner can (and has) resized the league between test runs.
+    const teamCount = response.teams.length;
+    assert.ok(teamCount > 0);
+    assert.equal(response.metadata.team_count, teamCount);
     assert.deepEqual(
       response.teams.map((team) => team.roster_id),
-      Array.from({ length: 10 }, (_, index) => index + 1),
+      Array.from({ length: teamCount }, (_, index) => index + 1),
     );
   });
 
@@ -61,8 +78,12 @@ describe("live draft snapshot", () => {
     const slots = response.teams
       .map((team) => team.draft_slot)
       .filter((slot): slot is number => slot !== null);
-    assert.equal(slots.length, 10);
-    assert.equal(new Set(slots).size, 10, "draft slots must be unique");
+    assert.equal(slots.length, response.teams.length);
+    assert.equal(
+      new Set(slots).size,
+      response.teams.length,
+      "draft slots must be unique",
+    );
   });
 
   it("resolves claimed rosters to their manager names", () => {
@@ -196,15 +217,8 @@ describe("live draft: pre-draft state", () => {
       const required = Object.fromEntries(
         team.needs.required.map((n) => [n.position, n.minimum_needed]),
       );
-      assert.deepEqual(required, {
-        QB: 2,
-        RB: 2,
-        WR: 2,
-        TE: 1,
-        K: 1,
-        DEF: 1,
-      });
-      assert.equal(team.needs.flexible_slots_remaining, 2);
+      assert.deepEqual(required, expectedRequiredSlots);
+      assert.equal(team.needs.flexible_slots_remaining, expectedFlexSlotCount);
     }
   });
 

@@ -40,10 +40,18 @@ export interface LeagueSnapshot {
   standings: RosterStandingFacts[];
   teams: Array<{
     roster_id: number;
-    manager: { user_id: string | null; display_name: string | null; team_name: string | null };
+    manager: {
+      user_id: string | null;
+      display_name: string | null;
+      team_name: string | null;
+    };
     record: { wins: number; losses: number; ties: number };
     points_for: number;
-    roster_summary: { player_count: number; starter_count: number; bench_count: number };
+    roster_summary: {
+      player_count: number;
+      starter_count: number;
+      bench_count: number;
+    };
     budget: {
       starting: number;
       spent: number;
@@ -63,25 +71,34 @@ export interface LeagueSnapshot {
   };
 }
 
-export async function buildSnapshot(): Promise<{
+/**
+ * @param leagueId Resolved league id to snapshot. Defaults to the bridge's
+ *   default league only when omitted, preserving the original zero-argument
+ *   call site.
+ */
+export async function buildSnapshot(
+  leagueId: string = resolveLeagueId(),
+): Promise<{
   snapshot: LeagueSnapshot;
   warnings: string[];
 }> {
-  const leagueId = resolveLeagueId();
   const warnings: string[] = [];
 
-  const [leagueBundle, draftBundle, scoring, nflState, rosters, users] = await Promise.all([
-    buildLeagueBundle(leagueId),
-    buildDraftBundle(leagueId, { availableLimit: 1, position: null }),
-    buildScoringBundle(),
-    getNflState().catch(() => null),
-    getLeagueRosters(leagueId).catch(() => []),
-    getLeagueUsers(leagueId).catch(() => []),
-  ]);
+  const [leagueBundle, draftBundle, scoring, nflState, rosters, users] =
+    await Promise.all([
+      buildLeagueBundle(leagueId),
+      buildDraftBundle(leagueId, { availableLimit: 1, position: null }),
+      buildScoringBundle(leagueId),
+      getNflState().catch(() => null),
+      getLeagueRosters(leagueId).catch(() => []),
+      getLeagueUsers(leagueId).catch(() => []),
+    ]);
 
   const league = leagueBundle.response.league;
   const usersById = new Map(users.map((user) => [user.user_id, user]));
-  const rostersById = new Map(rosters.map((roster) => [roster.roster_id, roster]));
+  const rostersById = new Map(
+    rosters.map((roster) => [roster.roster_id, roster]),
+  );
 
   const standingsRaw = computeStandings(rosters, users, new Map(), []);
   const standings = standingsRaw;
@@ -112,13 +129,25 @@ export async function buildSnapshot(): Promise<{
   try {
     const playerIndex = await getPlayerIndex();
     const weekResults = await Promise.all(
-      recentWeeks.map((week) => getLeagueTransactions(leagueId, week).catch(() => [])),
+      recentWeeks.map((week) =>
+        getLeagueTransactions(leagueId, week).catch(() => []),
+      ),
     );
-    const allTransactions = weekResults.flat().filter((t) => t.status === "complete");
+    const allTransactions = weekResults
+      .flat()
+      .filter((t) => t.status === "complete");
     recentTransactions = allTransactions
       .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
       .slice(0, RECENT_TRANSACTION_LIMIT)
-      .map((t) => normalizeTransaction(t, league.season, playerIndex, rostersById, usersById));
+      .map((t) =>
+        normalizeTransaction(
+          t,
+          league.season,
+          playerIndex,
+          rostersById,
+          usersById,
+        ),
+      );
   } catch (error) {
     warnings.push(
       `Could not load recent transactions: ${error instanceof Error ? error.message : String(error)}`,
@@ -129,7 +158,10 @@ export async function buildSnapshot(): Promise<{
     draftBundle.response.teams.map((team) => [team.roster_id, team.budget]),
   );
   const pickCountByRoster = new Map(
-    leagueBundle.response.teams.map((team) => [team.roster_id, team.draft_picks.length]),
+    leagueBundle.response.teams.map((team) => [
+      team.roster_id,
+      team.draft_picks.length,
+    ]),
   );
 
   const teams = leagueBundle.response.teams.map((team) => ({
@@ -139,7 +171,11 @@ export async function buildSnapshot(): Promise<{
       display_name: team.manager.display_name,
       team_name: team.manager.team_name,
     },
-    record: { wins: team.record.wins, losses: team.record.losses, ties: team.record.ties },
+    record: {
+      wins: team.record.wins,
+      losses: team.record.losses,
+      ties: team.record.ties,
+    },
     points_for: team.record.points_for,
     roster_summary: {
       player_count: team.players.length,

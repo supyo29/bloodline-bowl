@@ -39,17 +39,25 @@ const FORBIDDEN_FIELD_PATTERNS = [
 function assertNoSubjectiveFields(payload: unknown, label: string): void {
   const serialized = JSON.stringify(payload).toLowerCase();
   for (const forbidden of FORBIDDEN_FIELD_PATTERNS) {
-    assert.ok(!serialized.includes(forbidden), `${label} contains forbidden field: ${forbidden}`);
+    assert.ok(
+      !serialized.includes(forbidden),
+      `${label} contains forbidden field: ${forbidden}`,
+    );
   }
 }
 
 describe("live: league history", () => {
   it("discovers the current season with no fabricated lineage", async () => {
     const nflState = await getNflState();
-    const { seasons, warnings } = await buildLeagueHistory(LEAGUE_ID, nflState.season);
+    const { seasons, warnings } = await buildLeagueHistory(
+      LEAGUE_ID,
+      nflState.season,
+    );
     assert.ok(seasons.length >= 1);
     assert.equal(seasons[0]?.league_id, LEAGUE_ID);
-    assert.equal(seasons[0]?.team_count, 10);
+    // Team count is read live rather than hardcoded — the commissioner has
+    // already resized this league once between test runs.
+    assert.ok((seasons[0]?.team_count ?? 0) > 0);
     assertNoSubjectiveFields(seasons, "history");
     assert.ok(Array.isArray(warnings));
   });
@@ -65,17 +73,24 @@ describe("live: league history", () => {
 });
 
 describe("live: standings", () => {
-  it("computes standings for all 10 rosters with honest nulls pre-season", async () => {
-    const seasonData = await loadSeasonData(LEAGUE_ID, { revalidate: 60, weeks: allWeeks() });
+  it("computes standings for every roster with honest nulls pre-season", async () => {
+    const seasonData = await loadSeasonData(LEAGUE_ID, {
+      revalidate: 60,
+      weeks: allWeeks(),
+    });
     const standings = computeStandings(
       seasonData.rosters,
       seasonData.users,
       seasonData.matchupsByWeek,
       seasonData.winnersBracket,
     );
-    assert.equal(standings.length, 10);
+    assert.equal(standings.length, seasonData.rosters.length);
+    assert.ok(standings.length > 0);
     for (const entry of standings) {
-      assert.ok(entry.win_percentage === null || (entry.win_percentage >= 0 && entry.win_percentage <= 1));
+      assert.ok(
+        entry.win_percentage === null ||
+          (entry.win_percentage >= 0 && entry.win_percentage <= 1),
+      );
       // Missing weekly-score data must be null, never fabricated as 0.
       if (entry.games_played === 0) {
         assert.equal(entry.highest_weekly_score, null);
@@ -106,7 +121,10 @@ describe("live: managers", () => {
     const { seasons } = await buildLeagueHistory(LEAGUE_ID, nflState.season);
     const { profiles } = await buildManagerProfiles(seasons, nflState.season);
     for (const profile of profiles) {
-      if (profile.transactions.trades === 0 && profile.transactions.waiver_claims === 0) {
+      if (
+        profile.transactions.trades === 0 &&
+        profile.transactions.waiver_claims === 0
+      ) {
         assert.equal(profile.transactions.faab_spent, null);
       }
     }
@@ -157,10 +175,13 @@ describe("live: snapshot", () => {
     snapshot = result.snapshot;
   });
 
-  it("represents all 10 teams with a budget and pick count", () => {
-    assert.equal(snapshot.teams.length, 10);
+  it("represents one team per roster with a budget and pick count", () => {
+    assert.equal(snapshot.teams.length, snapshot.league.team_count);
+    assert.ok(snapshot.teams.length > 0);
     for (const team of snapshot.teams) {
-      assert.ok(team.budget === null || typeof team.budget.remaining === "number");
+      assert.ok(
+        team.budget === null || typeof team.budget.remaining === "number",
+      );
       assert.ok(team.draft_pick_count >= 0);
     }
   });
@@ -173,7 +194,10 @@ describe("live: snapshot", () => {
 
   it("stays compact — not a concatenation of every route", () => {
     const bytes = Buffer.byteLength(JSON.stringify(snapshot));
-    assert.ok(bytes < 200_000, `snapshot should stay compact, got ${bytes} bytes`);
+    assert.ok(
+      bytes < 200_000,
+      `snapshot should stay compact, got ${bytes} bytes`,
+    );
   });
 
   it("contains no subjective grades, labels, or rankings", () => {
@@ -184,13 +208,19 @@ describe("live: snapshot", () => {
 describe("live: no subjective fields anywhere in the analytics layer", () => {
   it("scans a full snapshot plus standings for forbidden fields", async () => {
     const { snapshot } = await buildSnapshot();
-    const seasonData = await loadSeasonData(LEAGUE_ID, { revalidate: 300, weeks: [] });
+    const seasonData = await loadSeasonData(LEAGUE_ID, {
+      revalidate: 300,
+      weeks: [],
+    });
     const standings = computeStandings(
       seasonData.rosters,
       seasonData.users,
       new Map(),
       seasonData.winnersBracket,
     );
-    assertNoSubjectiveFields({ snapshot, standings }, "combined analytics payload");
+    assertNoSubjectiveFields(
+      { snapshot, standings },
+      "combined analytics payload",
+    );
   });
 });

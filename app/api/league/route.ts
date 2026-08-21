@@ -4,6 +4,7 @@
 
 import { SleeperError } from "@/lib/sleeper/client";
 import { buildLeagueBundle, resolveLeagueId } from "@/lib/sleeper/service";
+import { parseLeagueSelector } from "@/lib/analytics/query";
 import {
   cacheHeader,
   errorResponse,
@@ -20,8 +21,18 @@ export const maxDuration = 60;
 const CACHE_MAX_AGE_SECONDS = 300;
 const STALE_WHILE_REVALIDATE_SECONDS = 900;
 
-export async function GET(): Promise<Response> {
-  const leagueId = resolveLeagueId();
+export async function GET(request: Request): Promise<Response> {
+  const leagueSelectorResult = parseLeagueSelector(
+    new URL(request.url).searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
 
   try {
     const { response, complete } = await buildLeagueBundle(leagueId);

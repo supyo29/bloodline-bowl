@@ -47,7 +47,9 @@ export function buildWeekMatchupFacts(
   rosters: RawRoster[],
   usersById: Map<string, RawLeagueUser>,
 ): MatchupFact[] {
-  const rostersById = new Map(rosters.map((roster) => [roster.roster_id, roster]));
+  const rostersById = new Map(
+    rosters.map((roster) => [roster.roster_id, roster]),
+  );
 
   // Rank every roster's score that week, highest first; ties share a rank.
   const scored = rawMatchups
@@ -79,7 +81,10 @@ export function buildWeekMatchupFacts(
 
   const facts: MatchupFact[] = [];
 
-  const buildFact = (row: RawMatchup, opponentRow: RawMatchup | null): MatchupFact => {
+  const buildFact = (
+    row: RawMatchup,
+    opponentRow: RawMatchup | null,
+  ): MatchupFact => {
     const points = row.points;
     const opponentPoints = opponentRow?.points ?? null;
     let result: MatchupFact["result"] = null;
@@ -101,7 +106,10 @@ export function buildWeekMatchupFacts(
       opponent: opponentRow
         ? {
             roster_id: opponentRow.roster_id,
-            manager: managerRef(rostersById.get(opponentRow.roster_id), usersById),
+            manager: managerRef(
+              rostersById.get(opponentRow.roster_id),
+              usersById,
+            ),
           }
         : null,
       points: points ?? null,

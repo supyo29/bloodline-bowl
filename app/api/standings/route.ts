@@ -10,22 +10,40 @@ import { SleeperError, getNflState } from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { traverseLeagueLineage } from "@/lib/analytics/lineage";
 import { allWeeks, loadSeasonData } from "@/lib/analytics/season-data";
-import { assignRegularSeasonFinish, computeStandings } from "@/lib/analytics/standings";
+import {
+  assignRegularSeasonFinish,
+  computeStandings,
+} from "@/lib/analytics/standings";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parseSeason } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { parseLeagueSelector, parseSeason } from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? new Date().getFullYear().toString();
+    const currentSeason =
+      nflState?.season ?? new Date().getFullYear().toString();
 
     const seasonResult = parseSeason(params.get("season"), currentSeason);
     if ("error" in seasonResult) {
@@ -40,7 +58,9 @@ export async function GET(request: Request): Promise<Response> {
     if (!isCurrentSeason) {
       const lineage = await traverseLeagueLineage(leagueId);
       warnings.push(...lineage.warnings);
-      const match = lineage.seasons.find((entry) => entry.league.season === season);
+      const match = lineage.seasons.find(
+        (entry) => entry.league.season === season,
+      );
       if (!match) {
         return errorResponse(
           404,
@@ -67,7 +87,9 @@ export async function GET(request: Request): Promise<Response> {
     );
 
     if (standings.every((s) => s.games_played === 0)) {
-      warnings.push(`No games have been played yet in ${season}; all records are 0-0-0.`);
+      warnings.push(
+        `No games have been played yet in ${season}; all records are 0-0-0.`,
+      );
     }
 
     const metadata = buildMetadata({

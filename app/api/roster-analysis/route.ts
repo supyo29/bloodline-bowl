@@ -29,25 +29,46 @@ import {
   buildSlotCoverage,
 } from "@/lib/analytics/roster";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parseRosterId, parseSeason } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import {
+  parseLeagueSelector,
+  parseRosterId,
+  parseSeason,
+} from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 import type { NormalizedPlayer, RawRoster } from "@/lib/sleeper/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function resolveIds(ids: string[] | null | undefined, index: PlayerIndex): NormalizedPlayer[] {
+function resolveIds(
+  ids: string[] | null | undefined,
+  index: PlayerIndex,
+): NormalizedPlayer[] {
   return (ids ?? [])
     .filter((id) => id !== "0")
     .map((id) => index.get(id) ?? slimPlayer(id, undefined));
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const league = await getLeague(leagueId);
     const nflState = await getNflState().catch(() => null);
     const currentSeason = nflState?.season ?? league.season;
@@ -65,20 +86,27 @@ export async function GET(request: Request): Promise<Response> {
     }
     const rosterIdResult = parseRosterId(params.get("roster_id"));
     if ("error" in rosterIdResult) {
-      return errorResponse(400, "invalid_query_parameter", rosterIdResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        rosterIdResult.error,
+      );
     }
 
-    const [rosters, users, drafts, tradedPicks, playerIndex] = await Promise.all([
-      getLeagueRosters(leagueId),
-      getLeagueUsers(leagueId),
-      getLeagueDrafts(leagueId),
-      getLeagueTradedPicks(leagueId),
-      getPlayerIndex(),
-    ]);
+    const [rosters, users, drafts, tradedPicks, playerIndex] =
+      await Promise.all([
+        getLeagueRosters(leagueId),
+        getLeagueUsers(leagueId),
+        getLeagueDrafts(leagueId),
+        getLeagueTradedPicks(leagueId),
+        getPlayerIndex(),
+      ]);
 
     let targetRosters: RawRoster[] = rosters;
     if (rosterIdResult.value !== null) {
-      targetRosters = rosters.filter((r) => r.roster_id === rosterIdResult.value);
+      targetRosters = rosters.filter(
+        (r) => r.roster_id === rosterIdResult.value,
+      );
       if (targetRosters.length === 0) {
         return errorResponse(
           404,
@@ -94,7 +122,8 @@ export async function GET(request: Request): Promise<Response> {
     let startingBudget: number | null = null;
 
     if (draft) {
-      startingBudget = draft.type === "auction" ? (draft.settings?.budget ?? null) : null;
+      startingBudget =
+        draft.type === "auction" ? (draft.settings?.budget ?? null) : null;
       try {
         const picks = await getDraftPicks(draft.draft_id);
         for (const pick of picks) {
@@ -106,7 +135,8 @@ export async function GET(request: Request): Promise<Response> {
                 : null;
           const price = parsePickPrice(pick);
           if (rosterId === null || !pick.player_id || price === null) continue;
-          const bucket = pricesByRoster.get(rosterId) ?? new Map<string, number>();
+          const bucket =
+            pricesByRoster.get(rosterId) ?? new Map<string, number>();
           bucket.set(pick.player_id, price);
           pricesByRoster.set(rosterId, bucket);
         }
@@ -120,10 +150,18 @@ export async function GET(request: Request): Promise<Response> {
         );
       }
     } else {
-      warnings.push("This league has no draft, so acquisition price and budget spend are unavailable.");
+      warnings.push(
+        "This league has no draft, so acquisition price and budget spend are unavailable.",
+      );
     }
 
-    const draftCapital = buildDraftCapital(rosters, drafts, tradedPicks, league, nflState);
+    const draftCapital = buildDraftCapital(
+      rosters,
+      drafts,
+      tradedPicks,
+      league,
+      nflState,
+    );
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     const rosterPositions = league.roster_positions ?? [];
     const totalRosterSlots = rosterPositions.length;
@@ -131,7 +169,9 @@ export async function GET(request: Request): Promise<Response> {
     const rosterAnalyses = targetRosters
       .map((roster) => {
         const allPlayers = resolveIds(roster.players, playerIndex);
-        const starterIds = new Set((roster.starters ?? []).filter((id) => id !== "0"));
+        const starterIds = new Set(
+          (roster.starters ?? []).filter((id) => id !== "0"),
+        );
         const taxiIds = new Set(roster.taxi ?? []);
         const reserveIds = new Set(roster.reserve ?? []);
 
@@ -145,20 +185,24 @@ export async function GET(request: Request): Promise<Response> {
             !reserveIds.has(p.player_id),
         );
 
-        const priceByPlayer = pricesByRoster.get(roster.roster_id) ?? new Map<string, number>();
+        const priceByPlayer =
+          pricesByRoster.get(roster.roster_id) ?? new Map<string, number>();
         const acquisitions = allPlayers.map((player) => ({
           player,
           price: priceByPlayer.get(player.player_id) ?? null,
         }));
 
-        const user = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
+        const user = roster.owner_id
+          ? usersById.get(roster.owner_id)
+          : undefined;
 
         return {
           roster_id: roster.roster_id,
           manager: {
             user_id: roster.owner_id ?? null,
             display_name: user?.display_name ?? null,
-            team_name: (user?.metadata?.team_name as string | undefined) ?? null,
+            team_name:
+              (user?.metadata?.team_name as string | undefined) ?? null,
           },
           composition: buildRosterComposition(
             allPlayers,
@@ -171,7 +215,8 @@ export async function GET(request: Request): Promise<Response> {
           age: buildAgeFacts(allPlayers),
           slot_coverage: buildSlotCoverage(allPlayers, rosterPositions),
           auction_spend: buildAuctionSpendFacts(acquisitions, startingBudget),
-          draft_pick_ownership: draftCapital.byOwner.get(roster.roster_id) ?? [],
+          draft_pick_ownership:
+            draftCapital.byOwner.get(roster.roster_id) ?? [],
         };
       })
       .sort((a, b) => a.roster_id - b.roster_id);

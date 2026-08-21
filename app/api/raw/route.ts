@@ -9,6 +9,7 @@
 
 import { SleeperError, fetchSleeper } from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
+import { parseLeagueSelector } from "@/lib/analytics/query";
 import {
   cacheHeader,
   errorResponse,
@@ -65,7 +66,17 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const leagueId = resolveLeagueId();
+  const leagueSelectorResult = parseLeagueSelector(
+    url.searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
   let path: string;
 
   if (resource === "draft_picks") {

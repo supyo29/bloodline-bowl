@@ -34,22 +34,28 @@ export class SleeperStatsProvider implements PlayerStatsProvider {
     return null;
   }
 
-  async getWeeklyStats(season: string, week: number): Promise<PlayerStatLine[]> {
+  async getWeeklyStats(
+    season: string,
+    week: number,
+  ): Promise<PlayerStatLine[]> {
     const raw = await getWeeklyStats(season, week);
-    return Object.entries(raw)
-      // Sleeper's stats endpoint includes one synthetic "TEAM_XXX" row per NFL
-      // team carrying team-level offensive aggregates (not in /players/nfl,
-      // not a rosterable entity). Scoring these as an individual player would
-      // produce large bogus point totals that dominate rankings.
-      .filter(([playerId]) => !playerId.startsWith("TEAM_"))
-      .map(([playerId, statLine]) => {
-        const stats: Record<string, number> = {};
-        for (const [key, value] of Object.entries(statLine)) {
-          if (SLEEPER_COMPUTED_KEYS.has(key)) continue;
-          if (typeof value === "number" && Number.isFinite(value)) stats[key] = value;
-        }
-        return { player_id: playerId, season, week, stats };
-      });
+    return (
+      Object.entries(raw)
+        // Sleeper's stats endpoint includes one synthetic "TEAM_XXX" row per NFL
+        // team carrying team-level offensive aggregates (not in /players/nfl,
+        // not a rosterable entity). Scoring these as an individual player would
+        // produce large bogus point totals that dominate rankings.
+        .filter(([playerId]) => !playerId.startsWith("TEAM_"))
+        .map(([playerId, statLine]) => {
+          const stats: Record<string, number> = {};
+          for (const [key, value] of Object.entries(statLine)) {
+            if (SLEEPER_COMPUTED_KEYS.has(key)) continue;
+            if (typeof value === "number" && Number.isFinite(value))
+              stats[key] = value;
+          }
+          return { player_id: playerId, season, week, stats };
+        })
+    );
   }
 }
 

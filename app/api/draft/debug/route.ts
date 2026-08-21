@@ -3,7 +3,8 @@
  *
  * Exists to troubleshoot auction metadata (notably `metadata.amount`, which
  * Sleeper does not document). It exposes only the selected draft's own fields
- * plus a small sample of raw picks — no arbitrary proxying, and no parameters.
+ * plus a small sample of raw picks — no arbitrary proxying. Accepts only
+ * `?league=` (the same selector every other route accepts).
  * Safe to delete: nothing else imports it.
  */
 
@@ -15,6 +16,7 @@ import {
 } from "@/lib/sleeper/client";
 import { selectActiveDraft } from "@/lib/sleeper/draft";
 import { resolveLeagueId } from "@/lib/sleeper/service";
+import { parseLeagueSelector } from "@/lib/analytics/query";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +25,18 @@ export const runtime = "nodejs";
 /** How many raw picks to include; enough to inspect metadata shape. */
 const SAMPLE_SIZE = 3;
 
-export async function GET(): Promise<Response> {
-  const leagueId = resolveLeagueId();
+export async function GET(request: Request): Promise<Response> {
+  const leagueSelectorResult = parseLeagueSelector(
+    new URL(request.url).searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
 
   try {
     const drafts = await getLeagueDrafts(leagueId);

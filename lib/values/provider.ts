@@ -33,6 +33,8 @@ export function getValueProvider(): PlayerValueProvider {
 }
 
 /** Exposed for tests to swap in a fake provider without touching module state elsewhere. */
-export function setValueProviderForTesting(provider: PlayerValueProvider): void {
+export function setValueProviderForTesting(
+  provider: PlayerValueProvider,
+): void {
   activeProvider = provider;
 }

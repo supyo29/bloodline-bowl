@@ -9,17 +9,33 @@ import { SleeperError } from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { buildSnapshot } from "@/lib/analytics/snapshot";
 import { buildMetadata } from "@/lib/analytics/types";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { parseLeagueSelector } from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function GET(): Promise<Response> {
-  const leagueId = resolveLeagueId();
+export async function GET(request: Request): Promise<Response> {
+  const leagueSelectorResult = parseLeagueSelector(
+    new URL(request.url).searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
 
   try {
-    const { snapshot, warnings } = await buildSnapshot();
+    const { snapshot, warnings } = await buildSnapshot(leagueId);
 
     const metadata = buildMetadata({
       league_id: leagueId,

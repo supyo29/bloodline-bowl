@@ -19,7 +19,14 @@ To evaluate the league's scoring rules — is a rushing QB favored over a pocket
 reception value overvalue possession receivers, how would a small scoring tweak ripple across
 positions — point it at `/api/scoring`.
 
-**League ID:** `1395549281678532608`
+**This bridge serves more than one league.** Every endpoint accepts an optional `?league=`
+selector; omit it and you get the default league (Bloodline Bowl). See
+[Multi-league support](#multi-league-support) below.
+
+| Key                        | League              | Sleeper league ID     | Sleeper account |
+| -------------------------- | ------------------- | --------------------- | --------------- |
+| `bloodline-bowl` (default) | Bloodline Bowl      | `1395549281678532608` | supyo29         |
+| `devoted-to-the-game`      | Devoted to the Game | `1389735763649761280` | darthmarker     |
 
 ---
 
@@ -39,6 +46,118 @@ appear when they've changed hands. This bridge does the joins:
 | Terse settings like `waiver_type: 2`             | A `key_settings` gloss (`"waiver_type": "faab"`) alongside the raw values |
 
 Original Sleeper IDs are preserved everywhere, so nothing is lost for debugging or future joins.
+
+---
+
+## Multi-league support
+
+This bridge fetches everything live from Sleeper per request — there is no database and no
+background sync job. "Adding a league" is therefore not an ingestion pipeline; it's registering a
+memorable name for a Sleeper league id.
+
+### How league selection works
+
+Every endpoint accepts an optional `?league=` query parameter, resolved by
+`resolveLeagueId()` (`lib/sleeper/service.ts`) in this order:
+
+1. **An explicit `?league=` selector**, if given. It can be either:
+   - a **registry key** (e.g. `devoted-to-the-game`) — the friendly, documented handle, or
+   - a **raw numeric Sleeper league id** (e.g. `1389735763649761280`) — always works, whether or
+     not that league is in the registry. The registry is a naming convenience, not an allowlist.
+2. The `SLEEPER_LEAGUE_ID` environment variable, for local overrides/testing.
+3. The default registry target (`bloodline-bowl`).
+
+An unrecognized _non-numeric_ selector is rejected with `400` by `parseLeagueSelector`
+(`lib/analytics/query.ts`) before any Sleeper call is made — the same allowlisted-query-parameter
+contract every other input in this bridge follows (`?season=`, `?week=`, `?position=`, …).
+
+```bash
+curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/league?league=devoted-to-the-game"
+curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/scoring?league=1389735763649761280"
+```
+
+### The league registry
+
+`lib/leagues/registry.ts` holds the known leagues as a small typed list:
+
+```ts
+const LEAGUE_TARGETS: LeagueTarget[] = [
+  {
+    key: "bloodline-bowl",
+    provider: "sleeper",
+    league_id: "1395549281678532608",
+    display_name: "Bloodline Bowl",
+    sleeper_username: "supyo29",
+    sleeper_user_id: "1308955807408230400",
+    enabled: true,
+  },
+  {
+    key: "devoted-to-the-game",
+    provider: "sleeper",
+    league_id: "1389735763649761280",
+    display_name: "Devoted to the Game",
+    sleeper_username: "darthmarker",
+    sleeper_user_id: "1265419589680910336",
+    enabled: true,
+  },
+];
+```
+
+This is the "simplest repository-appropriate configuration mechanism" for this codebase: the
+bridge has no database, no CSV-parsing dependency, and no existing config-file convention, so a
+typed in-source array — consistent with how the original single-league id was already declared
+(`BLOODLINE_BOWL_LEAGUE_ID`) — stayed the most native fit. Nothing here is a proxy for Sleeper
+credentials; Sleeper's read endpoints need none.
+
+**`display_name` is a fallback label only.** Every response's actual league name always comes from
+Sleeper's own live `league.name` for that league id — confirmed live for Devoted to the Game, whose
+Sleeper-returned name already matches the registry's fallback exactly. The registry's name is never
+used to override what Sleeper returns; it exists so the status page and error messages have
+something to show before any Sleeper call has been made.
+
+### Validation and safety
+
+`getLeagueRegistry()` (backed by the pure, independently-testable `validateAndDedupeTargets()`)
+loads the static list every call and:
+
+- **Drops a malformed entry** (missing `key`, non-numeric or empty `league_id`) with a warning,
+  rather than crashing route resolution — the same fail-safe contract every other config-shaped
+  input in this bridge follows.
+- **Deduplicates by `provider:league_id`.** If the same Sleeper league were ever listed under two
+  different keys, only the first is kept — this is what stops a league from being served twice if
+  it's reachable more than one way.
+- **Honors `enabled: false`.** A disabled entry is parsed and kept visible (e.g. for
+  `/api/health`'s `available_leagues` listing context) but never resolves via `findLeagueTarget`,
+  so `?league=<disabled-key>` behaves exactly like an unregistered key.
+
+All three guarantees — plus the safe fallback for an unrecognized `?league=` selector — are covered
+by deterministic unit tests
+(`test/leagues-registry.test.ts`) against synthetic fixtures — not just the real two-league list —
+so the safety properties hold regardless of what's currently registered.
+
+### Isolation
+
+Each league is completely independent. Every route resolves one `league_id` per request and fetches
+that league's own scoring settings, rosters, matchups, and transactions from Sleeper fresh — nothing
+is merged, averaged, or compared across leagues by this bridge. (Confirmed live: Bloodline Bowl is
+half-PPR; Devoted to the Game is full-PPR, 12 teams, and a snake draft (vs. Bloodline Bowl's auction) —
+querying one never leaks the other's settings, and each league's own live team count is always used
+rather than an assumed one.) The only thing genuinely shared across leagues is
+the module-scoped `/players/nfl` metadata cache — player identity (name, position, team), not
+scoring or roster context — which carries no per-league state and is exactly the kind of shared
+reference data that's safe to cache once.
+
+Cross-league analysis (e.g. "compare scoring philosophies across my leagues") is something an AI
+consumer can do by calling this bridge twice, once per `?league=`, and reasoning over both
+responses itself — this bridge does not do that comparison internally, by design.
+
+### Adding another league
+
+Append one object to `LEAGUE_TARGETS` in `lib/leagues/registry.ts` — nothing else needs to change.
+No route, no service function, and no other file references league ids directly; they all go
+through `resolveLeagueId()`/`findLeagueTarget()`. Duplicate keys or league ids are caught by the
+existing validation (see above), so a copy-paste mistake fails safely instead of silently shadowing
+an existing league.
 
 ---
 
@@ -433,7 +552,7 @@ app/
     draft/debug/route.ts  sanitized raw draft fields
     scoring/route.ts     normalized scoring rules, derived metrics, diagnostics
     scoring/calculate/route.ts  POST: apply live scoring to a caller-supplied stat line
-    history/route.ts           season lineage + factual results
+    history/route.ts           season lineage + factual results (all routes accept ?league=)
     transactions/route.ts      normalized trades/waivers/free agents/drops
     matchups/route.ts          weekly matchup results + score rank
     standings/route.ts         records + weekly-score statistics
@@ -449,6 +568,8 @@ app/
 
 lib/
   http.ts               CORS + cache header helpers
+  leagues/
+    registry.ts          multi-league registry: known leagues, validation, dedup
   sleeper/
     types.ts            raw Sleeper types + normalized output types
     client.ts           HTTP client: timeouts, retries, player-DB cache
@@ -877,13 +998,14 @@ npm test
 
 `npm run lint` drives ESLint directly — Next 16 removed the `next lint` command.
 
-`npm test` runs 230 tests: normalization and draft-logic units against a synthetic league built
+`npm test` runs 261 tests: normalization and draft-logic units against a synthetic league built
 from **real** Sleeper player IDs, a simulated mid-auction exercising the full team-assembly
 pipeline, the scoring engine's yardage/TD/archetype/sensitivity math, the factual analytics layer's
-standings/transaction/roster/weekly-stat calculations, and live end-to-end tests against the actual
-Bloodline Bowl league — including a scan of every analytics response for forbidden subjective
-fields — plus error paths (404, timeout, degraded player database). The live tests require network
-access.
+standings/transaction/roster/weekly-stat calculations, the league registry's validation/dedup/
+disabled-target/malformed-id guarantees against synthetic fixtures, and live end-to-end tests
+against both the Bloodline Bowl and Devoted to the Game leagues — including a scan of every
+analytics response for forbidden subjective fields — plus error paths (404, timeout, degraded
+player database). The live tests require network access.
 
 ### Configuration
 

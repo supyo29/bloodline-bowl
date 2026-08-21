@@ -17,6 +17,7 @@ import {
   parseDraftQuery,
 } from "@/lib/sleeper/draft-service";
 import { resolveLeagueId } from "@/lib/sleeper/service";
+import { parseLeagueSelector } from "@/lib/analytics/query";
 import {
   cacheHeader,
   errorResponse,
@@ -29,14 +30,21 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
+  const searchParams = new URL(request.url).searchParams;
+
+  const leagueSelectorResult = parseLeagueSelector(searchParams.get("league"));
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
 
   try {
     const allowedPositions = await getAllowedPositions(leagueId);
-    const parsed = parseDraftQuery(
-      new URL(request.url).searchParams,
-      allowedPositions,
-    );
+    const parsed = parseDraftQuery(searchParams, allowedPositions);
 
     if ("error" in parsed) {
       return errorResponse(400, "invalid_query_parameter", parsed.error);

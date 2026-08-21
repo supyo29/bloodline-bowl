@@ -6,7 +6,11 @@
  */
 
 import { SCORING_CATALOG, humanizeKey } from "./catalog";
-import type { CalculationResult, ScoringBreakdownEntry, StatLine } from "./types";
+import type {
+  CalculationResult,
+  ScoringBreakdownEntry,
+  StatLine,
+} from "./types";
 
 /** Round to 4 decimal places to absorb IEEE-754 noise (e.g. `0.04 * 300`). */
 export function roundPoints(value: number): number {

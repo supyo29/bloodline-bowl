@@ -13,14 +13,26 @@ import {
 } from "@/lib/sleeper/client";
 import { selectActiveDraft } from "@/lib/sleeper/draft";
 import { resolveLeagueId } from "@/lib/sleeper/service";
-import { handleOptions, jsonResponse } from "@/lib/http";
+import { listLeagueTargets } from "@/lib/leagues/registry";
+import { parseLeagueSelector } from "@/lib/analytics/query";
+import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
-  const wantsDraft = new URL(request.url).searchParams.get("draft") === "1";
+  const searchParams = new URL(request.url).searchParams;
+
+  const leagueSelectorResult = parseLeagueSelector(searchParams.get("league"));
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
+  const wantsDraft = searchParams.get("draft") === "1";
 
   const base = {
     ok: true,
@@ -28,6 +40,12 @@ export async function GET(request: Request): Promise<Response> {
     league_id: leagueId,
     timestamp: new Date().toISOString(),
     player_cache: getPlayerCacheStatus(),
+    // No upstream call — purely the static registry, so this stays cheap.
+    available_leagues: listLeagueTargets().map((target) => ({
+      key: target.key,
+      display_name: target.display_name,
+      league_id: target.league_id,
+    })),
   };
 
   if (!wantsDraft) {

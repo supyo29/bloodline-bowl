@@ -13,6 +13,7 @@ import { getLeague } from "@/lib/sleeper/client";
 import { SleeperError } from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
+import { parseLeagueSelector } from "@/lib/analytics/query";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 import type { StatLine } from "@/lib/scoring/types";
 
@@ -26,6 +27,17 @@ const MAX_ABS_STAT_VALUE = 100_000;
 const MAX_BODY_BYTES = 16 * 1024;
 
 export async function POST(request: Request): Promise<Response> {
+  const leagueSelectorResult = parseLeagueSelector(
+    new URL(request.url).searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+
   const contentLength = request.headers.get("content-length");
   if (contentLength && Number.parseInt(contentLength, 10) > MAX_BODY_BYTES) {
     return errorResponse(
@@ -47,7 +59,11 @@ export async function POST(request: Request): Promise<Response> {
     }
     body = text.length > 0 ? JSON.parse(text) : {};
   } catch {
-    return errorResponse(400, "invalid_json", "Request body must be valid JSON.");
+    return errorResponse(
+      400,
+      "invalid_json",
+      "Request body must be valid JSON.",
+    );
   }
 
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
@@ -65,7 +81,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const statEntries = Object.entries(stats as Record<string, unknown>);
   if (statEntries.length === 0) {
-    return errorResponse(400, "empty_stats", "`stats` must contain at least one key.");
+    return errorResponse(
+      400,
+      "empty_stats",
+      "`stats` must contain at least one key.",
+    );
   }
   if (statEntries.length > MAX_STAT_KEYS) {
     return errorResponse(
@@ -75,7 +95,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const leagueId = resolveLeagueId();
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
   let scoringSettings: Record<string, number>;
   try {
     const league = await getLeague(leagueId);

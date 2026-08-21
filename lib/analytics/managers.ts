@@ -4,7 +4,11 @@
  * stable for the same person across seasons and even across renamed leagues.
  */
 
-import { getLeagueRosters, getLeagueTransactions, getLeagueUsers } from "@/lib/sleeper/client";
+import {
+  getLeagueRosters,
+  getLeagueTransactions,
+  getLeagueUsers,
+} from "@/lib/sleeper/client";
 import type { SeasonHistoryEntry } from "./history";
 import { allWeeks } from "./season-data";
 
@@ -59,26 +63,40 @@ async function loadSeasonTransactionCounts(
 ): Promise<{
   countsByRoster: Map<
     number,
-    { trades: number; waiver_claims: number; free_agent_adds: number; drops: number; faab: number }
+    {
+      trades: number;
+      waiver_claims: number;
+      free_agent_adds: number;
+      drops: number;
+      faab: number;
+    }
   >;
   warnings: string[];
 }> {
   const warnings: string[] = [];
   const countsByRoster = new Map<
     number,
-    { trades: number; waiver_claims: number; free_agent_adds: number; drops: number; faab: number }
+    {
+      trades: number;
+      waiver_claims: number;
+      free_agent_adds: number;
+      drops: number;
+      faab: number;
+    }
   >();
 
   const results = await Promise.all(
     allWeeks().map((week) =>
-      getLeagueTransactions(leagueId, week, { revalidate }).catch((error: unknown) => {
-        warnings.push(
-          `Could not load week ${week} transactions for league ${leagueId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-        return [];
-      }),
+      getLeagueTransactions(leagueId, week, { revalidate }).catch(
+        (error: unknown) => {
+          warnings.push(
+            `Could not load week ${week} transactions for league ${leagueId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return [];
+        },
+      ),
     ),
   );
 
@@ -140,15 +158,18 @@ export async function buildManagerProfiles(
     const isCurrent = season.season === currentSeason;
     const revalidate = isCurrent ? 300 : 24 * 60 * 60;
 
-    const [rosters, users, { countsByRoster, warnings: txWarnings }] = await Promise.all([
-      getLeagueRosters(season.league_id, { revalidate }).catch(() => []),
-      getLeagueUsers(season.league_id, { revalidate }).catch(() => []),
-      loadSeasonTransactionCounts(season.league_id, revalidate),
-    ]);
+    const [rosters, users, { countsByRoster, warnings: txWarnings }] =
+      await Promise.all([
+        getLeagueRosters(season.league_id, { revalidate }).catch(() => []),
+        getLeagueUsers(season.league_id, { revalidate }).catch(() => []),
+        loadSeasonTransactionCounts(season.league_id, revalidate),
+      ]);
     warnings.push(...txWarnings);
 
     const usersById = new Map(users.map((u) => [u.user_id, u]));
-    const standingByRoster = new Map(season.standings.map((s) => [s.roster_id, s]));
+    const standingByRoster = new Map(
+      season.standings.map((s) => [s.roster_id, s]),
+    );
 
     for (const roster of rosters) {
       if (!roster.owner_id) continue;
@@ -195,7 +216,9 @@ export async function buildManagerProfiles(
         profile.career.wins += standing.wins;
         profile.career.losses += standing.losses;
         profile.career.ties += standing.ties;
-        profile.career.points_for = round2(profile.career.points_for + standing.points_for);
+        profile.career.points_for = round2(
+          profile.career.points_for + standing.points_for,
+        );
         profile.career.points_against = round2(
           profile.career.points_against + standing.points_against,
         );
@@ -215,7 +238,8 @@ export async function buildManagerProfiles(
       }
 
       for (const draftId of season.draft_ids) {
-        if (!profile.draft_ids.includes(draftId)) profile.draft_ids.push(draftId);
+        if (!profile.draft_ids.includes(draftId))
+          profile.draft_ids.push(draftId);
       }
 
       profilesById.set(roster.owner_id, profile);
@@ -223,9 +247,12 @@ export async function buildManagerProfiles(
   }
 
   for (const profile of profilesById.values()) {
-    const games = profile.career.wins + profile.career.losses + profile.career.ties;
+    const games =
+      profile.career.wins + profile.career.losses + profile.career.ties;
     profile.career.win_percentage =
-      games > 0 ? round2((profile.career.wins + profile.career.ties * 0.5) / games) : null;
+      games > 0
+        ? round2((profile.career.wins + profile.career.ties * 0.5) / games)
+        : null;
   }
 
   return { profiles: [...profilesById.values()], warnings };

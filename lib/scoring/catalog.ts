@@ -44,11 +44,20 @@ export const SCORING_CATALOG: Record<string, ScoringCatalogEntry> = {
   rec: { label: "Reception", category: "receiving" },
   rec_yd: { label: "Receiving yard", category: "receiving" },
   rec_td: { label: "Receiving touchdown", category: "receiving" },
-  rec_td_40p: { label: "Receiving touchdown (40+ yards)", category: "receiving" },
-  rec_td_50p: { label: "Receiving touchdown (50+ yards)", category: "receiving" },
+  rec_td_40p: {
+    label: "Receiving touchdown (40+ yards)",
+    category: "receiving",
+  },
+  rec_td_50p: {
+    label: "Receiving touchdown (50+ yards)",
+    category: "receiving",
+  },
   rec_2pt: { label: "Receiving 2-point conversion", category: "bonuses" },
   rec_tgt: { label: "Target", category: "receiving" },
-  bonus_rec_te: { label: "Tight end reception bonus (TE premium)", category: "bonuses" },
+  bonus_rec_te: {
+    label: "Tight end reception bonus (TE premium)",
+    category: "bonuses",
+  },
   bonus_rec_rb: { label: "Running back reception bonus", category: "bonuses" },
   bonus_rec_wr: { label: "Wide receiver reception bonus", category: "bonuses" },
 
@@ -61,8 +70,14 @@ export const SCORING_CATALOG: Record<string, ScoringCatalogEntry> = {
   bonus_pass_yd_400: { label: "400+ passing yards bonus", category: "bonuses" },
   bonus_rush_yd_100: { label: "100+ rushing yards bonus", category: "bonuses" },
   bonus_rush_yd_200: { label: "200+ rushing yards bonus", category: "bonuses" },
-  bonus_rec_yd_100: { label: "100+ receiving yards bonus", category: "bonuses" },
-  bonus_rec_yd_200: { label: "200+ receiving yards bonus", category: "bonuses" },
+  bonus_rec_yd_100: {
+    label: "100+ receiving yards bonus",
+    category: "bonuses",
+  },
+  bonus_rec_yd_200: {
+    label: "200+ receiving yards bonus",
+    category: "bonuses",
+  },
 
   // Kicking
   fgm: { label: "Field goal made (flat, any distance)", category: "kicking" },
@@ -75,9 +90,18 @@ export const SCORING_CATALOG: Record<string, ScoringCatalogEntry> = {
   fgm_50p: { label: "Field goal made (50+ yards)", category: "kicking" },
   fgmiss: { label: "Field goal missed", category: "kicking" },
   fgmiss_0_19: { label: "Field goal missed (0-19 yards)", category: "kicking" },
-  fgmiss_20_29: { label: "Field goal missed (20-29 yards)", category: "kicking" },
-  fgmiss_30_39: { label: "Field goal missed (30-39 yards)", category: "kicking" },
-  fgmiss_40_49: { label: "Field goal missed (40-49 yards)", category: "kicking" },
+  fgmiss_20_29: {
+    label: "Field goal missed (20-29 yards)",
+    category: "kicking",
+  },
+  fgmiss_30_39: {
+    label: "Field goal missed (30-39 yards)",
+    category: "kicking",
+  },
+  fgmiss_40_49: {
+    label: "Field goal missed (40-49 yards)",
+    category: "kicking",
+  },
   fgmiss_50p: { label: "Field goal missed (50+ yards)", category: "kicking" },
   xpm: { label: "Extra point made", category: "kicking" },
   xpmiss: { label: "Extra point missed", category: "kicking" },
@@ -120,19 +144,37 @@ export const SCORING_CATALOG: Record<string, ScoringCatalogEntry> = {
   // Special teams / return game
   st_td: { label: "Special teams touchdown", category: "special_teams" },
   st_ff: { label: "Special teams forced fumble", category: "special_teams" },
-  st_fum_rec: { label: "Special teams fumble recovery", category: "special_teams" },
-  def_st_td: { label: "Defensive special-teams touchdown", category: "special_teams" },
-  def_st_ff: { label: "Defensive special-teams forced fumble", category: "special_teams" },
+  st_fum_rec: {
+    label: "Special teams fumble recovery",
+    category: "special_teams",
+  },
+  def_st_td: {
+    label: "Defensive special-teams touchdown",
+    category: "special_teams",
+  },
+  def_st_ff: {
+    label: "Defensive special-teams forced fumble",
+    category: "special_teams",
+  },
   def_st_fum_rec: {
     label: "Defensive special-teams fumble recovery",
     category: "special_teams",
   },
-  def_kr_yd: { label: "Kick return yard (team defense)", category: "special_teams" },
-  def_pr_yd: { label: "Punt return yard (team defense)", category: "special_teams" },
+  def_kr_yd: {
+    label: "Kick return yard (team defense)",
+    category: "special_teams",
+  },
+  def_pr_yd: {
+    label: "Punt return yard (team defense)",
+    category: "special_teams",
+  },
   kr_yd: { label: "Kick return yard", category: "special_teams" },
   pr_yd: { label: "Punt return yard", category: "special_teams" },
   fg_ret_yd: { label: "Field goal return yard", category: "special_teams" },
-  blk_kick_ret_yd: { label: "Blocked kick return yard", category: "special_teams" },
+  blk_kick_ret_yd: {
+    label: "Blocked kick return yard",
+    category: "special_teams",
+  },
 
   // IDP (unused by Bloodline Bowl's roster, kept for portability)
   idp_tkl: { label: "Solo tackle (IDP)", category: "defense" },

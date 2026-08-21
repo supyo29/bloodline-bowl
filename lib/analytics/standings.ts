@@ -5,7 +5,12 @@
  */
 
 import type { ManagerRef } from "./types";
-import type { RawBracketMatch, RawLeagueUser, RawMatchup, RawRoster } from "@/lib/sleeper/types";
+import type {
+  RawBracketMatch,
+  RawLeagueUser,
+  RawMatchup,
+  RawRoster,
+} from "@/lib/sleeper/types";
 
 export interface RosterStandingFacts {
   roster_id: number;
@@ -41,9 +46,13 @@ export interface RosterStandingFacts {
   runner_up: boolean;
 }
 
-function combinePoints(whole: number | undefined, decimal: number | undefined): number {
+function combinePoints(
+  whole: number | undefined,
+  decimal: number | undefined,
+): number {
   const base = typeof whole === "number" && Number.isFinite(whole) ? whole : 0;
-  const fraction = typeof decimal === "number" && Number.isFinite(decimal) ? decimal : 0;
+  const fraction =
+    typeof decimal === "number" && Number.isFinite(decimal) ? decimal : 0;
   return Math.round((base + fraction / 100) * 100) / 100;
 }
 
@@ -66,7 +75,8 @@ function median(values: number[]): number | null {
 function populationStdDev(values: number[]): number | null {
   if (values.length === 0) return null;
   const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
+  const variance =
+    values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
   return round2(Math.sqrt(variance));
 }
 
@@ -86,7 +96,9 @@ function managerRef(
 function findChampionshipResult(
   winnersBracket: RawBracketMatch[],
 ): { championId: number; runnerUpId: number } | null {
-  const final = winnersBracket.find((match) => match.p === 1 && match.w !== null);
+  const final = winnersBracket.find(
+    (match) => match.p === 1 && match.w !== null,
+  );
   if (!final || final.w === null) return null;
   return { championId: final.w, runnerUpId: final.l ?? -1 };
 }
@@ -115,7 +127,8 @@ export function computeStandings(
 
   for (const weekRows of matchupsByWeek.values()) {
     const scored = weekRows.filter(
-      (row): row is RawMatchup & { points: number } => typeof row.points === "number",
+      (row): row is RawMatchup & { points: number } =>
+        typeof row.points === "number",
     );
     if (scored.length === 0) continue;
 
@@ -129,10 +142,16 @@ export function computeStandings(
     const minPoints = Math.min(...scored.map((row) => row.points));
     for (const row of scored) {
       if (row.points === maxPoints) {
-        highCountByRoster.set(row.roster_id, (highCountByRoster.get(row.roster_id) ?? 0) + 1);
+        highCountByRoster.set(
+          row.roster_id,
+          (highCountByRoster.get(row.roster_id) ?? 0) + 1,
+        );
       }
       if (row.points === minPoints) {
-        lowCountByRoster.set(row.roster_id, (lowCountByRoster.get(row.roster_id) ?? 0) + 1);
+        lowCountByRoster.set(
+          row.roster_id,
+          (lowCountByRoster.get(row.roster_id) ?? 0) + 1,
+        );
       }
     }
   }
@@ -160,17 +179,22 @@ export function computeStandings(
         wins,
         losses,
         ties,
-        win_percentage: gamesPlayed > 0 ? round2((wins + ties * 0.5) / gamesPlayed) : null,
+        win_percentage:
+          gamesPlayed > 0 ? round2((wins + ties * 0.5) / gamesPlayed) : null,
 
         points_for: pointsFor,
         points_against: pointsAgainst,
 
         games_played: gamesPlayed,
-        average_points_for: gamesPlayed > 0 ? round2(pointsFor / gamesPlayed) : null,
-        average_points_against: gamesPlayed > 0 ? round2(pointsAgainst / gamesPlayed) : null,
+        average_points_for:
+          gamesPlayed > 0 ? round2(pointsFor / gamesPlayed) : null,
+        average_points_against:
+          gamesPlayed > 0 ? round2(pointsAgainst / gamesPlayed) : null,
 
-        highest_weekly_score: weeklyScores.length > 0 ? round2(Math.max(...weeklyScores)) : null,
-        lowest_weekly_score: weeklyScores.length > 0 ? round2(Math.min(...weeklyScores)) : null,
+        highest_weekly_score:
+          weeklyScores.length > 0 ? round2(Math.max(...weeklyScores)) : null,
+        lowest_weekly_score:
+          weeklyScores.length > 0 ? round2(Math.min(...weeklyScores)) : null,
         median_weekly_score: median(weeklyScores),
         standard_deviation_weekly_score: populationStdDev(weeklyScores),
 

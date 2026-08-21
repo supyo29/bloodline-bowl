@@ -20,6 +20,7 @@ import {
   type PlayerIndex,
 } from "./client";
 import { buildLeagueResponse } from "./normalize";
+import { DEFAULT_LEAGUE_KEY, findLeagueTarget } from "@/lib/leagues/registry";
 import type {
   LeagueResponse,
   RawDraft,
@@ -32,11 +33,35 @@ import type {
 /** Bloodline Bowl. Overridable via `SLEEPER_LEAGUE_ID` for reuse/testing. */
 export const BLOODLINE_BOWL_LEAGUE_ID = "1395549281678532608";
 
-export function resolveLeagueId(): string {
+/**
+ * Resolve a `league_id` to fetch from Sleeper.
+ *
+ * Resolution order, in priority:
+ *  1. `selector` — an explicit `?league=` value from the caller. It may be
+ *     either a {@link https://github.com registry key} (e.g.
+ *     `"devoted-to-the-game"`) or a raw numeric Sleeper league id, so any
+ *     league is always reachable directly even if it was never added to the
+ *     registry. An unrecognized non-numeric selector falls through to the
+ *     default rather than throwing — callers that want a hard 400 on a bad
+ *     selector should validate it first with
+ *     `lib/analytics/query.ts#parseLeagueSelector`.
+ *  2. `SLEEPER_LEAGUE_ID` env var, for local overrides/testing.
+ *  3. The default registry target ({@link DEFAULT_LEAGUE_KEY}), falling back
+ *     to the hardcoded Bloodline Bowl id if the registry is ever empty.
+ */
+export function resolveLeagueId(selector?: string | null): string {
+  if (selector) {
+    const target = findLeagueTarget(selector);
+    if (target) return target.league_id;
+    if (/^\d+$/.test(selector)) return selector;
+  }
+
   const configured = process.env.SLEEPER_LEAGUE_ID?.trim();
-  return configured && /^\d+$/.test(configured)
-    ? configured
-    : BLOODLINE_BOWL_LEAGUE_ID;
+  if (configured && /^\d+$/.test(configured)) return configured;
+
+  return (
+    findLeagueTarget(DEFAULT_LEAGUE_KEY)?.league_id ?? BLOODLINE_BOWL_LEAGUE_ID
+  );
 }
 
 function describeError(error: unknown): string {

@@ -16,20 +16,40 @@ import { resolveLeagueId } from "@/lib/sleeper/service";
 import { traverseLeagueLineage } from "@/lib/analytics/lineage";
 import { buildWeekMatchupFacts } from "@/lib/analytics/matchups";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parseRosterId, parseSeason, parseWeek } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import {
+  parseLeagueSelector,
+  parseRosterId,
+  parseSeason,
+  parseWeek,
+} from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? new Date().getFullYear().toString();
+    const currentSeason =
+      nflState?.season ?? new Date().getFullYear().toString();
     const currentWeek = nflState?.week && nflState.week > 0 ? nflState.week : 1;
 
     const seasonResult = parseSeason(params.get("season"), currentSeason);
@@ -42,7 +62,11 @@ export async function GET(request: Request): Promise<Response> {
     }
     const rosterIdResult = parseRosterId(params.get("roster_id"));
     if ("error" in rosterIdResult) {
-      return errorResponse(400, "invalid_query_parameter", rosterIdResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        rosterIdResult.error,
+      );
     }
 
     const season = seasonResult.value;
@@ -55,7 +79,9 @@ export async function GET(request: Request): Promise<Response> {
     if (!isCurrentSeason) {
       const lineage = await traverseLeagueLineage(leagueId);
       warnings.push(...lineage.warnings);
-      const match = lineage.seasons.find((entry) => entry.league.season === season);
+      const match = lineage.seasons.find(
+        (entry) => entry.league.season === season,
+      );
       if (!match) {
         return errorResponse(
           404,
@@ -73,14 +99,22 @@ export async function GET(request: Request): Promise<Response> {
     ]);
     const usersById = new Map(users.map((u) => [u.user_id, u]));
 
-    let matchups = buildWeekMatchupFacts(season, week, rawMatchups, rosters, usersById);
+    let matchups = buildWeekMatchupFacts(
+      season,
+      week,
+      rawMatchups,
+      rosters,
+      usersById,
+    );
     if (rosterIdResult.value !== null) {
       const rosterId = rosterIdResult.value;
       matchups = matchups.filter((m) => m.team.roster_id === rosterId);
     }
 
     if (rawMatchups.length === 0) {
-      warnings.push(`No matchup data is available for week ${week} of ${season} yet.`);
+      warnings.push(
+        `No matchup data is available for week ${week} of ${season} yet.`,
+      );
     }
 
     const metadata = buildMetadata({

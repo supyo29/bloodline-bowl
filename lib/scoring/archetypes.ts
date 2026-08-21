@@ -15,7 +15,8 @@ export const ARCHETYPE_STAT_LINES: Record<
   { description: string; stats: StatLine }
 > = {
   pocket_qb: {
-    description: "300 passing yards, 2 passing TD, 1 interception, 10 rushing yards",
+    description:
+      "300 passing yards, 2 passing TD, 1 interception, 10 rushing yards",
     stats: { pass_yd: 300, pass_td: 2, pass_int: 1, rush_yd: 10 },
   },
   rushing_qb: {
@@ -24,7 +25,8 @@ export const ARCHETYPE_STAT_LINES: Record<
     stats: { pass_yd: 220, pass_td: 1, pass_int: 1, rush_yd: 80, rush_td: 1 },
   },
   workhorse_rb: {
-    description: "100 rushing yards, 1 rushing TD, 3 receptions, 20 receiving yards",
+    description:
+      "100 rushing yards, 1 rushing TD, 3 receptions, 20 receiving yards",
     stats: { rush_yd: 100, rush_td: 1, rec: 3, rec_yd: 20 },
   },
   receiving_rb: {

@@ -40,7 +40,9 @@ export function buildNormalizedRules(raw: Raw): {
   const warnings: string[] = [];
 
   const rules = Object.entries(raw)
-    .filter(([, points]) => typeof points === "number" && Number.isFinite(points))
+    .filter(
+      ([, points]) => typeof points === "number" && Number.isFinite(points),
+    )
     .map(([key, points]) => {
       const meta = SCORING_CATALOG[key];
       if (!meta) {
@@ -56,7 +58,8 @@ export function buildNormalizedRules(raw: Raw): {
       };
     })
     .sort(
-      (a, b) => a.category.localeCompare(b.category) || a.key.localeCompare(b.key),
+      (a, b) =>
+        a.category.localeCompare(b.category) || a.key.localeCompare(b.key),
     );
 
   return { rules, warnings };
@@ -136,7 +139,8 @@ export function buildDerivedKicking(raw: Raw): DerivedKicking {
     field_goal_made_flat: flat,
     field_goal_distance_tiers: tiers,
     // "Flat" scoring: a nonzero flat value with no distance tiers configured.
-    uses_flat_scoring: flat !== null && flat !== 0 && Object.keys(tiers).length === 0,
+    uses_flat_scoring:
+      flat !== null && flat !== 0 && Object.keys(tiers).length === 0,
   };
 }
 
@@ -251,10 +255,14 @@ export function classifyScoring(
   features.push(`${passTd}-point passing touchdown`);
 
   if (rushTd !== null && rushTd !== passTd) {
-    features.push(`${rushTd}-point rushing touchdown (vs. ${passTd}-point passing)`);
+    features.push(
+      `${rushTd}-point rushing touchdown (vs. ${passTd}-point passing)`,
+    );
   }
   if (recTd !== null && recTd !== passTd) {
-    features.push(`${recTd}-point receiving touchdown (vs. ${passTd}-point passing)`);
+    features.push(
+      `${recTd}-point receiving touchdown (vs. ${passTd}-point passing)`,
+    );
   }
   if (base === "custom_ppr" && rec !== null) {
     features.push(`custom reception value (${rec} points per catch)`);
@@ -277,7 +285,9 @@ export function classifyScoring(
     (key) => nz(raw, key) !== null && nz(raw, key) !== 0,
   );
   if (ptsAllow !== null && ptsAllow !== 0 && !hasPtsAllowTiers) {
-    features.push("points-allowed penalty for team defense (continuous, not tiered)");
+    features.push(
+      "points-allowed penalty for team defense (continuous, not tiered)",
+    );
   }
 
   const fgFlat = nz(raw, "fgm");
@@ -293,9 +303,11 @@ export function classifyScoring(
     features.push(`quarterback-sacked penalty (${passSack} points)`);
   }
 
-  if ([nz(raw, "pass_2pt"), nz(raw, "rush_2pt"), nz(raw, "rec_2pt")].some(
-    (v) => v !== null && v !== 0,
-  )) {
+  if (
+    [nz(raw, "pass_2pt"), nz(raw, "rush_2pt"), nz(raw, "rec_2pt")].some(
+      (v) => v !== null && v !== 0,
+    )
+  ) {
     features.push("2-point conversions scored");
   }
 

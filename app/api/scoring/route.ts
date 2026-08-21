@@ -5,8 +5,15 @@
  */
 
 import { SleeperError } from "@/lib/sleeper/client";
+import { resolveLeagueId } from "@/lib/sleeper/service";
 import { buildScoringBundle } from "@/lib/scoring/scoring-service";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { parseLeagueSelector } from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,9 +23,22 @@ export const runtime = "nodejs";
 const CACHE_MAX_AGE_SECONDS = 300;
 const STALE_WHILE_REVALIDATE_SECONDS = 900;
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  const leagueSelectorResult = parseLeagueSelector(
+    new URL(request.url).searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+
   try {
-    const response = await buildScoringBundle();
+    const response = await buildScoringBundle(
+      resolveLeagueId(leagueSelectorResult.value),
+    );
 
     return jsonResponse(response, {
       headers: {

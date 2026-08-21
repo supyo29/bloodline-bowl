@@ -13,25 +13,40 @@ import { resolveLeagueId } from "@/lib/sleeper/service";
 import { buildLeagueHistory } from "@/lib/analytics/history";
 import { buildManagerProfiles } from "@/lib/analytics/managers";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parseUserId } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { parseLeagueSelector, parseUserId } from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const userIdResult = parseUserId(params.get("user_id"));
     if ("error" in userIdResult) {
       return errorResponse(400, "invalid_query_parameter", userIdResult.error);
     }
 
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? new Date().getFullYear().toString();
+    const currentSeason =
+      nflState?.season ?? new Date().getFullYear().toString();
 
     const { seasons, warnings: historyWarnings } = await buildLeagueHistory(
       leagueId,

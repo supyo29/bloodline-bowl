@@ -95,7 +95,9 @@ export function buildAgeFacts(allPlayers: NormalizedPlayer[]): AgeFacts {
   }
   const ageByPosition: Record<string, number | null> = {};
   for (const [position, values] of byPosition) {
-    ageByPosition[position] = round2(values.reduce((sum, v) => sum + v, 0) / values.length);
+    ageByPosition[position] = round2(
+      values.reduce((sum, v) => sum + v, 0) / values.length,
+    );
   }
 
   const experienceBuckets: Record<string, number> = {};
@@ -106,7 +108,10 @@ export function buildAgeFacts(allPlayers: NormalizedPlayer[]): AgeFacts {
   }
 
   return {
-    average_age: ages.length > 0 ? round2(ages.reduce((sum, v) => sum + v, 0) / ages.length) : null,
+    average_age:
+      ages.length > 0
+        ? round2(ages.reduce((sum, v) => sum + v, 0) / ages.length)
+        : null,
     median_age: median(ages),
     age_by_position: ageByPosition,
     years_experience_distribution: experienceBuckets,
@@ -125,7 +130,8 @@ export function buildSlotCoverage(
 ): SlotCoverage {
   const strict = strictStartingSlots(rosterPositions);
   const requiredCounts: Record<string, number> = {};
-  for (const slot of strict) requiredCounts[slot] = (requiredCounts[slot] ?? 0) + 1;
+  for (const slot of strict)
+    requiredCounts[slot] = (requiredCounts[slot] ?? 0) + 1;
 
   const currentCounts: Record<string, number> = {};
   for (const player of allPlayers) {
@@ -154,7 +160,10 @@ export interface AuctionSpendFacts {
 
 /** Auction spend facts from a roster's own completed draft picks (price -> null when unknown). */
 export function buildAuctionSpendFacts(
-  acquisitions: Array<{ player: NormalizedPlayer | null; price: number | null }>,
+  acquisitions: Array<{
+    player: NormalizedPlayer | null;
+    price: number | null;
+  }>,
   startingBudget: number | null,
 ): AuctionSpendFacts {
   const priced = acquisitions.filter(
@@ -182,6 +191,7 @@ export function buildAuctionSpendFacts(
     total_spend: round2(totalSpend),
     average_acquisition_cost: round2(totalSpend / priced.length),
     spend_by_position: spendByPosition,
-    remaining_budget: startingBudget !== null ? round2(startingBudget - totalSpend) : null,
+    remaining_budget:
+      startingBudget !== null ? round2(startingBudget - totalSpend) : null,
   };
 }

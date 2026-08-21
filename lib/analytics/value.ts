@@ -19,12 +19,18 @@ export interface PlayerValueFacts {
 export async function buildValueFacts(
   playerIds: string[],
   playerIndex: PlayerIndex,
-): Promise<{ players: PlayerValueFacts[]; provider_available: boolean; warnings: string[] }> {
+): Promise<{
+  players: PlayerValueFacts[];
+  provider_available: boolean;
+  warnings: string[];
+}> {
   const provider = getValueProvider();
   const warnings: string[] = [];
 
   if (!provider.isAvailable()) {
-    warnings.push(provider.unavailableReason() ?? "No player-value provider is configured.");
+    warnings.push(
+      provider.unavailableReason() ?? "No player-value provider is configured.",
+    );
   }
 
   const valuesByPlayer = await provider.getValues(playerIds);

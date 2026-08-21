@@ -5,24 +5,49 @@
  * Query: ?season=2026 ?week=4 ?position=WR ?player_id=...
  */
 
-import { SleeperError, getLeague, getNflState, getPlayerIndex } from "@/lib/sleeper/client";
+import {
+  SleeperError,
+  getLeague,
+  getNflState,
+  getPlayerIndex,
+} from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { draftablePositions } from "@/lib/sleeper/draft";
 import { getStatsProvider } from "@/lib/stats/provider";
 import { buildWeeklyPlayerFacts } from "@/lib/analytics/weekly-stats";
 import { buildMetadata } from "@/lib/analytics/types";
-import { parsePlayerId, parsePosition, parseSeason, parseWeek } from "@/lib/analytics/query";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import {
+  parseLeagueSelector,
+  parsePlayerId,
+  parsePosition,
+  parseSeason,
+  parseWeek,
+} from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const leagueId = resolveLeagueId();
   const params = new URL(request.url).searchParams;
 
   try {
+    const leagueSelectorResult = parseLeagueSelector(params.get("league"));
+    if ("error" in leagueSelectorResult) {
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        leagueSelectorResult.error,
+      );
+    }
+    const leagueId = resolveLeagueId(leagueSelectorResult.value);
+
     const league = await getLeague(leagueId);
     const nflState = await getNflState().catch(() => null);
     const currentSeason = nflState?.season ?? league.season;
@@ -37,18 +62,31 @@ export async function GET(request: Request): Promise<Response> {
       return errorResponse(400, "invalid_query_parameter", weekResult.error);
     }
     const allowedPositions = draftablePositions(league.roster_positions ?? []);
-    const positionResult = parsePosition(params.get("position"), allowedPositions);
+    const positionResult = parsePosition(
+      params.get("position"),
+      allowedPositions,
+    );
     if ("error" in positionResult) {
-      return errorResponse(400, "invalid_query_parameter", positionResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        positionResult.error,
+      );
     }
     const playerIdResult = parsePlayerId(params.get("player_id"));
     if ("error" in playerIdResult) {
-      return errorResponse(400, "invalid_query_parameter", playerIdResult.error);
+      return errorResponse(
+        400,
+        "invalid_query_parameter",
+        playerIdResult.error,
+      );
     }
 
     const season = seasonResult.value;
     const week = weekResult.value ?? currentWeek;
-    const isHistoricalWeek = season < currentSeason || (season === currentSeason && week < currentWeek);
+    const isHistoricalWeek =
+      season < currentSeason ||
+      (season === currentSeason && week < currentWeek);
 
     const provider = getStatsProvider();
     if (!provider.isAvailable()) {
@@ -61,7 +99,9 @@ export async function GET(request: Request): Promise<Response> {
             league_id: leagueId,
             season,
             sources: [{ name: provider.name, type: "nfl_statistics" }],
-            warnings: [provider.unavailableReason() ?? "Stats provider unavailable."],
+            warnings: [
+              provider.unavailableReason() ?? "Stats provider unavailable.",
+            ],
           }),
         },
         { headers: { "Cache-Control": "no-store" } },
@@ -82,10 +122,14 @@ export async function GET(request: Request): Promise<Response> {
     let filtered = facts;
     if (positionResult.value !== null) {
       const wanted = positionResult.value;
-      filtered = filtered.filter((f) => f.player.fantasy_positions.includes(wanted));
+      filtered = filtered.filter((f) =>
+        f.player.fantasy_positions.includes(wanted),
+      );
     }
     if (playerIdResult.value !== null) {
-      filtered = filtered.filter((f) => f.player.player_id === playerIdResult.value);
+      filtered = filtered.filter(
+        (f) => f.player.player_id === playerIdResult.value,
+      );
     }
 
     const warnings: string[] = [];

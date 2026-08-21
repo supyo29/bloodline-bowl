@@ -50,14 +50,16 @@ export async function buildLeagueHistory(
 
       const [seasonData, drafts] = await Promise.all([
         loadSeasonData(league.league_id, { revalidate }),
-        getLeagueDrafts(league.league_id, { revalidate }).catch((error: unknown) => {
-          warnings.push(
-            `Could not load drafts for ${league.season} (league ${league.league_id}): ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          return [];
-        }),
+        getLeagueDrafts(league.league_id, { revalidate }).catch(
+          (error: unknown) => {
+            warnings.push(
+              `Could not load drafts for ${league.season} (league ${league.league_id}): ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            return [];
+          },
+        ),
       ]);
       warnings.push(...seasonData.warnings);
 

@@ -8,20 +8,40 @@ import { getNflState } from "@/lib/sleeper/client";
 import { resolveLeagueId } from "@/lib/sleeper/service";
 import { buildLeagueHistory } from "@/lib/analytics/history";
 import { buildMetadata } from "@/lib/analytics/types";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { parseLeagueSelector } from "@/lib/analytics/query";
+import {
+  cacheHeader,
+  errorResponse,
+  handleOptions,
+  jsonResponse,
+} from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function GET(): Promise<Response> {
-  const leagueId = resolveLeagueId();
+export async function GET(request: Request): Promise<Response> {
+  const leagueSelectorResult = parseLeagueSelector(
+    new URL(request.url).searchParams.get("league"),
+  );
+  if ("error" in leagueSelectorResult) {
+    return errorResponse(
+      400,
+      "invalid_query_parameter",
+      leagueSelectorResult.error,
+    );
+  }
+  const leagueId = resolveLeagueId(leagueSelectorResult.value);
 
   try {
     const nflState = await getNflState().catch(() => null);
-    const currentSeason = nflState?.season ?? new Date().getFullYear().toString();
+    const currentSeason =
+      nflState?.season ?? new Date().getFullYear().toString();
 
-    const { seasons, warnings } = await buildLeagueHistory(leagueId, currentSeason);
+    const { seasons, warnings } = await buildLeagueHistory(
+      leagueId,
+      currentSeason,
+    );
 
     const metadata = buildMetadata({
       league_id: leagueId,
