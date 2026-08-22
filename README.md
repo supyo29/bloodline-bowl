@@ -1077,6 +1077,129 @@ historical id), `season`, `weeks_returned`, `missing_weeks`, `row_count`,
 `cache_seconds`. `/api/player-weekly` additionally reports `scoring_method` and
 `scoring_settings_provenance`; `/api/lineups` reports `starter_source` and `roster_source`.
 
+## Historical weekly player availability
+
+`GET /api/player-availability` and `GET /api/manager-availability` expose evidence for
+answering, per player-week: *was this player actually available to their fantasy manager, and
+if not, why?* Built for the Injury Response Efficiency / counterfactual-LVA analysis, but
+generic for any registered league/season.
+
+**The single most important thing to know before using either endpoint:**
+
+> A zero fantasy score is not evidence of injury. A missed game without authoritative status
+> evidence is not automatically an injury. Sleeper's current injury status is never applied
+> retroactively to a historical week.
+
+### Source audit — what Sleeper actually supports
+
+Sleeper's public API has **no historical archive** for injury designations, official game-day
+inactive lists, or practice reports. `/players/nfl` carries `injury_status`, `injury_notes`,
+and `practice_participation` — but only as a live snapshot, overwritten in place as the season
+progresses. There is no way to ask Sleeper "what was this designation in week 4," only "what is
+it right now." Because of that, **this bridge never reads those fields at all**, for any
+season — not even the current one — so there is no code path that could leak current status
+into a historical week.
+
+What Sleeper does provide, and what powers every field below:
+
+| Source | Gives us |
+|---|---|
+| `/stats/nfl/regular/{season}/{week}` (`gp`, `gms_active`) | Real per-player-week participation evidence |
+| Same endpoint's team-code rows (e.g. `"KC"`, `"HOU"`) | Whether each NFL team played that week — the basis for bye-week detection, cross-checked against the player index's own `DEF` entries rather than a hardcoded team list |
+| `/league/{id}/matchups/{week}` (via the same builder behind `/api/lineups`) | Real per-week roster/starter/bench membership |
+| `/league/{id}/rosters` `reserve` array | Real, but only a **season-end snapshot** for a finished season — not a per-week timeline |
+| `RawTransaction.created` / `status_updated` | Real per-transaction timestamps, for joining externally — see "Knowledge-time safeguard" below |
+
+No third-party/non-Sleeper source is used anywhere in this endpoint.
+
+### Availability classes
+
+Only classes this bridge can back with real Sleeper evidence are emitted —
+`confirmed_injury`, per-grade injury designations, `inactive_injury`/`inactive_non_injury`,
+`suspension`, `reserve_pup`, and `reserve_nfi` are **never produced**, by construction, because
+no authoritative historical source exists for any of them:
+
+| `availability_class` | Confidence | Meaning |
+|---|---|---|
+| `participated` | high | `gp>=1` in Sleeper's weekly stats — regardless of fantasy points scored |
+| `bye` | high/moderate | No NFL team-defense stat row recorded a game for this player's team that week |
+| `ir` | low | Season-end reserve snapshot + no participation from this week through end of season (exact placement week is not knowable — see below) |
+| `did_not_play_unknown` | moderate | A stat line exists with `gp=0` (team had a game); the reason is not available from Sleeper |
+| `unknown` | low | No stat line, no bye signal, no reserve status found |
+
+`reserve_status`/`reserve_or_ir` is a **roster-status** signal, never a medical claim — a
+player on a manager's Reserve/IR slot is evidence of roster status, not proof of the specific
+injury. `ir` is only asserted for the trailing block of weeks after a player's last real
+participation, labeled `evidence_granularity: "season_end_snapshot"`, and never claims an exact
+placement week.
+
+### Coverage / field support
+
+Every response's `coverage.field_support` reports exactly which evidence dimensions are
+supported — never silently blank fields that look supported:
+
+```json
+{
+  "game_participation": "available",
+  "bye_week": "available",
+  "manager_roster_context": "available",
+  "reserve_or_ir": "partial",
+  "historical_injury_designation": "unsupported",
+  "historical_game_status": "unsupported",
+  "historical_practice_status": "unsupported",
+  "official_inactive": "unsupported",
+  "suspension_non_injury": "unsupported",
+  "known_before_transaction": "unsupported"
+}
+```
+
+### Knowledge-time safeguard
+
+`known_before_transaction` is **always `null`** — establishing it would require a
+status-publication timestamp this bridge does not have (no historical designation archive
+exists to timestamp in the first place). This is deliberate: it prevents hindsight leakage in
+any downstream injury-response scoring rather than fabricating a chronology Sleeper can't
+support. Records instead expose stable join keys (`season`, `week`, `player_id`, `manager_id`,
+`roster_id`) so a consumer can join to `/api/transactions`' own `created`/`status_updated`
+timestamps itself.
+
+### `GET /api/player-availability`
+
+```text
+?league=devoted-to-the-game&season=2025
+?league=devoted-to-the-game&season=2025&week=7
+?league=devoted-to-the-game&season=2025&player_id=8146
+?league=devoted-to-the-game&season=2025&manager_id=1265419589680910336
+```
+
+Records are bounded to players who were on some roster in this league at some point during the
+season — the same rostered-player bound already used for `/api/player-weekly`'s free-agent
+pool, to keep the response from exploding to every NFL player. Response shape: `league`,
+`season`, `weeks`, `source_summary`, `coverage` (with `field_support`), `records[]`.
+
+### `GET /api/manager-availability`
+
+```text
+?league=devoted-to-the-game&season=2025
+```
+
+Per-manager **factual counts only** — `rostered_player_weeks`, `starter_player_weeks`,
+`starter_unavailable_weeks`, `ir_player_weeks`, `bye_starter_weeks`, `inactive_starter_weeks`
+(always 0 — see coverage), `confirmed_injury_starter_weeks` (always 0), and
+`unknown_absence_starter_weeks`. No injury-response scoring, no efficiency judgment — that
+belongs to the downstream R manager-efficiency engine.
+
+### Validated against real 2025 Devoted to the Game data
+
+Full-season build (17 weeks, 12 rosters): 4,998 player-weeks, 3,917 `participated`, 276 `bye`,
+83 `ir`, 722 `unknown`, 0 `did_not_play_unknown` (Sleeper's stats endpoint omits inactive
+players entirely rather than publishing a `gp=0` row — a real, documented gap, not a bug).
+Spot-checked: Sam LaPorta (Rawb21's roster) correctly resolves to `ir`/`low confidence` in the
+trailing weeks of the season; a real bye week is detected with `high` confidence; a real
+return-from-absence week exists; DarthMarker made real transaction activity within a week of
+Garrett Wilson's first non-participation week. See
+`test/historical-availability.test.ts` and `test/historical-availability-live.test.ts`.
+
 ## Caching
 
 | Data                                            | Strategy                                             | Why                                                               |
