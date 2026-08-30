@@ -61,6 +61,20 @@ export default function StatusPage() {
         Default league ID: <code style={{ color: "#e6edf3" }}>{leagueId}</code>
       </p>
 
+      <p style={{ marginTop: 20 }}>
+        <a
+          href="/bridge"
+          style={{ color: "#6cb6ff", textDecoration: "none", fontWeight: 700 }}
+        >
+          → Draft Bridge
+        </a>
+        <span style={{ color: "#9aa7b2" }}>
+          {" "}
+          — interactive, league-isolated draft-night board (Bloodline Bowl /
+          DarthMarker), with a self-identifying ChatGPT snapshot export.
+        </span>
+      </p>
+
       <h2 style={{ fontSize: 18, marginTop: 32 }}>Leagues</h2>
       <p style={{ color: "#9aa7b2", lineHeight: 1.6, marginTop: 0 }}>
         Add <code>?league=&lt;key&gt;</code> to any endpoint below to target a

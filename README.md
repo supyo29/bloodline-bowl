@@ -140,9 +140,9 @@ so the safety properties hold regardless of what's currently registered.
 Each league is completely independent. Every route resolves one `league_id` per request and fetches
 that league's own scoring settings, rosters, matchups, and transactions from Sleeper fresh — nothing
 is merged, averaged, or compared across leagues by this bridge. (Confirmed live: Bloodline Bowl is
-half-PPR; Devoted to the Game is full-PPR, 12 teams, and a snake draft (vs. Bloodline Bowl's auction) —
-querying one never leaks the other's settings, and each league's own live team count is always used
-rather than an assumed one.) The only thing genuinely shared across leagues is
+half-PPR; Devoted to the Game is full-PPR, 12 teams, and a snake draft — querying one never leaks the
+other's settings, and each league's own live team count and draft type are always read from Sleeper
+rather than assumed.) The only thing genuinely shared across leagues is
 the module-scoped `/players/nfl` metadata cache — player identity (name, position, team), not
 scoring or roster context — which carries no per-league state and is exactly the kind of shared
 reference data that's safe to cache once.
@@ -158,6 +158,140 @@ No route, no service function, and no other file references league ids directly;
 through `resolveLeagueId()`/`findLeagueTarget()`. Duplicate keys or league ids are caught by the
 existing validation (see above), so a copy-paste mistake fails safely instead of silently shadowing
 an existing league.
+
+---
+
+## Draft Bridge (`/bridge`)
+
+An interactive, **league-isolated** draft-night board. Unlike the JSON endpoints, the Bridge holds
+per-league draft state (locally, in the browser) and produces a self-identifying ChatGPT snapshot.
+
+### One league at a time, never mixed
+
+There is no single "Bridge state". Each league is a completely separate draft environment with its
+own identity, rules, model profile, rankings, draft geometry, ledger, roster, and snapshot. The
+league selector at the top switches between them; the active league is shown in the top bar and a
+large safety banner at all times (name, slot, model/profile, scoring hash, Sleeper ids) — never by
+colour alone.
+
+| Bridge league key      | Registry key          | Sleeper league        | Manager             | Draft            |
+| ---------------------- | --------------------- | --------------------- | ------------------- | ---------------- |
+| `bloodline_bowl`       | `bloodline-bowl`      | `1395549281678532608` | supyo29 (slot 7\*)  | snake, 15 rounds |
+| `devoted_to_the_game`  | `devoted-to-the-game` | `1389735763649761280` | DarthMarker (slot 4) | snake, 16 rounds |
+
+\* Sleeper's live `draft_order` puts supyo29 at slot 7. The multi-league addendum referenced
+"Slot 12" for Bloodline; that is not what Sleeper reports, so the slot is user-confirmable in the UI
+(`Confirm your draft slot`). DarthMarker's slot 4 **is** confirmed from Sleeper's live draft order.
+
+`lib/bridge/profiles.ts` is the source of truth for each league's frozen identity/rules/model.
+`lib/bridge/board.ts` fetches that league's own live Sleeper data and warns on any drift from the
+frozen profile (it always uses the live values). State lives in `localStorage` under
+`bbb.bridge.state.v1.<league_key>` — one key per league.
+
+### Model identity & ranking source
+
+The Bridge ranks each league's board from one source, chosen per league and always labelled in the
+UI and the snapshot (`ranking_quality.status`):
+
+- **`devoted_to_the_game` — a vendored ranking pack (`ranking_quality: MODEL`).**
+  `lib/bridge/ranking-packs/darthmarker_2026_ranking_pack.json` is the Roster Intel **v7** DarthMarker
+  draft board (240 players, every row carrying a direct Sleeper id), imported verbatim by
+  `scripts/build-darthmarker-ranking-pack.mjs` — no value recomputed. It activates **only** when it
+  validates against the live league: `scoring_status: MATCH` (the pack's `scoring_settings` are
+  byte-identical to live Sleeper league `1389735763649761280`, producing the same identity hash),
+  `roster_status: MATCH` (QB1/RB2/WR2/TE1/FLEX3/K1/DEF1/BN5, 12-team, 16-round snake), and the right
+  `league_key`. The v7 workbook's "NOT READY" verdict is scoped to interactive-Excel / simulation
+  gates; the board **table** passed its contract regression, pick-path check, and exact-from-Sleeper
+  offense scoring. Best Available is ordered by the model's `overall_rank`; `sleeper_search_rank` is
+  kept as a secondary market reference.
+- **If that pack fails to load or validate (`ranking_quality: FALLBACK`)** the board falls back to
+  Sleeper `search_rank`, shows a red **"DARTHMARKER MODEL NOT LOADED — USING SLEEPER FALLBACK
+  RANKINGS"** banner, and the snapshot carries `ranking_quality.status = "FALLBACK"` with a warning.
+  Never silent.
+- **`bloodline_bowl` — Sleeper `search_rank` (`ranking_quality: MARKET`).** It carries the
+  owner-declared `candidate_id` `bloodline_production_20260827113702` (+ declared
+  `projection_sha`/`scoring_sha`/`config_sha`, `survival_engine: canonical_stateful_survival_v1`) from
+  the multi-league addendum, marked `candidate_verified: false` — recorded exactly as declared,
+  nothing fabricated. No ranking pack; the Bridge does not port Bloodline's frozen candidate engine.
+- **Any league** can override with its own uploaded rankings/tiers file (`ranking_quality: CUSTOM`) via
+  "Load my rankings" — stored per league, never shared.
+- The **authoritative** scoring identity for every cross-check is the live `scoring_sha256` the board
+  computes each session from that league's own Sleeper `scoring_settings` + roster positions.
+
+To refresh the DarthMarker pack from a newer Roster Intel build:
+`node scripts/build-darthmarker-ranking-pack.mjs` (point `ROSTER_INTEL_DIR` at the project; defaults
+to `/Users/johnmcpherson/rosterintel`).
+
+### `GET /api/bridge/board?league=<key>`
+
+Server side of the Bridge: resolves one profile, fetches that league's live league/draft/rosters/
+players, and returns identity, live-resolved rules, the scoring hash, the draft feed (already
+reconciled to that league's `draft_id`), and the ranked available pool (capped at 700).
+
+| Query parameter | Default          | Notes                                              |
+| --------------- | ---------------- | -------------------------------------------------- |
+| `league`        | `bloodline_bowl` | Bridge key, registry key, or alias (`darthmarker`). |
+| `ranking`       | `sleeper`        | `sleeper` or `custom` (labels the response).        |
+| `slot`          | live draft order | 1–99 user-confirmed slot override.                  |
+
+### ChatGPT snapshot — self-identifying, fail-closed
+
+"Export for ChatGPT" fetches a fresh board, runs a cross-check, and (only if it passes) builds a
+JSON snapshot + a plain-text companion. Downloads use league-keyed filenames
+(`darthmarker_chatgpt_snapshot.json` / `_summary.txt`; `bloodline_bowl_…`). The JSON leads with
+`league_identity`, `model`, `ranking_quality` (MODEL/MARKET/FALLBACK/CUSTOM + warning),
+`ranking_pack` (source artifact + sha + verification: scoring/roster status), `league_rules`,
+`draft_state` (`state_quality`, geometry, `my_team` with model ranks, `roster_status` with open
+starters, `my_roster_needs`, `recent_board_context` with position-run counts),
+`best_available_overall` (top 30, each with `model_overall_rank` / `model_tier` / `model_value` /
+`market_adp` / `sleeper_search_rank` / `roster_fit` / `flags`), `best_available_by_position`
+(QB 8 / RB 12 / WR 12 / TE 8 / K 5 / DEF 5), `best_for_my_team`, and an `analysis_instructions` block
+that tells ChatGPT to analyse **only this league**, use the model rankings as primary evidence and
+Sleeper rank as secondary market context, and never substitute another league's scoring or rankings —
+enough that a brand-new ChatGPT conversation with no history can answer "which league is this?" with
+certainty.
+
+The export is **blocked** (nothing is written) when the active league, the freshly-fetched board,
+and the stored draft state do not all agree on the league (`ACTIVE_LEAGUE_MISMATCH` /
+`LEAGUE_STATE_KEY_MISMATCH`), when the league's live scoring has drifted from what the state was
+built against (`LEAGUE_SCORING_PROFILE_MISMATCH`), when the draft feed belongs to another league
+(`DRAFT_SOURCE_LEAGUE_MISMATCH`), or when a supplied model identity does not belong to the league
+(`LEAGUE_MODEL_IDENTITY_MISMATCH`).
+
+### Tonight workflow (manual, no automated sync required)
+
+1. Open `/bridge`, pick the league — the banner confirms it.
+2. Confirm your draft slot.
+3. Everyone starts available. Click **DRAFTED** as players go, **MINE** for your picks.
+4. My Team, roster needs, Best Available, Best For My Team, and next-pick geometry update live.
+5. **Export for ChatGPT** → Download JSON (and `.txt`) → upload to ChatGPT.
+
+Switching leagues persists the current one and loads the other's own state; neither is ever cleared
+by the switch.
+
+### Multi-league validation report
+
+Run `npm test`. The Bridge suites are `test/bridge.test.ts` (deterministic) and
+`test/bridge-live.test.ts` (real Sleeper API):
+
+```
+MULTI-LEAGUE SUPPORT:               PASS  (lib/bridge/*, app/bridge, /api/bridge/board)
+DARTHMARKER RANKING PACK:           ACTIVE (Roster Intel v7 board, 240 players, direct Sleeper ids)
+DARTHMARKER PACK SCORING CHECK:     MATCH  (pack scoring_settings == live Sleeper, same identity hash)
+DARTHMARKER PACK ROSTER CHECK:      MATCH  (QB1/RB2/WR2/TE1/FLEX3/K1/DEF1/BN5, 12-team 16-round snake)
+DARTHMARKER FALLBACK (pack fails):  FAIL-CLOSED to Sleeper + loud FALLBACK banner/warning
+BLOODLINE PROFILE RESOLUTION:       PASS  (declared candidate, verified:false; ranks by Sleeper market)
+BLOODLINE STATE ISOLATION:          PASS  (bbb.bridge.state.v1.bloodline_bowl)
+DARTHMARKER STATE ISOLATION:        PASS  (bbb.bridge.state.v1.devoted_to_the_game)
+CROSS-LEAGUE CONTAMINATION TEST:    PASS  (test/bridge.test.ts §20 + verified live in /bridge)
+WRONG-MODEL EXPORT REJECTION:       PASS  (LEAGUE_MODEL_IDENTITY_MISMATCH, fail closed)
+WRONG-DRAFT-ID REJECTION:           PASS  (DRAFT_SOURCE_LEAGUE_MISMATCH, fail closed)
+BLOODLINE CHATGPT SNAPSHOT:         PASS  (candidate_id present; no DarthMarker/devoted/rosterintel text)
+DARTHMARKER CHATGPT SNAPSHOT:       PASS  (self-identifying, model-ranked, no "bloodline" text)
+DARTHMARKER MANUAL MOCK MODE:       PASS  (test/bridge-live.test.ts deterministic mock draft)
+BLOODLINE FORMAT DRIFT (auction→snake): FIXED (test/draft-live.test.ts now reads live draft type)
+DARTHMARKER READY FOR TONIGHT:      YES   (model pack active; manual mode; pick-sync is P1, not required)
+```
 
 ---
 
@@ -681,7 +815,12 @@ emitted — the endpoint degrades honestly instead of reporting wrong budgets.
 
 ### Budget and maximum bid
 
-Bloodline Bowl is a **$200 auction** filling **16 roster slots** per team.
+**Draft type is read live from Sleeper, not assumed.** Bloodline Bowl was configured
+as a $200 auction when this endpoint was first built; Sleeper currently reports the
+2026 Bloodline Bowl draft as a **snake**. `/api/draft` follows whatever Sleeper
+reports today: for a non-auction draft `budget.supported` is `false`, `budget.reason`
+names the actual type, and each team's `budget` block is `null`. The budget math below
+applies only when `budget.supported` is `true`.
 
 ```text
 spent      = sum of acquisition prices (an unknown price counts as 0)
@@ -695,7 +834,9 @@ the minimum bid. A manager with $83 and 6 slots left can bid at most **$78**; wi
 slot left they can spend everything.
 
 Sleeper exposes **no minimum-bid setting**, so $1 is assumed and labelled as such via
-`budget.minimum_bid_source: "assumed_default"`.
+`budget.minimum_bid_source: "assumed_default"`. The live-draft tests
+(`test/draft-live.test.ts`) assert the auction path only when Sleeper reports an
+auction, and the non-auction path otherwise.
 
 ### Positional needs and FLEX
 

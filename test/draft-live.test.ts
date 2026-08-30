@@ -53,13 +53,23 @@ describe("live draft snapshot", () => {
     assert.ok(response.draft.draft_id.length > 0);
   });
 
-  it("identifies the draft as an auction with a real budget", () => {
-    assert.equal(response.draft?.type, "auction");
-    assert.equal(response.budget.supported, true);
-    assert.equal(response.budget.starting_budget_per_team, 200);
-    assert.equal(response.budget.source, "sleeper_pick_metadata");
-    // Sleeper exposes no minimum-bid setting, so this must be labelled assumed.
-    assert.equal(response.budget.minimum_bid_source, "assumed_default");
+  it("reflects the CURRENT live Sleeper draft format, not a stale assumption", () => {
+    // The commissioner has reconfigured this league's draft type before (it was
+    // a $200 auction, and Sleeper now reports it as a snake). Assert against
+    // whatever Sleeper reports today rather than pinning a historical format.
+    const type = response.draft?.type;
+    assert.ok(type, "expected a draft type");
+    if (type === "auction") {
+      assert.equal(response.budget.supported, true);
+      assert.equal(response.budget.source, "sleeper_pick_metadata");
+      assert.ok((response.budget.starting_budget_per_team ?? 0) > 0);
+      assert.equal(response.budget.minimum_bid_source, "assumed_default");
+    } else {
+      // Non-auction: there is no bidding budget and the response says why.
+      assert.equal(response.budget.supported, false);
+      assert.equal(response.budget.starting_budget_per_team, null);
+      assert.match(String(response.budget.reason ?? ""), new RegExp(type, "i"));
+    }
   });
 
   it("represents one team per roster in the league", () => {
@@ -98,21 +108,26 @@ describe("live draft snapshot", () => {
     }
   });
 
-  it("keeps every team's budget arithmetic self-consistent", () => {
+  it("keeps roster slot math self-consistent (and budget math when it applies)", () => {
     for (const team of response.teams) {
-      const budget = team.budget;
-      assert.ok(budget, `roster ${team.roster_id} should have a budget`);
-      assert.equal(budget.starting - budget.spent, budget.remaining);
-      assert.ok(budget.maximum_single_bid >= 0);
-      assert.ok(budget.maximum_single_bid <= budget.remaining);
       assert.equal(
         team.roster.slots_remaining,
         Math.max(0, team.roster.slots_required - team.roster.players_acquired),
       );
+      const budget = team.budget;
+      if (!response.budget.supported) {
+        assert.equal(budget, null, `roster ${team.roster_id} has no budget in a non-auction draft`);
+        continue;
+      }
+      assert.ok(budget, `roster ${team.roster_id} should have a budget`);
+      assert.equal(budget.starting - budget.spent, budget.remaining);
+      assert.ok(budget.maximum_single_bid >= 0);
+      assert.ok(budget.maximum_single_bid <= budget.remaining);
     }
   });
 
-  it("never lets a max bid strand a roster below its remaining slots", () => {
+  it("never lets a max bid strand a roster below its remaining slots (auction only)", () => {
+    if (!response.budget.supported) return;
     for (const team of response.teams) {
       const budget = team.budget;
       assert.ok(budget);
@@ -170,6 +185,13 @@ describe("live draft snapshot", () => {
   });
 
   it("reports a market view consistent with the teams", () => {
+    if (!response.budget.supported) {
+      // No auction => no bidding market.
+      assert.equal(response.market.largest_max_bid, null);
+      assert.equal(response.market.highest_remaining_budget, null);
+      assert.equal(response.market.top_bidders.length, 0);
+      return;
+    }
     const maxBids = response.teams.map(
       (team) => team.budget?.maximum_single_bid ?? 0,
     );
@@ -202,13 +224,20 @@ describe("live draft: pre-draft state", () => {
     assert.equal(response.last_pick, null);
   });
 
-  it("gives every team a full budget and an empty roster", () => {
+  it("gives every team an empty roster (and a full budget in an auction)", () => {
     for (const team of response.teams) {
-      assert.equal(team.budget?.spent, 0);
-      assert.equal(team.budget?.remaining, 200);
       assert.equal(team.roster.players_acquired, 0);
       assert.equal(team.roster.slots_remaining, team.roster.slots_required);
       assert.deepEqual(team.positions, {});
+      if (response.budget.supported) {
+        assert.equal(team.budget?.spent, 0);
+        assert.equal(
+          team.budget?.remaining,
+          response.budget.starting_budget_per_team,
+        );
+      } else {
+        assert.equal(team.budget, null);
+      }
     }
   });
 
