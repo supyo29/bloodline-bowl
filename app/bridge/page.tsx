@@ -523,8 +523,15 @@ export default function BridgePage() {
         margin: "0 auto",
         padding: "0 16px 80px",
         color: C.text,
+        overflowX: "hidden",
       }}
     >
+      <style>{`
+        .bridge-grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+        @media (max-width: 760px) {
+          .bridge-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       {/* sticky top bar */}
       <div
         style={{
@@ -860,9 +867,9 @@ export default function BridgePage() {
 
       {/* main grid */}
       <div
+        className="bridge-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1.7fr) minmax(0, 1fr)",
           gap: 18,
         }}
       >
@@ -920,10 +927,17 @@ export default function BridgePage() {
                   fontSize: 13,
                 }}
               >
-                <span style={{ width: 34, color: C.dim, textAlign: "right" }}>
+                <span
+                  style={{
+                    width: 28,
+                    flexShrink: 0,
+                    color: C.dim,
+                    textAlign: "right",
+                  }}
+                >
                   {p.rank ?? "–"}
                 </span>
-                <span style={{ flex: 1 }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
                   <b>{p.name}</b>{" "}
                   <span style={{ color: C.dim }}>
                     {p.position}
@@ -949,13 +963,23 @@ export default function BridgePage() {
                 </span>
                 <button
                   onClick={() => mark(p, "drafted")}
-                  style={{ ...btnMini, borderColor: C.drafted, color: C.drafted }}
+                  style={{
+                    ...btnMini,
+                    flexShrink: 0,
+                    borderColor: C.drafted,
+                    color: C.drafted,
+                  }}
                 >
                   DRAFTED
                 </button>
                 <button
                   onClick={() => mark(p, "mine")}
-                  style={{ ...btnMini, borderColor: C.mine, color: C.mine }}
+                  style={{
+                    ...btnMini,
+                    flexShrink: 0,
+                    borderColor: C.mine,
+                    color: C.mine,
+                  }}
                 >
                   MINE
                 </button>
