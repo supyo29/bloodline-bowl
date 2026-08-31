@@ -10,6 +10,16 @@ export const dynamic = "force-dynamic";
 
 const endpoints = [
   {
+    path: "/api/leagues",
+    description:
+      "Discovery: every configured league + its canonical path-based URLs. Start here.",
+  },
+  {
+    path: "/api/leagues/bloodline-bowl/managers/supyo29/draft",
+    description:
+      "Canonical MANAGER route: personalized draft context (roster, slot, needs, recommendations). league != manager.",
+  },
+  {
     path: "/api/league",
     description: "Consolidated, normalized league snapshot. The main endpoint.",
   },

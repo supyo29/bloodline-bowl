@@ -167,6 +167,33 @@ export function getNflState(): Promise<RawNflState> {
   return fetchSleeper<RawNflState>("/state/nfl");
 }
 
+/** Minimal Sleeper user record — `GET /v1/user/<username-or-id>`. */
+export interface RawSleeperUser {
+  user_id: string;
+  username: string | null;
+  display_name: string | null;
+}
+
+/**
+ * Resolve a Sleeper account by username OR by numeric user id. Used to turn an
+ * unregistered manager slug (a Sleeper username) into a stable `user_id` before
+ * validating league membership. Returns null on 404 (no such account).
+ */
+export async function getSleeperUser(
+  usernameOrId: string,
+): Promise<RawSleeperUser | null> {
+  try {
+    const user = await fetchSleeper<RawSleeperUser | null>(
+      `/user/${encodeURIComponent(usernameOrId)}`,
+      { revalidate: 24 * 60 * 60 },
+    );
+    return user && user.user_id ? user : null;
+  } catch (error) {
+    if (error instanceof SleeperError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export function getLeague(
   leagueId: string,
   options: { revalidate?: number } = {},

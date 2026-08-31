@@ -161,6 +161,87 @@ an existing league.
 
 ---
 
+## Canonical routing: league identity ≠ manager identity
+
+Two identity dimensions that are resolved separately and must never be conflated:
+
+1. **Which league** is being requested?
+2. **Which manager inside it** is asking for personalized data?
+
+A **league** route exposes shared, league-wide data (settings, scoring, draft board, picks, available
+players, standings). A **manager** route additionally exposes that one manager's Sleeper identity,
+roster, roster id, draft slot, picks, positional needs, and personalized recommendations.
+
+### Path routes (preferred — AI-friendly, no query-string construction)
+
+```text
+GET /api/leagues                                          # discovery: every league + its URLs
+GET /api/leagues/:leagueSlug                              # league overview + manager routing table
+GET /api/leagues/:leagueSlug/draft                        # league draft state
+GET /api/leagues/:leagueSlug/snapshot
+GET /api/leagues/:leagueSlug/scoring
+GET /api/leagues/:leagueSlug/managers                     # every manager in the league (live)
+GET /api/leagues/:leagueSlug/managers/:managerSlug        # ONE manager's identity + roster
+GET /api/leagues/:leagueSlug/managers/:managerSlug/draft  # personalized draft context + recommendations
+GET /api/leagues/:leagueSlug/managers/:managerSlug/snapshot
+```
+
+Flat aliases (same handler, same resolver): `/api/draft/:leagueSlug`, `/api/snapshot/:leagueSlug`,
+`/api/scoring/:leagueSlug`.
+
+### Canonical routes for the three known managers
+
+| Manager | Sleeper username | League | Manager route |
+| --- | --- | --- | --- |
+| `supyo29` | `Supyo29` | `bloodline-bowl` | `/api/leagues/bloodline-bowl/managers/supyo29` |
+| `bijimac` | `BijiMac` | `bloodline-bowl` | `/api/leagues/bloodline-bowl/managers/bijimac` |
+| `darthmarker` | `DarthMarker` | `devoted-to-the-game` | `/api/leagues/devoted-to-the-game/managers/darthmarker` |
+
+Append `/draft` or `/snapshot` for the personalized draft / snapshot views. Slugs and Sleeper
+usernames are case-insensitive on input; responses and links always use the lowercase slug.
+
+### For an AI client
+
+To get **personalized** draft guidance, use a **manager** route — e.g. for Supyo29's Bloodline Bowl
+draft: `https://<domain>/api/leagues/bloodline-bowl/managers/supyo29/draft`. The response's
+`context` object and `manager.recommendation_context` state exactly which league, manager, roster id,
+and draft slot were resolved, and the roster the recommendation engine reasoned over — so the client
+can verify it, not just trust the label.
+
+### Legacy compatibility
+
+`?league=` still works and resolves through the **same** registry (`findLeagueTarget`) and
+numeric-id rule as the path form. Only the fallback differs: the query form still defaults to
+Bloodline Bowl when `?league=` is omitted; the path form **requires** a slug and returns `404` for an
+unknown one.
+
+### Identity resolution rules (`lib/leagues/resolve.ts`)
+
+- Manager identity is **never** inferred from commissioner status, league ownership, "the first
+  roster/manager Sleeper returned", array order, a previous request, an env var, a hard-coded user,
+  roster number alone, or draft slot alone.
+- A manager slug resolves via the canonical registry (`lib/leagues/managers.ts`, three known
+  managers with verified Sleeper `user_id`s) **or**, for anyone else, a live Sleeper user lookup —
+  so the architecture stays generic (`league → manager → resource`) as more managers join.
+- League membership is **validated live** every request: the manager's `user_id` must own (or
+  co-own) a roster in the requested league. `roster_id` and `draft_slot` come from that league's
+  data only. A manager who is not in the league is an explicit `404 manager_not_in_league` — **never**
+  a fallback to another manager. `bloodline-bowl + darthmarker`, `devoted-to-the-game + bijimac`, and
+  `devoted-to-the-game + supyo29` all 404.
+- Same numeric `roster_id` in two leagues (BijiMac is roster 2 in Bloodline Bowl, DarthMarker is
+  roster 2 in Devoted to the Game) and the same draft slot in two leagues never collide, because
+  every lookup is scoped to one resolved `league_id`.
+
+### Caching
+
+All Sleeper fetches go through Next's data cache keyed by the upstream URL (`/league/<id>/...`), so
+they are inherently per-league-id. CDN caching is keyed by the request URL, so
+`/api/leagues/bloodline-bowl/managers/supyo29/draft` and `.../bijimac/draft` are distinct cache
+entries. There is **no** module-level manager/roster/league state and no in-memory manager cache;
+the only shared module-scoped cache is the league-agnostic `/players/nfl` player index.
+
+---
+
 ## Draft Bridge (`/bridge`)
 
 An interactive, **league-isolated** draft-night board. Unlike the JSON endpoints, the Bridge holds

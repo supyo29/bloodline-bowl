@@ -56,6 +56,20 @@ import {
 const PROFILES = listBridgeProfiles();
 const POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "K", "DEF"] as const;
 
+/**
+ * Managers to surface permanent copy-able URLs for, keyed by the canonical
+ * league slug (`registry_key`). Display convenience only — the actual
+ * `/api/leagues/:slug/managers/:slug` routes validate membership live and 404
+ * an unknown or wrong-league manager.
+ */
+const KNOWN_MANAGERS: Record<string, Array<{ slug: string; label: string }>> = {
+  "bloodline-bowl": [
+    { slug: "supyo29", label: "Supyo29" },
+    { slug: "bijimac", label: "BijiMac" },
+  ],
+  "devoted-to-the-game": [{ slug: "darthmarker", label: "DarthMarker" }],
+};
+
 const C = {
   bg: "#0b0f14",
   panel: "#11171f",
@@ -123,6 +137,8 @@ export default function BridgePage() {
   const [rankingsText, setRankingsText] = useState("");
   const [rankingsReport, setRankingsReport] = useState<string | null>(null);
   const [showRankings, setShowRankings] = useState(false);
+  const [showUrls, setShowUrls] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -642,6 +658,94 @@ export default function BridgePage() {
             </button>
           );
         })}
+      </div>
+
+      {/* permanent API URLs — paste one into ChatGPT, no query-string building */}
+      <div style={{ margin: "4px 0 12px" }}>
+        <button onClick={() => setShowUrls((v) => !v)} style={btn}>
+          {showUrls ? "Hide" : "Show"} permanent API URLs (for ChatGPT)
+        </button>
+        {showUrls && (
+          <div
+            style={{
+              border: `1px solid ${C.border}`,
+              background: C.panel,
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 8,
+              fontSize: 12,
+            }}
+          >
+            {(() => {
+              const origin =
+                typeof window !== "undefined" ? window.location.origin : "";
+              const slug = profile.registry_key;
+              const leagueBase = `${origin}/api/leagues/${slug}`;
+              const rows: Array<{ label: string; url: string }> = [
+                { label: `${profile.short_label} — league`, url: leagueBase },
+                { label: "league draft", url: `${leagueBase}/draft` },
+                { label: "league snapshot", url: `${leagueBase}/snapshot` },
+                { label: "league scoring", url: `${leagueBase}/scoring` },
+                { label: "all managers", url: `${leagueBase}/managers` },
+              ];
+              for (const m of KNOWN_MANAGERS[slug] ?? []) {
+                const mb = `${leagueBase}/managers/${m.slug}`;
+                rows.push(
+                  { label: `${m.label} — context`, url: mb },
+                  { label: `${m.label} — personalized draft`, url: `${mb}/draft` },
+                  { label: `${m.label} — personalized snapshot`, url: `${mb}/snapshot` },
+                );
+              }
+              return (
+                <>
+                  <div style={{ color: C.dim, marginBottom: 8 }}>
+                    Paste a <b>manager</b> URL into ChatGPT for personalized draft
+                    guidance. Legacy <code>?league=</code> URLs still work.
+                  </div>
+                  {rows.map((r) => (
+                    <div
+                      key={r.url}
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        padding: "3px 0",
+                      }}
+                    >
+                      <span style={{ width: 210, color: C.dim, flexShrink: 0 }}>
+                        {r.label}
+                      </span>
+                      <code
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          color: r.label.includes("personalized")
+                            ? C.mine
+                            : C.text,
+                        }}
+                      >
+                        {r.url}
+                      </code>
+                      <button
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(r.url);
+                          setCopiedUrl(r.url);
+                          window.setTimeout(() => setCopiedUrl(null), 1500);
+                        }}
+                        style={{ ...btnMini, flexShrink: 0 }}
+                      >
+                        {copiedUrl === r.url ? "✓ copied" : "copy"}
+                      </button>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* visual league-safety banner */}
