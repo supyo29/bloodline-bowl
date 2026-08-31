@@ -160,6 +160,9 @@ export function buildManagerRecommendations(input: {
   const wantedSet = new Set(wanted);
 
   const matches = (p: NormalizedPlayer): boolean => {
+    // Skip unsigned/retired skill players Sleeper still carries with a stale
+    // search_rank (a team defense legitimately has no team).
+    if (!p.team && p.position !== "DEF") return false;
     if (wantedSet.size === 0) return true; // starters full -> pure best-available
     return eligiblePositions(p).some((pos) => wantedSet.has(pos));
   };
