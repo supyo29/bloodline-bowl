@@ -1,4 +1,4 @@
-# `lib/draft` — snake-draft recommendation engine (`ri-snake-decision-2026.1`)
+# `lib/draft` — snake-draft recommendation engine (`ri-snake-decision-2026.2`)
 
 Phase 4. Answers **"who should this manager draft NOW, given what we lose by
 waiting?"** — not "who has the highest projection" and not "who fits a need".
@@ -30,8 +30,10 @@ UNSUPPORTED_2026` — never snake logic on an auction.
 | `market.ts` | Phase 5 — market consensus (`ri-snake-market-2026.1`): robust weighted-median ADP, dispersion, freshness, confidence tiers, from the vendored `data/market-adp-2026.ts` |
 | `survival.ts` | Phase 5 — calibrated snake-survival model (`ri-snake-survival-2026.1`): S2 normal-distribution `P(D > k)` + conditional `P(D > k \| D > c)`, `P(tier survives)`, confidence, degraded fallback |
 | `runs.ts` | positional-run detection; `run_signal` (what happened) vs `run_effect` (survival only — never player value) |
-| `need.ts` | roster need as a **utility adjustment**, not a hard filter; positional advantage |
+| `need.ts` | roster need as a **utility adjustment**, not a hard filter; positional advantage; `positionalAdvantageDamp` (2026.2) |
 | `trajectory.ts` | `StarterCompletionRisk` / flex risk / concentration / bench balance; risk delta from a pick |
+| `roster-utility.ts` | Phase 6 — optimal starter/FLEX assignment + multi-round roster-utility score (offline validation metric, not in a live response) |
+| `recovery.ts` | Phase 6 — `positionRecoveryCost` (what a position costs to backfill 1–2 turns later) + bounded `computeTrajectoryRisk` |
 | `kdst.ts` | **hard** K/DST timing gate — released only in the last 3 rounds or once the core lineup is complete |
 | `lookahead.ts` | one-turn expected-value: `E[best available at next pick]` → `WaitProjectionLoss` / `WaitVORLoss`, urgency |
 | `utility.ts` | the utility function; every term in league-point units; weights **selected by simulation** |
@@ -67,6 +69,33 @@ quality; heavy timing weights reduce it**. The chosen vector keeps *light*
 timing — statistically indistinguishable from pure VOR+need on roster VOR, but
 retains the snake-timing tie-breaker, the reach classification, and the
 evidence. Tier/scarcity **without** need underperforms (B4 in `phase4_ablation.csv`).
+
+## Phase 6 defect fix — `ri-snake-decision-2026.2`
+
+Phase 6 multi-round self-play simulation exposed two ways the *locally* correct
+Phase 4 utility function built a *globally* broken roster. Both are fixed; no
+weight, formula, or architecture from Phase 4 changed.
+
+1. **Position hoarding.** `positional_advantage`, `urgency`, and the score-facing
+   `VOR` component were all un-gated by whether the position could still start
+   anywhere. A deep QB class kept scoring ~90–130 even after the manager already
+   had two QBs, so the engine could recommend a 5th–7th QB. Fix:
+   `need.ts::positionalAdvantageDamp` multiplies those three terms by `0.15` once
+   `have[pos] >= baseSlots(pos) + eligibleFlexSlots + 1` (i.e. the position can
+   no longer fill any slot it would ever start in). `rec.vor` still reports the
+   **true undamped** VOR — only the score contribution is damped.
+2. **No required-slot desperation.** `roster_need` alone did not escalate when
+   picks ran out against unfilled required slots, so K/DEF (or a missing TE)
+   could be deferred forever. Fix (`engine.ts`): a `desperation` multiplier on
+   positive `roster_need` — `4.5×` when `picks_remaining <= open_required`,
+   `2.0×` when one pick of slack remains.
+
+Independently, Phase 6 found a **Layer-1 projection-pool gap**: `lib/projections`
+emits zero K and zero DEF (`SKILL` filter in `build.ts`), so the engine has no
+K/DEF candidates to rank. That is a frozen-projection defect, out of Phase 6's
+charter to fix. The engine now **degrades loudly**: `snake_engine_status:
+DEGRADED` + a warning telling the user to use the `.../draft` candidate list for
+that slot. `PHASE6_REPORT.md` has the full write-up.
 
 ## Hard vs soft (§22)
 
@@ -124,5 +153,11 @@ npx tsx scripts/phase5-export-drafts.ts           # Phase 5: export calibration 
 Rscript analysis/phase5_market_survival.R         # Phase 5: calibration + plots
 npx tsx scripts/phase5-live-check.ts              # Phase 5: live Bloodline + P4↔P5 comparison + latency
 
-node --test --import tsx test/draft-recommendation.test.ts test/draft-market-survival.test.ts
+npx tsx scripts/phase6-simulation.ts --n 500      # Phase 6: D0..D4 x slots 1/7/12 multi-round self-play
+npx tsx scripts/phase6-manager-trajectory.ts --n 150   # Phase 6: BijiMac slot-12 + Supyo29 slot-7 audits
+npx tsx scripts/phase6-timing.ts --n 120          # Phase 6: QB/TE timing, RB/WR sequencing, FLEX-first
+npx tsx scripts/phase6-diagnostics.ts             # Phase 6: failure modes + adversarial states + latency
+Rscript analysis/phase6_roster_trajectory.R       # Phase 6: paired bootstrap D3-vs-D4 + plots
+
+node --test --import tsx test/draft-recommendation.test.ts test/draft-market-survival.test.ts test/draft-roster-trajectory.test.ts
 ```

@@ -18,7 +18,18 @@
 
 import type { FantasyPosition } from "@/lib/projections/schema";
 
-export const RECOMMENDATION_MODEL_VERSION = "ri-snake-decision-2026.1";
+/**
+ * 2026.2 (Phase 6 defect fix): `positional_advantage`, `urgency`, and the
+ * score-facing VOR component are now damped once a position is already
+ * roster-maxed (no slot it could ever start could still be filled), and the
+ * open-slot `roster_need` weight escalates once remaining picks are tight
+ * against remaining required slots. Discovered via Phase 6 multi-round
+ * trajectory simulation: without this, the frozen engine could draft 5-7 QBs
+ * on one roster and/or leave K/DEF permanently unfilled. See
+ * `lib/draft/need.ts::positionalAdvantageDamp` and `PHASE6_REPORT.md`.
+ * No other Phase 4 weight, formula, or architecture changed.
+ */
+export const RECOMMENDATION_MODEL_VERSION = "ri-snake-decision-2026.2";
 export const RECOMMENDATION_SCHEMA_VERSION = "recommendation.v1";
 
 /** The production draft engine supports snake only for 2026. */

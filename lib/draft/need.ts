@@ -21,7 +21,7 @@
  */
 
 import type { FantasyPosition } from "@/lib/projections/schema";
-import { computeRosterNeeds } from "@/lib/sleeper/draft";
+import { computeRosterNeeds, flexSlots } from "@/lib/sleeper/draft";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
 const FLEX_ELIGIBLE = new Set<FantasyPosition>(["RB", "WR", "TE"]);
@@ -91,6 +91,40 @@ export function positionalAdvantage(
   expectedLaterValue: number,
 ): number {
   return round2(playerLeaguePoints - expectedLaterValue);
+}
+
+/**
+ * PHASE 4 DEFECT FIX (recommendation_version 2026.2, discovered in Phase 6
+ * multi-round trajectory validation): `positionalAdvantage` compares a
+ * candidate to his position's future alternative — a property of the PLAYER
+ * POOL, with no roster awareness at all. For a shallow-starter, wide-tier
+ * position (QB above all — one starting slot, no FLEX eligibility, but a
+ * steep points spread among startable QBs) this let `positionalAdvantage`
+ * alone justify drafting a 3rd, 4th, 5th QB: `roster_need` correctly went
+ * negative, but the 0.45-weighted `positionalAdvantage` term is independent
+ * of need and stayed large, and in Phase 6 self-play simulation a manager
+ * drafted SEVEN quarterbacks and finished with open RB/WR/FLEX/K/DEF slots.
+ *
+ * Fix: a positional edge only has recommendation value if the candidate could
+ * plausibly ever START. Once a manager already holds enough players at a
+ * position to fill every slot that position could occupy — its base starter
+ * slots, every FLEX slot (conservatively, since FLEX is shared), plus one
+ * bench-depth/handcuff allowance — `positionalAdvantage` is damped to a small
+ * residual (0.15x) rather than zeroed (a genuine future-trade/injury-insurance
+ * angle survives, it just cannot drive the primary recommendation). This never
+ * fires for a legitimate 1st-2nd QB, or up through a 5th flex-eligible
+ * RB/WR/TE — only for a position already past what the roster can use.
+ */
+export function positionalAdvantageDamp(
+  state: RosterNeedState,
+  position: FantasyPosition,
+  rosterPositions: string[],
+): number {
+  const baseReq: Record<string, number> = { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DEF: 1 };
+  const totalFlex = flexSlots(rosterPositions).length;
+  const usefulCapacity = (baseReq[position] ?? 1) + (FLEX_ELIGIBLE.has(position) ? totalFlex : 0) + 1;
+  const have = state.have[position] ?? 0;
+  return have < usefulCapacity ? 1 : 0.15;
 }
 
 /** Points-equivalent roster-need adjustment for one player. */

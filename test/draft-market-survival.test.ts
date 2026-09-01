@@ -274,7 +274,7 @@ describe("§30/§31 provenance + version separation", () => {
   it("survival, market, recommendation and projection versions are independent constants", () => {
     assert.equal(SURVIVAL_MODEL_VERSION, "ri-snake-survival-2026.1");
     assert.equal(MARKET_CONSENSUS_VERSION, "ri-snake-market-2026.1");
-    assert.equal(RECOMMENDATION_MODEL_VERSION, "ri-snake-decision-2026.1");
+    assert.equal(RECOMMENDATION_MODEL_VERSION, "ri-snake-decision-2026.2");
     assert.equal(PROJECTION_MODEL_VERSION, "ri-structural-2026.3");
     // four distinct namespaces
     assert.equal(new Set([SURVIVAL_MODEL_VERSION, MARKET_CONSENSUS_VERSION, RECOMMENDATION_MODEL_VERSION, PROJECTION_MODEL_VERSION]).size, 4);

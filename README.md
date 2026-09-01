@@ -183,7 +183,7 @@ GET /api/leagues/:leagueSlug/scoring
 GET /api/leagues/:leagueSlug/managers                     # every manager in the league (live)
 GET /api/leagues/:leagueSlug/managers/:managerSlug        # ONE manager's identity + roster
 GET /api/leagues/:leagueSlug/managers/:managerSlug/draft  # personalized draft state + best-available candidate list
-GET /api/leagues/:leagueSlug/managers/:managerSlug/recommendations  # snake decision engine (ri-snake-decision-2026.1)
+GET /api/leagues/:leagueSlug/managers/:managerSlug/recommendations  # snake decision engine (ri-snake-decision-2026.2)
 GET /api/leagues/:leagueSlug/managers/:managerSlug/snapshot
 ```
 
@@ -199,8 +199,20 @@ two independent picks. `SNAKE_ONLY`: an auction draft returns `UNSUPPORTED_MODE`
 See `lib/draft/README.md`.
 
 Four independent version namespaces: `projection_version` (`ri-structural-2026.3`),
-`recommendation_version` (`ri-snake-decision-2026.1`), `market_consensus_version`
+`recommendation_version` (`ri-snake-decision-2026.2`), `market_consensus_version`
 (`ri-snake-market-2026.1`), `survival_version` (`ri-snake-survival-2026.1`).
+
+**Phase 6 (multi-round roster validation).** 7,500 simulated 12-team snake
+drafts confirmed the frozen engine builds strong multi-round rosters, but
+exposed two locally-correct / globally-broken failure modes — position hoarding
+and no required-slot desperation — now fixed in `ri-snake-decision-2026.2`
+(no Phase 4 weight or formula changed). A bounded roster-need-gated trajectory
+adjustment (candidate `D4`) was tested and **not promoted**: it did not
+materially beat the fixed engine (`ri-snake-trajectory-2026.1`, research
+artifact). Phase 6 also documented a frozen-projection gap — `lib/projections`
+emits no K or DEF — which the engine now surfaces as `snake_engine_status:
+DEGRADED` rather than silently omitting those slots. See
+`outputs/projections-2026/PHASE6_REPORT.md`.
 
 Flat aliases (same handler, same resolver): `/api/draft/:leagueSlug`, `/api/snapshot/:leagueSlug`,
 `/api/scoring/:leagueSlug`.

@@ -36,7 +36,7 @@ import {
   runExtraDemand,
   type RecentPick,
 } from "./runs";
-import { computeRosterNeedState, needWeight, positionalAdvantage, rosterNeedValue } from "./need";
+import { computeRosterNeedState, needWeight, positionalAdvantage, positionalAdvantageDamp, rosterNeedValue } from "./need";
 import { computeRosterTrajectory, riskDeltaFromPick } from "./trajectory";
 import { evaluateKdstGate, isKdst } from "./kdst";
 import { positionOutlook, urgencyValue, waitComparisonForPlayer, type PositionOutlook } from "./lookahead";
@@ -222,6 +222,21 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
       [...draftable].some((d) => d === p.position),
   );
 
+  // Diagnostic (discovered Phase 6): the frozen Layer-1 projection pool can be
+  // entirely missing a required position (e.g. K/DEF are outside the offensive
+  // opportunity model's coverage) — this is a Layer-1/2 gap, not something this
+  // engine can fix, but it must never fail silently. Surface it so a caller
+  // knows to fall back to the candidate list (`.../draft`) for that position.
+  for (const pos of ["K", "DEF"] as FantasyPosition[]) {
+    if (draftable.has(pos) && !input.leaguePool.some((p) => p.position === pos)) {
+      readiness.snake_engine_status = readiness.snake_engine_status === "BLOCKED" ? "BLOCKED" : "DEGRADED";
+      readiness.degraded_reasons.push(
+        `${pos} is absent from the projection pool — the recommendation engine cannot suggest a ${pos}; use the .../draft candidate list for that slot`,
+      );
+      warnings.push(`no ${pos} projections available — projection engine gap, not a draft-legality issue`);
+    }
+  }
+
   // replacement levels off the FULL league pool (structure, preseason)
   const levels: ReplacementLevels = computeReplacementLevels(
     input.rosterPositions,
@@ -341,6 +356,18 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
   const draftProgress = input.rounds > 0 ? (currentRound ?? 1) / input.rounds : 0;
   const poolThin = available.length < 12;
 
+  // §defect fix (2026.2): required-slot desperation. `roster_need`'s open-slot
+  // weight (0.9) is a FIXED bonus regardless of how many picks are actually
+  // left to fill it — with exactly 15 rounds = 15 roster slots, that let a
+  // redundant bench player at an already-full position outscore K/DEF on the
+  // literal LAST pick, leaving mandatory starter slots permanently unfillable.
+  // Once remaining picks are tight against remaining REQUIRED slots, escalate
+  // the open-slot need weight so completing the legal roster dominates.
+  const openRequiredTotal =
+    Object.values(trajectory.open_starters).reduce((a, b) => a + b, 0) + trajectory.open_flex;
+  const desperation =
+    picksRemaining <= openRequiredTotal ? 4.5 : picksRemaining <= openRequiredTotal + 1 ? 2.0 : 1.0;
+
   const scored: DraftRecommendation[] = [];
   for (const p of available) {
     const pos = p.position;
@@ -356,13 +383,22 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
 
     const tierDrop = tierDropForPlayer(posTiers, p.player_id);
     const altMid = (outlook.expected_alt_points[0] + outlook.expected_alt_points[1]) / 2;
-    const posAdv = positionalAdvantage(p.league_points, altMid);
+    // §defect fix (2026.2): a positional edge only counts if the player could
+    // plausibly start — damped once the roster already holds more at this
+    // position than every slot it could ever occupy (see need.ts).
+    const posDamp = positionalAdvantageDamp(needState, pos, input.rosterPositions);
+    const posAdv = positionalAdvantage(p.league_points, altMid) * posDamp;
 
     const confScale =
       surv.confidence === "HIGH" ? 1 : surv.confidence === "MEDIUM" ? 0.8 : surv.confidence === "LOW" ? 0.55 : 0.3;
-    const urg = urgencyValue(p.league_points, surv.p_survives_next_pick, altMid, confScale);
+    // same defect fix: urgency ("cost of passing him") is only meaningful for a
+    // position the roster could still start; a maxed-out position's "urgency"
+    // is bench-shuffling, not a real decision cost.
+    const urg = urgencyValue(p.league_points, surv.p_survives_next_pick, altMid, confScale) * posDamp;
 
-    const needVal = rosterNeedValue(needState, pos, levels.by_position[pos]?.replacement_points != null ? Math.max(0, vor) : 0);
+    const needValBase = rosterNeedValue(needState, pos, levels.by_position[pos]?.replacement_points != null ? Math.max(0, vor) : 0);
+    // escalate only genuine open-slot need (positive), never a redundancy penalty
+    const needVal = needValBase > 0 ? round2(needValBase * desperation) : needValBase;
     const riskDelta = riskDeltaFromPick(trajectory, pos, {
       rosterPlayers: input.rosterPlayers,
       rosterPositions: input.rosterPositions,
@@ -390,8 +426,14 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
     });
     const constRisk = constructionRiskValue(riskDelta);
 
+    // same defect fix: once a position is roster-maxed, its raw VOR can no
+    // longer justify the pick over a position that can still start (VOR alone,
+    // weight 1.0, was enough to keep out-drafting `roster_need`'s penalty for a
+    // position with a naturally wide points spread — e.g. a single-QB league).
+    // `rec.vor` below stays the TRUE, undamped value for transparency/reporting;
+    // only the score-facing component is damped.
     const components: UtilityComponents = {
-      vor: round2(vor),
+      vor: round2(vor * posDamp),
       tier_drop: round2(tierDrop),
       scarcity_value: round2(scarVal),
       roster_need: round2(needVal),

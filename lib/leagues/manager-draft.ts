@@ -18,7 +18,7 @@
  * cost, roster-construction risk, two-pick turn optimisation — lives in
  * `lib/draft/` and is served from
  * `GET /api/leagues/:slug/managers/:slug/recommendations`
- * (`recommendation_version: ri-snake-decision-2026.1`). This list is kept as the
+ * (`recommendation_version: ri-snake-decision-2026.2`). This list is kept as the
  * lightweight candidate feed and is labelled accordingly in the response.
  */
 
@@ -215,7 +215,7 @@ export function buildManagerRecommendations(input: {
     ranking_basis: "sleeper_search_rank",
     result_kind: "needs_filtered_best_available_candidates",
     full_recommendation_engine:
-      "GET /api/leagues/{league}/managers/{manager}/recommendations (ri-snake-decision-2026.1)",
+      "GET /api/leagues/{league}/managers/{manager}/recommendations (ri-snake-decision-2026.2)",
     note:
       "This is a needs-filtered best-available CANDIDATE list (Sleeper search_rank), " +
       "not a decision-engine recommendation. For turn-aware recommendations — tier " +
