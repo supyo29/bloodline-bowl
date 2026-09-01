@@ -80,10 +80,29 @@ export function buildReason(
     );
   }
 
-  // survival
+  // survival — calibrated market model (Phase 5)
+  const survConf = r.survival.confidence;
+  const survPhrase =
+    survConf === "HIGH" ? pct(r.survival.p_survives_next_pick)
+      : survConf === "MEDIUM" ? `~${pct(r.survival.p_survives_next_pick)}`
+        : "uncertain";
   if (r.survival.p_survives_next_pick <= 0.35) {
     codes.push("LIKELY_NOT_SURVIVE");
-    clauses.push(`only ${pct(r.survival.p_survives_next_pick)} estimated to reach your next pick (${r.survival.confidence.toLowerCase()} confidence)`);
+    codes.push("LOW_SURVIVAL_TO_NEXT_PICK");
+    clauses.push(
+      `${survConf === "LOW" ? "likely gone" : `only ${survPhrase}`} before your next pick ` +
+        `(market ~pick ${fmt(r.market_adp ?? 0)}, ${survConf.toLowerCase()} confidence)`,
+    );
+  } else if (r.survival.p_survives_next_pick >= 0.75 && r.tier_survival.p_tier_survives_next_pick >= 0.7) {
+    codes.push("LIKELY_AVAILABLE_LATER");
+    if (r.tier_drop < 6) codes.push("EQUIVALENT_TIER_LIKELY_SURVIVES");
+    clauses.push(
+      `${survConf === "LOW" ? "likely" : survPhrase} to still be available at pick ${r.next_manager_pick ?? "?"}, ` +
+        `and a comparable ${r.position} is ${pct(r.tier_survival.p_tier_survives_next_pick)} likely to survive — can wait`,
+    );
+  } else if (r.tier_survival.p_tier_survives_next_pick <= 0.3 && r.tier_drop >= 8) {
+    codes.push("TIER_LIKELY_GONE");
+    clauses.push(`the ${r.position} tier is ${pct(1 - r.tier_survival.p_tier_survives_next_pick)} likely to be exhausted before your next pick`);
   } else if (r.tier_survival.p_tier_survives_next_pick >= 0.7 && r.tier_drop < 6) {
     codes.push("EQUIVALENT_TIER_LIKELY_SURVIVES");
     clauses.push(`a comparable ${r.position} is ${pct(r.tier_survival.p_tier_survives_next_pick)} likely to still be available next turn`);

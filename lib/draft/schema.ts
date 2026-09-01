@@ -264,6 +264,9 @@ export type ReasonCode =
   | "POSITIONAL_ADVANTAGE"
   | "ROSTER_STARTER_NEED"
   | "LIKELY_NOT_SURVIVE"
+  | "LOW_SURVIVAL_TO_NEXT_PICK"
+  | "LIKELY_AVAILABLE_LATER"
+  | "TIER_LIKELY_GONE"
   | "EQUIVALENT_TIER_LIKELY_SURVIVES"
   | "HIGH_VOR"
   | "POSITIONAL_RUN_PRESSURE"
@@ -291,6 +294,13 @@ export interface RecommendationProvenance {
   league_scoring_hash: string;
   market_source: SurvivalSource;
   market_timestamp: string | null;
+  /** Phase 5 — market/survival model provenance (§30, §31) */
+  survival_model_version: string;
+  market_consensus_version: string;
+  /** market data coverage for this draft: fraction of the pool with ≥1 DIRECT_ADP */
+  market_direct_adp_coverage: number;
+  /** what the market layer degraded to, if anything */
+  market_degraded_reason: string | null;
   tier_model_version: string;
   recommendation_model_version: string;
   recommendation_schema_version: string;

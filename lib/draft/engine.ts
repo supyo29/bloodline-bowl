@@ -26,6 +26,7 @@ import { computeScarcity, scarcityValueForPlayer } from "./scarcity";
 import {
   estimateSurvival,
   estimateTierSurvival,
+  SURVIVAL_MODEL_VERSION,
   type MarketSnapshot,
 } from "./survival";
 import {
@@ -115,6 +116,11 @@ function provenanceOf(input: EngineInput, marketSource: MarketSnapshot["source"]
     league_scoring_hash: input.provenance.league_scoring_hash,
     market_source: marketSource,
     market_timestamp: input.market.timestamp,
+    survival_model_version: SURVIVAL_MODEL_VERSION,
+    market_consensus_version: input.market.consensus_version,
+    market_direct_adp_coverage:
+      input.market.covered > 0 ? round2(input.market.direct_adp_covered / input.market.covered) : 0,
+    market_degraded_reason: input.market.degraded_reason,
     tier_model_version: TIER_MODEL_VERSION,
     recommendation_model_version: RECOMMENDATION_MODEL_VERSION,
     recommendation_schema_version: RECOMMENDATION_SCHEMA_VERSION,
@@ -281,13 +287,15 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
     const expectedDemand = baseRate * interveningToNext + extra;
     demandBeforeNextTurn[pos] = round2(expectedDemand);
 
-    // per-player survival
+    // per-player survival — conditioned on availability at the current pick (§16)
+    const currentOverall = turn.current_pick?.overall ?? picksMade + 1;
     const surv = list.map((p) =>
       estimateSurvival({
         playerId: p.player_id,
         position: pos,
         targetPickOverall: nextPickOverall,
         interveningPicks: interveningToNext,
+        currentPickOverall: currentOverall,
         market: input.market,
         runExtraDemand: extra,
       }),
@@ -562,6 +570,7 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
               position: pos,
               targetPickOverall: secondNextOverall,
               interveningPicks: interveningToSecond,
+              currentPickOverall: turn.current_pick?.overall ?? picksMade + 1,
               market: input.market,
               runExtraDemand: extra,
             }).p_survives_next_pick,

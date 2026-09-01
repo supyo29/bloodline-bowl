@@ -18,7 +18,7 @@ import type { ResolvedManager } from "@/lib/leagues/resolve";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
 import { recommendDraft, type CompletedPick, type EngineInput } from "./engine";
-import { buildMarketSnapshot } from "./survival";
+import { buildMarketConsensusSnapshot } from "./survival";
 import {
   RECOMMENDATION_MODEL_VERSION,
   type DraftEngineReadiness,
@@ -101,16 +101,12 @@ export async function buildManagerRecommendationResponse(
           .map((p) => p.player)
           .filter((p): p is NormalizedPlayer => p !== null);
 
-  // ---- market snapshot (§7) — Bloodline has no ADP pack: search_rank only ---
+  // ---- market snapshot (Phase 5) — calibrated ADP consensus + search_rank fallback
   const searchRankByPlayer = new Map<string, number | null>();
   for (const lp of league.projections) {
     searchRankByPlayer.set(lp.player_id, playerIndex.get(lp.player_id)?.search_rank ?? null);
   }
-  const market = buildMarketSnapshot({
-    adpByPlayer: null,
-    searchRankByPlayer,
-    timestamp: base.generated_at,
-  });
+  const market = buildMarketConsensusSnapshot({ searchRankByPlayer });
 
   // ---- run the engine -------------------------------------------
   const response = recommendDraft({

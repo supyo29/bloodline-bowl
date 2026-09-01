@@ -190,12 +190,17 @@ GET /api/leagues/:leagueSlug/managers/:managerSlug/snapshot
 **`/draft` vs `/recommendations` (Phase 4 §3).** `.../draft` returns the raw
 draft state plus a needs-filtered best-available **candidate** list (Sleeper
 `search_rank`). `.../recommendations` is the actual **decision engine**: snake
-turn geometry, gap-relative tier cliffs, a provisional survival interface,
-positional-run detection, reach cost, roster-construction risk, an uncertainty
-treatment, evidence-backed reason strings — and, on the snake turn (BijiMac,
-slot 12), **two-pick turn-pair optimisation** rather than two independent picks.
-`SNAKE_ONLY`: an auction draft returns `UNSUPPORTED_MODE`. See
-`lib/draft/README.md`.
+turn geometry, gap-relative tier cliffs, a **calibrated ADP-distribution
+survival model** (Phase 5 — `ri-snake-survival-2026.1`, held-out Brier 0.115 vs
+0.185 for search-rank), positional-run detection, reach cost, roster-construction
+risk, an uncertainty treatment, evidence-backed reason strings — and, on the
+snake turn (BijiMac, slot 12), **two-pick turn-pair optimisation** rather than
+two independent picks. `SNAKE_ONLY`: an auction draft returns `UNSUPPORTED_MODE`.
+See `lib/draft/README.md`.
+
+Four independent version namespaces: `projection_version` (`ri-structural-2026.3`),
+`recommendation_version` (`ri-snake-decision-2026.1`), `market_consensus_version`
+(`ri-snake-market-2026.1`), `survival_version` (`ri-snake-survival-2026.1`).
 
 Flat aliases (same handler, same resolver): `/api/draft/:leagueSlug`, `/api/snapshot/:leagueSlug`,
 `/api/scoring/:leagueSlug`.
