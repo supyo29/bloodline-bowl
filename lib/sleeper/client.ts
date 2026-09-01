@@ -63,6 +63,8 @@ interface FetchOptions {
   noStore?: boolean;
   /** Override the base URL (default {@link SLEEPER_BASE_URL}). */
   baseUrl?: string;
+  /** Extra request headers (e.g. `Cache-Control: no-cache` for live reads). */
+  headers?: Record<string, string>;
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -86,6 +88,7 @@ export async function fetchSleeper<T>(
     timeoutMs = DEFAULT_TIMEOUT_MS,
     noStore = false,
     baseUrl = SLEEPER_BASE_URL,
+    headers: extraHeaders,
   } = options;
 
   const url = `${baseUrl}${path}`;
@@ -98,7 +101,7 @@ export async function fetchSleeper<T>(
     try {
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", ...extraHeaders },
         ...(noStore
           ? { cache: "no-store" as const }
           : { next: { revalidate } }),
@@ -387,6 +390,27 @@ export function getDraft(
   options: { revalidate?: number; noStore?: boolean } = {},
 ): Promise<RawDraft> {
   return fetchSleeper<RawDraft>(`/draft/${draftId}`, options);
+}
+
+/**
+ * LIVE draft reads for the rehearsal mock override — `noStore` is hard-wired so a
+ * caller cannot accidentally read a cached draft/pick payload. `cache: "no-store"`
+ * bypasses the Next.js data cache entirely (no `revalidate` window is set); these
+ * helpers add a `Cache-Control: no-cache` request header as a second belt.
+ * Production league/draft endpoints keep using `getDraft`/`getDraftPicks` and are
+ * unaffected.
+ */
+export function getDraftLive(draftId: string): Promise<RawDraft> {
+  return fetchSleeper<RawDraft>(`/draft/${draftId}`, {
+    noStore: true,
+    headers: { "Cache-Control": "no-cache" },
+  });
+}
+export function getDraftPicksLive(draftId: string): Promise<RawDraftPick[]> {
+  return fetchSleeper<RawDraftPick[]>(`/draft/${draftId}/picks`, {
+    noStore: true,
+    headers: { "Cache-Control": "no-cache" },
+  });
 }
 
 export function getLeagueRostersFresh(

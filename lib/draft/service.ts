@@ -11,8 +11,8 @@
 
 import {
   SleeperError,
-  getDraft,
-  getDraftPicks,
+  getDraftLive,
+  getDraftPicksLive,
   getLeagueRosters,
   getPlayerIndex,
   slimPlayer,
@@ -25,7 +25,12 @@ import type { ResolvedManager } from "@/lib/leagues/resolve";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
 import { recommendDraft, type CompletedPick, type EngineInput } from "./engine";
-import { deriveMockDraftState, mockOverrideWarning, type MockDraftInfo } from "./mock-draft";
+import {
+  deriveMockDraftState,
+  mockOverrideWarning,
+  type MockDraftDiagnostics,
+  type MockDraftInfo,
+} from "./mock-draft";
 import { buildMarketConsensusSnapshot } from "./survival";
 import {
   RECOMMENDATION_MODEL_VERSION,
@@ -91,11 +96,13 @@ export async function buildManagerRecommendationResponse(
   let draftStateTimestamp: string;
   let mockRosterPlayers: NormalizedPlayer[] | null = null;
   let mockInfo: MockDraftInfo | null = null;
+  let mockDiagnostics: MockDraftDiagnostics | null = null;
+  let mockInvalid = false;
 
   if (mock) {
     let mockMeta;
     try {
-      mockMeta = await getDraft(mock.draftId, { noStore: true });
+      mockMeta = await getDraftLive(mock.draftId);
     } catch (error) {
       // NEVER fall back to the real Bloodline draft on a bad mock id.
       if (error instanceof SleeperError && (error.status === 404 || error.status === 400)) {
@@ -108,20 +115,27 @@ export async function buildManagerRecommendationResponse(
       }
       throw error;
     }
-    const mockPicks = await getDraftPicks(mock.draftId, { noStore: true });
+    const mockPicks = await getDraftPicksLive(mock.draftId);
     const state = deriveMockDraftState({
       meta: mockMeta,
       picks: mockPicks,
       playerIndex,
       managerUserId: manager.sleeper_user_id,
+      requestedDraftId: mock.draftId,
       requestedSlot: mock.requestedSlot,
       numTeams: cfg.num_teams,
       rounds: bloodlineRounds,
     });
-    draftType = state.draft_type;
-    completedPicks = state.completed_picks;
-    mockRosterPlayers = state.roster_players;
     mockInfo = state.info;
+    mockDiagnostics = state.diagnostics;
+
+    // Phase C — an INVALID source must NEVER feed corrupt pick state into the
+    // engine. Run the pipeline on an EMPTY state (so the response is otherwise
+    // well-formed) and force BLOCKED after the fact.
+    mockInvalid = state.diagnostics.state_validation === "INVALID";
+    draftType = mockInvalid ? "snake" : state.draft_type;
+    completedPicks = mockInvalid ? [] : state.completed_picks;
+    mockRosterPlayers = mockInvalid ? [] : state.roster_players;
     rounds = bloodlineRounds; // Bloodline frame, not the mock's round count
     draftStateTimestamp = new Date().toISOString();
   } else {
@@ -148,7 +162,8 @@ export async function buildManagerRecommendationResponse(
       detail:
         `The 2026 Bloodline Bowl draft engine is SNAKE_ONLY. Draft type "${draftType}" ` +
         `(e.g. auction) is not supported — no snake recommendation logic is applied. ` +
-        `auction_engine_status = UNSUPPORTED_2026.`,
+        `auction_engine_status = UNSUPPORTED_2026.` +
+        (mockDiagnostics ? ` (rehearsal mock draft ${mockDiagnostics.draft_id})` : ""),
     };
   }
 
@@ -205,9 +220,24 @@ export async function buildManagerRecommendationResponse(
     limits: options.limits,
   });
 
-  // Rehearsal banner — unmistakable in the response that this is NOT the real draft.
-  if (mockInfo && "readiness" in response) {
-    response.warnings = [mockOverrideWarning(mockInfo), ...response.warnings];
+  // ---- rehearsal framing: banner, diagnostics, INVALID hard-stop --------
+  if (mockDiagnostics) {
+    if (mockInvalid) {
+      response.readiness.snake_engine_status = "BLOCKED";
+      response.readiness.blocked_reasons = [
+        `mock draft ${mockDiagnostics.draft_id} failed source-integrity validation — ` +
+          `recommendations withheld: ${mockDiagnostics.validation_reasons.join("; ")}`,
+        ...response.readiness.blocked_reasons,
+      ];
+      response.primary_recommendation = null;
+      response.alternates = [];
+      response.wait_candidates = [];
+      response.do_not_reach = [];
+      response.primary_pair = null;
+      response.alternate_pairs = [];
+    }
+    response.warnings = [mockOverrideWarning(mockDiagnostics), ...response.warnings];
+    response.mock_draft_diagnostics = mockDiagnostics;
   }
 
   return response;

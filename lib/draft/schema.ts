@@ -486,6 +486,13 @@ export interface RecommendationResponse {
   };
 
   warnings: string[];
+
+  /**
+   * REHEARSAL ONLY — present only when the request carried `?draft_id=` on a
+   * non-production deployment. Never populated on the real Bloodline path.
+   * Structure: `MockDraftDiagnostics` from `lib/draft/mock-draft.ts`.
+   */
+  mock_draft_diagnostics?: unknown;
 }
 
 /** Returned instead of a recommendation when the draft type is not snake/linear. */
