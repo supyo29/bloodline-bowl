@@ -186,6 +186,55 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
   };
   const turn = computeSnakeTurnState(turnInput);
 
+  // ---- terminal state: this manager has no pick to make -------------
+  // `current_pick` is null once every one of the slot's picks is spent — the
+  // draft is over, or this manager is simply done while other teams finish.
+  // Without this guard the engine falls through and scores the pool anyway,
+  // emitting a phantom "next" recommendation for a pick that does not exist
+  // (audit §P). Return an explicit terminal response instead. This can only be
+  // reached AFTER a manager's final pick, so it never affects a live decision.
+  if (order != null && slot >= 1 && turn.current_pick == null) {
+    readiness.snake_engine_status = "BLOCKED";
+    readiness.blocked_reasons.push(
+      `no remaining picks for roster ${input.manager.roster_id} — all ${turn.all_picks.length} of this slot's picks are spent (draft complete for this manager)`,
+    );
+    warnings.push("draft complete for this manager — the recommendation engine has nothing left to decide");
+    return {
+      readiness,
+      recommendation_model_version: RECOMMENDATION_MODEL_VERSION,
+      recommendation_schema_version: RECOMMENDATION_SCHEMA_VERSION,
+      provenance: provenanceOf(input, input.market.source),
+      turn,
+      primary_recommendation: null,
+      alternates: [],
+      wait_candidates: [],
+      do_not_reach: [],
+      primary_pair: null,
+      alternate_pairs: [],
+      replacement_levels: [],
+      tier_boundaries: [],
+      scarcity: [],
+      runs: [],
+      roster_trajectory: computeRosterTrajectory({
+        rosterPlayers: input.rosterPlayers,
+        rosterPositions: input.rosterPositions,
+        picksRemaining: 0,
+        startableRemaining: { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 },
+        demandBeforeNextTurn: { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 },
+      }),
+      manager_context: {
+        used_roster_id: input.manager.roster_id,
+        used_sleeper_user_id: input.manager.sleeper_user_id,
+        used_manager_slug: input.manager.manager_slug,
+        used_draft_slot: input.manager.draft_slot,
+        roster_player_count: input.rosterPlayers.length,
+        roster_position_counts: countPositions(input.rosterPlayers),
+        candidate_pool_size: 0,
+      },
+      warnings,
+    };
+  }
+
   // ---- taken players + draftability ---------------------------------
   const taken = new Set<string>();
   for (const p of input.completedPicks) if (p.player_id) taken.add(p.player_id);

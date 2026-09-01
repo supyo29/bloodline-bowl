@@ -420,6 +420,45 @@ describe("§30 live-state reconciliation", () => {
     }
     assert.ok(changed >= 1, "primary recommendation should evolve as the board changes");
   });
+
+  // Draft-night readiness audit §P — terminal state.
+  it("emits no phantom recommendation once the manager has no picks left", () => {
+    // 180/180 picks made — the whole draft is complete.
+    const full: CompletedPick[] = Array.from({ length: NUM_TEAMS * ROUNDS }, (_, i) => ({
+      overall: i + 1,
+      roster_id: (i % NUM_TEAMS) + 1,
+      player_id: `done${i}`,
+      position: "WR" as FantasyPosition,
+    }));
+    const res = recommendDraft(baseInput({ completedPicks: full, rosterPlayers: [] }));
+    assert.equal(res.turn.current_pick, null, "no current pick when the draft is over");
+    assert.equal(res.primary_recommendation, null, "no phantom primary recommendation");
+    assert.deepEqual(res.alternates, []);
+    assert.deepEqual(res.primary_pair, null);
+    assert.equal(res.readiness.snake_engine_status, "BLOCKED");
+    assert.ok(
+      res.readiness.blocked_reasons.some((r) => /no remaining picks|draft complete/i.test(r)),
+      "blocked reason names the terminal state",
+    );
+  });
+
+  it("emits no recommendation once THIS manager's 15 picks are spent while others still draft", () => {
+    // slot-7's last pick is overall 175; 176 picks made ⇒ this manager is done.
+    const picks: CompletedPick[] = Array.from({ length: 176 }, (_, i) => ({
+      overall: i + 1,
+      roster_id: (i % NUM_TEAMS) + 1,
+      player_id: `done${i}`,
+      position: "WR" as FantasyPosition,
+    }));
+    const res = recommendDraft(
+      baseInput({
+        completedPicks: picks,
+        manager: { roster_id: 7, sleeper_user_id: "u7", manager_slug: "supyo29", draft_slot: 7 },
+      }),
+    );
+    assert.equal(res.primary_recommendation, null);
+    assert.equal(res.readiness.snake_engine_status, "BLOCKED");
+  });
 });
 
 /* -------------------------------------------------------- manager isolation */
