@@ -442,6 +442,11 @@ describe("§30 live-state reconciliation", () => {
     );
   });
 
+  it("a normal (non-mock) engine response never carries mock_draft_diagnostics", () => {
+    const res = recommendDraft(baseInput({ completedPicks: simulatePicks(standardPool(), 11) }));
+    assert.equal(Object.prototype.hasOwnProperty.call(res, "mock_draft_diagnostics"), false);
+  });
+
   it("emits no recommendation once THIS manager's 15 picks are spent while others still draft", () => {
     // slot-7's last pick is overall 175; 176 picks made ⇒ this manager is done.
     const picks: CompletedPick[] = Array.from({ length: 176 }, (_, i) => ({

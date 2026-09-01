@@ -502,4 +502,7 @@ export interface UnsupportedModeResponse {
   error: "UNSUPPORTED_MODE";
   draft_type: string | null;
   detail: string;
+  /** REHEARSAL ONLY — present only when the request carried `?draft_id=` and the
+   *  mock reported an unsupported draft type. Never on the real Bloodline path. */
+  mock_draft_diagnostics?: unknown;
 }

@@ -30,6 +30,7 @@ import type { NormalizedPlayer, RawDraft, RawDraftPick } from "@/lib/sleeper/typ
 
 import { computeSnakeTurnState } from "./geometry";
 import type { CompletedPick } from "./engine";
+import type { RecommendationResponse } from "./schema";
 
 const SKILL = new Set<FantasyPosition>(["QB", "RB", "WR", "TE", "K", "DEF"]);
 
@@ -390,6 +391,52 @@ export function deriveMockDraftState(params: {
       applied_rounds: rounds,
     },
     diagnostics,
+  };
+}
+
+/**
+ * Wrap a FROZEN engine response in the rehearsal presentation layer WITHOUT
+ * mutating it — `recommendDraft()`'s result is never touched after it returns.
+ *
+ *   - VALID / DEGRADED: append the banner + diagnostics; the engine's decision is
+ *     preserved exactly.
+ *   - INVALID: additionally blank every actionable field and force BLOCKED. A
+ *     rejected source state must never surface a pick.
+ */
+export function assembleRehearsalResponse(
+  engineResponse: RecommendationResponse,
+  diagnostics: MockDraftDiagnostics,
+  invalid: boolean,
+): RecommendationResponse {
+  const warnings = [mockOverrideWarning(diagnostics), ...engineResponse.warnings];
+
+  // VALID / DEGRADED mock state: preserve the frozen engine response exactly and
+  // only append rehearsal metadata.
+  if (!invalid) {
+    return { ...engineResponse, warnings, mock_draft_diagnostics: diagnostics };
+  }
+
+  // INVALID mock state: never expose recommendations derived from a rejected
+  // source state.
+  return {
+    ...engineResponse,
+    readiness: {
+      ...engineResponse.readiness,
+      snake_engine_status: "BLOCKED",
+      blocked_reasons: [
+        `mock draft ${diagnostics.draft_id} failed source-integrity validation — ` +
+          `recommendations withheld: ${diagnostics.validation_reasons.join("; ")}`,
+        ...engineResponse.readiness.blocked_reasons,
+      ],
+    },
+    primary_recommendation: null,
+    alternates: [],
+    wait_candidates: [],
+    do_not_reach: [],
+    primary_pair: null,
+    alternate_pairs: [],
+    warnings,
+    mock_draft_diagnostics: diagnostics,
   };
 }
 

@@ -26,8 +26,8 @@ import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
 import { recommendDraft, type CompletedPick, type EngineInput } from "./engine";
 import {
+  assembleRehearsalResponse,
   deriveMockDraftState,
-  mockOverrideWarning,
   type MockDraftDiagnostics,
   type MockDraftInfo,
 } from "./mock-draft";
@@ -164,6 +164,7 @@ export async function buildManagerRecommendationResponse(
         `(e.g. auction) is not supported — no snake recommendation logic is applied. ` +
         `auction_engine_status = UNSUPPORTED_2026.` +
         (mockDiagnostics ? ` (rehearsal mock draft ${mockDiagnostics.draft_id})` : ""),
+      ...(mockDiagnostics ? { mock_draft_diagnostics: mockDiagnostics } : {}),
     };
   }
 
@@ -220,25 +221,11 @@ export async function buildManagerRecommendationResponse(
     limits: options.limits,
   });
 
-  // ---- rehearsal framing: banner, diagnostics, INVALID hard-stop --------
-  if (mockDiagnostics) {
-    if (mockInvalid) {
-      response.readiness.snake_engine_status = "BLOCKED";
-      response.readiness.blocked_reasons = [
-        `mock draft ${mockDiagnostics.draft_id} failed source-integrity validation — ` +
-          `recommendations withheld: ${mockDiagnostics.validation_reasons.join("; ")}`,
-        ...response.readiness.blocked_reasons,
-      ];
-      response.primary_recommendation = null;
-      response.alternates = [];
-      response.wait_candidates = [];
-      response.do_not_reach = [];
-      response.primary_pair = null;
-      response.alternate_pairs = [];
-    }
-    response.warnings = [mockOverrideWarning(mockDiagnostics), ...response.warnings];
-    response.mock_draft_diagnostics = mockDiagnostics;
+  // ---- rehearsal response assembly: banner, diagnostics, INVALID hard-stop ----
+  // The frozen `recommendDraft()` result above is NEVER mutated: the production
+  // path returns it as-is; a rehearsal wraps a fresh presentation layer around it.
+  if (!mockDiagnostics) {
+    return response;
   }
-
-  return response;
+  return assembleRehearsalResponse(response, mockDiagnostics, mockInvalid);
 }

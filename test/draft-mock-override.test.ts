@@ -12,8 +12,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { deriveMockDraftState, validateMockDraftState } from "@/lib/draft/mock-draft";
+import {
+  assembleRehearsalResponse,
+  deriveMockDraftState,
+  validateMockDraftState,
+} from "@/lib/draft/mock-draft";
 import { computeSnakeTurnState } from "@/lib/draft/geometry";
+import type { DraftRecommendation, RecommendationResponse } from "@/lib/draft/schema";
 import type { NormalizedPlayer, RawDraft, RawDraftPick } from "@/lib/sleeper/types";
 
 const TEAMS = 12;
@@ -281,5 +286,92 @@ describe("mock override — slot resolution + real-draft parity", () => {
     assert.equal(s.diagnostics.recent_picks.length, 5);
     assert.deepEqual(s.diagnostics.recent_picks.map((p) => p.pick_no), [14, 15, 16, 17, 18]);
     assert.ok(s.diagnostics.recent_picks.every((p) => typeof p.player_name === "string" && p.player_name.length > 0));
+  });
+});
+
+/* ---------------------------------------------- rehearsal response assembly */
+
+describe("mock override — assembleRehearsalResponse (immutable presentation layer)", () => {
+  const rec = (id: string): DraftRecommendation => ({ player_id: id } as unknown as DraftRecommendation);
+
+  function engineResponse(): RecommendationResponse {
+    return {
+      readiness: {
+        draft_engine_mode: "SNAKE_ONLY",
+        snake_engine_status: "READY",
+        auction_engine_status: "UNSUPPORTED_2026",
+        degraded_reasons: [],
+        blocked_reasons: [],
+      },
+      recommendation_model_version: "ri-snake-decision-2026.2",
+      recommendation_schema_version: "recommendation.v1",
+      provenance: {} as RecommendationResponse["provenance"],
+      turn: {} as RecommendationResponse["turn"],
+      primary_recommendation: rec("PRIMARY"),
+      alternates: [rec("ALT")],
+      wait_candidates: [rec("WAIT")],
+      do_not_reach: [rec("DNR")],
+      primary_pair: { rank: 1 } as RecommendationResponse["primary_pair"],
+      alternate_pairs: [{ rank: 2 } as never],
+      replacement_levels: [],
+      tier_boundaries: [],
+      scarcity: [],
+      runs: [],
+      roster_trajectory: {} as RecommendationResponse["roster_trajectory"],
+      manager_context: {} as RecommendationResponse["manager_context"],
+      warnings: ["engine warning A"],
+    };
+  }
+
+  const diagnostics = {
+    draft_id: "1396600871957061632",
+    validation_reasons: ["duplicate overall pick numbers within the Bloodline frame"],
+    state_validation: "INVALID" as const,
+    // the rest is not read by assembleRehearsalResponse / mockOverrideWarning-safe subset
+    requested_draft_id: "1396600871957061632", source_status: "drafting", source_type: "snake",
+    source_teams: 12, source_rounds: 16, source_created_iso: null, source_last_picked_iso: null,
+    applied_teams: 12, applied_rounds: 15, frame_limit: 180,
+    raw_pick_count: 10, framed_pick_count: 10, raw_max_pick_no: 10, framed_max_pick_no: 10,
+    picks_discarded_outside_frame: 0, applied_slot: 7, slot_source: "explicit_request" as const,
+    manager_expected_pick_numbers: [], manager_source_picks: [], manager_roster_count: 0,
+    recent_picks: [],
+  };
+
+  it("VALID/DEGRADED: appends banner + diagnostics, preserves the engine decision, does NOT mutate the input", () => {
+    const input = engineResponse();
+    const snapshot = JSON.stringify(input);
+    const out = assembleRehearsalResponse(input, { ...diagnostics, state_validation: "DEGRADED" }, false);
+
+    assert.equal(JSON.stringify(input), snapshot, "the frozen engine response object was not mutated");
+    assert.notEqual(out, input, "a new object is returned");
+    assert.equal(out.primary_recommendation?.player_id, "PRIMARY", "engine decision preserved");
+    assert.deepEqual(out.alternates.map((a) => a.player_id), ["ALT"]);
+    assert.equal(out.readiness.snake_engine_status, "READY");
+    assert.equal(out.warnings[0]?.startsWith("REHEARSAL MOCK-DRAFT OVERRIDE ACTIVE"), true);
+    assert.deepEqual(out.warnings.slice(1), ["engine warning A"]);
+    assert.equal((out as { mock_draft_diagnostics?: unknown }).mock_draft_diagnostics != null, true);
+  });
+
+  it("INVALID: forces BLOCKED, nulls every actionable field, keeps diagnostics", () => {
+    const input = engineResponse();
+    const snapshot = JSON.stringify(input);
+    const invalidMockResponse = assembleRehearsalResponse(input, diagnostics, true);
+
+    assert.equal(JSON.stringify(input), snapshot, "input not mutated");
+
+    // requested regression shape
+    assert.equal(invalidMockResponse.readiness.snake_engine_status, "BLOCKED");
+    assert.equal(invalidMockResponse.primary_recommendation, null);
+    assert.deepEqual(invalidMockResponse.alternates, []);
+    assert.deepEqual(invalidMockResponse.wait_candidates, []);
+    assert.deepEqual(invalidMockResponse.do_not_reach, []);
+    assert.equal(invalidMockResponse.primary_pair, null);
+    assert.deepEqual(invalidMockResponse.alternate_pairs, []);
+
+    assert.ok(
+      invalidMockResponse.readiness.blocked_reasons.some((r) => /failed source-integrity validation/.test(r)),
+      "blocked reason names the validation failure",
+    );
+    assert.equal((invalidMockResponse as { mock_draft_diagnostics?: unknown }).mock_draft_diagnostics != null, true);
   });
 });
