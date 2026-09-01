@@ -13,7 +13,7 @@ import {
   SleeperError,
   getDraftLive,
   getDraftPicksLive,
-  getLeagueRosters,
+  getLeagueRostersLive,
   getPlayerIndex,
   slimPlayer,
 } from "@/lib/sleeper/client";
@@ -79,7 +79,9 @@ export async function buildManagerRecommendationResponse(
   const [cfg, base, rosters, playerIndex, draftBundle] = await Promise.all([
     loadLeagueConfig(manager.league_slug, manager.league_id),
     buildBaseProjections({ season: PROJECTION_SEASON }),
-    getLeagueRosters(manager.league_id),
+    // LIVE — the manager's current drafted-player state must never be cached
+    // during the draft. (League config + projections above stay cached.)
+    getLeagueRostersLive(manager.league_id),
     getPlayerIndex(),
     // The mock override does NOT touch the Bloodline draft bundle at all.
     mock ? Promise.resolve(null) : buildDraftBundle(manager.league_id, { availableLimit: 1, position: null }),

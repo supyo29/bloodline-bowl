@@ -10,11 +10,11 @@
 
 import {
   SleeperError,
-  getDraft,
-  getDraftPicks,
+  getDraftLive,
+  getDraftPicksLive,
   getLeague,
   getLeagueDrafts,
-  getLeagueRosters,
+  getLeagueRostersLive,
   getLeagueUsers,
   getPlayerIndex,
   slimPlayer,
@@ -172,11 +172,14 @@ export async function buildDraftBundle(
   const startedAt = Date.now();
   const warnings: ResponseWarning[] = [];
 
-  // Slow-moving context, served from the normal cache.
+  // League + users are slow-moving and stay on the normal cache. ROSTERS are
+  // live draft-room state (mid-draft picks land here after the draft completes,
+  // and pre-existing keepers must be current) — never served from a reusable
+  // cache during a 120-second pick clock.
   const [league, users, rosters] = await Promise.all([
     getLeague(leagueId),
     getLeagueUsers(leagueId),
-    getLeagueRosters(leagueId),
+    getLeagueRostersLive(leagueId),
   ]);
 
   const drafts = await optional<RawDraft[]>(
@@ -189,7 +192,7 @@ export async function buildDraftBundle(
 
   const selected = selectActiveDraft(Array.isArray(drafts) ? drafts : []);
 
-  // Live data: no cache, so an in-progress auction is current.
+  // Live data: no cache, so an in-progress draft/auction is current.
   let draft: RawDraft | null = selected;
   let picks: RawDraftPick[] = [];
 
@@ -200,14 +203,14 @@ export async function buildDraftBundle(
         "draft_unavailable",
         warnings,
         selected,
-        () => getDraft(selected.draft_id, { noStore: true }),
+        () => getDraftLive(selected.draft_id),
       ),
       optional<RawDraftPick[]>(
         `/draft/${selected.draft_id}/picks`,
         "draft_picks_unavailable",
         warnings,
         [],
-        () => getDraftPicks(selected.draft_id, { noStore: true }),
+        () => getDraftPicksLive(selected.draft_id),
       ),
     ]);
     draft = freshDraft ?? selected;

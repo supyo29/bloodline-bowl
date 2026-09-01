@@ -18,7 +18,7 @@ import { SleeperError } from "@/lib/sleeper/client";
 import { buildManagerDraftContext } from "@/lib/leagues/manager-draft";
 import { managerContext } from "@/lib/leagues/resolve";
 import { resolveManagerRoute } from "@/lib/leagues/api";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -93,10 +93,11 @@ export async function GET(
       { context: managerContext(manager), ...draftContext },
       {
         headers: {
-          "Cache-Control":
-            draftContext.draft.status === "drafting"
-              ? cacheHeader(5, 15)
-              : cacheHeader(30, 120),
+          // LIVE DRAFT-ROOM ENDPOINT — always `no-store`. This is the raw
+          // full-board fallback used for late K/DEF selection during the draft;
+          // a stale board could show an already-drafted player or the wrong
+          // pick count under a 120-second pick clock.
+          "Cache-Control": "no-store",
           "X-Bridge-Context": `manager:${manager.league_slug}/${manager.manager_slug}`,
           "X-Draft-Status": draftContext.draft.status ?? "none",
         },

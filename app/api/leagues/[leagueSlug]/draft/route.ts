@@ -17,7 +17,7 @@ import {
 } from "@/lib/sleeper/draft-service";
 import { leagueContext } from "@/lib/leagues/resolve";
 import { resolveLeagueRoute } from "@/lib/leagues/api";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -39,16 +39,15 @@ export async function GET(
       return errorResponse(400, "invalid_query_parameter", parsed.error);
     }
 
-    const { response, cacheSeconds } = await buildDraftBundle(
-      league.league_id,
-      parsed.query,
-    );
+    const { response } = await buildDraftBundle(league.league_id, parsed.query);
 
     return jsonResponse(
       { context: leagueContext(league), ...response },
       {
         headers: {
-          "Cache-Control": cacheHeader(cacheSeconds, cacheSeconds * 2),
+          // LIVE DRAFT-ROOM ENDPOINT — always `no-store` (see the manager draft
+          // route). Live pick state must not be edge-cached during the draft.
+          "Cache-Control": "no-store",
           "X-Bridge-Context": `league:${league.league_slug}`,
           "X-Draft-Status": response.draft?.status ?? "none",
         },

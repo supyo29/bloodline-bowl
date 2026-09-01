@@ -412,6 +412,14 @@ export function getDraftPicksLive(draftId: string): Promise<RawDraftPick[]> {
     headers: { "Cache-Control": "no-cache" },
   });
 }
+/** Live league rosters — for draft-room paths where a mid-draft roster must not
+ *  be served from a reusable cache. Non-draft callers keep `getLeagueRosters`. */
+export function getLeagueRostersLive(leagueId: string): Promise<RawRoster[]> {
+  return fetchSleeper<RawRoster[]>(`/league/${leagueId}/rosters`, {
+    noStore: true,
+    headers: { "Cache-Control": "no-cache" },
+  });
+}
 
 export function getLeagueRostersFresh(
   leagueId: string,

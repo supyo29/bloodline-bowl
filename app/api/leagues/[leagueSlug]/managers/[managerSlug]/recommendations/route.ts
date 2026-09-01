@@ -16,7 +16,7 @@ import { SleeperError } from "@/lib/sleeper/client";
 import { logResolution, resolveManagerRoute } from "@/lib/leagues/api";
 import { managerContext } from "@/lib/leagues/resolve";
 import { buildManagerRecommendationResponse } from "@/lib/draft/service";
-import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -104,7 +104,8 @@ export async function GET(
         {
           status: 200,
           headers: {
-            "Cache-Control": cacheHeader(30, 120),
+            // Live draft-room endpoint — never edge-cached (see below).
+            "Cache-Control": "no-store",
             "X-Draft-Engine": "SNAKE_ONLY/unsupported",
             ...(mock ? { "X-Mock-Draft-Override": mock.draftId } : {}),
           },
@@ -130,12 +131,14 @@ export async function GET(
       { context: managerContext(manager), ...result },
       {
         headers: {
-          // A mock rehearsal state must never be cached as if it were the real draft.
-          "Cache-Control": mock
-            ? "no-store"
-            : result.readiness.snake_engine_status === "READY"
-              ? cacheHeader(15, 60)
-              : cacheHeader(30, 120),
+          // LIVE DRAFT-ROOM ENDPOINT — always `no-store`, regardless of engine
+          // readiness. The real Bloodline engine is permanently `DEGRADED`
+          // (Layer 1 has no K/DEF projections); that is a model-CAPABILITY
+          // status, NOT permission to edge-cache live draft state. During a
+          // 120-second pick clock a stale response could name an already-drafted
+          // player, the wrong pick count, the wrong turn, or a stale roster.
+          // Cache policy is NOT keyed to `snake_engine_status`.
+          "Cache-Control": "no-store",
           "X-Bridge-Context": `manager:${manager.league_slug}/${manager.manager_slug}`,
           "X-Draft-Engine": `SNAKE_ONLY/${result.readiness.snake_engine_status}`,
           "X-Recommendation-Version": result.recommendation_model_version,
