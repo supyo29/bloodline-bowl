@@ -182,9 +182,20 @@ GET /api/leagues/:leagueSlug/snapshot
 GET /api/leagues/:leagueSlug/scoring
 GET /api/leagues/:leagueSlug/managers                     # every manager in the league (live)
 GET /api/leagues/:leagueSlug/managers/:managerSlug        # ONE manager's identity + roster
-GET /api/leagues/:leagueSlug/managers/:managerSlug/draft  # personalized draft context + recommendations
+GET /api/leagues/:leagueSlug/managers/:managerSlug/draft  # personalized draft state + best-available candidate list
+GET /api/leagues/:leagueSlug/managers/:managerSlug/recommendations  # snake decision engine (ri-snake-decision-2026.1)
 GET /api/leagues/:leagueSlug/managers/:managerSlug/snapshot
 ```
+
+**`/draft` vs `/recommendations` (Phase 4 §3).** `.../draft` returns the raw
+draft state plus a needs-filtered best-available **candidate** list (Sleeper
+`search_rank`). `.../recommendations` is the actual **decision engine**: snake
+turn geometry, gap-relative tier cliffs, a provisional survival interface,
+positional-run detection, reach cost, roster-construction risk, an uncertainty
+treatment, evidence-backed reason strings — and, on the snake turn (BijiMac,
+slot 12), **two-pick turn-pair optimisation** rather than two independent picks.
+`SNAKE_ONLY`: an auction draft returns `UNSUPPORTED_MODE`. See
+`lib/draft/README.md`.
 
 Flat aliases (same handler, same resolver): `/api/draft/:leagueSlug`, `/api/snapshot/:leagueSlug`,
 `/api/scoring/:leagueSlug`.

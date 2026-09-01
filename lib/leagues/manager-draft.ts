@@ -10,8 +10,16 @@
  * roster id — not merely that the response was labelled "BijiMac".
  *
  * Ranking basis is Sleeper `search_rank` (the same ordering `/api/draft` already
- * uses). This module does not invent projections or a strategy model — that is
- * the Draft Bridge's job and is out of scope here.
+ * uses). This module does not invent projections or a strategy model.
+ *
+ * ⚠️ SEMANTICS (Phase 4 §3): what this module produces is a NEEDS-FILTERED
+ * BEST-AVAILABLE CANDIDATE LIST, not a decision-engine recommendation. The real
+ * snake recommendation engine — turn geometry, tier cliffs, survival, reach
+ * cost, roster-construction risk, two-pick turn optimisation — lives in
+ * `lib/draft/` and is served from
+ * `GET /api/leagues/:slug/managers/:slug/recommendations`
+ * (`recommendation_version: ri-snake-decision-2026.1`). This list is kept as the
+ * lightweight candidate feed and is labelled accordingly in the response.
  */
 
 import {
@@ -65,6 +73,9 @@ export interface ManagerRecommendationContext {
   needed_positions: string[];
   candidate_pool_size: number;
   ranking_basis: "sleeper_search_rank";
+  /** Phase 4 §3: this is a candidate list, not the decision engine. */
+  result_kind: "needs_filtered_best_available_candidates";
+  full_recommendation_engine: string;
   note: string;
 }
 
@@ -202,10 +213,15 @@ export function buildManagerRecommendations(input: {
     needed_positions: wanted,
     candidate_pool_size: availablePlayers.length,
     ranking_basis: "sleeper_search_rank",
+    result_kind: "needs_filtered_best_available_candidates",
+    full_recommendation_engine:
+      "GET /api/leagues/{league}/managers/{manager}/recommendations (ri-snake-decision-2026.1)",
     note:
-      "Recommendations are the Sleeper-ranked available pool filtered to this " +
-      "roster's still-needed positions. The identity above is the exact roster " +
-      "the engine reasoned over — not the response label.",
+      "This is a needs-filtered best-available CANDIDATE list (Sleeper search_rank), " +
+      "not a decision-engine recommendation. For turn-aware recommendations — tier " +
+      "cliffs, survival, reach cost, roster-construction risk, and snake turn-pair " +
+      "optimisation — call the recommendations endpoint above. The identity here is " +
+      "the exact roster the list was built for, not the response label.",
   };
 
   return {
