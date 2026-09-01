@@ -154,6 +154,7 @@ export interface RawPlayer {
   number?: number | null;
   active?: boolean | null;
   depth_chart_order?: number | null;
+  depth_chart_position?: string | null;
   search_rank?: number | null;
   [key: string]: unknown;
 }
@@ -183,6 +184,9 @@ export interface NormalizedPlayer {
    * the available-player pool during a draft rather than inventing rankings.
    */
   search_rank: number | null;
+  /** Sleeper depth-chart slot (1 = starter). Optional; used by the projection model. */
+  depth_chart_order?: number | null;
+  depth_chart_position?: string | null;
   /** False when the id was not found in Sleeper's player database. */
   resolved: boolean;
 }
@@ -505,6 +509,25 @@ export interface DraftResponse {
       position_filter: string | null;
       /** How the pool was ordered and what coverage is guaranteed. */
       ordering: string;
+      /**
+       * Player-pool integrity diagnostics (additive). All counts are scoped to
+       * records position-relevant to this league. `eligibility_rule` documents
+       * the predicate. See `lib/sleeper/eligibility.ts`.
+       */
+      integrity: {
+        eligibility_rule: string;
+        player_pool_total: number;
+        eligible_player_count: number;
+        excluded_player_count: number;
+        already_drafted_count: number;
+        stale_or_invalid_player_count: number;
+        excluded_by_reason: {
+          malformed: number;
+          unsupported_position: number;
+          inactive: number;
+          missing_team: number;
+        };
+      };
     };
     player_database_size: number;
     warnings: ResponseWarning[];

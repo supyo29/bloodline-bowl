@@ -30,6 +30,8 @@ import type {
 } from "./types";
 
 export const SLEEPER_BASE_URL = "https://api.sleeper.app/v1";
+/** Some Sleeper feeds (projections array form) live off the un-versioned root. */
+export const SLEEPER_ROOT_URL = "https://api.sleeper.app";
 
 /** Sleeper data changes slowly; five minutes is plenty fresh for analysis. */
 export const CORE_REVALIDATE_SECONDS = 300;
@@ -59,6 +61,8 @@ interface FetchOptions {
   timeoutMs?: number;
   /** Bypass the data cache entirely (used for the oversized player dump). */
   noStore?: boolean;
+  /** Override the base URL (default {@link SLEEPER_BASE_URL}). */
+  baseUrl?: string;
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -81,9 +85,10 @@ export async function fetchSleeper<T>(
     revalidate = CORE_REVALIDATE_SECONDS,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     noStore = false,
+    baseUrl = SLEEPER_BASE_URL,
   } = options;
 
-  const url = `${SLEEPER_BASE_URL}${path}`;
+  const url = `${baseUrl}${path}`;
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
@@ -293,6 +298,82 @@ export function getWeeklyStats(
   );
 }
 
+/**
+ * Season-total actual stats: `GET /v1/stats/nfl/regular/{season}` -> player_id
+ * -> counting stats for the whole regular season. Same key vocabulary as the
+ * weekly feed; carries `off_snp`/`tm_off_snp` (snap share), `rec_tgt`,
+ * `rec_rz_tgt`, `rush_rz_att`, `g2g_att` etc. Used as the historical training
+ * signal for the Roster Intel projection model and as backtest actuals.
+ */
+export function getSeasonStats(
+  season: string,
+  options: { revalidate?: number } = {},
+): Promise<Record<string, RawPlayerWeeklyStats>> {
+  return fetchSleeper<Record<string, RawPlayerWeeklyStats>>(
+    `/stats/nfl/regular/${season}`,
+    { revalidate: 24 * 60 * 60, ...options },
+  );
+}
+
+/** One entry of Sleeper's season projection array (RotoWire-sourced). */
+export interface RawSleeperProjectionEntry {
+  player_id: string;
+  team: string | null;
+  opponent: string | null;
+  season: string;
+  season_type: string;
+  week: number | null;
+  category: string;
+  company: string | null;
+  last_modified: number | null;
+  updated_at: number | null;
+  stats: Record<string, number>;
+  player: {
+    first_name?: string | null;
+    last_name?: string | null;
+    position?: string | null;
+    team?: string | null;
+    years_exp?: number | null;
+    injury_status?: string | null;
+    fantasy_positions?: string[] | null;
+    metadata?: Record<string, string> | null;
+  } | null;
+}
+
+/**
+ * Sleeper season-long player projections: array form off the un-versioned root,
+ * `GET https://api.sleeper.app/projections/nfl/{season}`. Undocumented but
+ * public and same-domain. `company` reports the upstream provider (RotoWire).
+ * This is a BENCHMARK source for the Roster Intel model — never its target.
+ */
+export function getSeasonProjections(
+  season: string,
+  positions: string[] = ["QB", "RB", "WR", "TE", "K", "DEF"],
+  options: { revalidate?: number } = {},
+): Promise<RawSleeperProjectionEntry[]> {
+  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
+  for (const p of positions) q.append("position[]", p);
+  return fetchSleeper<RawSleeperProjectionEntry[]>(
+    `/projections/nfl/${season}?${q.toString()}`,
+    { baseUrl: SLEEPER_ROOT_URL, revalidate: 6 * 60 * 60, ...options },
+  );
+}
+
+/**
+ * Sleeper weekly projections: `GET /v1/projections/nfl/regular/{season}/{week}`
+ * -> player_id -> projected stats (dict form; no nested player object).
+ */
+export function getWeeklyProjections(
+  season: string,
+  week: number,
+  options: { revalidate?: number } = {},
+): Promise<Record<string, Record<string, number>>> {
+  return fetchSleeper<Record<string, Record<string, number>>>(
+    `/projections/nfl/regular/${season}/${week}`,
+    { revalidate: 60 * 60, ...options },
+  );
+}
+
 export function getDraftPicks(
   draftId: string,
   options: { revalidate?: number; noStore?: boolean } = {},
@@ -368,6 +449,8 @@ export function slimPlayer(
       number: null,
       active: null,
       search_rank: null,
+      depth_chart_order: null,
+      depth_chart_position: null,
       resolved: false,
     };
   }
@@ -400,6 +483,8 @@ export function slimPlayer(
     number: toNullableNumber(raw.number),
     active: typeof raw.active === "boolean" ? raw.active : null,
     search_rank: toNullableNumber(raw.search_rank),
+    depth_chart_order: toNullableNumber(raw.depth_chart_order),
+    depth_chart_position: toNullableString(raw.depth_chart_position),
     resolved: true,
   };
 }

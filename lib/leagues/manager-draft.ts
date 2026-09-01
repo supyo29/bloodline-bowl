@@ -30,6 +30,7 @@ import {
   eligiblePositions,
   type RosterNeeds,
 } from "@/lib/sleeper/draft";
+import { isCurrentlyDraftable } from "@/lib/sleeper/eligibility";
 import type {
   DraftAcquisition,
   NormalizedPlayer,
@@ -160,9 +161,10 @@ export function buildManagerRecommendations(input: {
   const wantedSet = new Set(wanted);
 
   const matches = (p: NormalizedPlayer): boolean => {
-    // Skip unsigned/retired skill players Sleeper still carries with a stale
-    // search_rank (a team defense legitimately has no team).
-    if (!p.team && p.position !== "DEF") return false;
+    // Defense in depth: the shared pool is already filtered by
+    // `isCurrentlyDraftable`, but the recommendation candidate list re-checks so
+    // a stale record can never reach a manager's recommendations by any path.
+    if (!isCurrentlyDraftable(p)) return false;
     if (wantedSet.size === 0) return true; // starters full -> pure best-available
     return eligiblePositions(p).some((pos) => wantedSet.has(pos));
   };

@@ -34,6 +34,7 @@ import type {
   ResponseWarning,
 } from "@/lib/sleeper/types";
 import { draftablePositions, eligiblePositions } from "@/lib/sleeper/draft";
+import { isCurrentlyDraftable } from "@/lib/sleeper/eligibility";
 import { scoringIdentityHash } from "./hash";
 import { rankPlayers, type RankedPlayer, type RankingSourceKind } from "./rankings";
 import { reconcileDraftSource, type ReconcileResult } from "./state";
@@ -443,13 +444,11 @@ export async function buildBridgeBoard(
   const available: NormalizedPlayer[] = [];
   for (const player of playerIndex.values()) {
     if (takenIds.has(player.player_id)) continue;
-    if (player.active === false) continue;
+    // Single source of truth for "is this a legitimate current draft candidate"
+    // (active, on an NFL team, supported position; explicit DEF branch).
+    if (!isCurrentlyDraftable(player)) continue;
     const positions = eligiblePositions(player);
-    if (positions.length === 0) continue;
     if (!positions.some((p) => draftable.has(p))) continue;
-    // Drop unsigned/retired skill players (no NFL team) that Sleeper still
-    // carries with a stale search_rank — a team defense legitimately has none.
-    if (!player.team && !positions.includes("DEF")) continue;
     available.push(player);
   }
 

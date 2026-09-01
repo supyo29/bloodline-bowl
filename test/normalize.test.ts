@@ -89,6 +89,8 @@ describe("player database", () => {
       [
         "active",
         "age",
+        "depth_chart_order",
+        "depth_chart_position",
         "fantasy_positions",
         "first_name",
         "full_name",

@@ -1422,6 +1422,75 @@ return-from-absence week exists; DarthMarker made real transaction activity with
 Garrett Wilson's first non-participation week. See
 `test/historical-availability.test.ts` and `test/historical-availability-live.test.ts`.
 
+## Projection layers (2026 Roster Intel projection engine)
+
+`lib/projections/*` builds a **scoring-neutral NFL projection first**, then translates it, in
+strictly separated layers:
+
+| Layer | Question | Keyed by | Code | Endpoint |
+| --- | --- | --- | --- | --- |
+| **1 — football** | "What will this NFL player actually do?" | season + player + `projection_version` | `model.ts`, `uncertainty.ts`, `reconcile.ts`, `build.ts` | `GET /api/projections[/:playerId]` |
+| **2 — league scoring** | "What is that worth in *this* league?" | + `league_id` + `scoring_hash` | `league.ts`, `replacement.ts` | `GET /api/leagues/:slug/projections[/:playerId]` |
+| **3 — manager value** | "What is that worth to *this* manager's roster right now?" | + `sleeper_user_id` + draft state | `manager-value.ts` | `GET /api/leagues/:slug/managers/:mgr/projections` |
+
+A player's projected receptions **do not change** because two managers look at them. Two managers in
+the same league get **identical** `league_points`; only `contextual_value` differs. `roster_id` is
+never a cache key — BijiMac and DarthMarker are both `roster_id 2` in different leagues.
+
+**Sleeper projections are a BENCHMARK, never a model input.** `lib/projections/sleeper.ts` ingests
+Sleeper's RotoWire-sourced projections (`api.sleeper.app/projections/nfl/{season}`) purely to
+compare against — `RI_STANDALONE` is built only from historical box-score actuals
+(`/v1/stats/nfl/regular/{season}`), depth-chart role, position baselines and age curves. Every
+player carries `vs_sleeper` with the point delta **and** the underlying stat deltas (targets,
+carries, yards, TDs) and a deterministic `primary_driver`. "Closer to Sleeper" is not treated as
+"better".
+
+**Philosophy: opportunity before efficiency.** team environment → position-group volume pools →
+player opportunity share → efficiency (shrunk toward baseline) → touchdowns (from red-zone
+opportunity + team TD environment + regressed conversion, *not* last year's total) → games
+(availability model) → season stat line. Fantasy points are an output, not the model target.
+
+**Per-game vs season.** The Layer-1 stat line is full (17-game) pace. Availability is applied only
+to season points: `season = points_per_game × expected_games`. Per-game talent is never lowered
+because a player might miss games (and the `vs_sleeper` comparison is done on a full-pace basis so
+it is apples-to-apples).
+
+Build the artifacts (`outputs/projections-2026/`, incl. `FINAL_PROJECTION_AUDIT.md`,
+`projection_comparison.csv`, `projection_backtest.csv`, `team_reconciliation.csv`):
+
+```bash
+npx tsx scripts/build-projections.ts
+```
+
+**Calibration (R).** `model_version: ri-structural-2026.3`. Phase 2 (`ri-structural-2026.2`)
+calibrated the veteran core with a reproducible R harness — rolling season-aware validation, the
+expected-games haircut selected by a **development-only rule** (2023-2024) then run once against
+the untouched 2025 holdout, 1000-resample bootstrap, paired candidate-vs-baseline testing,
+shrinkage-K sweep, opportunity-component and team-reconciliation analysis. Phase 3
+(`ri-structural-2026.3`) added a held-out-validated **draft-capital rookie opportunity prior**
+(`log(1+pick)` + round, quasi-Poisson, WR/RB/TE) — college production was tested and proven to add
+**no** incremental signal beyond draft capital, so it is not used. Every Phase 2 lever is frozen
+byte-identical.
+
+```bash
+npx tsx scripts/export-backtest-dataset.ts    # raw historical dataset from Sleeper actuals
+Rscript analysis/phase2_calibration.R         # -> outputs/projections-2026/phase2_*.csv + analysis/plots/
+npx tsx scripts/audit-production-v1-v2.ts      # production-path v1 -> v2 impact + sign-reversal audit
+Rscript analysis/phase3_rookie_role_model.R   # rookie cohort, models M0-M6, 2025 holdout, 2026 crosswalk
+npx tsx scripts/audit-phase3-rookie.ts        # production-path v2 -> v3 impact + redistribution audit
+```
+
+The R port of the projection core (`analysis/lib_ri_projection.R`) is parity-checked against the
+production TypeScript in `test/projection-r-parity.test.ts`; the calibration's production invariants
+(expected-games monotonicity, age direction, opportunity-shade bounds, team conservation, layer
+invariance, Sleeper independence) are proven in `test/projection-calibration-invariants.test.ts`.
+
+Tests: `test/projections.test.ts` (deterministic, fixture-based), `test/projections-live.test.ts`
+(live Sleeper, layer invariance, manager isolation, full-roster), `test/projection-r-parity.test.ts`
+(R↔TS core), `test/projection-calibration-invariants.test.ts`, `test/projection-rookie-model.test.ts`
+(Phase 3 rookie prior — R↔TS parity, football invariants, share-cap conservation). See
+`lib/projections/README.md` for the calibration state and known limitations.
+
 ## Caching
 
 | Data                                            | Strategy                                             | Why                                                               |

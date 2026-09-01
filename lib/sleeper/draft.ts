@@ -16,6 +16,14 @@ import type {
 } from "./types";
 import type { PlayerIndex } from "./client";
 import { computeBudget } from "./budget";
+import {
+  eligibilityOf,
+  emptyEligibilityDiagnostics,
+  recordEligibility,
+  type EligibilityDiagnostics,
+} from "./eligibility";
+
+export { isCurrentlyDraftable, eligibilityOf } from "./eligibility";
 
 /** Slots that are not part of the required starting lineup. */
 const BENCH_SLOTS = new Set(["BN", "IR", "TAXI"]);
@@ -258,32 +266,98 @@ export function requiredStartingPositions(
 }
 
 /**
- * The remaining player pool, ordered by Sleeper's own `search_rank`.
+ * Aggregated availability diagnostics for one pool build. Additive to the
+ * `/api/draft` response; lets an operator detect future Sleeper-data
+ * contamination without a per-player debug dump.
+ */
+export interface AvailabilityDiagnostics extends EligibilityDiagnostics {
+  /** Records already drafted or rostered (excluded before eligibility). */
+  already_drafted_count: number;
+  /** malformed + unsupported_position + inactive + missing_team. */
+  stale_or_invalid_player_count: number;
+  /** Eligible records whose position this league cannot draft (e.g. K in a K-less league). */
+  eligible_but_not_league_position: number;
+  /** Final count offered for this league (after league-position + query filters, before `limit`). */
+  league_candidate_count: number;
+}
+
+/**
+ * The remaining player pool, ordered by Sleeper's own `search_rank`, plus
+ * aggregated integrity diagnostics.
+ *
+ * Eligibility is delegated wholesale to `isCurrentlyDraftable` /
+ * `eligibilityOf` (`lib/sleeper/eligibility.ts`) — the single source of truth
+ * shared with the bridge board, manager recommendations, and the projection
+ * pool. This function only adds the league-position scoping, the `search_rank`
+ * ordering, and the DEF/K coverage guarantee.
  *
  * No proprietary rankings are invented: `search_rank` is Sleeper's relevance
  * ordering, and players without one sort last (alphabetically, for stability).
  */
-export function buildAvailablePlayers(
-  options: AvailablePlayerOptions,
-): NormalizedPlayer[] {
+export function buildAvailablePlayerPool(options: AvailablePlayerOptions): {
+  players: NormalizedPlayer[];
+  diagnostics: AvailabilityDiagnostics;
+} {
   const { playerIndex, takenPlayerIds, rosterPositions, position, limit } =
     options;
 
   const draftable = draftablePositions(rosterPositions);
   const wanted = position ? position.toUpperCase() : null;
 
+  const eligDiag = emptyEligibilityDiagnostics();
+  let alreadyDrafted = 0;
+  let eligibleButNotLeaguePosition = 0;
+
   const candidates: NormalizedPlayer[] = [];
   for (const player of playerIndex.values()) {
-    if (takenPlayerIds.has(player.player_id)) continue;
-    if (player.active === false) continue;
+    if (takenPlayerIds.has(player.player_id)) {
+      alreadyDrafted += 1;
+      continue;
+    }
 
-    const eligible = eligiblePositions(player);
-    if (eligible.length === 0) continue;
-    if (!eligible.some((slot) => draftable.has(slot))) continue;
-    if (wanted && !eligible.includes(wanted)) continue;
+    const positionsOf = eligiblePositions(player);
+    // A record is "fantasy-relevant to this league" if its claimed position is
+    // one the league can draft. Sleeper's dump is mostly OL / IDP / practice-squad
+    // records that no standard-lineup league drafts; folding those into the
+    // integrity counts would bury the signal (`missing_team` must read as
+    // "teamless player who WOULD otherwise be a candidate here").
+    //
+    // `eligibilityOf` needs the RAW record, so we still classify it for the
+    // exclusion reason — we just only *count* fantasy-relevant records, plus
+    // malformed ones (a small, always-interesting bucket).
+    const positionRelevant = positionsOf.some((slot) => draftable.has(slot));
+
+    const verdict = eligibilityOf(player);
+    if (positionRelevant || verdict.reason === "malformed") {
+      recordEligibility(eligDiag, verdict);
+    }
+
+    if (!verdict.eligible) continue;
+
+    if (!positionRelevant) {
+      eligibleButNotLeaguePosition += 1;
+      continue;
+    }
+    if (wanted && !positionsOf.includes(wanted)) continue;
 
     candidates.push(player);
   }
+
+  // "stale / invalid" = a record that claims to be a current fantasy player but
+  // is not one. `unsupported_position` is a correct classification, not
+  // contamination, so it is reported separately and not summed here.
+  const staleOrInvalid =
+    eligDiag.excluded_by_reason.malformed +
+    eligDiag.excluded_by_reason.inactive +
+    eligDiag.excluded_by_reason.missing_team;
+
+  const diagnostics: AvailabilityDiagnostics = {
+    ...eligDiag,
+    already_drafted_count: alreadyDrafted,
+    stale_or_invalid_player_count: staleOrInvalid,
+    eligible_but_not_league_position: eligibleButNotLeaguePosition,
+    league_candidate_count: candidates.length,
+  };
 
   candidates.sort((a, b) => {
     const rankA = a.search_rank ?? Number.MAX_SAFE_INTEGER;
@@ -292,10 +366,10 @@ export function buildAvailablePlayers(
     return a.full_name.localeCompare(b.full_name);
   });
 
-  if (candidates.length <= limit) return candidates;
+  if (candidates.length <= limit) return { players: candidates, diagnostics };
 
   // Already narrowed to one position: a straight rank cut is what was asked for.
-  if (wanted) return candidates.slice(0, limit);
+  if (wanted) return { players: candidates.slice(0, limit), diagnostics };
 
   const selected = new Set<string>();
 
@@ -331,7 +405,21 @@ export function buildAvailablePlayers(
   }
 
   // Return in rank order regardless of which pass selected each player.
-  return candidates.filter((candidate) => selected.has(candidate.player_id));
+  return {
+    players: candidates.filter((candidate) => selected.has(candidate.player_id)),
+    diagnostics,
+  };
+}
+
+/**
+ * Back-compatible shim: the remaining player pool as a plain array, ordered by
+ * Sleeper `search_rank`. Existing callers and tests keep working unchanged; new
+ * callers that want the integrity diagnostics use `buildAvailablePlayerPool`.
+ */
+export function buildAvailablePlayers(
+  options: AvailablePlayerOptions,
+): NormalizedPlayer[] {
+  return buildAvailablePlayerPool(options).players;
 }
 
 /* -------------------------------------------------------------------------- */

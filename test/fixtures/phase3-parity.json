@@ -1,0 +1,205 @@
+{
+  "generated_by": "analysis/phase3_rookie_role_model.R",
+  "model_version": "ri-structural-2026.3",
+  "tolerance_abs": 0.01,
+  "coefficients": [
+    {
+      "component": "WR_target_pg",
+      "n": 300,
+      "intercept": 2.61785,
+      "b_log_pick": -0.28364,
+      "b_round": -0.07143,
+      "dispersion": 1.1,
+      "resid_q20": 0.594,
+      "resid_q50": 0.922,
+      "resid_q80": 1.384,
+      "pred_lo": 1.72,
+      "pred_hi": 8.08,
+      "_row": "20%"
+    },
+    {
+      "component": "TE_target_pg",
+      "n": 128,
+      "intercept": 2.77562,
+      "b_log_pick": -0.40086,
+      "b_round": -0.02273,
+      "dispersion": 0.815,
+      "resid_q20": 0.631,
+      "resid_q50": 0.901,
+      "resid_q80": 1.34,
+      "pred_lo": 1.49,
+      "pred_hi": 8.23,
+      "_row": "20%1"
+    },
+    {
+      "component": "RB_carry_pg",
+      "n": 203,
+      "intercept": 3.33206,
+      "b_log_pick": -0.17999,
+      "b_round": -0.16212,
+      "dispersion": 2.529,
+      "resid_q20": 0.518,
+      "resid_q50": 0.901,
+      "resid_q80": 1.444,
+      "pred_lo": 3.31,
+      "pred_hi": 19.53,
+      "_row": "20%2"
+    },
+    {
+      "component": "RB_target_pg",
+      "n": 203,
+      "intercept": 2.14726,
+      "b_log_pick": -0.24508,
+      "b_round": -0.13929,
+      "dispersion": 0.849,
+      "resid_q20": 0.474,
+      "resid_q50": 0.945,
+      "resid_q80": 1.528,
+      "pred_lo": 0.83,
+      "pred_hi": 5.69,
+      "_row": "20%3"
+    },
+    {
+      "component": "QB_passatt_pg",
+      "n": 81,
+      "intercept": 3.62339,
+      "b_log_pick": -0.10683,
+      "b_round": -0.05787,
+      "dispersion": 4.889,
+      "resid_q20": 0.546,
+      "resid_q50": 1.025,
+      "resid_q80": 1.358,
+      "pred_lo": 13.78,
+      "pred_hi": 32.83,
+      "_row": "20%4"
+    },
+    {
+      "component": "QB_carry_pg",
+      "n": 81,
+      "intercept": 1.4847,
+      "b_log_pick": 0.01067,
+      "b_round": -0.12718,
+      "dispersion": 1.264,
+      "resid_q20": 0.605,
+      "resid_q50": 0.921,
+      "resid_q80": 1.318,
+      "pred_lo": 1.92,
+      "pred_hi": 4.03,
+      "_row": "20%5"
+    }
+  ],
+  "cases": [
+    {
+      "position": "WR",
+      "pick": 1,
+      "round": 1,
+      "target_pg": 9,
+      "carry_pg": 0.3
+    },
+    {
+      "position": "WR",
+      "pick": 4,
+      "round": 1,
+      "target_pg": 8.084199,
+      "carry_pg": 0.3
+    },
+    {
+      "position": "WR",
+      "pick": 33,
+      "round": 2,
+      "target_pg": 4.369994,
+      "carry_pg": 0.3
+    },
+    {
+      "position": "WR",
+      "pick": 90,
+      "round": 3,
+      "target_pg": 3.077409,
+      "carry_pg": 0.3
+    },
+    {
+      "position": "WR",
+      "pick": 180,
+      "round": 6,
+      "target_pg": 2.043703,
+      "carry_pg": 0.3
+    },
+    {
+      "position": "WR",
+      "pick": 261,
+      "round": 8,
+      "target_pg": 1.595209,
+      "carry_pg": 0.3
+    },
+    {
+      "position": "TE",
+      "pick": 16,
+      "round": 1,
+      "target_pg": 5.038838,
+      "carry_pg": 0
+    },
+    {
+      "position": "TE",
+      "pick": 54,
+      "round": 2,
+      "target_pg": 3.076495,
+      "carry_pg": 0
+    },
+    {
+      "position": "TE",
+      "pick": 130,
+      "round": 4,
+      "target_pg": 2.075999,
+      "carry_pg": 0
+    },
+    {
+      "position": "TE",
+      "pick": 261,
+      "round": 8,
+      "target_pg": 1.435727,
+      "carry_pg": 0
+    },
+    {
+      "position": "RB",
+      "pick": 3,
+      "round": 1,
+      "target_pg": 5.302736,
+      "carry_pg": 16
+    },
+    {
+      "position": "RB",
+      "pick": 32,
+      "round": 2,
+      "target_pg": 2.750454,
+      "carry_pg": 10.78841
+    },
+    {
+      "position": "RB",
+      "pick": 70,
+      "round": 3,
+      "target_pg": 1.983181,
+      "carry_pg": 7.992052
+    },
+    {
+      "position": "RB",
+      "pick": 140,
+      "round": 5,
+      "target_pg": 1.268676,
+      "carry_pg": 5.107557
+    },
+    {
+      "position": "RB",
+      "pick": 240,
+      "round": 7,
+      "target_pg": 0.841995,
+      "carry_pg": 3.353491
+    },
+    {
+      "position": "RB",
+      "pick": 261,
+      "round": 8,
+      "target_pg": 0.717667,
+      "carry_pg": 2.809049
+    }
+  ]
+}

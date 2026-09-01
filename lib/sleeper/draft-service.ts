@@ -24,11 +24,12 @@ import { DEFAULT_MINIMUM_BID } from "./budget";
 import {
   MIN_PER_REQUIRED_POSITION,
   assembleDraftTeams,
-  buildAvailablePlayers,
+  buildAvailablePlayerPool,
   draftablePositions,
   parsePickPrice,
   selectActiveDraft,
 } from "./draft";
+import { ELIGIBILITY_RULE_TEXT } from "./eligibility";
 import type {
   DraftAcquisition,
   DraftBudgetInfo,
@@ -333,21 +334,24 @@ export async function buildDraftBundle(
     }
   }
 
-  // Full matching pool (no limit, so no coverage pass) for an honest count.
-  const allMatching = buildAvailablePlayers({
+  // Full matching pool (no limit, so no coverage pass) for an honest count +
+  // the integrity diagnostics (identical regardless of `limit`).
+  const fullPool = buildAvailablePlayerPool({
     playerIndex,
     takenPlayerIds,
     rosterPositions,
     position: query.position,
     limit: Number.MAX_SAFE_INTEGER,
   });
-  const availablePlayers = buildAvailablePlayers({
+  const allMatching = fullPool.players;
+  const poolDiagnostics = fullPool.diagnostics;
+  const availablePlayers = buildAvailablePlayerPool({
     playerIndex,
     takenPlayerIds,
     rosterPositions,
     position: query.position,
     limit: query.availableLimit,
-  });
+  }).players;
 
   /* ---------------------------------------------------------------------- */
   /* Market                                                                  */
@@ -426,6 +430,16 @@ export async function buildDraftBundle(
         ordering:
           "Sleeper search_rank ascending; unranked players last. Unfiltered responses guarantee at least " +
           `${MIN_PER_REQUIRED_POSITION} candidates per required starting position, because Sleeper leaves search_rank null on all team defenses.`,
+        integrity: {
+          eligibility_rule: ELIGIBILITY_RULE_TEXT,
+          player_pool_total: poolDiagnostics.player_pool_total,
+          eligible_player_count: poolDiagnostics.eligible_player_count,
+          excluded_player_count: poolDiagnostics.excluded_player_count,
+          already_drafted_count: poolDiagnostics.already_drafted_count,
+          stale_or_invalid_player_count:
+            poolDiagnostics.stale_or_invalid_player_count,
+          excluded_by_reason: poolDiagnostics.excluded_by_reason,
+        },
       },
       player_database_size: playerIndex.size,
       warnings,
