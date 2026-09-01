@@ -9,7 +9,14 @@
  * the engine is never asked to apply snake logic to an auction.
  */
 
-import { getLeagueRosters, getPlayerIndex, slimPlayer } from "@/lib/sleeper/client";
+import {
+  SleeperError,
+  getDraft,
+  getDraftPicks,
+  getLeagueRosters,
+  getPlayerIndex,
+  slimPlayer,
+} from "@/lib/sleeper/client";
 import { buildDraftBundle } from "@/lib/sleeper/draft-service";
 import { loadLeagueConfig } from "@/lib/projections/service";
 import { buildBaseProjections, buildLeagueProjections } from "@/lib/projections/build";
@@ -18,6 +25,7 @@ import type { ResolvedManager } from "@/lib/leagues/resolve";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
 import { recommendDraft, type CompletedPick, type EngineInput } from "./engine";
+import { deriveMockDraftState, mockOverrideWarning, type MockDraftInfo } from "./mock-draft";
 import { buildMarketConsensusSnapshot } from "./survival";
 import {
   RECOMMENDATION_MODEL_VERSION,
@@ -47,22 +55,88 @@ function readiness(status: DraftEngineReadiness["snake_engine_status"], degraded
 export interface RecommendationServiceOptions {
   weights?: UtilityWeights;
   limits?: EngineInput["limits"];
+  /**
+   * REHEARSAL ONLY (never on production — the route gates this). Consume the
+   * live pick state from a STANDALONE Sleeper mock draft instead of the
+   * Bloodline league's own draft. Every model layer (scoring, projections,
+   * market, survival, tiers, replacement levels, K/DEF policy) and the snake
+   * geometry frame stay Bloodline. Absent ⇒ ZERO behaviour change.
+   */
+  mockDraft?: { draftId: string; requestedSlot: number | null };
 }
 
 export async function buildManagerRecommendationResponse(
   manager: ResolvedManager,
   options: RecommendationServiceOptions = {},
 ): Promise<RecommendationResponse | UnsupportedModeResponse> {
+  const mock = options.mockDraft ?? null;
+
   const [cfg, base, rosters, playerIndex, draftBundle] = await Promise.all([
     loadLeagueConfig(manager.league_slug, manager.league_id),
     buildBaseProjections({ season: PROJECTION_SEASON }),
     getLeagueRosters(manager.league_id),
     getPlayerIndex(),
-    buildDraftBundle(manager.league_id, { availableLimit: 1, position: null }),
+    // The mock override does NOT touch the Bloodline draft bundle at all.
+    mock ? Promise.resolve(null) : buildDraftBundle(manager.league_id, { availableLimit: 1, position: null }),
   ]);
 
-  const draft = draftBundle.response.draft;
-  const draftType = draft?.type ?? null;
+  // Bloodline geometry frame — used for BOTH the real draft and a mock override.
+  const bloodlineRounds =
+    cfg.roster_positions.filter((s) => !["BN", "IR", "TAXI"].includes(s)).length + 5;
+
+  // ---- draft state: real Bloodline draft, or a rehearsal mock override -----
+  let draftType: string | null;
+  let completedPicks: CompletedPick[];
+  let rounds: number;
+  let draftStateTimestamp: string;
+  let mockRosterPlayers: NormalizedPlayer[] | null = null;
+  let mockInfo: MockDraftInfo | null = null;
+
+  if (mock) {
+    let mockMeta;
+    try {
+      mockMeta = await getDraft(mock.draftId, { noStore: true });
+    } catch (error) {
+      // NEVER fall back to the real Bloodline draft on a bad mock id.
+      if (error instanceof SleeperError && (error.status === 404 || error.status === 400)) {
+        throw new SleeperError(
+          `No Sleeper draft with id ${mock.draftId} (Sleeper returned ${error.status}). ` +
+            `The rehearsal mock-draft override does NOT fall back to the real Bloodline draft.`,
+          `/draft/${mock.draftId}`,
+          404,
+        );
+      }
+      throw error;
+    }
+    const mockPicks = await getDraftPicks(mock.draftId, { noStore: true });
+    const state = deriveMockDraftState({
+      meta: mockMeta,
+      picks: mockPicks,
+      playerIndex,
+      managerUserId: manager.sleeper_user_id,
+      requestedSlot: mock.requestedSlot,
+      numTeams: cfg.num_teams,
+      rounds: bloodlineRounds,
+    });
+    draftType = state.draft_type;
+    completedPicks = state.completed_picks;
+    mockRosterPlayers = state.roster_players;
+    mockInfo = state.info;
+    rounds = bloodlineRounds; // Bloodline frame, not the mock's round count
+    draftStateTimestamp = new Date().toISOString();
+  } else {
+    const draft = draftBundle!.response.draft;
+    draftType = draft?.type ?? null;
+    const picks = draftBundle!.response.picks;
+    completedPicks = picks.map((p) => ({
+      overall: p.pick_no,
+      roster_id: p.roster_id,
+      player_id: p.player?.player_id ?? null,
+      position: asSkill(p.player?.position),
+    }));
+    rounds = draft?.rounds ?? bloodlineRounds;
+    draftStateTimestamp = draftBundle!.response.generated_at;
+  }
 
   // ---- SNAKE_ONLY gate (§0, §33) ------------------------------------
   if (draftType && draftType !== "snake" && draftType !== "linear") {
@@ -80,26 +154,21 @@ export async function buildManagerRecommendationResponse(
 
   const league = buildLeagueProjections(base, cfg);
 
-  // ---- draft state ------------------------------------------------
-  const picks = draftBundle.response.picks;
-  const completedPicks: CompletedPick[] = picks.map((p) => ({
-    overall: p.pick_no,
-    roster_id: p.roster_id,
-    player_id: p.player?.player_id ?? null,
-    position: asSkill(p.player?.position),
-  }));
-  const rounds = draft?.rounds ?? cfg.roster_positions.filter((s) => !["BN", "IR", "TAXI"].includes(s)).length + 5;
-
   // ---- manager roster --------------------------------------------
-  const mine = rosters.find((r) => r.roster_id === manager.roster_id);
-  const ownedIds = (mine?.players ?? []).filter((id): id is string => typeof id === "string" && id !== "0");
-  const rosterPlayers: NormalizedPlayer[] =
-    ownedIds.length > 0
-      ? ownedIds.map((id) => playerIndex.get(id) ?? slimPlayer(id, undefined))
-      : picks
-          .filter((p) => p.roster_id === manager.roster_id)
-          .map((p) => p.player)
-          .filter((p): p is NormalizedPlayer => p !== null);
+  let rosterPlayers: NormalizedPlayer[];
+  if (mock) {
+    rosterPlayers = mockRosterPlayers ?? [];
+  } else {
+    const mine = rosters.find((r) => r.roster_id === manager.roster_id);
+    const ownedIds = (mine?.players ?? []).filter((id): id is string => typeof id === "string" && id !== "0");
+    rosterPlayers =
+      ownedIds.length > 0
+        ? ownedIds.map((id) => playerIndex.get(id) ?? slimPlayer(id, undefined))
+        : draftBundle!.response.picks
+            .filter((p) => p.roster_id === manager.roster_id)
+            .map((p) => p.player)
+            .filter((p): p is NormalizedPlayer => p !== null);
+  }
 
   // ---- market snapshot (Phase 5) — calibrated ADP consensus + search_rank fallback
   const searchRankByPlayer = new Map<string, number | null>();
@@ -120,7 +189,8 @@ export async function buildManagerRecommendationResponse(
       roster_id: manager.roster_id,
       sleeper_user_id: manager.sleeper_user_id,
       manager_slug: manager.manager_slug,
-      draft_slot: manager.draft_slot,
+      // Only the snake SLOT follows the mock; identity stays Bloodline.
+      draft_slot: mockInfo ? mockInfo.applied_slot : manager.draft_slot,
     },
     rosterPlayers,
     market,
@@ -129,11 +199,16 @@ export async function buildManagerRecommendationResponse(
       projection_version: base.model_version,
       projection_timestamp: base.generated_at,
       league_scoring_hash: league.scoring_hash,
-      draft_state_timestamp: draftBundle.response.generated_at,
+      draft_state_timestamp: draftStateTimestamp,
     },
     weights: options.weights,
     limits: options.limits,
   });
+
+  // Rehearsal banner — unmistakable in the response that this is NOT the real draft.
+  if (mockInfo && "readiness" in response) {
+    response.warnings = [mockOverrideWarning(mockInfo), ...response.warnings];
+  }
 
   return response;
 }
