@@ -84,8 +84,14 @@ export interface SnapshotStore {
 
 export interface LedgerAppendResult {
   status: PersistenceStatus;
+  /** Provider transactions handed to `append`. */
   seen: number;
+  /** Rows this call actually wrote. */
   inserted: number;
+  /**
+   * Rows already present (inserted by an earlier run or a concurrent job) — a
+   * safe no-op, NEVER an error. `inserted + duplicates === seen`.
+   */
   duplicates: number;
   error?: string;
 }
