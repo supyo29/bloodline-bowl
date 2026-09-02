@@ -305,7 +305,7 @@ describe("active vs reserve roster capacity", () => {
     const dna = res.do_not_add.find((d) => d.add_name === "Wire Stud");
     const rec = res.recommendations.find((r) => r.add_name === "Wire Stud");
     assert.ok(dna || (rec && rec.drop_player_id != null), "either DO_NOT_ADD or paired with a real drop");
-    if (dna) assert.match(dna.reason, /blind drop|no assessable|full/i);
+    if (dna) assert.match(dna.reason, /no legal drop|fieldable|not recommended/i);
   });
 
   it("full active roster + IR slot occupied -> still needs a drop, and the IR player is not the drop", () => {
@@ -325,6 +325,103 @@ describe("active vs reserve roster capacity", () => {
       assert.ok(rec.drop_player_id != null);
       assert.notEqual(rec.drop_player_id, "hurt", "the IR player is not an active-roster drop candidate");
     }
+  });
+});
+
+describe("waiver add/drop must preserve a fieldable legal roster (Codex round 7, P1)", () => {
+  const mkRoster = (starters: string[], bench: string[], cap = 14) => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      player("qb2", "QB"),
+      ...["bn1", "bn2", "bn3", "bn4", "bn5"].map((id) => player(id, "RB")),
+    ];
+    const P = [
+      proj("qb1", "QB", 9), proj("rb1", "RB", 16), proj("rb2", "RB", 13), proj("wr1", "WR", 14), proj("wr2", "WR", 12),
+      proj("te1", "TE", 10), proj("fx", "RB", 9), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("qb2", "QB", 7),
+      ...["bn1", "bn2", "bn3", "bn4", "bn5"].map((id) => proj(id, "RB", 11)),
+    ];
+    const constraints = { ...STD_CONSTRAINTS, active_roster_capacity: cap };
+    return { ctx: (extra: object = {}) => weeklyContext({ myRoster: roster("team:test-league:1", starters, bench), players, projections: P, constraints, ...extra }) };
+  };
+
+  it("the roster's ONLY QB is a low-value starter -> it is NEVER chosen as the drop", () => {
+    // qb1 (9) is the cheapest keep, but dropping it leaves QB unfillable.
+    const { ctx } = mkRoster(
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["bn1", "bn2", "bn3", "bn4", "bn5"],
+    );
+    const c = ctx({ freeAgents: [player("faRb", "RB", { name: "Wire RB" })], faProjections: [proj("faRb", "RB", 15, { rest_of_season_points: 170 })] });
+    const res = buildWaiverRecommendations(c);
+    const rec = res.recommendations.find((r) => r.add_name === "Wire RB");
+    if (rec) {
+      assert.notEqual(rec.drop_player_id, "qb1", "the lone QB is not a legal drop");
+      assert.ok(rec.drop_player_id != null, "a legal drop was found among the bench");
+    }
+  });
+
+  it("two QBs -> dropping the BACKUP QB is legal and allowed", () => {
+    const { ctx } = mkRoster(
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["qb2", "bn1", "bn2", "bn3", "bn4"],
+    );
+    // qb2 (7) is the cheapest keep; dropping it still leaves qb1 for the QB slot.
+    const c = ctx({ freeAgents: [player("faRb", "RB", { name: "Wire RB2" })], faProjections: [proj("faRb", "RB", 15, { rest_of_season_points: 170 })] });
+    const res = buildWaiverRecommendations(c);
+    const rec = res.recommendations.find((r) => r.add_name === "Wire RB2");
+    // qb2 is a *permitted* drop candidate (legal); the engine may still pick a
+    // better pair, but it must not be BLOCKED as illegal.
+    if (rec) assert.ok(rec.drop_player_id != null);
+    assert.ok(!res.do_not_add.some((d) => d.add_name === "Wire RB2" && /no legal drop/i.test(d.reason)));
+  });
+
+  it("no assessable + legal drop exists -> DO_NOT_ADD 'no legal drop'", () => {
+    // 9 players at exactly the slot minimum; the only K is UNKNOWN (so the 1:1
+    // K swap is unassessable), and the FA is a K (not FLEX-eligible), so every
+    // other drop leaves a hole a kicker cannot fill.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("fx", "RB"), player("kGhost", "K"), player("def1", "DEF"),
+    ];
+    const P = [
+      proj("qb1", "QB", 18), proj("rb1", "RB", 16), proj("rb2", "RB", 13), proj("wr1", "WR", 14), proj("wr2", "WR", 12),
+      proj("te1", "TE", 10), proj("fx", "RB", 9), /* kGhost: no projection */ proj("def1", "DEF", 7),
+    ];
+    const c = weeklyContext({
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "kGhost", "def1"], []),
+      players, projections: P,
+      constraints: { ...STD_CONSTRAINTS, active_roster_capacity: 9 },
+      freeAgents: [player("faK", "K", { name: "Streamer K" })],
+      faProjections: [proj("faK", "K", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(c);
+    assert.ok(!res.recommendations.some((r) => r.add_name === "Streamer K"), "not recommended — no legal drop");
+    const dna = res.do_not_add.find((d) => d.add_name === "Streamer K");
+    if (dna) assert.match(dna.reason, /no legal drop|fieldable/i);
+  });
+
+  it("an UNKNOWN-projection bench player is a STRUCTURALLY legal drop (not confused with illegality)", () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      player("ghostWR", "WR"), ...["bn1", "bn2", "bn3", "bn4"].map((id) => player(id, "RB")),
+    ];
+    const P = [
+      proj("qb1", "QB", 18), proj("rb1", "RB", 16), proj("rb2", "RB", 13), proj("wr1", "WR", 14), proj("wr2", "WR", 12),
+      proj("te1", "TE", 10), proj("fx", "RB", 9), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      /* ghostWR: no projection */ ...["bn1", "bn2", "bn3", "bn4"].map((id) => proj(id, "RB", 11)),
+    ];
+    const c = weeklyContext({
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"], ["ghostWR", "bn1", "bn2", "bn3", "bn4"]),
+      players, projections: P,
+      freeAgents: [player("faWR", "WR", { name: "Wire WR" })],
+      faProjections: [proj("faWR", "WR", 15, { rest_of_season_points: 170 })],
+    });
+    const res = buildWaiverRecommendations(c);
+    // ghostWR is a legal drop structurally; it is just not auto-selected because
+    // its weekly value is unassessable. The engine must not report "no legal drop".
+    assert.ok(!res.do_not_add.some((d) => d.add_name === "Wire WR" && /no legal drop/i.test(d.reason)));
   });
 });
 

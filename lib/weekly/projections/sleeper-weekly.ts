@@ -148,11 +148,17 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
         if (!e.player_id || !e.stats) continue;
         const cid = this.#resolve(crosswalk, e);
         const pos = canonicalPosition(e.player?.position ?? null);
-        const seasonPts =
-          pos === "K" || pos === "DEF"
-            ? Number(e.stats.pts_std ?? 0)
-            : scoreWeeklyLine(e.stats, league.raw_scoring).points;
-        if (seasonPts > 0) rosByCanonical.set(cid, Math.round(seasonPts * weeksLeftFrac * 100) / 100);
+        const sk = Object.keys(e.stats);
+        if (pos === "K" || pos === "DEF") {
+          const std = Number(e.stats.pts_std ?? 0);
+          if (std > 0) rosByCanonical.set(cid, Math.round(std * weeksLeftFrac * 100) / 100);
+        } else {
+          // component stats only — a `pts_*`-only season row is not reconstructable.
+          const hasComponent = sk.some((k) => !NON_SCORING_KEY.test(k) && !/^pts_/.test(k));
+          if (!hasComponent) continue;
+          const seasonPts = scoreWeeklyLine(e.stats, league.raw_scoring).points;
+          if (seasonPts > 0) rosByCanonical.set(cid, Math.round(seasonPts * weeksLeftFrac * 100) / 100);
+        }
       }
     }
 
@@ -183,24 +189,35 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       // Projection PRESENCE is decided by whether the source published real
       // stats for this player-week — NOT by the sign of the scored points. A
       // legitimate 0 (or negative) projection is data, not "unavailable".
-      const hasRealStats = Object.keys(stats).some((k) => !NON_SCORING_KEY.test(k));
+      //
+      // Sleeper's precomputed `pts_*` totals do NOT count as a component stat
+      // line for OFFENSE: those totals are deliberately not trusted, and a row
+      // carrying only `pts_*` (no yards/TDs/receptions) has no reconstructable
+      // league projection -> it is `unavailable`, not a 0. K/DEF is the one
+      // documented exception (it has nothing but `pts_std` to fall back on).
+      const keys = Object.keys(stats);
+      const hasAnyStatKey = keys.some((k) => !NON_SCORING_KEY.test(k));
+      const hasComponentStats = keys.some((k) => !NON_SCORING_KEY.test(k) && !/^pts_/.test(k));
 
       if (pos === "K" || pos === "DEF") {
         const std = Number(stats.pts_std);
-        points = hasRealStats && Number.isFinite(std) ? Math.round(std * 100) / 100 : null;
+        points = hasAnyStatKey && Number.isFinite(std) ? Math.round(std * 100) / 100 : null;
         if (points != null) {
           kdefApproximated += 1;
           pWarnings.push("k_dst_uses_sleeper_standard_points (league-specific weekly K/DST scoring not reconstructable)");
         }
-      } else if (hasRealStats) {
+      } else if (hasComponentStats) {
         const scored = scoreWeeklyLine(stats, league.raw_scoring);
         points = scored.points; // keep 0 / negative — it is a real projection
         if (scored.unscored_keys.length > 6) unscoredNoise += 1;
       } else {
         points = null;
+        if (hasAnyStatKey && keys.some((k) => /^pts_/.test(k))) {
+          pWarnings.push("only_precomputed_totals (no reconstructable component stats for this league's scoring)");
+        }
       }
 
-      if (points == null && !hasRealStats) {
+      if (points == null) {
         status = stats.gp === 0 ? "out" : "unavailable";
       }
 

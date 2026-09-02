@@ -434,6 +434,45 @@ describe("item 6 — a scored 0 / negative weekly projection is present, not 'un
 
     mock.restoreAll();
   });
+
+  it("offensive rows carrying ONLY Sleeper precomputed pts_* totals are 'unavailable', not projected/0 (Codex round 7)", async (t) => {
+    const raw = [
+      // OFFENSE, only precomputed totals -> not a reconstructable component line
+      { player_id: "p1", team: "KC", opponent: "LV", week: 1, stats: { pts_ppr: 14.2, pts_std: 11.1, pts_half_ppr: 12.6 }, player: { first_name: "Pts", last_name: "Only", position: "WR", injury_status: null, team: "KC" } },
+      // OFFENSE, metadata + pts_* only -> unavailable
+      { player_id: "p2", team: "KC", opponent: "LV", week: 1, stats: { adp_ppr: 30, gp: 1, pts_ppr: 9.0 }, player: { first_name: "Meta", last_name: "Pts", position: "RB", injury_status: null, team: "KC" } },
+      // OFFENSE, real component stats that league-score to exactly 0 -> projected/0
+      { player_id: "p3", team: "KC", opponent: "LV", week: 1, stats: { rush_att: 4, rush_yd: 0, rec: 0, pts_ppr: 3.0 }, player: { first_name: "Comp", last_name: "Zero", position: "RB", injury_status: null, team: "KC" } },
+      // K with ONLY pts_std -> documented fallback, unchanged
+      { player_id: "p4", team: "KC", opponent: "LV", week: 1, stats: { pts_std: 8.5 }, player: { first_name: "Kick", last_name: "Er", position: "K", injury_status: null, team: "KC" } },
+    ];
+    t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => raw }) as unknown as Response);
+
+    const provider = new SleeperWeeklyProjectionProvider();
+    const batch = await provider.getWeeklyProjections({
+      league: { league_slug: "bloodline-bowl", season: 2026, raw_scoring: { rec: 1, rush_yd: 0.1, rec_yd: 0.1, pass_yd: 0.04, pass_td: 4, rush_td: 6, rec_td: 6 }, scoring_rules: [] },
+      week: 1, crosswalk: cw(), canonical_player_ids: [], want_rest_of_season: false,
+    });
+    const byName = (n: string) => [...batch.by_player.values()].find((p) => batch.resolved_players.get(p.canonical_player_id)?.full_name === n)!;
+
+    const ptsOnly = byName("Pts Only");
+    assert.equal(ptsOnly.projected_points, null, "pts_* totals are NOT a reconstructable offensive projection");
+    assert.equal(ptsOnly.projection_status, "unavailable");
+
+    const metaPts = byName("Meta Pts");
+    assert.equal(metaPts.projected_points, null);
+    assert.equal(metaPts.projection_status, "unavailable");
+
+    const compZero = byName("Comp Zero");
+    assert.equal(compZero.projected_points, 0, "real component stats scoring to 0 stay a real projection");
+    assert.equal(compZero.projection_status, "projected");
+
+    const kicker = byName("Kick Er");
+    assert.equal(kicker.projected_points, 8.5, "K keeps its documented pts_std fallback");
+    assert.equal(kicker.projection_status, "projected");
+
+    mock.restoreAll();
+  });
 });
 
 setPersistence(null);

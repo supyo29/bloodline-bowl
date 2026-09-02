@@ -116,16 +116,17 @@ export function buildWaiverRecommendations(
    *   - the baseline lineup is PROVISIONAL (an eligible bench player has no
    *     projection — its real value could erase any claimed gain), or
    *   - the drop is an UNKNOWN player (we cannot judge what we are giving up), or
-   *   - the hypothetical optimal total is unavailable / PROVISIONAL.
+   *   - the hypothetical optimal total is unavailable / PROVISIONAL, or
+   *   - the drop leaves a required starter slot UNFILLABLE (a legal lineup can no
+   *     longer be fielded — the add/drop pair is simply illegal).
    * A candidate must never earn a fake starter gain off an unresolved baseline.
    */
   const weeklyKnown = (id: string): boolean => {
     const p = proj(id);
     return p != null && (p.projected_points != null || p.projection_status === "bye");
   };
-  const optimalStarterGain = (add: CanonicalPlayer, dropId: string | null): number | null => {
-    if (baselineOptimal == null || baseline.optimality_status === "PROVISIONAL") return null;
-    if (dropId != null && !weeklyKnown(dropId)) return null;
+  const baseEmptySlots = new Set(baseline.empty_slots);
+  const hypoLineup = (add: CanonicalPlayer, dropId: string | null) => {
     const hypoPlayers = new Map(myPlayers);
     hypoPlayers.set(add.canonical_player_id, add);
     const keep = ctx.roster.all_players.filter((id) => id !== dropId);
@@ -136,15 +137,32 @@ export function buildWaiverRecommendations(
       bench: [...ctx.roster.bench.filter((id) => id !== dropId), add.canonical_player_id],
       slots: ctx.roster.slots.filter((s) => s.canonical_player_id !== dropId),
     };
-    const hypo = buildOptimalLineup({
-      week: ctx.league.week,
-      roster: hypoRoster,
-      constraints,
-      players: hypoPlayers,
-      projections: ctx.projections,
-    });
-    if (hypo.optimal_total == null || hypo.optimality_status === "PROVISIONAL") return null;
-    return Math.round((hypo.optimal_total - baselineOptimal) * 100) / 100;
+    return buildOptimalLineup({ week: ctx.league.week, roster: hypoRoster, constraints, players: hypoPlayers, projections: ctx.projections });
+  };
+
+  /**
+   * Evaluate ONE (add, drop) pair on the counterfactual optimal lineup.
+   *   legal  — the post-move roster still fields every required starter slot
+   *            (STRUCTURAL — independent of projection availability; a slot held
+   *            by an UNKNOWN player is filled, not a hole).
+   *   gain   — counterfactual optimal-lineup gain, or `null` when it cannot be
+   *            supported (unresolved baseline / hypothetical, or an UNKNOWN drop).
+   */
+  const evalPair = (add: CanonicalPlayer, dropId: string | null): { legal: boolean; gain: number | null } => {
+    const hypo = hypoLineup(add, dropId);
+    const legal = hypo.empty_slots.every((s) => baseEmptySlots.has(s));
+    let gain: number | null = null;
+    if (
+      legal &&
+      baselineOptimal != null &&
+      baseline.optimality_status !== "PROVISIONAL" &&
+      (dropId == null || weeklyKnown(dropId)) &&
+      hypo.optimal_total != null &&
+      hypo.optimality_status !== "PROVISIONAL"
+    ) {
+      gain = Math.round((hypo.optimal_total - baselineOptimal) * 100) / 100;
+    }
+    return { legal, gain };
   };
 
   // Rest-of-season replacement per position: the ROS points of a "realistically
@@ -227,28 +245,43 @@ export function buildWaiverRecommendations(
     const ros = wp.rest_of_season_points;
     const rosSig = wp.ros;
 
-    // Drop side — the lowest-keep active player (a HEALTHY add needs an active seat).
-    const dropChoice =
-      openActiveSpot
-        ? null
-        : dropBoard.find(
-            (d) =>
-              d.player.canonical_player_id !== fa.canonical_player_id &&
-              activeIds.includes(d.player.canonical_player_id) &&
-              // never auto-recommend dropping a player whose weekly value we
-              // cannot even assess.
-              weeklyKnown(d.player.canonical_player_id),
-          ) ?? null;
-    // Roster is full AND no active player has an assessable weekly value -> the
-    // transaction cannot be made without a blind drop. This is NOT an open spot.
+    // ---- Drop side. Consider the cheapest-to-lose assessable active players,
+    // evaluate the FULL (add, drop) pair for each, keep only pairs that leave a
+    // legal fieldable lineup, and pick the best pair — never just the globally
+    // lowest-keep player (which might be the roster's only QB).
+    let dropChoice: (typeof dropBoard)[number] | null = null;
+    let starterGainRaw: number | null = null;
+    if (openActiveSpot) {
+      starterGainRaw = evalPair(fa.player, null).gain;
+    } else {
+      const candidates = dropBoard
+        .filter(
+          (d) =>
+            d.player.canonical_player_id !== fa.canonical_player_id &&
+            activeIds.includes(d.player.canonical_player_id) &&
+            weeklyKnown(d.player.canonical_player_id),
+        )
+        .slice(0, 8);
+      let bestScore = -Infinity;
+      for (const d of candidates) {
+        const { legal, gain } = evalPair(fa.player, d.player.canonical_player_id);
+        if (!legal) continue; // a drop that leaves a required slot unfillable is not a candidate
+        const pairScore = (gain ?? 0) - Math.max(0, d.keep);
+        if (pairScore > bestScore) {
+          bestScore = pairScore;
+          dropChoice = d;
+          starterGainRaw = gain;
+        }
+      }
+    }
+    // Roster is full and NO drop is both assessable and lineup-legal (e.g. the
+    // only sub-replacement player is the roster's lone QB). NOT an open spot.
     const noAssessableDrop = !openActiveSpot && dropChoice == null;
     const drop_cost = dropChoice ? round2(dropChoice.keep) : 0;
 
-    // Counterfactual: does this add (with that drop) raise the OPTIMAL lineup?
-    // `null` => the comparison is unsupported (projection gap in the baseline or
-    // hypothetical optimal lineup) — NOT a 0, and it downgrades confidence.
-    const starterGainRaw = optimalStarterGain(fa.player, dropChoice?.player.canonical_player_id ?? null);
-    const starterGainUnresolved = starterGainRaw == null;
+    // `null` => the counterfactual is unsupported (projection gap in the baseline
+    // or hypothetical) — NOT a 0, and it downgrades confidence.
+    const starterGainUnresolved = starterGainRaw == null && !noAssessableDrop;
     const starterGain = Math.max(0, starterGainRaw ?? 0);
 
     const benchImpact = starterGain > 0.25 ? 0 : Math.max(0, vor.vor ?? -3) * 0.5;
@@ -262,14 +295,14 @@ export function buildWaiverRecommendations(
     const riMaterialDisagree = riDisagrees && Math.abs(rosSig?.disagreement_pct ?? 0) > 0.3;
 
     const score = buildScore([
-      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGainUnresolved || starterGain <= 0.25 ? null : round2(starterGain), note: starterGainUnresolved ? "unresolved — a projection gap makes the counterfactual optimal lineup unavailable" : dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable drop" : "into an open active spot" },
+      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGainUnresolved || starterGain <= 0.25 ? null : round2(starterGain), note: starterGainUnresolved ? "unresolved — a projection gap makes the counterfactual optimal lineup unavailable" : dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable, lineup-legal drop" : "into an open active spot" },
       { key: "weekly_vor", label: "Weekly value over replacement", raw: vor.vor },
       { key: "bench_utility", label: "Bench depth value", raw: benchImpact > 0 ? round2(benchImpact) : null },
       { key: "positional_scarcity", label: "Position is thin on this roster", raw: scarcityRaw || null },
       { key: "bye_coverage", label: "Covers a bye-week hole this week", raw: byeRaw || null },
       { key: "injury_hedge", label: "Hedges an injured starter at this position", raw: hedgeRaw || null },
       { key: "rest_of_season_value", label: "Rest-of-season edge over replacement (pts/week, external)", raw: rosEdgePerWeek(pos, ros ?? null), note: `ROS confidence ${rosSig?.confidence ?? "n/a"}${riDisagrees ? `; RI ${rosSig?.disagreement_direction}` : ""}` },
-      { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable drop" : "open active roster spot" },
+      { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable, lineup-legal drop" : "open active roster spot" },
       { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree || starterGainUnresolved || noAssessableDrop ? -1.5 : null, note: noAssessableDrop ? "roster full and no active player has an assessable weekly value" : starterGainUnresolved ? "counterfactual lineup gain unresolved (projection gap)" : riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
     ]);
 
@@ -314,7 +347,7 @@ export function buildWaiverRecommendations(
     if (riDisagrees) reasons.push(`RI season model is ${rosSig!.disagreement_direction === "RI_ABOVE" ? "higher" : "lower"} than the external projection by ${Math.round(Math.abs(rosSig!.disagreement_pct ?? 0) * 100)}% (${rosSig!.warnings[0] ?? "see ros"}).`);
     if (priority === "DO_NOT_ADD" && !noAssessableDrop) reasons.push(`Net roster gain ${net.toFixed(1)} does not clear the drop cost (${drop_cost.toFixed(1)}).`);
     if (weekly == null) reasons.push("No weekly projection — rest-of-season stash only, low confidence.");
-    if (noAssessableDrop) reasons.push("Roster is full and no active player has an assessable weekly projection — this add cannot be made without a blind drop, so it is not recommended.");
+    if (noAssessableDrop) reasons.push("No legal drop preserves a fieldable starting roster (every assessable drop either can't be valued or would leave a required starter slot unfillable) — transaction not recommended.");
 
     evals.push({
       add_player_id: fa.canonical_player_id,
@@ -331,8 +364,8 @@ export function buildWaiverRecommendations(
       drop_name: dropChoice ? nameOf(dropChoice.player) : null,
       drop_cost,
       net_roster_gain: net,
-      starter_impact: starterGainUnresolved ? null : round2(starterGain),
-      starter_impact_status: starterGainUnresolved ? "UNRESOLVED" : "RESOLVED",
+      starter_impact: starterGainUnresolved || noAssessableDrop ? null : round2(starterGain),
+      starter_impact_status: starterGainUnresolved || noAssessableDrop ? "UNRESOLVED" : "RESOLVED",
       bench_impact: round2(benchImpact),
       bye_coverage_impact: round2(byeRaw),
       injury_hedge_impact: round2(hedgeRaw),
