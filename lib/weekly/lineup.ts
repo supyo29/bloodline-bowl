@@ -207,24 +207,30 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     if (curBySlot[i] === undefined) curBySlot[i] = leftoverStarters.shift() ?? null;
   }
 
-  // First pass — resolve each slot's recommended + current player.
-  const usedUnknown = new Set<string>();
-  const recBySlot: Array<string | null> = slots.map((slot, i) => {
+  // First pass — the known/verified-zero assignment.
+  const recBySlot: Array<string | null> = slots.map((_, i) => {
     const recIdx = assignment[i];
-    const known = recIdx != null && recIdx >= 0 && weight[i]![recIdx] !== NEG ? knownCand[recIdx]! : null;
-    if (known) return known;
-    // No known player fills this slot -> provisionally an eligible UNKNOWN.
-    const u = unknownCand.find((id) => {
-      if (usedUnknown.has(id)) return false;
-      const pl = players.get(id);
-      return pl != null && isEligible(slot, pl);
-    });
-    if (u) {
-      usedUnknown.add(u);
-      return u;
-    }
-    return null;
+    return recIdx != null && recIdx >= 0 && weight[i]![recIdx] !== NEG ? knownCand[recIdx]! : null;
   });
+
+  // Second pass — fill any slot the knowns could not with a PROVISIONAL UNKNOWN,
+  // via a cardinality-aware matching so a first-fit choice can't strand a
+  // required slot (e.g. FLEX grabbing the only RB-eligible unknown when the RB
+  // slot then has none). rows = unknown candidates, cols = still-empty slots.
+  const emptyIdx = recBySlot.map((v, i) => (v == null ? i : -1)).filter((i) => i >= 0);
+  if (emptyIdx.length > 0 && unknownCand.length > 0) {
+    const uWeight: number[][] = unknownCand.map((id) => {
+      const pl = players.get(id);
+      return emptyIdx.map((si) => (pl != null && isEligible(slots[si]!, pl) ? 1 : NEG));
+    });
+    const uAsg = hungarianMaxWeight(uWeight);
+    unknownCand.forEach((id, k) => {
+      const col = uAsg[k];
+      if (col != null && col >= 0 && col < emptyIdx.length && uWeight[k]![col] !== NEG) {
+        recBySlot[emptyIdx[col]!] = id;
+      }
+    });
+  }
 
   // ---- STARTER-SET difference (not slot permutations). Reshuffling the same
   // starters among RB/WR/FLEX/duplicate slots is NOT an actionable move.

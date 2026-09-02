@@ -42,16 +42,22 @@ export function weeklyBand(
   expectedAvailability: number,
 ): Band {
   const cv = WEEKLY_POSITION_CV[position.toUpperCase()] ?? WEEKLY_POSITION_CV.UNKNOWN!;
-  const sd = Math.max(0, median * cv);
+  // Dispersion from the MAGNITUDE of the projection, so a legitimate negative
+  // median (retained as real data) still gets a positive, ordered band.
+  const sd = Math.abs(median) * cv;
   let floor = median - Z_BAND * sd;
   const ceiling = median + Z_BAND * sd;
-  // Availability haircut on the floor only.
+  // Availability haircut on the floor only (toward 0 — a player who doesn't
+  // play scores nothing).
   if (expectedAvailability < 1) {
     floor = floor * expectedAvailability;
   }
+  // For a non-negative median the floor is clamped at 0; for a negative median
+  // keep the true (negative) floor. Always keep floor <= median <= ceiling.
+  const clampedFloor = median >= 0 ? Math.max(0, floor) : Math.min(floor, median);
   return {
-    floor: Math.round(Math.max(0, floor) * 100) / 100,
-    ceiling: Math.round(ceiling * 100) / 100,
+    floor: Math.round(Math.min(clampedFloor, median) * 100) / 100,
+    ceiling: Math.round(Math.max(ceiling, median) * 100) / 100,
     std_dev: Math.round(sd * 100) / 100,
   };
 }

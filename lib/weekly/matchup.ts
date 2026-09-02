@@ -62,7 +62,7 @@ export interface MatchupResult {
   positional_disadvantages: PositionalEdge[];
   high_leverage_players: Array<{ canonical_player_id: string; position: string; projected: number | null; note: string }>;
   swing_players: SwingPlayer[];
-  bench_depth: { team_bench_projected_top3: number; opponent_bench_projected_top3: number; advantage: "team" | "opponent" | "even" };
+  bench_depth: { team_bench_projected_top3: number; opponent_bench_projected_top3: number; team_bench_unknown: number; opponent_bench_unknown: number; advantage: "team" | "opponent" | "even" };
   replacement_vulnerability: Array<{ position: string; note: string; gap: number | null }>;
 
   team_lineup: LineupResult;
@@ -103,7 +103,7 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
       positional_disadvantages: [],
       high_leverage_players: [],
       swing_players: [],
-      bench_depth: { team_bench_projected_top3: benchTop3(ctx, ctx.roster.bench), opponent_bench_projected_top3: 0, advantage: "even" },
+      bench_depth: { team_bench_projected_top3: benchTop3(ctx, ctx.roster.bench).total, opponent_bench_projected_top3: 0, team_bench_unknown: benchTop3(ctx, ctx.roster.bench).unknown, opponent_bench_unknown: 0, advantage: "even" },
       replacement_vulnerability: [],
       team_lineup: teamLineup,
       opponent_lineup: null,
@@ -141,17 +141,30 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     });
   }
 
-  // Positional edges from the OPTIMAL lineups.
+  // Positional edges from the OPTIMAL lineups. A base position that has an
+  // UNKNOWN starter on EITHER side is omitted — an unknown fed in as 0 would
+  // falsely characterise positional strength.
   const teamBySlot = groupBySlotBase(teamLineup);
   const oppBySlot = groupBySlotBase(oppLineup);
+  const teamUnknownBase = unknownBasePositions(teamLineup);
+  const oppUnknownBase = unknownBasePositions(oppLineup);
   const allBases = uniq([...Object.keys(teamBySlot), ...Object.keys(oppBySlot)]);
+  const partialEdgeBases = allBases.filter((pos) => teamUnknownBase.has(pos) || oppUnknownBase.has(pos));
   const edges: PositionalEdge[] = allBases
+    .filter((pos) => !teamUnknownBase.has(pos) && !oppUnknownBase.has(pos))
     .map((pos) => {
       const tp = teamBySlot[pos] ?? 0;
       const op = oppBySlot[pos] ?? 0;
       return { position: pos, team_points: round2(tp), opponent_points: round2(op), edge: round2(tp - op) };
     })
     .sort((a, b) => b.edge - a.edge);
+  if (partialEdgeBases.length > 0) {
+    warnings.push({
+      code: "positional_edges_partial",
+      message: `Positional advantage not computed for ${partialEdgeBases.join(", ")} — an UNKNOWN projected starter there.`,
+      severity: "info",
+    });
+  }
 
   // Coverage for probability. Simulating requires BOTH optimal lineups to be
   // COMPLETE and fully projected — an UNKNOWN starter fed in as 0 (or an ignored
@@ -278,9 +291,20 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     high_leverage_players,
     swing_players,
     bench_depth: {
-      team_bench_projected_top3: teamBenchTop3,
-      opponent_bench_projected_top3: oppBenchTop3,
-      advantage: teamBenchTop3 - oppBenchTop3 > 4 ? "team" : oppBenchTop3 - teamBenchTop3 > 4 ? "opponent" : "even",
+      team_bench_projected_top3: teamBenchTop3.total,
+      opponent_bench_projected_top3: oppBenchTop3.total,
+      team_bench_unknown: teamBenchTop3.unknown,
+      opponent_bench_unknown: oppBenchTop3.unknown,
+      // advantage is only asserted when neither side's top-3 bench is muddied by
+      // unprojected players.
+      advantage:
+        teamBenchTop3.unknown + oppBenchTop3.unknown > 0
+          ? "even"
+          : teamBenchTop3.total - oppBenchTop3.total > 4
+            ? "team"
+            : oppBenchTop3.total - teamBenchTop3.total > 4
+              ? "opponent"
+              : "even",
     },
     replacement_vulnerability,
     team_lineup: teamLineup,
@@ -371,17 +395,37 @@ function groupBySlotBase(lineup: LineupResult): Record<string, number> {
   return out;
 }
 
+/** base positions whose optimal starter has an UNKNOWN projection */
+function unknownBasePositions(lineup: LineupResult): Set<string> {
+  const s = new Set<string>();
+  for (const slot of lineup.slots) {
+    if (slot.recommended_projection_state === "UNKNOWN") s.add(baseOf(slot.slot));
+  }
+  return s;
+}
+
 function baseOf(slot: string): string {
   if (["QB", "RB", "WR", "TE", "K", "DEF"].includes(slot)) return slot;
   return "FLEX";
 }
 
-function benchTop3(ctx: WeeklyTeamContext, bench: string[]): number {
+/** top-3 bench projected points; UNKNOWN bench players are excluded, not 0-filled.
+ *  `unknown` reports how many bench players had no projection. */
+function benchTop3(ctx: WeeklyTeamContext, bench: string[]): { total: number; unknown: number } {
+  let unknown = 0;
   const pts = bench
-    .map((id) => ctx.projections.by_player.get(id)?.projected_points ?? 0)
+    .map((id) => {
+      const wp = ctx.projections.by_player.get(id);
+      if (!wp || (wp.projected_points == null && wp.projection_status !== "bye")) {
+        unknown += 1;
+        return null;
+      }
+      return wp.projected_points ?? 0;
+    })
+    .filter((x): x is number => x != null)
     .sort((a, b) => b - a)
     .slice(0, 3);
-  return round2(pts.reduce((s, p) => s + p, 0));
+  return { total: round2(pts.reduce((s, p) => s + p, 0)), unknown };
 }
 
 function hashSeed(...parts: Array<string | number>): number {

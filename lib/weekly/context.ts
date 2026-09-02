@@ -445,7 +445,7 @@ export async function buildWeeklyTeamContext(
 
 /* ------------------------------------------------------------ positional needs */
 
-function computePositionalNeeds(input: {
+export function computePositionalNeeds(input: {
   roster: CanonicalRoster;
   constraints: RosterConstraints;
   teamCount: number;
@@ -454,7 +454,11 @@ function computePositionalNeeds(input: {
   lookup: (ids: string[]) => CanonicalPlayer[];
 }): PositionalNeed[] {
   const { roster, constraints, projections, replacement, lookup } = input;
-  const rosterPlayers = lookup(roster.all_players);
+  // ACTIVE players only — an RB/WR/TE on IR or taxi cannot fill a starter slot,
+  // and the lineup optimizer already excludes them. Counting them here would
+  // mark a position "adequate" over an unfillable active slot.
+  const reserve = new Set([...roster.ir, ...roster.taxi]);
+  const rosterPlayers = lookup(roster.all_players.filter((id) => !reserve.has(id)));
   const out: PositionalNeed[] = [];
 
   for (const pos of ["QB", "RB", "WR", "TE", "K", "DEF"]) {
@@ -491,6 +495,41 @@ function computePositionalNeeds(input: {
       severity,
     });
   }
+
+  // ---- Aggregate FLEX demand. Base RB/WR/TE requirements can each look adequate
+  // while the roster still cannot fill its FLEX slot(s) — e.g. exactly 2 RB / 2
+  // WR / 1 TE leaves both Bloodline FLEX slots empty. Model the SHARED flex
+  // demand once instead of charging every position the full amount.
+  if (constraints.flex_slots > 0 && constraints.flex_positions.length > 0) {
+    const flexPos = new Set(constraints.flex_positions);
+    const flexEligible = rosterPlayers.filter(
+      (p) => flexPos.has(p.position) || p.eligible_positions.some((e) => flexPos.has(e)),
+    );
+    const flexRep = replacement.by_position.FLEX?.replacement_points ?? null;
+    const flexPts = flexEligible
+      .map((p) => projections.by_player.get(p.canonical_player_id)?.projected_points)
+      .filter((x): x is number => x != null)
+      .sort((a, b) => b - a);
+    // starter slots RB/WR/TE fill in total = base RB/WR/TE requirements + flex slots.
+    const baseFlexReq = [...flexPos].reduce((s, p) => s + (constraints.slot_requirements[p] ?? 0), 0);
+    const totalFlexDemand = baseFlexReq + constraints.flex_slots;
+    const haveForFlex = flexRep == null ? flexEligible.length : flexPts.filter((p) => p >= flexRep).length;
+    const flexBest = flexPts[Math.min(totalFlexDemand, flexPts.length - 1)] ?? flexPts.at(-1) ?? null; // the "marginal" flex starter
+    const flexGap = flexBest != null && flexRep != null ? Math.round((flexBest - flexRep) * 100) / 100 : null;
+    let flexSeverity: PositionalNeed["severity"] = "adequate";
+    if (flexEligible.length < totalFlexDemand) flexSeverity = "critical"; // cannot field the flex slot(s)
+    else if (haveForFlex < totalFlexDemand) flexSeverity = "weak";
+    else if (haveForFlex >= totalFlexDemand + 2 && (flexGap == null || flexGap > 3)) flexSeverity = "strong";
+    out.push({
+      position: "FLEX",
+      have_startable: haveForFlex,
+      need: totalFlexDemand,
+      current_best_points: flexBest,
+      gap_vs_replacement: flexGap,
+      severity: flexSeverity,
+    });
+  }
+
   return out.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
 }
 

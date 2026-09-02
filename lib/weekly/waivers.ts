@@ -233,9 +233,12 @@ export function buildWaiverRecommendations(
     });
   const considered = prefiltered.length;
 
-  const needBoost = new Set(
-    ctx.positional_needs.filter((n) => n.severity === "critical" || n.severity === "weak").map((n) => n.position),
-  );
+  const needBoost = new Set<string>();
+  for (const n of ctx.positional_needs) {
+    if (n.severity !== "critical" && n.severity !== "weak") continue;
+    if (n.position === "FLEX") for (const p of ctx.league.roster_constraints.flex_positions) needBoost.add(p);
+    else needBoost.add(n.position);
+  }
   const serious = prefiltered
     .filter(
       (c) =>
@@ -300,8 +303,13 @@ export function buildWaiverRecommendations(
     const starterGain = Math.max(0, starterGainSigned);
 
     const benchImpact = starterGain > 0.25 ? 0 : Math.max(0, vor.vor ?? -3) * 0.5;
-    const scarcity = ctx.positional_needs.find((n) => n.position === pos);
-    const scarcityRaw = scarcity?.severity === "critical" ? 4 : scarcity?.severity === "weak" ? 2 : 0;
+    // Position need OR — for a flex-eligible add — the aggregate FLEX need.
+    const flexEligible = ctx.league.roster_constraints.flex_positions.includes(pos);
+    const sev = (n?: { severity: string }) => (n?.severity === "critical" ? 4 : n?.severity === "weak" ? 2 : 0);
+    const scarcityRaw = Math.max(
+      sev(ctx.positional_needs.find((n) => n.position === pos)),
+      flexEligible ? sev(ctx.positional_needs.find((n) => n.position === "FLEX")) : 0,
+    );
     const byeRaw = byeHolePos.has(pos) && !wp.is_bye ? Math.min(6, weekly ?? 0) : 0;
     const hedgeRaw = injuredStarterPos.has(pos) && !wp.is_bye ? Math.min(5, (weekly ?? 0) * 0.5) : 0;
 

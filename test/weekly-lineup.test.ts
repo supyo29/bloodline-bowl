@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildOptimalLineup, hungarianMaxWeight, isEligible } from "../lib/weekly/lineup";
+import { weeklyBand } from "../lib/weekly/uncertainty";
 import type { RosterConstraints } from "../lib/weekly/schema";
 import {
   STD_CONSTRAINTS,
@@ -552,6 +553,44 @@ function basePosOf(players: ReturnType<typeof player>[], id: string | null): str
   if (!id) return null;
   return players.find((p) => p.canonical_player_id === id)?.position ?? null;
 }
+
+describe("lineup: UNKNOWN slots are matched jointly, not first-fit (Codex round 10)", () => {
+  it("slot order [FLEX, RB] with UNKNOWN candidates [RB, WR] fills BOTH slots", () => {
+    const constraints: RosterConstraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["FLEX", "RB"],
+      slot_requirements: { RB: 1, FLEX: 1 },
+    };
+    const players = [player("uRB", "RB"), player("uWR", "WR")]; // both UNKNOWN (no proj)
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["uRB", "uWR"], [], { startingSlots: constraints.starting_slots }),
+      constraints,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch([], players),
+    });
+    const bySlot = Object.fromEntries(r.slots.map((s) => [s.slot, s.recommended_player_id]));
+    assert.ok(bySlot.RB != null, "the RB slot is filled (uRB), not stranded by FLEX taking it first");
+    assert.ok(bySlot.FLEX != null, "the FLEX slot is filled");
+    assert.notEqual(bySlot.RB, bySlot.FLEX);
+    assert.equal(r.empty_slots.length, 0, "no false empty slot");
+  });
+});
+
+describe("uncertainty: bands stay ordered for negative projections (Codex round 10)", () => {
+  it("weeklyBand(-4, WR, 1) returns floor <= -4 <= ceiling with positive sd", () => {
+    const b = weeklyBand(-4, "WR", 1);
+    assert.ok(b.std_dev > 0, `sd should be from |median|, got ${b.std_dev}`);
+    assert.ok(b.floor <= -4, `floor ${b.floor} <= median`);
+    assert.ok(b.ceiling >= -4, `ceiling ${b.ceiling} >= median`);
+    assert.ok(b.floor <= b.ceiling, "band is ordered");
+  });
+  it("weeklyBand(0, RB, 1) still floors at 0", () => {
+    const b = weeklyBand(0, "RB", 1);
+    assert.equal(b.floor, 0);
+    assert.ok(b.ceiling >= 0);
+  });
+});
 
 describe("hungarian core", () => {
   it("solves a small assignment optimally", () => {

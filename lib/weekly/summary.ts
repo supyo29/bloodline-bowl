@@ -39,11 +39,12 @@ export function buildWeeklySummary(input: {
 }): WeeklySummary {
   const { ctx, lineup, matchup, waivers } = input;
 
-  const team_status =
-    matchup.has_opponent && matchup.projected_margin != null
+  const team_status = !matchup.has_opponent
+    ? `No opponent this week — optimal projected total ${matchup.team_optimal_total?.toFixed(1) ?? matchup.team_known_subtotal.toFixed(1)}.`
+    : matchup.projected_margin != null
       ? `Projected matchup: ${matchup.projected_margin >= 0 ? "+" : ""}${matchup.projected_margin.toFixed(1)}` +
         (matchup.win_probability != null ? ` (win prob ~${Math.round(matchup.win_probability * 100)}%, ${matchup.win_probability_confidence.toLowerCase()} confidence)` : "")
-      : `No opponent this week — optimal projected total ${matchup.team_optimal_total?.toFixed(1) ?? "n/a"}.`;
+      : `Projected matchup margin unavailable — an UNKNOWN projected starter on one side (known-points subtotal ${matchup.team_known_subtotal.toFixed(1)} vs ${matchup.opponent_known_subtotal.toFixed(1)}).`;
 
   const topChange = lineup.changes_recommended[0] ?? null;
   const most_important_move = topChange
