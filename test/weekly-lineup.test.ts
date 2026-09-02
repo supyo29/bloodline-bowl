@@ -348,6 +348,36 @@ describe("lineup: UNKNOWN vs VERIFIED_ZERO inside the optimizer (issue 4)", () =
     assert.ok(r.bye_problems.some((b) => b.canonical_player_id === "wrBye"));
   });
 
+  it("RB/WR/FLEX chain: a change pairs the entrant with the ACTUAL leaver, not the slot incumbent who slides to FLEX", () => {
+    const players = [
+      player("qb1", "QB"), player("A", "RB"), player("B", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("C", "WR"), player("k1", "K"), player("def1", "DEF"),
+      player("D", "RB"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("A", "RB", 10), proj("B", "RB", 9),
+      proj("wr1", "WR", 16), proj("wr2", "WR", 14), proj("te1", "TE", 11),
+      proj("C", "WR", 8), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("D", "RB", 15),
+    ];
+    // current: RB1=A, RB2=B, FLEX=C(8). Optimal: D(15) enters; A & B stay
+    // starters (one to FLEX); C(8) is the only one who actually leaves.
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "A", "B", "wr1", "wr2", "te1", "C", "k1", "def1"], ["D"], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    assert.equal(r.changes_recommended.length, 1);
+    assert.equal(r.changes_recommended[0]!.in, "D");
+    assert.equal(r.changes_recommended[0]!.out, "C", "the leaver is C, NOT the RB-slot incumbent A/B");
+    const optimalStarters = new Set(r.slots.map((s) => s.recommended_player_id));
+    assert.ok(optimalStarters.has("A") && optimalStarters.has("B"), "A and B are still starters");
+    assert.ok(!r.changes_recommended.some((c) => c.out === "A" || c.out === "B"));
+  });
+
   it("a fully-projected lineup is COMPLETE and behaves exactly as before", () => {
     const r = run(["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"], ["qb2", "rb3", "te2"]);
     assert.equal(r.optimality_status, "COMPLETE");

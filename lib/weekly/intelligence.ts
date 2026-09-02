@@ -178,27 +178,35 @@ export function buildLineup(ctx: WeeklyTeamContext): LineupResult {
   });
 }
 
-/** Close lineup calls worth surfacing as explicit start/sit comparisons. */
-function buildCloseCalls(ctx: WeeklyTeamContext, lineup: LineupResult): StartSitComparison[] {
+/**
+ * Close lineup calls worth surfacing as explicit start/sit comparisons.
+ *
+ * Built from the PAIRED entering/leaving sets (`changes_recommended` +
+ * `unresolved_decisions`), never from a slot's `current_player_id` — in an
+ * RB/WR/FLEX chain the entrant's slot incumbent often just slides to FLEX and
+ * stays a starter, so comparing "entrant vs slot incumbent" would tell the
+ * manager to bench a player who is still starting.
+ */
+export function buildCloseCalls(ctx: WeeklyTeamContext, lineup: LineupResult): StartSitComparison[] {
   const out: StartSitComparison[] = [];
-  for (const s of lineup.slots) {
-    if (!s.recommended_player_id || !s.current_player_id) continue;
-    if (s.recommended_player_id === s.current_player_id) continue;
-    // Only genuine starter-set changes — a slot reshuffle of the same starters
-    // is not a start/sit decision.
-    if (!s.is_starter_set_change) continue;
+  const p = (id: string) => ctx.projections.by_player.get(id) ?? null;
+  for (const c of lineup.changes_recommended) {
+    if (!c.out) continue; // entering a freed/open slot — no "start over X" call
+    out.push(compareStartSit({ slot: c.slot, a: p(c.in), b: p(c.out), a_id: c.in, b_id: c.out, replacement: ctx.replacement }));
+  }
+  for (const u of lineup.unresolved_decisions) {
+    if (!u.current_player_id) continue;
     out.push(
       compareStartSit({
-        slot: s.slot,
-        a: ctx.projections.by_player.get(s.recommended_player_id) ?? null,
-        b: ctx.projections.by_player.get(s.current_player_id) ?? null,
-        a_id: s.recommended_player_id,
-        b_id: s.current_player_id,
+        slot: u.slot,
+        a: p(u.candidate_player_id),
+        b: p(u.current_player_id),
+        a_id: u.candidate_player_id,
+        b_id: u.current_player_id,
         replacement: ctx.replacement,
       }),
     );
   }
-  // Also the single closest same-position bench-vs-starter call, if any.
   return out.sort((a, b) => Math.abs(b.projection_edge ?? 0) - Math.abs(a.projection_edge ?? 0));
 }
 

@@ -111,12 +111,21 @@ export function buildWaiverRecommendations(
    * Runs the same Hungarian optimizer on the hypothetical roster — the waiver
    * engine consumes lineup optimization, it does not re-approximate FLEX logic.
    *
-   * Returns `null` (NOT 0) when the comparison cannot be supported because a
-   * projection gap makes the baseline or hypothetical optimal total unavailable
-   * — a candidate must never earn a fake starter gain off an UNKNOWN baseline.
+   * Returns `null` (NOT 0) when the comparison cannot be supported:
+   *   - the baseline optimal total is unavailable (UNKNOWN optimal starter), or
+   *   - the baseline lineup is PROVISIONAL (an eligible bench player has no
+   *     projection — its real value could erase any claimed gain), or
+   *   - the drop is an UNKNOWN player (we cannot judge what we are giving up), or
+   *   - the hypothetical optimal total is unavailable / PROVISIONAL.
+   * A candidate must never earn a fake starter gain off an unresolved baseline.
    */
+  const weeklyKnown = (id: string): boolean => {
+    const p = proj(id);
+    return p != null && (p.projected_points != null || p.projection_status === "bye");
+  };
   const optimalStarterGain = (add: CanonicalPlayer, dropId: string | null): number | null => {
-    if (baselineOptimal == null) return null;
+    if (baselineOptimal == null || baseline.optimality_status === "PROVISIONAL") return null;
+    if (dropId != null && !weeklyKnown(dropId)) return null;
     const hypoPlayers = new Map(myPlayers);
     hypoPlayers.set(add.canonical_player_id, add);
     const keep = ctx.roster.all_players.filter((id) => id !== dropId);
@@ -134,7 +143,7 @@ export function buildWaiverRecommendations(
       players: hypoPlayers,
       projections: ctx.projections,
     });
-    if (hypo.optimal_total == null) return null;
+    if (hypo.optimal_total == null || hypo.optimality_status === "PROVISIONAL") return null;
     return Math.round((hypo.optimal_total - baselineOptimal) * 100) / 100;
   };
 
@@ -223,7 +232,12 @@ export function buildWaiverRecommendations(
       openActiveSpot
         ? null
         : dropBoard.find(
-            (d) => d.player.canonical_player_id !== fa.canonical_player_id && activeIds.includes(d.player.canonical_player_id),
+            (d) =>
+              d.player.canonical_player_id !== fa.canonical_player_id &&
+              activeIds.includes(d.player.canonical_player_id) &&
+              // never auto-recommend dropping a player whose weekly value we
+              // cannot even assess.
+              weeklyKnown(d.player.canonical_player_id),
           ) ?? null;
     const drop_cost = dropChoice ? round2(dropChoice.keep) : 0;
 

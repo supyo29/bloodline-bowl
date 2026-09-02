@@ -341,6 +341,39 @@ describe("waiver counterfactual inherits UNKNOWN-vs-zero semantics (issue 4)", (
       assert.ok(rec.priority !== "HIGH");
     }
   });
+
+  it("a PROVISIONAL baseline (eligible unprojected BENCH player) is also unresolved, and that player is never the auto-drop", () => {
+    // fx-eligible bench player with NO projection -> baseline optimality PROVISIONAL
+    // even though optimal_total is numeric (all optimal starters are projected).
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      player("ghost", "WR"), // NO projection
+      ...["b1", "b2", "b3", "b4"].map((id) => player(id, "RB")),
+    ];
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 12), proj("wr1", "WR", 14),
+      proj("wr2", "WR", 12), proj("te1", "TE", 10), proj("fx", "RB", 9), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      ...["b1", "b2", "b3", "b4"].map((id) => proj(id, "RB", 5)),
+    ];
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["ghost", "b1", "b2", "b3", "b4"]);
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faRb", "RB", { name: "Wire RB2" })],
+      faProjections: [proj("faRb", "RB", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    const rec = res.recommendations.find((r) => r.add_name === "Wire RB2");
+    if (rec) {
+      assert.equal(rec.starter_impact, null);
+      assert.equal(rec.starter_impact_status, "UNRESOLVED");
+      assert.notEqual(rec.drop_player_id, "ghost", "the unprojected player is never the recommended drop");
+    }
+    for (const d of res.do_not_add) assert.notEqual(d.add_name, "ghost");
+  });
 });
 
 describe("duplicate provider identity -> one canonical player", () => {

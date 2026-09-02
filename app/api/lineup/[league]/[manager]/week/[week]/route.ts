@@ -33,24 +33,26 @@ export async function GET(
       players,
       projections: ctx.projections,
     });
-    const start_sit = lineup.slots
-      .filter(
-        (s) =>
-          s.is_starter_set_change &&
-          s.recommended_player_id &&
-          s.current_player_id &&
-          s.recommended_player_id !== s.current_player_id,
-      )
-      .map((s) =>
-        compareStartSit({
-          slot: s.slot,
-          a: ctx.projections.by_player.get(s.recommended_player_id!) ?? null,
-          b: ctx.projections.by_player.get(s.current_player_id!) ?? null,
-          a_id: s.recommended_player_id!,
-          b_id: s.current_player_id!,
-          replacement: ctx.replacement,
-        }),
-      );
+    // Start/sit comes from the PAIRED entering/leaving sets, never a slot's
+    // current occupant (which may just be sliding to FLEX and still starting).
+    const p = (id: string) => ctx.projections.by_player.get(id) ?? null;
+    const start_sit = [
+      ...lineup.changes_recommended
+        .filter((c) => c.out)
+        .map((c) => compareStartSit({ slot: c.slot, a: p(c.in), b: p(c.out!), a_id: c.in, b_id: c.out!, replacement: ctx.replacement })),
+      ...lineup.unresolved_decisions
+        .filter((u) => u.current_player_id)
+        .map((u) =>
+          compareStartSit({
+            slot: u.slot,
+            a: p(u.candidate_player_id),
+            b: p(u.current_player_id!),
+            a_id: u.candidate_player_id,
+            b_id: u.current_player_id!,
+            replacement: ctx.replacement,
+          }),
+        ),
+    ];
     return { lineup, start_sit, roster_constraints: ctx.league.roster_constraints };
   });
 

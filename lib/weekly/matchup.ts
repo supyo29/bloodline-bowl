@@ -153,12 +153,20 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     })
     .sort((a, b) => b.edge - a.edge);
 
-  // Coverage for probability.
+  // Coverage for probability. Simulating requires BOTH optimal lineups to be
+  // COMPLETE and fully projected — an UNKNOWN starter fed in as 0 (or an ignored
+  // unknown bench player that could change the optimum) would produce a
+  // confident-looking number off incomplete inputs.
   const coverage = lineupCoverage(teamLineup) * lineupCoverage(oppLineup);
+  const bothComplete =
+    teamLineup.optimality_status === "COMPLETE" &&
+    oppLineup.optimality_status === "COMPLETE" &&
+    teamLineup.optimal_total != null &&
+    oppLineup.optimal_total != null;
   let win_probability: number | null = null;
   let win_probability_method: string | null = null;
   let win_probability_confidence: MatchupResult["win_probability_confidence"] = "UNAVAILABLE";
-  if (coverage >= MIN_COVERAGE_FOR_PROB) {
+  if (coverage >= MIN_COVERAGE_FOR_PROB && bothComplete) {
     const rng = mulberry32(hashSeed(ctx.league.slug, ctx.fantasy_team.canonical_team_id, ctx.league.week));
     let wins = 0;
     const teamDraw = drawSpec(teamLineup, ctx);
@@ -183,7 +191,9 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
   } else {
     warnings.push({
       code: "win_probability_unavailable",
-      message: `Projection coverage ${(coverage * 100).toFixed(0)}% of starters is below the ${(MIN_COVERAGE_FOR_PROB * 100).toFixed(0)}% needed to simulate a defensible win probability.`,
+      message: !bothComplete
+        ? "Win probability is not simulated — at least one optimal lineup is PROVISIONAL / not fully projected. An UNKNOWN starter must not be simulated as a numeric 0."
+        : `Projection coverage ${(coverage * 100).toFixed(0)}% of starters is below the ${(MIN_COVERAGE_FOR_PROB * 100).toFixed(0)}% needed to simulate a defensible win probability.`,
       severity: "warning",
     });
   }

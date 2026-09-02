@@ -101,6 +101,25 @@ describe("matchup: probability + degraded state", () => {
     assert.ok(m.team_known_subtotal > 0 && m.team_known_subtotal < (m.opponent_known_subtotal || Infinity));
   });
 
+  it("win probability is suppressed when a lineup is PROVISIONAL (eligible unprojected bench player)", () => {
+    const myP = [...nine("a"), player("aMystery", "RB")]; // aMystery: NO projection
+    const ctx = weeklyContext({
+      myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), ["aMystery"], { startingSlots: SLOTS }),
+      oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      players: [...myP, ...nine("b")],
+      projections: [...nineProj("a", 20), ...nineProj("b", 15)], // all 9+9 STARTERS projected
+    });
+    const m = buildMatchup(ctx);
+    // all optimal starters are projected, so the margin is a real number...
+    assert.equal(typeof m.projected_margin, "number");
+    assert.equal(m.projected_margin_status, "PARTIAL_PROVISIONAL");
+    // ...but an eligible unprojected bench player means the optimum is not proven,
+    // so win probability is NOT simulated.
+    assert.equal(m.win_probability, null);
+    assert.equal(m.win_probability_confidence, "UNAVAILABLE");
+    assert.ok(m.warnings.some((w) => w.code === "win_probability_unavailable" && /PROVISIONAL/.test(w.message)));
+  });
+
   it("a team with a fully-projected optimal lineup still gets a real margin", () => {
     const ctx = weeklyContext({
       myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
