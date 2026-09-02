@@ -285,7 +285,7 @@ describe("live: canonical route handlers return correct status + context", () =>
     return { status: res.status, body, headers: res.headers };
   }
 
-  it("GET /api/leagues -> discovery lists both leagues with canonical URLs", async () => {
+  it("GET /api/leagues -> discovery lists the registered leagues with canonical URLs", async () => {
     const { GET } = await import("../app/api/leagues/route");
     const res = await GET();
     assert.equal(res.status, 200);
@@ -293,7 +293,10 @@ describe("live: canonical route handlers return correct status + context", () =>
       leagues: Array<{ league_slug: string; canonical_urls: Record<string, string> }>;
     };
     const slugs = body.leagues.map((l) => l.league_slug).sort();
-    assert.deepEqual(slugs, ["bloodline-bowl", "devoted-to-the-game"]);
+    // Sleeper leagues both present; the Yahoo entry is registered too (v2).
+    assert.ok(slugs.includes("bloodline-bowl"));
+    assert.ok(slugs.includes("devoted-to-the-game"));
+    assert.ok(slugs.includes("maclin-on-chicks-xvi"));
     const bb = body.leagues.find((l) => l.league_slug === "bloodline-bowl")!;
     assert.equal(bb.canonical_urls.draft, "/api/leagues/bloodline-bowl/draft");
   });

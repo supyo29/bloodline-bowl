@@ -49,11 +49,27 @@ Original Sleeper IDs are preserved everywhere, so nothing is lost for debugging 
 
 ---
 
+## Post-Draft Foundation (multi-league · multi-manager · multi-provider)
+
+The bridge is transitioning from a draft assistant into a persistent League
+Intelligence platform. The provider-independent spine — a canonical fantasy
+schema, Sleeper + Yahoo provider adapters, a player identity crosswalk, generic
+league/manager context services, and durable snapshot + transaction stores
+(Supabase, behind swappable interfaces) — is documented in
+**[docs/POST_DRAFT_FOUNDATION.md](docs/POST_DRAFT_FOUNDATION.md)**.
+
+Canonical routes: `GET /api/providers`, `GET /api/league/{league}/state`,
+`GET /api/context/{league}/{manager}`, `GET /api/history/{league}/week/{week}`,
+`GET /api/transactions/{league}`. The `?league=` query routes below are
+unchanged and still supported.
+
 ## Multi-league support
 
-This bridge fetches everything live from Sleeper per request — there is no database and no
-background sync job. "Adding a league" is therefore not an ingestion pipeline; it's registering a
-memorable name for a Sleeper league id.
+This bridge fetches current league state live from the provider per request.
+Durable *history* (weekly snapshots, the transaction ledger) is persisted to
+Supabase behind the `SnapshotStore` / `LedgerStore` interfaces — see the
+foundation doc above. "Adding a league" is still just one registry entry
+(`lib/leagues/registry.ts`); it is not an ingestion pipeline.
 
 ### How league selection works
 

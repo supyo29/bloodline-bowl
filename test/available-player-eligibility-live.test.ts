@@ -112,7 +112,15 @@ describe("live: /api/draft available-player pool integrity", () => {
 describe("live: shared pool and manager candidates agree", () => {
   it("Devoted/DarthMarker recommendations contain only currently-draftable players", async (t) => {
     if (!online) return t.skip("Sleeper offline");
-    const league = { league_slug: "devoted-to-the-game", league_id: DEVOTED_LEAGUE_ID, registered: true, display_name: "Devoted to the Game" };
+    const league = {
+      league_slug: "devoted-to-the-game",
+      league_id: DEVOTED_LEAGUE_ID,
+      provider: "sleeper" as const,
+      external_league_id: DEVOTED_LEAGUE_ID,
+      season: 2026,
+      registered: true,
+      display_name: "Devoted to the Game",
+    };
     const resolved = await resolveManagerInLeague(league, "darthmarker");
     assert.ok(resolved.ok, "DarthMarker must resolve in Devoted");
     const ctx = await buildManagerDraftContext(resolved.manager, { availableLimit: 400, recommendationCount: 40 });

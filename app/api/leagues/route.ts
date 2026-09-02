@@ -9,7 +9,7 @@
  * Exposes routing metadata only. No secrets, tokens, or private account data.
  */
 
-import { listLeagueTargets } from "@/lib/leagues/registry";
+import { leagueConfigStatus, listLeagueTargets } from "@/lib/leagues/registry";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,17 @@ export async function GET(): Promise<Response> {
       league_slug: target.key,
       league_name: target.display_name,
       league_id: target.league_id,
+      provider: target.provider,
+      season: target.season,
+      config_status: leagueConfigStatus(target),
+      known_managers: target.known_managers,
       commissioner_sleeper_username: target.sleeper_username,
       canonical_urls: {
+        state: `/api/league/${target.key}/state`,
+        context_template: `/api/context/${target.key}/{managerSlug}`,
+        history_template: `/api/history/${target.key}/week/{week}`,
+        transactions: `/api/transactions/${target.key}`,
+        // Legacy Sleeper-native routes (Sleeper leagues only):
         league: base,
         draft: `${base}/draft`,
         snapshot: `${base}/snapshot`,
