@@ -506,6 +506,46 @@ describe("lineup: multi-player swap pairing (Codex re-review)", () => {
     // authoritative aggregate is optimal - current, not a sum of pair deltas.
     assert.equal(r.projected_points_gained, Math.round((r.optimal_total! - r.current_total!) * 100) / 100);
   });
+
+  it("whole-set matching avoids the greedy misfire that emits a negative cross-position swap", () => {
+    // Codex counterexample shape: FLEX=C(TE 15.5), WR2=B(10); bench D(RB 16),
+    // E(WR 15). A greedy first-match pairs D<->B (stealing the only WR leaver),
+    // leaving E<->C as a misleading "-0.5 WR over TE". Whole-set matching pairs
+    // E<->B (+5, WR=WR) and D<->C (+0.5).
+    const players = [
+      player("qb1", "QB"), player("A", "RB"), player("rb1", "RB"),
+      player("E", "WR"), player("wr0", "WR"), player("te0", "TE"),
+      player("C", "TE"), player("k1", "K"), player("def1", "DEF"),
+      player("D", "RB"), player("B", "WR"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("A", "RB", 20), proj("rb1", "RB", 18),
+      proj("E", "WR", 15), proj("wr0", "WR", 13), proj("te0", "TE", 9),
+      proj("C", "TE", 15.5), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("D", "RB", 16), proj("B", "WR", 10),
+    ];
+    // current starters: QB, A, rb1, B(WR), wr0(WR), te0, C(FLEX=TE 15.5), k1, def1.
+    // optimal: D(16) takes FLEX (> C's 15.5), E(15) takes a WR slot -> B & C leave.
+    // Greedy would pair D<->B then E<->C (-0.5); whole-set matching pairs E<->B.
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "A", "rb1", "B", "wr0", "te0", "C", "k1", "def1"], ["D", "E"], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    const dC = r.changes_recommended.find((c) => c.in === "D");
+    const eC = r.changes_recommended.find((c) => c.in === "E");
+    assert.ok(dC && eC, "both entrants reported");
+    // E (WR) must be paired with the WR leaver B — the only same-position match —
+    // never left with a cross-position leaver producing a negative "swap".
+    assert.equal(eC!.out, "B", "E is paired with same-position leaver B");
+    assert.equal(basePosOf(players, eC!.out), "WR");
+    assert.ok(eC!.gain > 0, "E's leg is a genuine positive upgrade (15 - 10)");
+    assert.ok(r.changes_recommended.every((c) => c.gain > 0), "no misleading negative standalone swap");
+    assert.ok(r.changes_recommended.every((c) => c.part_of_reshuffle));
+    assert.equal(r.projected_points_gained, Math.round((r.optimal_total! - r.current_total!) * 100) / 100);
+  });
 });
 
 function basePosOf(players: ReturnType<typeof player>[], id: string | null): string | null {

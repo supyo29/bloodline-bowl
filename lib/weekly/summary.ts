@@ -47,7 +47,9 @@ export function buildWeeklySummary(input: {
 
   const topChange = lineup.changes_recommended[0] ?? null;
   const most_important_move = topChange
-    ? `Start ${name(ctx, topChange.in)} over ${name(ctx, topChange.out)} (+${topChange.gain.toFixed(1)})`
+    ? topChange.part_of_reshuffle
+      ? `Reshuffle your lineup${lineup.projected_points_gained != null ? ` for +${lineup.projected_points_gained.toFixed(1)}` : ""} (${lineup.changes_recommended.filter((c) => c.part_of_reshuffle).map((c) => name(ctx, c.in)).join(", ")} in)`
+      : `Start ${name(ctx, topChange.in)} over ${name(ctx, topChange.out)} (+${topChange.gain.toFixed(1)})`
     : lineup.illegal_situations.length > 0
       ? `Fix lineup: ${lineup.illegal_situations[0]}`
       : lineup.empty_slots.length > 0

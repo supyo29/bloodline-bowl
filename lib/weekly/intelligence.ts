@@ -190,8 +190,12 @@ export function buildLineup(ctx: WeeklyTeamContext): LineupResult {
 export function buildCloseCalls(ctx: WeeklyTeamContext, lineup: LineupResult): StartSitComparison[] {
   const out: StartSitComparison[] = [];
   const p = (id: string) => ctx.projections.by_player.get(id) ?? null;
+  const pos = (id: string) => ctx.all_rostered.find((x) => x.canonical_player_id === id)?.position;
   for (const c of lineup.changes_recommended) {
     if (!c.out) continue; // entering a freed/open slot — no "start over X" call
+    // A cross-position leg of a reshuffle ("start a RB over a TE") is a slot
+    // rearrangement, not a real start/sit question — skip it.
+    if (c.part_of_reshuffle && pos(c.in) !== pos(c.out)) continue;
     out.push(compareStartSit({ slot: c.slot, a: p(c.in), b: p(c.out), a_id: c.in, b_id: c.out, replacement: ctx.replacement }));
   }
   for (const u of lineup.unresolved_decisions) {
@@ -223,7 +227,22 @@ function buildTopActions(input: {
   const nameOf = (id: string | null) =>
     (id && (ctx.all_rostered.find((p) => p.canonical_player_id === id)?.full_name ?? ctx.projections.resolved_players.get(id)?.full_name)) || "(empty)";
 
-  for (const c of lineup.changes_recommended.slice(0, 3)) {
+  const reshuffleLegs = lineup.changes_recommended.filter((c) => c.part_of_reshuffle);
+  if (reshuffleLegs.length > 0 && lineup.projected_points_gained != null && lineup.projected_points_gained > 0) {
+    // Present a multi-player reshuffle as ONE action valued at the lineup-level
+    // gain — never as separate legs whose per-pair deltas can look negative.
+    const ins = reshuffleLegs.map((c) => nameOf(c.in)).join(", ");
+    const outs = reshuffleLegs.filter((c) => c.out).map((c) => nameOf(c.out)).join(", ");
+    const g = lineup.projected_points_gained;
+    actions.push({
+      type: "LINEUP",
+      priority: g >= 3 ? "HIGH" : g >= 1.25 ? "MEDIUM" : "LOW",
+      message: `Reshuffle your lineup — start ${ins}${outs ? `, sit ${outs}` : ""} (+${g.toFixed(1)} projected)`,
+      projected_gain: g,
+      detail_route: `${base}`,
+    });
+  }
+  for (const c of lineup.changes_recommended.filter((x) => !x.part_of_reshuffle && x.gain > 0).slice(0, 3)) {
     const lev = matchup_leverage.find((l) => l.slot === c.slot);
     const priority: Priority = lev?.leverage === "HIGH" || c.gain >= 3 ? "HIGH" : c.gain >= 1.25 ? "MEDIUM" : "LOW";
     actions.push({

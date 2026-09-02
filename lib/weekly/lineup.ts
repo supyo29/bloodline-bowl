@@ -78,6 +78,10 @@ export interface LineupChange {
   /** Always numeric — a change hinging on a missing projection is not a
    *  `LineupChange` at all; it goes to `unresolved_decisions`. */
   gain: number;
+  /** True when this change is one leg of a multi-player reshuffle (>=2 entrants).
+   *  Per-leg `gain` is an attribution; the whole reshuffle's value is the
+   *  lineup-level `projected_points_gained`. */
+  part_of_reshuffle: boolean;
 }
 
 export interface UnresolvedLineupDecision {
@@ -308,27 +312,41 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   // entrant is reported — a move is never dropped because an arbitrary
   // cross-position pair happened to have a non-positive delta. The authoritative
   // aggregate gain is `optimal_total - current_total`, not a sum of these.
-  const basePos = (id: string): string => {
-    const p = players.get(id);
-    return p ? p.position : "";
-  };
+  const basePos = (id: string): string => players.get(id)?.position ?? "";
   const enteringSorted = [...entering].sort((a, b) => (knownPoints(b) ?? -1e9) - (knownPoints(a) ?? -1e9));
-  const leaverPool = [...leaving];
+
+  // Pair the WHOLE entering/leaving set at once (max-weight matching) so a
+  // greedy first-match cannot steal the only same-position leaver a later
+  // entrant needs — which would emit a misleading cross-position negative swap.
+  const slotOf = (id: string): string => slotRecs.find((r) => r.recommended_player_id === id)?.slot ?? "";
+  const compat = (inId: string, outId: string): number => {
+    if (basePos(inId) === basePos(outId)) return 100;
+    const outPl = players.get(outId);
+    const inPl = players.get(inId);
+    const outFitsInSlot = outPl != null && isEligible(slotOf(inId), outPl);
+    const inFitsOutSlot = inPl != null && isEligible(slotOf(outId), inPl);
+    if (outFitsInSlot && inFitsOutSlot) return 40;
+    if (outFitsInSlot || inFitsOutSlot) return 20;
+    return 1;
+  };
+  const pairOut = new Map<string, string | null>();
+  if (enteringSorted.length > 0 && leaving.length > 0) {
+    const w: number[][] = enteringSorted.map((inId) => leaving.map((outId) => compat(inId, outId)));
+    const asg = hungarianMaxWeight(w);
+    enteringSorted.forEach((inId, i) => {
+      const j = asg[i];
+      pairOut.set(inId, j != null && j >= 0 && j < leaving.length ? leaving[j]! : null);
+    });
+  } else {
+    for (const inId of enteringSorted) pairOut.set(inId, null);
+  }
+
   const changes: LineupChange[] = [];
   const unresolved_decisions: UnresolvedLineupDecision[] = [];
+  const reshuffle = enteringSorted.length >= 2;
   for (const inId of enteringSorted) {
     const slotRec = slotRecs.find((r) => r.recommended_player_id === inId)!;
-    let outId: string | null = null;
-    const samePos = leaverPool.find((l) => basePos(l) === basePos(inId));
-    const slotEligible = leaverPool.find((l) => {
-      const pl = players.get(l);
-      return pl != null && isEligible(slotRec.slot, pl);
-    });
-    const pick = samePos ?? slotEligible ?? (leaverPool.length > 0 ? leaverPool[0] : undefined);
-    if (pick) {
-      outId = pick;
-      leaverPool.splice(leaverPool.indexOf(pick), 1);
-    }
+    const outId: string | null = pairOut.get(inId) ?? null;
     const inState = projState(inId);
     const outState: ProjectionState = outId ? projState(outId) : "KNOWN"; // freed slot -> 0 baseline
 
@@ -347,7 +365,7 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
 
     const inPts = inState === "VERIFIED_ZERO" ? 0 : proj(inId)!.projected_points!;
     const outPts = outId ? (outState === "VERIFIED_ZERO" ? 0 : proj(outId)!.projected_points!) : 0;
-    changes.push({ slot: slotRec.slot, out: outId, in: inId, gain: round2(inPts - outPts) });
+    changes.push({ slot: slotRec.slot, out: outId, in: inId, gain: round2(inPts - outPts), part_of_reshuffle: reshuffle });
   }
   changes.sort((a, b) => b.gain - a.gain);
 
