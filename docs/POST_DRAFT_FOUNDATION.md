@@ -47,6 +47,7 @@ or Yahoo-native object. Everything passes through the canonical schema first.
 | `GET /api/history/{league}/week/{week}` | durable historical snapshot (preferred capture + retained versions) |
 | `GET /api/transactions/{league}` | canonical transactions — from the ledger, falling back to a live read |
 | `GET /api/auth/yahoo/connect` · `/callback` · `/status` | Yahoo OAuth shells (pre-auth: explicit `NOT_CONFIGURED`) |
+| `GET /api/cron/capture` | automated daily snapshot + transaction sync (Bearer `CRON_SECRET`; see §5) |
 
 Legacy `?league=` query routes are unchanged and still supported.
 
@@ -177,8 +178,35 @@ npx tsx scripts/capture-snapshot.ts bloodline-bowl --type FINAL --transactions
 npx tsx scripts/capture-snapshot.ts --all --type MID_WEEK
 ```
 
-A Vercel Cron / API job would call the same two functions. Cron wiring is
-deferred (no cron infra configured yet).
+### Automated capture (Vercel Cron)
+
+`vercel.json` schedules `GET /api/cron/capture` daily at `0 12 * * *` (UTC). The
+route calls `captureLeagueState` + `syncLeagueTransactions` for every **active
+Sleeper** league (`bloodline-bowl`, `devoted-to-the-game`); Yahoo leagues are
+listed under `skipped` — no fake snapshots before auth.
+
+- **Auth:** `Authorization: Bearer $CRON_SECRET` (Vercel Cron sends this
+  automatically once `CRON_SECRET` is set). With no `CRON_SECRET` the route
+  returns `401` and does nothing — it is never world-triggerable. Manual
+  activation runs may also pass `?secret=$CRON_SECRET`.
+- **Idempotent:** safe to run repeatedly — a re-run with unchanged league state
+  writes 0 new snapshot rows (content-hash dedup) and 0 new ledger rows
+  (idempotency key).
+- **Failure visibility:** persistence down → `503` + `[cron:capture]` error log;
+  any per-league failure → `500` + `status: "PARTIAL"`. It never returns `2xx`
+  with `ok: true` on a failed persistence run.
+
+Required production env (Vercel → Project → Settings → Environment Variables,
+**Production**, all server-side):
+
+```
+SUPABASE_URL=https://ijpfjdzmaztofawhwepf.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role JWT from Supabase → Project Settings → API>
+CRON_SECRET=<a long random string you choose>
+```
+
+None of these are ever read in a client bundle (`app/api/**` + `lib/**` server
+code only) or logged.
 
 ---
 
