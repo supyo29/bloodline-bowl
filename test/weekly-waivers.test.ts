@@ -376,6 +376,90 @@ describe("waiver add/drop must preserve a fieldable legal roster (Codex round 7,
     assert.ok(!res.do_not_add.some((d) => d.add_name === "Wire RB2" && /no legal drop/i.test(d.reason)));
   });
 
+  it("empty-slot MULTIPLICITY: dropping the last RB when a baseline RB slot is already empty is illegal", () => {
+    // roster carries only ONE RB (rb1) for a 2-RB league -> baseline has one
+    // empty "RB" slot. Adding a WR and dropping rb1 would leave TWO RB holes.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("wr1", "WR"), player("wr2", "WR"), player("wr3", "WR"),
+      player("te1", "TE"), player("fx", "WR"), player("k1", "K"), player("def1", "DEF"),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => player(id, "WR")),
+    ];
+    const P = [
+      proj("qb1", "QB", 18), proj("rb1", "RB", 12), proj("wr1", "WR", 14), proj("wr2", "WR", 12), proj("wr3", "WR", 11),
+      proj("te1", "TE", 10), proj("fx", "WR", 9), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => proj(id, "WR", 6)),
+    ];
+    const c = weeklyContext({
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "wr1", "wr2", "wr3", "te1", "fx", "k1", "def1"], ["b1", "b2", "b3", "b4", "b5"]),
+      players, projections: P,
+      freeAgents: [player("faWR", "WR", { name: "Add WR" })],
+      faProjections: [proj("faWR", "WR", 16, { rest_of_season_points: 190 })],
+    });
+    const res = buildWaiverRecommendations(c);
+    const rec = res.recommendations.find((r) => r.add_name === "Add WR");
+    if (rec) assert.notEqual(rec.drop_player_id, "rb1", "dropping the lone RB doubles the RB hole -> illegal");
+  });
+
+  it("evaluates EVERY assessable drop — the best legal pair is not missed when it ranks late by keep", () => {
+    // 8 cheapest-keep active players are all position-critical (dropping any
+    // leaves a hole the WR FA can't fill); a WR bench body ranked ~9th is the
+    // only legal drop and MUST be found.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      // 5 bench WRs with LOWER keep than the 9 starters would be, plus one more:
+      player("bnWR1", "WR"), player("bnWR2", "WR"), player("bnWR3", "WR"), player("bnWR4", "WR"), player("bnWR5", "WR"),
+    ];
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 17), proj("rb2", "RB", 15), proj("wr1", "WR", 16), proj("wr2", "WR", 14),
+      proj("te1", "TE", 12), proj("fx", "RB", 13), proj("k1", "K", 9), proj("def1", "DEF", 8),
+      proj("bnWR1", "WR", 3), proj("bnWR2", "WR", 3), proj("bnWR3", "WR", 3), proj("bnWR4", "WR", 3), proj("bnWR5", "WR", 3),
+    ];
+    // 14 active (9 starters + 5 bench), roster full.
+    const c = weeklyContext({
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"], ["bnWR1", "bnWR2", "bnWR3", "bnWR4", "bnWR5"]),
+      players, projections: P,
+      freeAgents: [player("faWR", "WR", { name: "Wire WR3" })],
+      faProjections: [proj("faWR", "WR", 15, { rest_of_season_points: 180 })],
+    });
+    const res = buildWaiverRecommendations(c);
+    const rec = res.recommendations.find((r) => r.add_name === "Wire WR3");
+    const dna = res.do_not_add.find((d) => d.add_name === "Wire WR3");
+    // a legal bench-WR drop exists -> must NOT be DO_NOT_ADD "no legal drop"
+    assert.ok(!dna || !/no legal drop/i.test(dna.reason), "the late-ranked legal drop was found");
+    if (rec) assert.ok(rec.drop_player_id?.startsWith("bnWR"), `drop should be a bench WR, got ${rec.drop_player_id}`);
+  });
+
+  it("a legal add/drop pair that LOWERS the optimal lineup keeps a SIGNED (negative) starter_impact", () => {
+    // FA is a weak RB; the only legal drops are RB starters that all out-project
+    // it, so the best legal pair still costs starting points. The negative must
+    // survive into starter_impact / the score, not be clamped to 0.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      ...["g1", "g2", "g3", "g4", "g5"].map((id) => player(id, "WR")),
+    ];
+    const P = [
+      proj("qb1", "QB", 18), proj("rb1", "RB", 16), proj("rb2", "RB", 13), proj("wr1", "WR", 14), proj("wr2", "WR", 12),
+      proj("te1", "TE", 10), proj("fx", "RB", 11), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      // bench WRs UNKNOWN (unassessable) -> only RB starters are legal drops for an RB add
+    ];
+    const c = weeklyContext({
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"], ["g1", "g2", "g3", "g4", "g5"]),
+      players, projections: P,
+      freeAgents: [player("faRb", "RB", { name: "Weak RB" })],
+      faProjections: [proj("faRb", "RB", 8, { rest_of_season_points: 300 })],
+    });
+    const res = buildWaiverRecommendations(c);
+    const entry =
+      res.recommendations.find((r) => r.add_name === "Weak RB") ??
+      res.do_not_add.find((d) => d.add_name === "Weak RB");
+    assert.ok(entry, "candidate evaluated");
+    if (entry.starter_impact_status === "RESOLVED") {
+      assert.ok(entry.starter_impact != null && entry.starter_impact < 0, `signed negative starter_impact, got ${entry.starter_impact}`);
+    }
+  });
+
   it("no assessable + legal drop exists -> DO_NOT_ADD 'no legal drop'", () => {
     // 9 players at exactly the slot minimum; the only K is UNKNOWN (so the 1:1
     // K swap is unassessable), and the FA is a K (not FLEX-eligible), so every
