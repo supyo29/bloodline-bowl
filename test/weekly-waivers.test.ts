@@ -284,6 +284,30 @@ describe("active vs reserve roster capacity", () => {
     assert.equal(rec.drop_cost, 0);
   });
 
+  it("full active roster where NO active player has an assessable projection -> add is DO_NOT_ADD, never drop=null", () => {
+    // 14 active players, none with a weekly projection (all UNKNOWN).
+    const ids = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "bn1", "bn2", "bn3", "bn4", "bn5"];
+    const players = [
+      player("s1", "QB"), player("s2", "RB"), player("s3", "RB"), player("s4", "WR"), player("s5", "WR"),
+      player("s6", "TE"), player("s7", "RB"), player("s8", "K"), player("s9", "DEF"),
+      player("bn1", "RB"), player("bn2", "WR"), player("bn3", "WR"), player("bn4", "TE"), player("bn5", "RB"),
+    ];
+    const P: never[] = []; // NO projections for any rostered player
+    const R = roster("team:test-league:1", ids.slice(0, 9), ids.slice(9));
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faStud", "RB", { name: "Wire Stud" })],
+      faProjections: [proj("faStud", "RB", 22, { rest_of_season_points: 260 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    assert.ok(!res.recommendations.some((r) => r.add_name === "Wire Stud" && r.drop_player_id == null),
+      "a strong FA is never recommended with drop=null on a full roster");
+    const dna = res.do_not_add.find((d) => d.add_name === "Wire Stud");
+    const rec = res.recommendations.find((r) => r.add_name === "Wire Stud");
+    assert.ok(dna || (rec && rec.drop_player_id != null), "either DO_NOT_ADD or paired with a real drop");
+    if (dna) assert.match(dna.reason, /blind drop|no assessable|full/i);
+  });
+
   it("full active roster + IR slot occupied -> still needs a drop, and the IR player is not the drop", () => {
     const { players, P } = base();
     const R = roster("team:test-league:1",

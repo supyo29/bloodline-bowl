@@ -24,8 +24,15 @@ interface RawGame {
 }
 
 const NFL_SET = new Set(NFL_TEAMS);
-/** A regular-season week has 13–16 games; below this the feed is treated as incomplete. */
-const MIN_GAMES_FOR_COMPLETE_WEEK = 12;
+/**
+ * A complete regular-season week has EXACTLY `16 - byes/2` games with
+ * `byes ∈ {0, 2, 4, 6}` (the NFL never runs more than 6 byes in a week and
+ * always an even number), i.e. 13, 14, 15 or 16 games and 26–32 teams playing.
+ * A 12-or-fewer-game response is a truncated feed, not a real week — asserting
+ * byes from it would zero out 8+ teams that are actually playing.
+ */
+const MIN_GAMES_FOR_COMPLETE_WEEK = 13;
+const MAX_BYE_TEAMS = 6;
 
 export class SleeperScheduleProvider implements ScheduleProvider {
   readonly name = "sleeper_schedule";
@@ -77,15 +84,25 @@ export class SleeperScheduleProvider implements ScheduleProvider {
     base.opponent_by_team = opponent;
 
     const allRecognised = [...playing].every((t) => NFL_SET.has(t));
-    const complete = weekGames.length >= MIN_GAMES_FOR_COMPLETE_WEEK && allRecognised && playing.size >= 24;
+    const missing = NFL_TEAMS.filter((t) => !playing.has(t));
+    // Every game is 2 distinct recognised teams -> the game count must be exactly
+    // half the playing-team count, all 32 clubs accounted for, and the implied
+    // bye set a valid NFL size (even, <= 6). Anything else = a truncated feed.
+    const structurallyIntact =
+      allRecognised &&
+      playing.size + missing.length === NFL_TEAMS.length &&
+      weekGames.length === playing.size / 2 &&
+      missing.length <= MAX_BYE_TEAMS &&
+      missing.length % 2 === 0;
+    const complete = structurallyIntact && weekGames.length >= MIN_GAMES_FOR_COMPLETE_WEEK;
 
     if (complete) {
       base.status = "READY";
-      base.teams_on_bye = new Set(NFL_TEAMS.filter((t) => !playing.has(t)));
+      base.teams_on_bye = new Set(missing);
     } else {
       base.warnings.push({
         code: "SCHEDULE_INCOMPLETE",
-        message: `NFL schedule for ${season} week ${week} looks incomplete (${weekGames.length} games, ${playing.size} teams). Bye weeks not asserted this run.`,
+        message: `NFL schedule for ${season} week ${week} looks incomplete/truncated (${weekGames.length} games, ${playing.size} teams playing, ${missing.length} missing). Bye weeks not asserted this run.`,
         severity: "warning",
       });
     }

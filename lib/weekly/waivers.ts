@@ -239,6 +239,9 @@ export function buildWaiverRecommendations(
               // cannot even assess.
               weeklyKnown(d.player.canonical_player_id),
           ) ?? null;
+    // Roster is full AND no active player has an assessable weekly value -> the
+    // transaction cannot be made without a blind drop. This is NOT an open spot.
+    const noAssessableDrop = !openActiveSpot && dropChoice == null;
     const drop_cost = dropChoice ? round2(dropChoice.keep) : 0;
 
     // Counterfactual: does this add (with that drop) raise the OPTIMAL lineup?
@@ -259,30 +262,32 @@ export function buildWaiverRecommendations(
     const riMaterialDisagree = riDisagrees && Math.abs(rosSig?.disagreement_pct ?? 0) > 0.3;
 
     const score = buildScore([
-      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGainUnresolved || starterGain <= 0.25 ? null : round2(starterGain), note: starterGainUnresolved ? "unresolved — a projection gap makes the counterfactual optimal lineup unavailable" : dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : "into an open active spot" },
+      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGainUnresolved || starterGain <= 0.25 ? null : round2(starterGain), note: starterGainUnresolved ? "unresolved — a projection gap makes the counterfactual optimal lineup unavailable" : dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable drop" : "into an open active spot" },
       { key: "weekly_vor", label: "Weekly value over replacement", raw: vor.vor },
       { key: "bench_utility", label: "Bench depth value", raw: benchImpact > 0 ? round2(benchImpact) : null },
       { key: "positional_scarcity", label: "Position is thin on this roster", raw: scarcityRaw || null },
       { key: "bye_coverage", label: "Covers a bye-week hole this week", raw: byeRaw || null },
       { key: "injury_hedge", label: "Hedges an injured starter at this position", raw: hedgeRaw || null },
       { key: "rest_of_season_value", label: "Rest-of-season edge over replacement (pts/week, external)", raw: rosEdgePerWeek(pos, ros ?? null), note: `ROS confidence ${rosSig?.confidence ?? "n/a"}${riDisagrees ? `; RI ${rosSig?.disagreement_direction}` : ""}` },
-      { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : "open active roster spot" },
-      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree || starterGainUnresolved ? -1.5 : null, note: starterGainUnresolved ? "counterfactual lineup gain unresolved (projection gap)" : riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
+      { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable drop" : "open active roster spot" },
+      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree || starterGainUnresolved || noAssessableDrop ? -1.5 : null, note: noAssessableDrop ? "roster full and no active player has an assessable weekly value" : starterGainUnresolved ? "counterfactual lineup gain unresolved (projection gap)" : riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
     ]);
 
     const net = score.total;
     const confidence: Confidence =
-      weekly == null || riMaterialDisagree || starterGainUnresolved ? "LOW" : starterGain >= 3 && net >= 4 ? "HIGH" : net >= 2 ? "MEDIUM" : "LOW";
+      weekly == null || riMaterialDisagree || starterGainUnresolved || noAssessableDrop ? "LOW" : starterGain >= 3 && net >= 4 ? "HIGH" : net >= 2 ? "MEDIUM" : "LOW";
 
     let priority: WaiverCandidateEval["priority"];
-    if (net < MIN_NET_TO_RECOMMEND) priority = "DO_NOT_ADD";
+    // Cannot recommend an add that has no makeable drop.
+    if (noAssessableDrop) priority = "DO_NOT_ADD";
+    else if (net < MIN_NET_TO_RECOMMEND) priority = "DO_NOT_ADD";
     else if (net >= 4 && !starterGainUnresolved && (starterGain > 0.5 || byeRaw > 0 || hedgeRaw > 0)) priority = "HIGH";
     else if (net >= 2) priority = "MEDIUM";
     else priority = "LOW";
 
     const immediate_role =
       starterGain > 0.5
-        ? `raises optimal lineup +${starterGain.toFixed(1)}${dropChoice ? "" : " (open spot)"}`
+        ? `raises optimal lineup +${starterGain.toFixed(1)}${dropChoice ? "" : noAssessableDrop ? " (no drop available)" : " (open spot)"}`
         : byeRaw > 0
           ? `bye-week fill at ${pos}`
           : hedgeRaw > 0
@@ -301,14 +306,15 @@ export function buildWaiverRecommendations(
             : "limited rest-of-season value";
 
     const reasons: string[] = [];
-    if (starterGainUnresolved) reasons.push("Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.");
+    if (starterGainUnresolved && !noAssessableDrop) reasons.push("Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.");
     if (!starterGainUnresolved && starterGain > 0.25) reasons.push(`Raises the optimal legal lineup by +${starterGain.toFixed(1)} (add ${nameOf(fa.player)}${dropChoice ? `, drop ${nameOf(dropChoice.player)}` : ""}).`);
     if (byeRaw > 0) reasons.push(`Covers a ${pos} bye hole this week.`);
     if (hedgeRaw > 0) reasons.push(`Insurance for an injured ${pos} starter.`);
     if (starterGain <= 0.25 && (vor.vor ?? 0) > 3) reasons.push(`+${vor.vor?.toFixed(1)} weekly VOR — playable depth, but not a starter upgrade in the optimal lineup.`);
     if (riDisagrees) reasons.push(`RI season model is ${rosSig!.disagreement_direction === "RI_ABOVE" ? "higher" : "lower"} than the external projection by ${Math.round(Math.abs(rosSig!.disagreement_pct ?? 0) * 100)}% (${rosSig!.warnings[0] ?? "see ros"}).`);
-    if (priority === "DO_NOT_ADD") reasons.push(`Net roster gain ${net.toFixed(1)} does not clear the drop cost (${drop_cost.toFixed(1)}).`);
+    if (priority === "DO_NOT_ADD" && !noAssessableDrop) reasons.push(`Net roster gain ${net.toFixed(1)} does not clear the drop cost (${drop_cost.toFixed(1)}).`);
     if (weekly == null) reasons.push("No weekly projection — rest-of-season stash only, low confidence.");
+    if (noAssessableDrop) reasons.push("Roster is full and no active player has an assessable weekly projection — this add cannot be made without a blind drop, so it is not recommended.");
 
     evals.push({
       add_player_id: fa.canonical_player_id,
