@@ -61,9 +61,12 @@ describe("smoke: GET /api/providers", () => {
     const slugs = body.leagues.map((l) => l.league_slug);
     assert.ok(slugs.includes("bloodline-bowl"));
     assert.ok(slugs.includes("maclin-on-chicks-xvi"));
-    const maclin = body.leagues.find((l) => l.league_slug === "maclin-on-chicks-xvi")!;
-    assert.equal(maclin.provider, "yahoo");
-    assert.equal(maclin.config_status, "AWAITING_CREDENTIALS");
+    assert.ok(slugs.includes("rogers-park"));
+    for (const slug of ["maclin-on-chicks-xvi", "rogers-park"]) {
+      const y = body.leagues.find((l) => l.league_slug === slug)!;
+      assert.equal(y.provider, "yahoo");
+      assert.equal(y.config_status, "AWAITING_CREDENTIALS");
+    }
   });
 });
 

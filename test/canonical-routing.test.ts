@@ -176,12 +176,15 @@ describe("path routing: slug -> provider", () => {
     assert.ok(dvTeamIds.every((id) => id.startsWith("team:devoted-to-the-game:")));
   });
 
-  it("maclin-on-chicks-xvi resolves to the Yahoo provider — AUTH_REQUIRED, not fabricated", async () => {
-    // No providerOverride -> real registry factory -> real YahooProvider (no env).
-    const r = await buildCanonicalLeagueState("maclin-on-chicks-xvi", { ...BASE, crosswalkOverride: emptyCrosswalk() });
-    assert.equal(r.snapshot!.live_provider_status === "NOT_CONFIGURED" || r.snapshot!.live_provider_status === "AUTH_REQUIRED", true);
-    assert.equal(r.snapshot!.teams.length, 0, "no fabricated teams");
-  });
+  for (const slug of ["maclin-on-chicks-xvi", "rogers-park"] as const) {
+    it(`${slug} resolves to the Yahoo provider — AUTH_REQUIRED/NOT_CONFIGURED, not fabricated`, async () => {
+      // No providerOverride -> real registry factory -> real YahooProvider (no env).
+      const r = await buildCanonicalLeagueState(slug, { ...BASE, crosswalkOverride: emptyCrosswalk() });
+      assert.ok(["NOT_CONFIGURED", "AUTH_REQUIRED"].includes(r.snapshot!.live_provider_status));
+      assert.equal(r.snapshot!.teams.length, 0, "no fabricated teams");
+      assert.equal(r.snapshot!.league.canonical_league_id, `league:${slug}`);
+    });
+  }
 
   it("an unknown league is a clear 404 — never a fallback to Bloodline", async () => {
     const r = await buildCanonicalLeagueState("not-a-real-league", { ...BASE, crosswalkOverride: emptyCrosswalk() });

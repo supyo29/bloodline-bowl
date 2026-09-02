@@ -110,8 +110,24 @@ const LEAGUE_TARGETS: LeagueTarget[] = [
     known_managers: [],
     sleeper_username: null,
     sleeper_user_id: null,
-    // `nfl.l.82713` is a guess at the shape only — the real key MUST be resolved
-    // from the authenticated API before any Yahoo call trusts it.
+    // The human-facing id only. The real `game.l.id` key (e.g. `nfl.l.82713`)
+    // MUST be resolved from the authenticated API before any Yahoo call trusts
+    // it, and it may differ per season — the `key` slug stays stable regardless.
+    yahoo_league_key: null,
+    enabled: true,
+  },
+  {
+    key: "rogers-park",
+    provider: "yahoo",
+    league_id: "287140",
+    external_league_id: "287140",
+    season: 2026,
+    display_name: "Rogers Park",
+    known_managers: [],
+    sleeper_username: null,
+    sleeper_user_id: null,
+    // Human-facing id only; full provider key resolved post-auth. Independent of
+    // maclin-on-chicks-xvi — a separate Yahoo league under the same provider.
     yahoo_league_key: null,
     enabled: true,
   },
