@@ -37,6 +37,7 @@ import {
   findLeagueTarget,
   listLeagueTargets,
 } from "./registry";
+import type { ProviderName } from "@/lib/canonical/schema";
 import {
   findRegisteredManager,
   managerSlugFromUsername,
@@ -51,6 +52,12 @@ export interface ResolvedLeague {
   /** Canonical registered slug, or the numeric id itself for raw-id access. */
   league_slug: string;
   league_id: string;
+  /** Provider serving this league. Raw numeric ids are assumed Sleeper. */
+  provider: ProviderName;
+  /** Provider-native league id (same as `league_id`). */
+  external_league_id: string;
+  /** Fantasy season for this entry. */
+  season: number;
   /** Whether the league is in `lib/leagues/registry.ts`. */
   registered: boolean;
   display_name: string;
@@ -90,6 +97,9 @@ export function resolveLeagueStrict(
       league: {
         league_slug: target.key,
         league_id: target.league_id,
+        provider: target.provider,
+        external_league_id: target.external_league_id,
+        season: target.season,
         registered: true,
         display_name: target.display_name,
       },
@@ -102,6 +112,9 @@ export function resolveLeagueStrict(
       league: {
         league_slug: raw,
         league_id: raw,
+        provider: "sleeper",
+        external_league_id: raw,
+        season: new Date().getUTCFullYear(),
         registered: false,
         display_name: `Sleeper league ${raw}`,
       },
@@ -137,6 +150,9 @@ export function resolveLeagueForQuery(
   return {
     league_slug: fallback?.key ?? DEFAULT_LEAGUE_KEY,
     league_id: fallback?.league_id ?? "1395549281678532608",
+    provider: fallback?.provider ?? "sleeper",
+    external_league_id: fallback?.external_league_id ?? "1395549281678532608",
+    season: fallback?.season ?? new Date().getUTCFullYear(),
     registered: true,
     display_name: fallback?.display_name ?? "Bloodline Bowl",
   };

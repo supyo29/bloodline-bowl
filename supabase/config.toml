@@ -1,0 +1,8 @@
+# Minimal Supabase CLI config. Only the migrations under supabase/migrations/
+# matter for this repo — the bridge persists just its history subsystem here
+# (see supabase/README.md). Run `supabase link --project-ref <ref>` then
+# `supabase migration up`.
+project_id = "ijpfjdzmaztofawhwepf"
+
+[db]
+major_version = 17

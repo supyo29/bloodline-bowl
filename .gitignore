@@ -12,6 +12,11 @@ next-env.d.ts
 # Claude Code local settings
 .claude/settings.local.json
 .claude/launch.json
+
+# Supabase CLI local state (migrations under supabase/migrations/ ARE tracked)
+supabase/.branches
+supabase/.temp
+supabase/.env
 /analysis/plots
 
 /analysis/phase3_cache

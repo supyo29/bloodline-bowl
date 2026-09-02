@@ -1,73 +1,134 @@
 /**
- * Multi-league registry.
+ * Multi-league, multi-provider registry (v2).
  *
- * This bridge fetches everything live from Sleeper per request — there is no
- * database and no background sync job, so "registering" a league here is
- * purely a naming/addressing convenience: it gives a stable, memorable `key`
- * (e.g. `devoted-to-the-game`) to a Sleeper `league_id`, and documents which
- * Sleeper account each league belongs to. A league never HAS to be listed
- * here to be reachable — any numeric Sleeper league id can be requested
- * directly via `?league=<id>` (see `resolveLeagueId` in `lib/sleeper/service.ts`)
- * — but a registry entry is what makes a league discoverable by name and
- * lets the status page and README describe it.
+ * A registry entry gives a stable, memorable `key` (slug) to a provider-native
+ * league id, records which provider serves it, the season, and the known
+ * manager contexts. Adding a league is one appended object — no route code
+ * changes, and the analytical engine is provider-agnostic.
  *
- * Each configured league is completely isolated: every route resolves one
- * `league_id` per request and fetches that league's own scoring settings,
- * rosters, and matchups from Sleeper fresh. Nothing here merges data across
- * leagues; the only cross-league surface in this codebase is the shared
- * `/players/nfl` metadata cache, which is player identity, not scoring or
- * roster context, and carries no per-league state.
+ * BACKWARD COMPATIBILITY: the v1 fields (`league_id`, `display_name`,
+ * `sleeper_username`, `sleeper_user_id`, `enabled`) are all still here with the
+ * same meaning for Sleeper leagues, so `lib/sleeper/service.ts#resolveLeagueId`,
+ * `parseLeagueSelector`, and every `?league=` route keep working unchanged. New
+ * fields (`external_league_id`, `season`, `known_managers`) are additive.
  *
- * To add another league: append one object to {@link LEAGUE_TARGETS} below.
- * No other file needs to change.
+ * Isolation: every route resolves exactly ONE league per request and fetches
+ * that league's own data from its own provider. Nothing here merges leagues.
  */
 
+import type { ProviderName } from "@/lib/canonical/schema";
+
+/** Human-facing readiness of a registry entry's provider integration. */
+export type LeagueConfigStatus = "READY" | "AWAITING_CREDENTIALS" | "PROVIDER_UNIMPLEMENTED";
+
+/**
+ * Authored registry entry. The v1 fields are required; the v2 fields are
+ * optional and filled by {@link normalizeEntry} (so hand-written and test
+ * entries stay terse). {@link findLeagueTarget} / {@link listLeagueTargets}
+ * always return the normalized form where every field is populated.
+ */
 export interface LeagueTarget {
-  /** Stable, URL-safe handle used in `?league=<key>`. Lowercase, hyphenated. */
+  /** Stable, URL-safe handle. Lowercase, hyphenated. */
   key: string;
-  /** Only Sleeper is supported today; kept explicit so a future provider is additive. */
-  provider: "sleeper";
-  /** The Sleeper league id this key resolves to. */
-  league_id: string;
+  /** Which provider serves this league. Drives adapter + auth selection. */
+  provider: ProviderName;
   /**
-   * Fallback label for this bridge's own UI/logs. `/api/league` and friends
-   * always prefer the live `name` Sleeper returns for the league itself —
-   * this is never used to override that.
+   * Provider-native league id.
+   *  - Sleeper: the numeric Sleeper `league_id`.
+   *  - Yahoo:   the human-facing numeric league id (e.g. `82713`). The full
+   *             `nfl.l.82713` game/league key is resolved and persisted once
+   *             authenticated access exists — see `yahoo_league_key` below.
    */
+  league_id: string;
+  /** Alias of `league_id`, provider-neutral name used by canonical code. */
+  external_league_id?: string;
+  /** Fantasy season this entry addresses. Defaults to 2026. */
+  season?: number;
+  /** Fallback label for this bridge's own UI/logs; live provider name wins. */
   display_name: string;
-  /** The Sleeper account that owns/commissions this league, for documentation. */
+  /**
+   * Known manager slugs for this league. These are TEST FIXTURES for the
+   * generic manager-context system — never hard-coded branches. Any other
+   * manager still resolves generically via live provider lookup.
+   */
+  known_managers?: string[];
+  /** Sleeper only: the account that commissions this league, for docs. */
   sleeper_username: string | null;
-  /** Sleeper user_id of `sleeper_username`, when known. */
+  /** Sleeper only: verified Sleeper `user_id` of `sleeper_username`. */
   sleeper_user_id: string | null;
+  /** Yahoo only: full `game.l.id` key once resolved via the API. Null until then. */
+  yahoo_league_key?: string | null;
   /** Disabled entries are kept in source for record-keeping but never resolve. */
   enabled: boolean;
 }
 
+/** Normalized registry entry — every field guaranteed present. */
+export interface RegisteredLeague extends LeagueTarget {
+  external_league_id: string;
+  season: number;
+  known_managers: string[];
+  yahoo_league_key: string | null;
+}
+
 /**
- * The known leagues this bridge can address by name.
- *
- * Add a league by appending an entry — nothing else needs to change. `key`
- * must be unique; `league_id` is deduplicated by `provider:league_id` at load
- * time (see {@link getLeagueRegistry}), so listing the same Sleeper league
- * twice under two keys keeps only the first.
+ * The known leagues this bridge can address by name. Append to add a league.
  */
 const LEAGUE_TARGETS: LeagueTarget[] = [
   {
     key: "bloodline-bowl",
     provider: "sleeper",
     league_id: "1395549281678532608",
+    external_league_id: "1395549281678532608",
+    season: 2026,
     display_name: "Bloodline Bowl",
+    known_managers: ["supyo29", "bijimac"],
     sleeper_username: "supyo29",
     sleeper_user_id: "1308955807408230400",
+    yahoo_league_key: null,
     enabled: true,
   },
   {
     key: "devoted-to-the-game",
     provider: "sleeper",
     league_id: "1389735763649761280",
+    external_league_id: "1389735763649761280",
+    season: 2026,
     display_name: "Devoted to the Game",
+    known_managers: ["darthmarker"],
     sleeper_username: "darthmarker",
     sleeper_user_id: "1265419589680910336",
+    yahoo_league_key: null,
+    enabled: true,
+  },
+  {
+    key: "maclin-on-chicks-xvi",
+    provider: "yahoo",
+    league_id: "82713",
+    external_league_id: "82713",
+    season: 2026,
+    display_name: "Maclin on Chick's XVI",
+    known_managers: [],
+    sleeper_username: null,
+    sleeper_user_id: null,
+    // The human-facing id only. The real `game.l.id` key (e.g. `nfl.l.82713`)
+    // MUST be resolved from the authenticated API before any Yahoo call trusts
+    // it, and it may differ per season — the `key` slug stays stable regardless.
+    yahoo_league_key: null,
+    enabled: true,
+  },
+  {
+    key: "rogers-park",
+    provider: "yahoo",
+    league_id: "287140",
+    external_league_id: "287140",
+    season: 2026,
+    display_name: "Rogers Park",
+    known_managers: [],
+    sleeper_username: null,
+    sleeper_user_id: null,
+    // Human-facing id only; full provider key resolved post-auth. Independent of
+    // maclin-on-chicks-xvi — a separate Yahoo league under the same provider.
+    yahoo_league_key: null,
     enabled: true,
   },
 ];
@@ -76,89 +137,100 @@ const LEAGUE_TARGETS: LeagueTarget[] = [
 export const DEFAULT_LEAGUE_KEY = "bloodline-bowl";
 
 export interface LeagueRegistryResult {
-  /** Enabled, deduplicated, validated targets — what routes may resolve. */
-  targets: LeagueTarget[];
-  /** Disabled entries, kept visible for `/api/health`-style introspection. */
-  disabled: LeagueTarget[];
-  /** Non-fatal problems found while loading the registry (never thrown). */
+  targets: RegisteredLeague[];
+  disabled: RegisteredLeague[];
   warnings: string[];
 }
 
-function isValidLeagueId(value: unknown): value is string {
+function isNumericId(value: unknown): value is string {
   return typeof value === "string" && /^\d+$/.test(value);
 }
 
 /**
- * Validate, deduplicate, and split the static target list into
- * enabled/disabled buckets. A malformed entry (missing/non-numeric
- * `league_id`, empty `key`) is dropped with a warning rather than allowed to
- * crash route resolution — the same "fail safe, never throw" contract every
- * other config-shaped input in this bridge follows.
- *
- * Exported (not just used internally) so tests can exercise the validation
- * and deduplication rules against synthetic target lists — including
- * malformed entries, disabled entries, and duplicate league ids — without
- * depending on what happens to be in the real static list at test time.
+ * Validate, deduplicate, and split targets into enabled/disabled buckets.
+ * Malformed entries are dropped with a warning rather than crashing route
+ * resolution — the same "fail safe, never throw" contract as v1.
  */
-export function validateAndDedupeTargets(
-  rawTargets: LeagueTarget[],
-): LeagueRegistryResult {
+export function validateAndDedupeTargets(rawTargets: LeagueTarget[]): LeagueRegistryResult {
   const warnings: string[] = [];
   const seenKeys = new Set<string>();
   const seenLeagueIds = new Set<string>();
-  const targets: LeagueTarget[] = [];
-  const disabled: LeagueTarget[] = [];
+  const targets: RegisteredLeague[] = [];
+  const disabled: RegisteredLeague[] = [];
 
   for (const raw of rawTargets) {
-    if (!raw.key || typeof raw.key !== "string") {
+    const entry = normalizeEntry(raw);
+
+    if (!entry.key || typeof entry.key !== "string") {
       warnings.push(`Dropped a league target with a missing or invalid key.`);
       continue;
     }
-    if (!isValidLeagueId(raw.league_id)) {
+    const externalId = entry.external_league_id || entry.league_id;
+    if (!externalId || typeof externalId !== "string") {
+      warnings.push(`Dropped league target "${entry.key}": no external league id.`);
+      continue;
+    }
+    // Sleeper league ids are always numeric. Other providers set their own rules.
+    if (entry.provider === "sleeper" && !isNumericId(externalId)) {
       warnings.push(
-        `Dropped league target "${raw.key}": league_id "${String(raw.league_id)}" is not a valid numeric Sleeper league id.`,
+        `Dropped league target "${entry.key}": league_id "${externalId}" is not a valid numeric Sleeper league id.`,
       );
       continue;
     }
-    if (seenKeys.has(raw.key)) {
-      warnings.push(`Dropped duplicate league target key "${raw.key}".`);
+    if (!Number.isInteger(entry.season) || entry.season < 2000 || entry.season > 2100) {
+      warnings.push(`Dropped league target "${entry.key}": season "${String(entry.season)}" is invalid.`);
       continue;
     }
-    const dedupeId = `${raw.provider}:${raw.league_id}`;
+    if (seenKeys.has(entry.key)) {
+      warnings.push(`Dropped duplicate league target key "${entry.key}".`);
+      continue;
+    }
+    const dedupeId = `${entry.provider}:${externalId}:${entry.season}`;
     if (seenLeagueIds.has(dedupeId)) {
       warnings.push(
-        `Dropped league target "${raw.key}": ${raw.provider} league ${raw.league_id} is already registered under another key.`,
+        `Dropped league target "${entry.key}": ${entry.provider} league ${externalId} (${entry.season}) is already registered under another key.`,
       );
       continue;
     }
-    seenKeys.add(raw.key);
+    seenKeys.add(entry.key);
     seenLeagueIds.add(dedupeId);
-
-    if (raw.enabled) {
-      targets.push(raw);
-    } else {
-      disabled.push(raw);
-    }
+    (entry.enabled ? targets : disabled).push(entry);
   }
 
   return { targets, disabled, warnings };
 }
 
-/** Validate and deduplicate the real, static league target list. */
+/** Fill v2 fields from v1 shorthand so hand-written / test entries stay terse. */
+function normalizeEntry(raw: LeagueTarget): RegisteredLeague {
+  return {
+    ...raw,
+    provider: raw.provider ?? "sleeper",
+    external_league_id: raw.external_league_id || raw.league_id,
+    league_id: raw.league_id || raw.external_league_id || "",
+    season: raw.season ?? 2026,
+    known_managers: raw.known_managers ?? [],
+    yahoo_league_key: raw.yahoo_league_key ?? null,
+  };
+}
+
 export function getLeagueRegistry(): LeagueRegistryResult {
   return validateAndDedupeTargets(LEAGUE_TARGETS);
 }
 
-/**
- * Look up an enabled league target by its registry `key`. Disabled and
- * malformed entries never resolve here, even if the key matches.
- */
-export function findLeagueTarget(key: string): LeagueTarget | null {
+export function findLeagueTarget(key: string): RegisteredLeague | null {
   const { targets } = getLeagueRegistry();
   return targets.find((target) => target.key === key) ?? null;
 }
 
-/** Every enabled target, for listing endpoints like the status page. */
-export function listLeagueTargets(): LeagueTarget[] {
+export function listLeagueTargets(): RegisteredLeague[] {
   return getLeagueRegistry().targets;
+}
+
+/** Readiness of a target's provider integration — backs `/api/providers` + docs. */
+export function leagueConfigStatus(target: Pick<RegisteredLeague, "provider" | "yahoo_league_key">): LeagueConfigStatus {
+  if (target.provider === "sleeper") return "READY";
+  if (target.provider === "yahoo") {
+    return target.yahoo_league_key ? "READY" : "AWAITING_CREDENTIALS";
+  }
+  return "PROVIDER_UNIMPLEMENTED";
 }
