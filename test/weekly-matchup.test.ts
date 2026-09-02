@@ -168,4 +168,22 @@ describe("matchup leverage", () => {
     for (let i = 1; i < lev.length; i += 1) assert.ok(lev[i - 1]!.projected_gain >= lev[i]!.projected_gain);
     assert.ok(["HIGH", "MEDIUM", "LOW"].includes(lev[0]!.leverage));
   });
+
+  it("a multi-player reshuffle is ONE leverage item at the lineup-level gain, not separate legs", () => {
+    const myPlayers = [...nine("a"), player("aStud", "WR"), player("aRB", "RB")];
+    const myProjs = [...nineProj("a", 12), proj("aStud", "WR", 25), proj("aRB", "RB", 18)];
+    const myRoster = roster("team:test-league:1",
+      ["aqb", "arb1", "arb2", "awr1", "awr2", "ate", "afx", "ak", "adef"], ["aStud", "aRB"], { startingSlots: SLOTS });
+    const oppRoster = roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS });
+    const ctx = weeklyContext({ myRoster, oppRoster, players: [...myPlayers, ...nine("b")], projections: [...myProjs, ...nineProj("b", 12)] });
+    const m = buildMatchup(ctx);
+    assert.ok(m.team_lineup.changes_recommended.length >= 2, "2+ entrants -> reshuffle");
+    assert.ok(m.team_lineup.changes_recommended.every((c) => c.part_of_reshuffle));
+    const lev = buildLeverage(m);
+    const multi = lev.filter((l) => l.slot === "MULTI");
+    assert.equal(multi.length, 1, "exactly one grouped reshuffle item");
+    assert.equal(multi[0]!.projected_gain, m.team_lineup.projected_points_gained);
+    // no ungrouped per-leg items for the reshuffle
+    assert.ok(!lev.some((l) => l.slot !== "MULTI" && /start the optimal player/.test(l.message) && m.team_lineup.changes_recommended.some((c) => c.slot === l.slot && c.part_of_reshuffle)));
+  });
 });

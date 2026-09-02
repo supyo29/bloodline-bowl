@@ -6,9 +6,8 @@
  * calls. Shared services only — no logic in this route.
  */
 
-import { runWithWeeklyContext } from "@/lib/weekly/intelligence";
+import { runWithWeeklyContext, buildCloseCalls } from "@/lib/weekly/intelligence";
 import { buildOptimalLineup } from "@/lib/weekly/lineup";
-import { compareStartSit } from "@/lib/weekly/start-sit";
 import { parseWeek, viewResponse } from "@/lib/weekly/routes-shared";
 import { handleOptions } from "@/lib/http";
 
@@ -33,26 +32,9 @@ export async function GET(
       players,
       projections: ctx.projections,
     });
-    // Start/sit comes from the PAIRED entering/leaving sets, never a slot's
-    // current occupant (which may just be sliding to FLEX and still starting).
-    const p = (id: string) => ctx.projections.by_player.get(id) ?? null;
-    const start_sit = [
-      ...lineup.changes_recommended
-        .filter((c) => c.out)
-        .map((c) => compareStartSit({ slot: c.slot, a: p(c.in), b: p(c.out!), a_id: c.in, b_id: c.out!, replacement: ctx.replacement })),
-      ...lineup.unresolved_decisions
-        .filter((u) => u.current_player_id)
-        .map((u) =>
-          compareStartSit({
-            slot: u.slot,
-            a: p(u.candidate_player_id),
-            b: p(u.current_player_id!),
-            a_id: u.candidate_player_id,
-            b_id: u.current_player_id!,
-            replacement: ctx.replacement,
-          }),
-        ),
-    ];
+    // Same start/sit derivation as the intelligence endpoint — paired
+    // entering/leaving sets, cross-position reshuffle legs excluded.
+    const start_sit = buildCloseCalls(ctx, lineup);
     return { lineup, start_sit, roster_constraints: ctx.league.roster_constraints };
   });
 

@@ -318,14 +318,21 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   // Pair the WHOLE entering/leaving set at once (max-weight matching) so a
   // greedy first-match cannot steal the only same-position leaver a later
   // entrant needs — which would emit a misleading cross-position negative swap.
-  const slotOf = (id: string): string => slotRecs.find((r) => r.recommended_player_id === id)?.slot ?? "";
+  const optimalSlotOf = (id: string): string => slotRecs.find((r) => r.recommended_player_id === id)?.slot ?? "";
+  const currentSlotByPlayer = new Map<string, string>();
+  curBySlot.forEach((id, i) => {
+    if (id) currentSlotByPlayer.set(id, slots[i]!);
+  });
   const compat = (inId: string, outId: string): number => {
     if (basePos(inId) === basePos(outId)) return 100;
     const outPl = players.get(outId);
     const inPl = players.get(inId);
-    const outFitsInSlot = outPl != null && isEligible(slotOf(inId), outPl);
-    const inFitsOutSlot = inPl != null && isEligible(slotOf(outId), inPl);
-    if (outFitsInSlot && inFitsOutSlot) return 40;
+    // Can the leaver play the slot the entrant is taking, and can the entrant
+    // play the slot the leaver currently holds? (leaver's slot comes from the
+    // CURRENT lineup — a leaver is by definition absent from the optimal one.)
+    const outFitsInSlot = outPl != null && isEligible(optimalSlotOf(inId), outPl);
+    const inFitsOutSlot = inPl != null && isEligible(currentSlotByPlayer.get(outId) ?? "", inPl);
+    if (outFitsInSlot && inFitsOutSlot) return 60;
     if (outFitsInSlot || inFitsOutSlot) return 20;
     return 1;
   };

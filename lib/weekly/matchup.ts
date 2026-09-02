@@ -304,23 +304,43 @@ export interface LeverageItem {
  * by projected points gained, scaled by how close the matchup is.
  */
 export function buildLeverage(matchup: MatchupResult): LeverageItem[] {
+  const lu = matchup.team_lineup;
   const closeness = matchup.projected_margin == null ? 1 : Math.max(0.4, 1 - Math.abs(matchup.projected_margin) / 25);
-  // Genuine starter-set changes only (never slot permutations), with a real gain.
-  const items: LeverageItem[] = matchup.team_lineup.changes_recommended
-    .map((c) => {
-      const gain = c.gain;
-      const effective = gain * closeness;
-      const leverage: LeverageItem["leverage"] = effective >= 3 ? "HIGH" : effective >= 1.25 ? "MEDIUM" : "LOW";
-      return {
-        decision: `${c.slot} decision`,
-        slot: c.slot,
-        leverage,
-        projected_gain: round2(gain),
-        message: `${c.slot}: start the optimal player for +${gain.toFixed(1)} projected${matchup.projected_margin != null && Math.abs(matchup.projected_margin) < gain ? " — this alone can flip the matchup" : ""}.`,
-      };
-    })
-    .sort((a, b) => b.projected_gain - a.projected_gain);
-  return items;
+  const grade = (g: number): LeverageItem["leverage"] => {
+    const e = g * closeness;
+    return e >= 3 ? "HIGH" : e >= 1.25 ? "MEDIUM" : "LOW";
+  };
+  const flip = (g: number) =>
+    matchup.projected_margin != null && Math.abs(matchup.projected_margin) < g ? " — this alone can flip the matchup" : "";
+
+  const items: LeverageItem[] = [];
+
+  // A multi-player reshuffle is ONE decision valued at the lineup-level gain —
+  // its individual legs carry arbitrary per-pair attribution and are not
+  // separately actionable.
+  const reshuffleLegs = lu.changes_recommended.filter((c) => c.part_of_reshuffle);
+  if (reshuffleLegs.length > 0 && lu.projected_points_gained != null && lu.projected_points_gained > 0) {
+    const g = lu.projected_points_gained;
+    items.push({
+      decision: "lineup reshuffle",
+      slot: "MULTI",
+      leverage: grade(g),
+      projected_gain: round2(g),
+      message: `Reshuffle ${reshuffleLegs.length} starters for +${g.toFixed(1)} projected${flip(g)}.`,
+    });
+  }
+
+  for (const c of lu.changes_recommended.filter((x) => !x.part_of_reshuffle && x.gain > 0)) {
+    items.push({
+      decision: `${c.slot} decision`,
+      slot: c.slot,
+      leverage: grade(c.gain),
+      projected_gain: round2(c.gain),
+      message: `${c.slot}: start the optimal player for +${c.gain.toFixed(1)} projected${flip(c.gain)}.`,
+    });
+  }
+
+  return items.sort((a, b) => b.projected_gain - a.projected_gain);
 }
 
 /* ------------------------------------------------------------------ helpers */
