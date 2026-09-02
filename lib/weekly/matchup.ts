@@ -1,0 +1,330 @@
+/**
+ * Matchup Intelligence + Matchup Leverage.
+ *
+ * Both teams are evaluated on their BEST LEGAL projected starting lineup (via
+ * the same Hungarian optimizer), so a manager who is not yet optimal is still
+ * measured at their ceiling, not their mistakes. Returns projected totals,
+ * margin, positional advantages/disadvantages, high-leverage & swing players,
+ * bench-depth comparison, and replacement vulnerability.
+ *
+ * Win probability: a seeded Monte-Carlo over per-player Normal(proj, sd) draws.
+ * The SDs are the documented position-volatility heuristic and player outcomes
+ * are drawn independently — so probability is returned with an explicit
+ * `method` and LOW `confidence`, and is OMITTED when projection coverage is too
+ * thin to simulate defensibly. It is NOT a spread-to-probability conversion.
+ */
+
+import { buildOptimalLineup, type LineupResult } from "./lineup";
+import { mulberry32, sampleNormal } from "./uncertainty";
+import type { WeeklyTeamContext, WeeklyWarning } from "./schema";
+import type { CanonicalPlayer } from "@/lib/canonical/schema";
+
+const SIM_TRIALS = 20000;
+const MIN_COVERAGE_FOR_PROB = 0.7;
+
+export interface PositionalEdge {
+  position: string;
+  team_points: number;
+  opponent_points: number;
+  edge: number;
+}
+
+export interface SwingPlayer {
+  canonical_player_id: string;
+  side: "team" | "opponent";
+  position: string;
+  projected: number | null;
+  expected_availability: number;
+  injury_status: string | null;
+  swing_note: string;
+}
+
+export interface MatchupResult {
+  week: number;
+  team_id: string;
+  opponent_team_id: string | null;
+  has_opponent: boolean;
+
+  team_optimal_total: number | null;
+  opponent_optimal_total: number | null;
+  projected_margin: number | null;
+  margin_confidence: "HIGH" | "MEDIUM" | "LOW";
+
+  win_probability: number | null;
+  win_probability_method: string | null;
+  win_probability_confidence: "LOW" | "UNAVAILABLE";
+
+  positional_advantages: PositionalEdge[];
+  positional_disadvantages: PositionalEdge[];
+  high_leverage_players: Array<{ canonical_player_id: string; position: string; projected: number | null; note: string }>;
+  swing_players: SwingPlayer[];
+  bench_depth: { team_bench_projected_top3: number; opponent_bench_projected_top3: number; advantage: "team" | "opponent" | "even" };
+  replacement_vulnerability: Array<{ position: string; note: string; gap: number | null }>;
+
+  team_lineup: LineupResult;
+  opponent_lineup: LineupResult | null;
+  warnings: WeeklyWarning[];
+}
+
+export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
+  const warnings: WeeklyWarning[] = [];
+  const players = new Map<string, CanonicalPlayer>(ctx.all_rostered.map((p) => [p.canonical_player_id, p]));
+  for (const p of ctx.opponent?.all_rostered ?? []) players.set(p.canonical_player_id, p);
+
+  const teamLineup = buildOptimalLineup({
+    week: ctx.league.week,
+    roster: ctx.roster,
+    constraints: ctx.league.roster_constraints,
+    players,
+    projections: ctx.projections,
+  });
+
+  if (!ctx.opponent || !ctx.opponent.roster) {
+    return {
+      week: ctx.league.week,
+      team_id: ctx.fantasy_team.canonical_team_id,
+      opponent_team_id: ctx.opponent?.fantasy_team.canonical_team_id ?? null,
+      has_opponent: false,
+      team_optimal_total: teamLineup.optimal_total,
+      opponent_optimal_total: null,
+      projected_margin: null,
+      margin_confidence: "LOW",
+      win_probability: null,
+      win_probability_method: null,
+      win_probability_confidence: "UNAVAILABLE",
+      positional_advantages: [],
+      positional_disadvantages: [],
+      high_leverage_players: [],
+      swing_players: [],
+      bench_depth: { team_bench_projected_top3: benchTop3(ctx, ctx.roster.bench), opponent_bench_projected_top3: 0, advantage: "even" },
+      replacement_vulnerability: [],
+      team_lineup: teamLineup,
+      opponent_lineup: null,
+      warnings: [{ code: "no_opponent", message: `No opponent for week ${ctx.league.week}.`, severity: "info" }],
+    };
+  }
+
+  const oppLineup = buildOptimalLineup({
+    week: ctx.league.week,
+    roster: ctx.opponent.roster,
+    constraints: ctx.league.roster_constraints,
+    players,
+    projections: ctx.projections,
+  });
+
+  const margin = round2(teamLineup.optimal_total - oppLineup.optimal_total);
+
+  // Positional edges from the OPTIMAL lineups.
+  const teamBySlot = groupBySlotBase(teamLineup);
+  const oppBySlot = groupBySlotBase(oppLineup);
+  const allBases = uniq([...Object.keys(teamBySlot), ...Object.keys(oppBySlot)]);
+  const edges: PositionalEdge[] = allBases
+    .map((pos) => {
+      const tp = teamBySlot[pos] ?? 0;
+      const op = oppBySlot[pos] ?? 0;
+      return { position: pos, team_points: round2(tp), opponent_points: round2(op), edge: round2(tp - op) };
+    })
+    .sort((a, b) => b.edge - a.edge);
+
+  // Coverage for probability.
+  const coverage = lineupCoverage(teamLineup) * lineupCoverage(oppLineup);
+  let win_probability: number | null = null;
+  let win_probability_method: string | null = null;
+  let win_probability_confidence: MatchupResult["win_probability_confidence"] = "UNAVAILABLE";
+  if (coverage >= MIN_COVERAGE_FOR_PROB) {
+    const rng = mulberry32(hashSeed(ctx.league.slug, ctx.fantasy_team.canonical_team_id, ctx.league.week));
+    let wins = 0;
+    const teamDraw = drawSpec(teamLineup, ctx);
+    const oppDraw = drawSpec(oppLineup, ctx);
+    for (let i = 0; i < SIM_TRIALS; i += 1) {
+      let t = 0;
+      let o = 0;
+      for (const d of teamDraw) t += Math.max(0, sampleNormal(rng, d.mean, d.sd));
+      for (const d of oppDraw) o += Math.max(0, sampleNormal(rng, d.mean, d.sd));
+      if (t > o) wins += 1;
+      else if (t === o) wins += 0.5;
+    }
+    win_probability = Math.round((wins / SIM_TRIALS) * 1000) / 1000;
+    win_probability_method = "independent_normal_monte_carlo(position_volatility_heuristic_sd)";
+    win_probability_confidence = "LOW";
+    warnings.push({
+      code: "win_probability_heuristic",
+      message:
+        "Win probability is a seeded Monte-Carlo over per-player Normal draws with heuristic SDs and independent outcomes — directional only, LOW confidence.",
+      severity: "info",
+    });
+  } else {
+    warnings.push({
+      code: "win_probability_unavailable",
+      message: `Projection coverage ${(coverage * 100).toFixed(0)}% of starters is below the ${(MIN_COVERAGE_FOR_PROB * 100).toFixed(0)}% needed to simulate a defensible win probability.`,
+      severity: "warning",
+    });
+  }
+
+  const margin_confidence: MatchupResult["margin_confidence"] =
+    coverage < 0.6 ? "LOW" : Math.abs(margin) >= 12 ? "HIGH" : Math.abs(margin) >= 5 ? "MEDIUM" : "LOW";
+
+  // High-leverage: biggest contributors to my optimal total that also carry risk.
+  const high_leverage_players = teamLineup.slots
+    .filter((s) => s.recommended_player_id && (s.recommended_projected ?? 0) >= 12)
+    .map((s) => ({
+      canonical_player_id: s.recommended_player_id!,
+      position: s.slot,
+      projected: s.recommended_projected,
+      note: `${(s.recommended_projected ?? 0).toFixed(1)} projected in ${s.slot} — a large share of the team total.`,
+    }))
+    .sort((a, b) => (b.projected ?? 0) - (a.projected ?? 0))
+    .slice(0, 4);
+
+  // Swing players: injury/availability risk on either optimal lineup.
+  const swing_players: SwingPlayer[] = [];
+  for (const [side, lineup] of [["team", teamLineup] as const, ["opponent", oppLineup] as const]) {
+    for (const s of lineup.slots) {
+      if (!s.recommended_player_id) continue;
+      const wp = ctx.projections.by_player.get(s.recommended_player_id);
+      if (wp && (wp.expected_availability < 0.9 || (wp.injury_status && wp.injury_status.toLowerCase() !== "active"))) {
+        swing_players.push({
+          canonical_player_id: s.recommended_player_id,
+          side,
+          position: s.slot,
+          projected: wp.projected_points,
+          expected_availability: wp.expected_availability,
+          injury_status: wp.injury_status,
+          swing_note: `${wp.injury_status ?? "questionable"} — ${((1 - wp.expected_availability) * 100).toFixed(0)}% chance of missing; ~${(wp.projected_points ?? 0).toFixed(1)} pts at stake.`,
+        });
+      }
+    }
+  }
+
+  const teamBenchTop3 = benchTop3(ctx, ctx.roster.bench);
+  const oppBenchTop3 = benchTop3(ctx, ctx.opponent.roster.bench);
+
+  const replacement_vulnerability = teamLineup.slots
+    .filter((s) => {
+      const wp = s.recommended_player_id ? ctx.projections.by_player.get(s.recommended_player_id) : null;
+      const rep = ctx.replacement.by_position[baseOf(s.slot)]?.replacement_points ?? null;
+      return wp && rep != null && (wp.projected_points ?? 0) - rep < 2 && (wp.expected_availability < 0.9 || (wp.projected_points ?? 0) < 8);
+    })
+    .map((s) => {
+      const wp = ctx.projections.by_player.get(s.recommended_player_id!);
+      const rep = ctx.replacement.by_position[baseOf(s.slot)]?.replacement_points ?? null;
+      return {
+        position: s.slot,
+        note: `${s.slot} starter is barely above the waiver line — a drop-off here is not easily replaced.`,
+        gap: wp?.projected_points != null && rep != null ? round2(wp.projected_points - rep) : null,
+      };
+    });
+
+  return {
+    week: ctx.league.week,
+    team_id: ctx.fantasy_team.canonical_team_id,
+    opponent_team_id: ctx.opponent.fantasy_team.canonical_team_id,
+    has_opponent: true,
+    team_optimal_total: teamLineup.optimal_total,
+    opponent_optimal_total: oppLineup.optimal_total,
+    projected_margin: margin,
+    margin_confidence,
+    win_probability,
+    win_probability_method,
+    win_probability_confidence,
+    positional_advantages: edges.filter((e) => e.edge > 1),
+    positional_disadvantages: edges.filter((e) => e.edge < -1).reverse(),
+    high_leverage_players,
+    swing_players,
+    bench_depth: {
+      team_bench_projected_top3: teamBenchTop3,
+      opponent_bench_projected_top3: oppBenchTop3,
+      advantage: teamBenchTop3 - oppBenchTop3 > 4 ? "team" : oppBenchTop3 - teamBenchTop3 > 4 ? "opponent" : "even",
+    },
+    replacement_vulnerability,
+    team_lineup: teamLineup,
+    opponent_lineup: oppLineup,
+    warnings,
+  };
+}
+
+/* --------------------------------------------------------------- leverage */
+
+export interface LeverageItem {
+  decision: string;
+  slot: string;
+  leverage: "HIGH" | "MEDIUM" | "LOW";
+  projected_gain: number;
+  message: string;
+}
+
+/**
+ * Which of the manager's OWN lineup decisions matter most this week — measured
+ * by projected points gained, scaled by how close the matchup is.
+ */
+export function buildLeverage(matchup: MatchupResult): LeverageItem[] {
+  const closeness = matchup.projected_margin == null ? 1 : Math.max(0.4, 1 - Math.abs(matchup.projected_margin) / 25);
+  const items: LeverageItem[] = matchup.team_lineup.slots
+    .filter((s) => s.is_change && (s.projection_difference ?? 0) > 0)
+    .map((s) => {
+      const gain = s.projection_difference ?? 0;
+      const effective = gain * closeness;
+      const leverage: LeverageItem["leverage"] = effective >= 3 ? "HIGH" : effective >= 1.25 ? "MEDIUM" : "LOW";
+      return {
+        decision: `${s.slot} decision`,
+        slot: s.slot,
+        leverage,
+        projected_gain: round2(gain),
+        message: `${s.slot}: swap in the optimal player for ${gain >= 0 ? "+" : ""}${gain.toFixed(1)} projected${matchup.projected_margin != null && Math.abs(matchup.projected_margin) < gain ? " — this alone can flip the matchup" : ""}.`,
+      };
+    })
+    .sort((a, b) => b.projected_gain - a.projected_gain);
+  return items;
+}
+
+/* ------------------------------------------------------------------ helpers */
+
+function drawSpec(lineup: LineupResult, ctx: WeeklyTeamContext): Array<{ mean: number; sd: number }> {
+  return lineup.slots
+    .filter((s) => s.recommended_player_id)
+    .map((s) => {
+      const wp = ctx.projections.by_player.get(s.recommended_player_id!);
+      const mean = wp?.projected_points ?? 0;
+      const sd = wp?.std_dev ?? Math.max(2, mean * 0.4);
+      return { mean, sd };
+    });
+}
+
+function lineupCoverage(lineup: LineupResult): number {
+  const total = lineup.slots.length || 1;
+  const projected = lineup.slots.filter((s) => s.recommended_projected != null).length;
+  return projected / total;
+}
+
+function groupBySlotBase(lineup: LineupResult): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const s of lineup.slots) {
+    const base = baseOf(s.slot);
+    out[base] = (out[base] ?? 0) + (s.recommended_projected ?? 0);
+  }
+  return out;
+}
+
+function baseOf(slot: string): string {
+  if (["QB", "RB", "WR", "TE", "K", "DEF"].includes(slot)) return slot;
+  return "FLEX";
+}
+
+function benchTop3(ctx: WeeklyTeamContext, bench: string[]): number {
+  const pts = bench
+    .map((id) => ctx.projections.by_player.get(id)?.projected_points ?? 0)
+    .sort((a, b) => b - a)
+    .slice(0, 3);
+  return round2(pts.reduce((s, p) => s + p, 0));
+}
+
+function hashSeed(...parts: Array<string | number>): number {
+  let h = 2166136261;
+  for (const p of parts.join("|")) h = (Math.imul(h ^ p.charCodeAt(0), 16777619) >>> 0);
+  return h >>> 0;
+}
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+function uniq<T>(xs: T[]): T[] {
+  return [...new Set(xs)];
+}

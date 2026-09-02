@@ -1,0 +1,185 @@
+/**
+ * Waiver / add-drop engine — deterministic (PART XVI).
+ *
+ *  - a rostered player never appears as available
+ *  - a crosswalk mismatch never creates false availability
+ *  - add/drop net value is calculated
+ *  - a candidate is rejected when the drop cost exceeds the add value
+ *  - positional need affects the recommendation
+ *  - bye coverage affects the recommendation
+ *  - duplicate provider identities resolve to the same canonical player
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { buildWaiverRecommendations } from "../lib/weekly/waivers";
+import { buildLeagueAvailability } from "../lib/weekly/availability";
+import { player, proj, roster, weeklyContext, STD_CONSTRAINTS } from "./fixtures/weekly";
+import type { CanonicalLeagueSnapshot } from "../lib/canonical/schema";
+
+const FILLER = ["f1", "f2", "f3", "f4", "f5", "f6"].map((id) => player(id, "WR", { name: `Filler ${id}` }));
+const ME = [
+  player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+  player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+  player("k1", "K"), player("def1", "DEF"),
+  player("rbBench", "RB", { name: "Weak Bench RB" }),
+  ...FILLER,
+];
+const MY_ROSTER = roster("team:test-league:1",
+  ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "rbBench", "k1", "def1"],
+  ["rbBench", "f1", "f2", "f3", "f4", "f5", "f6"]); // 15 rostered — at the size limit
+
+const MY_PROJS = [
+  proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 12),
+  proj("wr1", "WR", 15), proj("wr2", "WR", 13), proj("te1", "TE", 10),
+  proj("k1", "K", 8), proj("def1", "DEF", 7), proj("rbBench", "RB", 4, { rest_of_season_points: 48 }),
+  ...FILLER.map((p) => proj(p.canonical_player_id, "WR", 8.5, { rest_of_season_points: 100 })),
+];
+
+describe("waiver availability: never a rostered player", () => {
+  it("a rostered player is classified rostered, never free_agent", () => {
+    const ctx = weeklyContext({
+      myRoster: MY_ROSTER, players: ME, projections: MY_PROJS,
+      freeAgents: [player("faRb", "RB")], faProjections: [proj("faRb", "RB", 11)],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    for (const rec of res.recommendations) {
+      assert.ok(!MY_ROSTER.all_players.includes(rec.add_player_id), `${rec.add_name} is rostered!`);
+    }
+    assert.ok(ctx.availability.free_agents.every((fa) => !MY_ROSTER.all_players.includes(fa.canonical_player_id)));
+  });
+
+  it("a free agent whose provider id matches an UNRESOLVED rostered id is excluded", () => {
+    const faDupe = player("player:sleeper:9999", "RB", { name: "Ambiguous" });
+    faDupe.identifiers = { sleeper_id: "9999" };
+    const snapshot = {
+      league: { league_slug: "test-league" },
+      rosters: [{ canonical_team_id: "team:test-league:2", all_players: [], canonical_roster_id: "roster:x" }],
+      players: [],
+      unresolved_players: [{ provider: "sleeper", provider_player_id: "9999", observed_name: "Mystery RB", observed_position: "RB", observed_team: null, reason: "no match" }],
+    } as unknown as CanonicalLeagueSnapshot;
+    const av = buildLeagueAvailability({
+      snapshot,
+      manager_team_id: "team:test-league:1",
+      week: 1,
+      candidates: [faDupe],
+      startable_positions: new Set(["RB"]),
+    });
+    assert.equal(av.free_agents.length, 0, "must not offer a player matching an unresolved rostered id");
+    assert.equal(av.players[0]!.ownership, "rostered_other");
+  });
+
+  it("an unresolved candidate identity is never offered as a free agent", () => {
+    const bad = player("player:unresolved:abc", "WR");
+    bad.resolution = { method: "unresolved", confidence: "none", note: "no id, no name" };
+    const av = buildLeagueAvailability({
+      snapshot: { league: { league_slug: "l" }, rosters: [], players: [], unresolved_players: [] } as unknown as CanonicalLeagueSnapshot,
+      manager_team_id: "team:l:1",
+      week: 1,
+      candidates: [bad],
+      startable_positions: new Set(["WR"]),
+    });
+    assert.equal(av.free_agents.length, 0);
+    assert.equal(av.players[0]!.ownership, "locked_ineligible");
+  });
+});
+
+describe("waiver add/drop economics", () => {
+  it("a clear RB upgrade over the weak bench RB is recommended with a positive net and the right drop", () => {
+    const ctx = weeklyContext({
+      myRoster: MY_ROSTER, players: ME, projections: MY_PROJS,
+      freeAgents: [player("faRb", "RB", { name: "Startable FA RB" })],
+      faProjections: [proj("faRb", "RB", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    const rec = res.recommendations.find((r) => r.add_name === "Startable FA RB");
+    assert.ok(rec, "should recommend the startable FA RB");
+    assert.ok(rec.net_roster_gain > 0);
+    assert.equal(rec.drop_player_id, "rbBench"); // drops the weakest rosterable player
+    assert.ok(["HIGH", "MEDIUM"].includes(rec.priority));
+  });
+
+  it("DO_NOT_ADD when the free agent is worse than the required drop", () => {
+    const ctx = weeklyContext({
+      myRoster: MY_ROSTER, players: ME, projections: MY_PROJS,
+      freeAgents: [player("faScrub", "WR", { name: "Wire Scrub" })],
+      faProjections: [proj("faScrub", "WR", 3, { rest_of_season_points: 20 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    assert.ok(!res.recommendations.some((r) => r.add_name === "Wire Scrub"));
+    assert.ok(res.do_not_add.some((d) => d.add_name === "Wire Scrub"));
+  });
+
+  it("does not manufacture activity — a strong roster with a thin wire yields no recommendation", () => {
+    const strongRoster = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wrX", "k1", "def1"], ["wrX"]);
+    const players = [...ME.filter((p) => p.canonical_player_id !== "rbBench"), player("wrX", "WR")];
+    const projs = [...MY_PROJS.filter((p) => p.canonical_player_id !== "rbBench"), proj("wrX", "WR", 12, { rest_of_season_points: 140 })];
+    const ctx = weeklyContext({
+      myRoster: strongRoster, players, projections: projs,
+      freeAgents: [player("faMeh", "WR")], faProjections: [proj("faMeh", "WR", 6, { rest_of_season_points: 60 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    assert.equal(res.recommendations.length, 0);
+  });
+});
+
+describe("waiver context signals", () => {
+  it("positional need lifts a candidate's priority", () => {
+    // Roster has only ONE usable WR -> WR need. FA WR that clears replacement should be HIGH/MEDIUM.
+    const thinWr = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wrGap", "te1", "rb1b", "k1", "def1"], ["rb1b"]);
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"),
+      player("wrGap", "WR", { name: "Empty WR2" }), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"),
+      player("rb1b", "RB"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 13), proj("wr1", "WR", 16),
+      proj("wrGap", "WR", 3, { rest_of_season_points: 25 }), proj("te1", "TE", 10), proj("k1", "K", 8),
+      proj("def1", "DEF", 7), proj("rb1b", "RB", 8),
+    ];
+    const ctx = weeklyContext({
+      myRoster: thinWr, players, projections: projs,
+      freeAgents: [player("faWr", "WR", { name: "Real WR2" })],
+      faProjections: [proj("faWr", "WR", 12, { rest_of_season_points: 150 })],
+      // pretend the needs engine flagged WR weak
+    });
+    ctx.positional_needs = [{ position: "WR", have_startable: 1, need: 2, current_best_points: 16, gap_vs_replacement: 8, severity: "weak" }];
+    const res = buildWaiverRecommendations(ctx);
+    const rec = res.recommendations.find((r) => r.add_name === "Real WR2")!;
+    assert.ok(rec);
+    assert.ok(rec.score.components.some((c) => c.key === "positional_scarcity" && (c.raw ?? 0) > 0));
+  });
+
+  it("bye coverage: a starter on bye at a position lifts a same-position FA that plays", () => {
+    const ctx = weeklyContext({
+      myRoster: MY_ROSTER, players: ME, projections: MY_PROJS,
+      freeAgents: [player("faTe", "TE", { name: "Bye Fill TE" })],
+      faProjections: [proj("faTe", "TE", 8, { rest_of_season_points: 90 })],
+    });
+    ctx.byes.starters_on_bye_this_week = ["te1"];
+    const res = buildWaiverRecommendations(ctx);
+    const rec = res.recommendations.find((r) => r.add_name === "Bye Fill TE")!;
+    assert.ok(rec);
+    assert.ok(rec.bye_coverage_impact > 0);
+    assert.ok(rec.score.components.some((c) => c.key === "bye_coverage" && (c.raw ?? 0) > 0));
+  });
+});
+
+describe("duplicate provider identity -> one canonical player", () => {
+  it("the same gsis-mapped player from two providers is one free agent, not two", () => {
+    const p = player("player:gsis:00-0033280", "RB", { name: "Christian McCaffrey" });
+    p.identifiers = { gsis_id: "00-0033280", sleeper_id: "4034", yahoo_id: "31883" };
+    const av = buildLeagueAvailability({
+      snapshot: { league: { league_slug: "l" }, rosters: [], players: [], unresolved_players: [] } as unknown as CanonicalLeagueSnapshot,
+      manager_team_id: "team:l:1",
+      week: 1,
+      candidates: [p, p], // same canonical id twice
+      startable_positions: new Set(["RB"]),
+    });
+    const faIds = new Set(av.free_agents.map((x) => x.canonical_player_id));
+    assert.equal(faIds.size, 1);
+  });
+});

@@ -203,7 +203,7 @@ export async function buildManagerContext(
   return { ok: true, status: 200, context };
 }
 
-function resolveManager(managers: CanonicalManager[], slug: string): CanonicalManager | null {
+export function resolveManager(managers: CanonicalManager[], slug: string): CanonicalManager | null {
   const needle = slug.toLowerCase();
   const bySlug = managers.find((m) => m.manager_slug.toLowerCase() === needle);
   if (bySlug) return bySlug;

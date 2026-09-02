@@ -1,0 +1,399 @@
+/**
+ * Weekly Context Engine — the single shared input for the matchup, lineup and
+ * waiver decision layers.
+ *
+ * `buildWeeklyTeamContext(league, manager, week?)` assembles ONE
+ * `WeeklyTeamContext` from canonical current-state, canonical matchups, the
+ * `ProjectionProvider`, the shared replacement framework, and league-scoped
+ * availability. Each analytics module reads this object — none of them rebuilds
+ * league context.
+ *
+ * Canonical only. A provider outage / auth gap / missing projections all degrade
+ * EXPLICITLY (`status`, `data_quality`, `warnings`); a missing source never
+ * becomes a silent zero. Historical persistence being down does NOT block this —
+ * analytics run entirely from canonical current-state.
+ */
+
+import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { resolveManager } from "@/lib/canonical/manager-context";
+import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
+import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-source";
+import { getProvider } from "@/lib/providers/registry";
+import { resolveLeagueStrict } from "@/lib/leagues/resolve";
+import { getWeeklyProjectionProvider } from "./projections/registry";
+import { buildLeagueAvailability } from "./availability";
+import { computeWeeklyReplacement } from "./replacement";
+import {
+  WEEKLY_ENGINE_VERSION,
+  type ByeInfo,
+  type DataQualityStatus,
+  type PositionalNeed,
+  type RosterConstraints,
+  type WeeklyTeamContext,
+  type WeeklyWarning,
+} from "./schema";
+import type {
+  CanonicalMatchup,
+  CanonicalPlayer,
+  CanonicalRoster,
+} from "@/lib/canonical/schema";
+
+const FLEX_ELIGIBILITY: Record<string, string[]> = {
+  FLEX: ["RB", "WR", "TE"],
+  WRRB_FLEX: ["RB", "WR"],
+  REC_FLEX: ["WR", "TE"],
+  WRRB_WRT: ["RB", "WR", "TE"],
+  SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+  SUPERFLEX: ["QB", "RB", "WR", "TE"],
+};
+const BASE_STARTING = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+
+export interface WeeklyContextResult {
+  ok: boolean;
+  status: number;
+  code?: string;
+  detail?: string;
+  context: WeeklyTeamContext | null;
+}
+
+export interface BuildWeeklyContextOptions {
+  week?: number;
+  /** tests inject these */
+  crosswalkOverride?: PlayerCrosswalk;
+  providerOverride?: ReturnType<typeof getProvider>;
+  projectionProviderOverride?: ReturnType<typeof getWeeklyProjectionProvider>;
+  wantRestOfSeason?: boolean;
+}
+
+export async function buildWeeklyTeamContext(
+  leagueSlug: string,
+  managerSlug: string,
+  options: BuildWeeklyContextOptions = {},
+): Promise<WeeklyContextResult> {
+  const resolution = resolveLeagueStrict(leagueSlug);
+  if (!resolution.ok) {
+    return { ok: false, status: resolution.status, code: resolution.code, detail: resolution.detail, context: null };
+  }
+  const league = resolution.league;
+
+  const crosswalk =
+    options.crosswalkOverride ??
+    (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
+
+  const state = await buildCanonicalLeagueState(leagueSlug, {
+    includeMatchups: true,
+    includeRecentTransactions: true,
+    reportPersistence: true,
+    providerOverride: options.providerOverride,
+    crosswalkOverride: crosswalk,
+  });
+  if (!state.snapshot) {
+    return {
+      ok: false,
+      status: state.status,
+      code: state.code ?? "league_state_unavailable",
+      detail: state.detail,
+      context: null,
+    };
+  }
+  const snap = state.snapshot;
+  const warnings: WeeklyWarning[] = snap.warnings.map((w) => ({ code: w.code, message: w.message, severity: "warning" }));
+
+  if (snap.live_provider_status === "NOT_CONFIGURED" || snap.live_provider_status === "AUTH_REQUIRED") {
+    return {
+      ok: true,
+      status: 200,
+      code: snap.live_provider_status,
+      detail: `Provider "${league.provider}" is ${snap.live_provider_status}; weekly analytics need live league state.`,
+      context: null,
+    };
+  }
+
+  const manager = resolveManager(snap.managers, managerSlug);
+  if (!manager) {
+    return {
+      ok: false,
+      status: 404,
+      code: "manager_not_in_league",
+      detail: `Manager "${managerSlug}" is not in "${leagueSlug}". Known: ${snap.managers.map((m) => m.manager_slug).join(", ")}.`,
+      context: null,
+    };
+  }
+  const team = snap.teams.find((t) => t.canonical_manager_ids.includes(manager.canonical_manager_id));
+  const roster = team ? snap.rosters.find((r) => r.canonical_team_id === team.canonical_team_id) ?? null : null;
+  if (!team || !roster) {
+    return { ok: false, status: 404, code: "manager_has_no_team", detail: `No team/roster for ${manager.manager_slug}.`, context: null };
+  }
+
+  const currentWeek = snap.week && snap.week > 0 ? snap.week : 1;
+  const week = options.week ?? currentWeek;
+
+  // Matchups for the requested week (snapshot only carries the current week).
+  let matchups: CanonicalMatchup[] = snap.matchups;
+  if (week !== currentWeek) {
+    const provider = options.providerOverride ?? getProvider(league.provider);
+    const m = await provider.getMatchups(
+      { league_slug: league.league_slug, external_league_id: league.external_league_id, season: league.season, crosswalk },
+      week,
+    );
+    matchups = m.data ?? [];
+    if (!m.data) warnings.push({ code: "matchups_unavailable", message: `Week ${week} matchups unavailable.`, severity: "warning" });
+  }
+
+  const myMatchup = matchups.find((mu) => mu.sides.some((s) => s.canonical_team_id === team.canonical_team_id)) ?? null;
+  const oppSide = myMatchup?.sides.find((s) => s.canonical_team_id !== team.canonical_team_id) ?? null;
+  const oppTeam = oppSide ? snap.teams.find((t) => t.canonical_team_id === oppSide.canonical_team_id) ?? null : null;
+  const oppRoster = oppTeam ? snap.rosters.find((r) => r.canonical_team_id === oppTeam.canonical_team_id) ?? null : null;
+
+  const playerById = new Map<string, CanonicalPlayer>(snap.players.map((p) => [p.canonical_player_id, p]));
+  const lookup = (ids: string[]): CanonicalPlayer[] =>
+    ids.map((id) => playerById.get(id)).filter((p): p is CanonicalPlayer => Boolean(p));
+
+  // Roster constraints (with FLEX resolution).
+  const rs = snap.league.roster_settings;
+  const flexPositions = uniq(
+    rs.starting_slots.filter((s) => FLEX_ELIGIBILITY[s]).flatMap((s) => FLEX_ELIGIBILITY[s]!),
+  );
+  const constraints: RosterConstraints = {
+    starting_slots: rs.starting_slots,
+    slot_requirements: rs.slot_requirements,
+    bench_slots: rs.bench_slots,
+    ir_slots: rs.ir_slots,
+    taxi_slots: rs.taxi_slots,
+    roster_size_limit: rs.starting_slots.length + rs.bench_slots + rs.ir_slots + rs.taxi_slots || null,
+    flex_positions: flexPositions.length ? flexPositions : ["RB", "WR", "TE"],
+    flex_slots: rs.starting_slots.filter((s) => FLEX_ELIGIBILITY[s]).length,
+  };
+
+  // Projections for everyone rostered in the league (roster + candidate universe).
+  const allRosteredIds = uniq(snap.rosters.flatMap((r) => r.all_players));
+  const projProvider = options.projectionProviderOverride ?? getWeeklyProjectionProvider(league.provider);
+  const projections = await projProvider.getWeeklyProjections({
+    league: {
+      league_slug: league.league_slug,
+      season: league.season,
+      raw_scoring: snap.league.raw_scoring,
+      scoring_rules: snap.league.scoring_rules,
+    },
+    week,
+    crosswalk,
+    canonical_player_ids: allRosteredIds,
+    want_rest_of_season: options.wantRestOfSeason ?? true,
+  });
+
+  // Bye detection for rostered players (team not in this week's game set).
+  const teamsWithGames = new Set(projections.teams_with_games.map((t) => t.toUpperCase()));
+  const byeByPlayer: Record<string, number | null> = {};
+  const startersOnBye: string[] = [];
+  for (const p of lookup(allRosteredIds)) {
+    const t = (p.nfl_team ?? "").toUpperCase();
+    const onByeThisWeek =
+      teamsWithGames.size > 0 && t.length > 0 && !teamsWithGames.has(t) && !projections.by_player.has(p.canonical_player_id);
+    byeByPlayer[p.canonical_player_id] = onByeThisWeek ? week : null;
+    if (onByeThisWeek) {
+      // Record a real 0 for a bye player (not "missing").
+      projections.by_player.set(p.canonical_player_id, {
+        canonical_player_id: p.canonical_player_id,
+        week,
+        season: league.season,
+        position: p.position,
+        nfl_team: p.nfl_team,
+        opponent: null,
+        is_home: null,
+        projected_points: 0,
+        floor_points: 0,
+        ceiling_points: 0,
+        std_dev: 0,
+        projection_status: "bye",
+        expected_availability: 0,
+        is_bye: true,
+        injury_status: p.injury_status,
+        rest_of_season_points: null,
+        source: projections.source,
+        model_version: projections.model_version,
+        uncertainty_source: "none",
+        warnings: [],
+      });
+      if (roster.starters.includes(p.canonical_player_id)) startersOnBye.push(p.canonical_player_id);
+    }
+  }
+  // Anything still missing after bye handling is genuinely unavailable — stays null.
+  const stillMissing = allRosteredIds.filter((id) => !projections.by_player.has(id));
+  projections.missing = stillMissing;
+
+  // Availability — candidate universe is every player projected this week + rostered.
+  const candidates: CanonicalPlayer[] = uniq([
+    ...allRosteredIds,
+    ...[...projections.by_player.keys()],
+  ])
+    .map((id) => projections.resolved_players.get(id) ?? playerById.get(id))
+    .filter((p): p is CanonicalPlayer => Boolean(p));
+  const startablePositions = new Set(
+    constraints.starting_slots.flatMap((s) => (BASE_STARTING.has(s) ? [s] : FLEX_ELIGIBILITY[s] ?? [])),
+  );
+  const availability = buildLeagueAvailability({
+    snapshot: snap,
+    manager_team_id: team.canonical_team_id,
+    week,
+    candidates,
+    startable_positions: startablePositions,
+  });
+
+  // Replacement framework (shared by lineup + waiver engines).
+  const replacement = computeWeeklyReplacement({
+    league_slug: league.league_slug,
+    week,
+    team_count: snap.league.team_count,
+    constraints,
+    projections,
+    availability,
+  });
+
+  // Positional needs.
+  const positional_needs = computePositionalNeeds({
+    roster,
+    constraints,
+    teamCount: snap.league.team_count,
+    projections,
+    replacement,
+    lookup,
+  });
+
+  const byes: ByeInfo = {
+    by_player: byeByPlayer,
+    starters_on_bye_this_week: startersOnBye,
+    schedule_source: teamsWithGames.size > 0 ? "sleeper_weekly_feed" : null,
+  };
+
+  const rosterProjected = roster.all_players.filter(
+    (id) => projections.by_player.get(id)?.projected_points != null || projections.by_player.get(id)?.projection_status === "bye",
+  ).length;
+
+  let status: DataQualityStatus = "READY";
+  if (projections.status === "PROJECTIONS_UNAVAILABLE") status = "PROJECTIONS_UNAVAILABLE";
+  else if (projections.status === "PROJECTIONS_PARTIAL" || stillMissing.length > 0) status = "PROJECTIONS_PARTIAL";
+  else if (!oppTeam) status = "NO_OPPONENT";
+  if (snap.unresolved_players.length > 0 && status === "READY") status = "PLAYER_IDENTITY_UNRESOLVED";
+
+  for (const w of projections.warnings) warnings.push(w);
+  for (const w of availability.warnings) warnings.push(w);
+  for (const w of replacement.warnings) warnings.push(w);
+  if (stillMissing.length > 0) {
+    warnings.push({
+      code: "roster_projection_gap",
+      message: `${stillMissing.length} rostered player(s) have no weekly projection and no bye — treated as unknown (null), never 0.`,
+      severity: "warning",
+    });
+  }
+  if (!oppTeam) warnings.push({ code: "no_opponent", message: `No week ${week} opponent found for this team.`, severity: "info" });
+
+  const context: WeeklyTeamContext = {
+    engine_version: WEEKLY_ENGINE_VERSION,
+    generated_at: new Date().toISOString(),
+    league: {
+      slug: league.league_slug,
+      name: snap.league.name,
+      provider: snap.league.provenance.provider,
+      season: league.season,
+      week,
+      scoring_rules: snap.league.scoring_rules,
+      raw_scoring: snap.league.raw_scoring,
+      roster_constraints: constraints,
+      waiver_settings: snap.league.waiver_settings,
+    },
+    manager,
+    fantasy_team: team,
+    standing: snap.standings.find((s) => s.canonical_team_id === team.canonical_team_id) ?? null,
+    roster,
+    starters: lookup(roster.starters),
+    bench: lookup(roster.bench),
+    reserve_ir: lookup(roster.ir),
+    taxi: lookup(roster.taxi),
+    all_rostered: lookup(roster.all_players),
+    opponent: oppTeam
+      ? {
+          fantasy_team: oppTeam,
+          manager_ids: oppTeam.canonical_manager_ids,
+          roster: oppRoster,
+          starters: oppRoster ? lookup(oppRoster.starters) : [],
+          all_rostered: oppRoster ? lookup(oppRoster.all_players) : [],
+        }
+      : null,
+    projections,
+    replacement,
+    availability,
+    byes,
+    positional_needs,
+    status,
+    persistence_status: snap.history_persistence_status,
+    data_quality: {
+      projections: projections.status,
+      roster_players_projected: rosterProjected,
+      roster_players_total: roster.all_players.length,
+      identity_unresolved: snap.unresolved_players.length,
+      opponent_available: Boolean(oppTeam),
+    },
+    warnings,
+  };
+
+  return { ok: true, status: 200, context };
+}
+
+/* ------------------------------------------------------------ positional needs */
+
+function computePositionalNeeds(input: {
+  roster: CanonicalRoster;
+  constraints: RosterConstraints;
+  teamCount: number;
+  projections: WeeklyTeamContext["projections"];
+  replacement: WeeklyTeamContext["replacement"];
+  lookup: (ids: string[]) => CanonicalPlayer[];
+}): PositionalNeed[] {
+  const { roster, constraints, projections, replacement, lookup } = input;
+  const rosterPlayers = lookup(roster.all_players);
+  const out: PositionalNeed[] = [];
+
+  for (const pos of ["QB", "RB", "WR", "TE", "K", "DEF"]) {
+    const atPos = rosterPlayers.filter((p) => p.position === pos || p.eligible_positions.includes(pos as never));
+    const pts = atPos
+      .map((p) => projections.by_player.get(p.canonical_player_id)?.projected_points)
+      .filter((x): x is number => x != null)
+      .sort((a, b) => b - a);
+    const rep = replacement.by_position[pos]?.replacement_points ?? null;
+    // Need is the BASE starting requirement only — FLEX is shared across RB/WR/TE
+    // and must not be charged in full to every position.
+    const need = constraints.slot_requirements[pos] ?? 0;
+    const startable = rep == null ? atPos.length : pts.filter((p) => p >= rep).length;
+    const best = pts[0] ?? null;
+    const gap = best != null && rep != null ? Math.round((best - rep) * 100) / 100 : null;
+    // Backup value at K / DEF / (1-QB) QB is minimal and streaming is trivial, so
+    // "no backup here" is not a weakness — only an unfillable slot is.
+    const lowBackupValue = pos === "K" || pos === "DEF" || (pos === "QB" && (constraints.slot_requirements.QB ?? 0) <= 1);
+    const depthCount = pts.filter((p) => rep == null || p >= rep).length;
+
+    const isKD = pos === "K" || pos === "DEF";
+    let severity: PositionalNeed["severity"] = "adequate";
+    if (need > 0 && atPos.length < need) severity = "critical"; // literally cannot field the slot
+    else if (need > 0 && startable < need) severity = isKD ? "adequate" : "critical"; // K/DEF proj diffs are noise
+    else if (!lowBackupValue && need > 0 && startable === need && (gap == null || gap < 2)) severity = "weak";
+    else if (gap != null && gap > 6 && depthCount >= need + 2) severity = "strong";
+
+    out.push({
+      position: pos,
+      have_startable: startable,
+      need: Math.round(need * 100) / 100,
+      current_best_points: best,
+      gap_vs_replacement: gap,
+      severity,
+    });
+  }
+  return out.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
+}
+
+function severityRank(s: PositionalNeed["severity"]): number {
+  return { critical: 0, weak: 1, adequate: 2, strong: 3 }[s];
+}
+
+function uniq<T>(xs: T[]): T[] {
+  return [...new Set(xs)];
+}
