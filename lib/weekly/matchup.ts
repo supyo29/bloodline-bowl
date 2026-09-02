@@ -47,7 +47,11 @@ export interface MatchupResult {
 
   team_optimal_total: number | null;
   opponent_optimal_total: number | null;
+  /** Always-available known subtotals (UNKNOWN starters excluded). */
+  team_known_subtotal: number;
+  opponent_known_subtotal: number;
   projected_margin: number | null;
+  projected_margin_status: "COMPLETE" | "PARTIAL_PROVISIONAL" | "UNAVAILABLE";
   margin_confidence: "HIGH" | "MEDIUM" | "LOW";
 
   win_probability: number | null;
@@ -87,7 +91,10 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
       has_opponent: false,
       team_optimal_total: teamLineup.optimal_total,
       opponent_optimal_total: null,
+      team_known_subtotal: teamLineup.known_optimal_subtotal,
+      opponent_known_subtotal: 0,
       projected_margin: null,
+      projected_margin_status: "UNAVAILABLE",
       margin_confidence: "LOW",
       win_probability: null,
       win_probability_method: null,
@@ -112,7 +119,27 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     projections: ctx.projections,
   });
 
-  const margin = round2(teamLineup.optimal_total - oppLineup.optimal_total);
+  // Projected margin is only honest when BOTH optimal totals are fully supported
+  // (no UNKNOWN starter silently contributing 0). Otherwise it is null and
+  // flagged — never a silently-low number.
+  const margin =
+    teamLineup.optimal_total != null && oppLineup.optimal_total != null
+      ? round2(teamLineup.optimal_total - oppLineup.optimal_total)
+      : null;
+  const margin_status: MatchupResult["projected_margin_status"] =
+    margin == null
+      ? "UNAVAILABLE"
+      : teamLineup.optimality_status === "PROVISIONAL" || oppLineup.optimality_status === "PROVISIONAL"
+        ? "PARTIAL_PROVISIONAL"
+        : "COMPLETE";
+  if (margin == null) {
+    warnings.push({
+      code: "projected_margin_unavailable",
+      message:
+        "Projected margin is unavailable — an UNKNOWN projected starter on one side would distort the total. Known subtotals are exposed on each team_lineup.",
+      severity: "warning",
+    });
+  }
 
   // Positional edges from the OPTIMAL lineups.
   const teamBySlot = groupBySlotBase(teamLineup);
@@ -162,7 +189,13 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
   }
 
   const margin_confidence: MatchupResult["margin_confidence"] =
-    coverage < 0.6 ? "LOW" : Math.abs(margin) >= 12 ? "HIGH" : Math.abs(margin) >= 5 ? "MEDIUM" : "LOW";
+    margin == null || coverage < 0.6
+      ? "LOW"
+      : Math.abs(margin) >= 12
+        ? "HIGH"
+        : Math.abs(margin) >= 5
+          ? "MEDIUM"
+          : "LOW";
 
   // High-leverage: biggest contributors to my optimal total that also carry risk.
   const high_leverage_players = teamLineup.slots
@@ -222,7 +255,10 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     has_opponent: true,
     team_optimal_total: teamLineup.optimal_total,
     opponent_optimal_total: oppLineup.optimal_total,
+    team_known_subtotal: teamLineup.known_optimal_subtotal,
+    opponent_known_subtotal: oppLineup.known_optimal_subtotal,
     projected_margin: margin,
+    projected_margin_status: margin_status,
     margin_confidence,
     win_probability,
     win_probability_method,
@@ -259,18 +295,18 @@ export interface LeverageItem {
  */
 export function buildLeverage(matchup: MatchupResult): LeverageItem[] {
   const closeness = matchup.projected_margin == null ? 1 : Math.max(0.4, 1 - Math.abs(matchup.projected_margin) / 25);
-  const items: LeverageItem[] = matchup.team_lineup.slots
-    .filter((s) => s.is_change && (s.projection_difference ?? 0) > 0)
-    .map((s) => {
-      const gain = s.projection_difference ?? 0;
+  // Genuine starter-set changes only (never slot permutations), with a real gain.
+  const items: LeverageItem[] = matchup.team_lineup.changes_recommended
+    .map((c) => {
+      const gain = c.gain;
       const effective = gain * closeness;
       const leverage: LeverageItem["leverage"] = effective >= 3 ? "HIGH" : effective >= 1.25 ? "MEDIUM" : "LOW";
       return {
-        decision: `${s.slot} decision`,
-        slot: s.slot,
+        decision: `${c.slot} decision`,
+        slot: c.slot,
         leverage,
         projected_gain: round2(gain),
-        message: `${s.slot}: swap in the optimal player for ${gain >= 0 ? "+" : ""}${gain.toFixed(1)} projected${matchup.projected_margin != null && Math.abs(matchup.projected_margin) < gain ? " — this alone can flip the matchup" : ""}.`,
+        message: `${c.slot}: start the optimal player for +${gain.toFixed(1)} projected${matchup.projected_margin != null && Math.abs(matchup.projected_margin) < gain ? " — this alone can flip the matchup" : ""}.`,
       };
     })
     .sort((a, b) => b.projected_gain - a.projected_gain);

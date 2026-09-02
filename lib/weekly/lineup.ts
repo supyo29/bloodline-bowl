@@ -7,8 +7,25 @@
  * `slots × rostered players`, weight = weekly projected points, ineligible pairs
  * excluded. Deterministic: ties broken by canonical id, then roster order.
  *
- * A player on bye / ruled out is still *eligible* for a slot (a real 0 beats an
- * empty slot), but the optimizer avoids them whenever a projected option exists.
+ * Three projection states are kept distinct and never conflated:
+ *   - KNOWN         a numeric projection exists
+ *   - VERIFIED_ZERO schedule-proven bye (a defensible real 0)
+ *   - UNKNOWN       no projection — must NOT act as a numeric 0 in any decision
+ *
+ * A VERIFIED_ZERO player is eligible and scored 0 (a real 0 beats an empty
+ * slot). An UNKNOWN player is eligible only as a last resort (sentinel weight
+ * below every real option) so the optimizer never *prefers* an unknown, and:
+ *   - the lineup is marked `optimality_status: "PROVISIONAL"` whenever an
+ *     unknown could change the true optimum;
+ *   - totals that an unknown starter would distort are returned `null`, not a
+ *     silently-low number;
+ *   - a start/sit or add/drop that hinges on an unknown value is surfaced as
+ *     UNRESOLVED, never as a confident numeric gain.
+ *
+ * Actionable changes are derived from the STARTER-SET difference
+ * (players entering vs leaving the starting lineup), never from per-slot
+ * permutations — reshuffling the same starters among RB/WR/FLEX slots is not a
+ * start/sit move and produces no projected gain.
  */
 
 import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
@@ -42,6 +59,8 @@ export function isEligible(slot: string, player: CanonicalPlayer): boolean {
   return player.eligible_positions.some((p) => allowed.includes(p));
 }
 
+export type ProjectionState = "KNOWN" | "VERIFIED_ZERO" | "UNKNOWN";
+
 export interface SlotRecommendation {
   slot: string;
   slot_index: number;
@@ -49,23 +68,61 @@ export interface SlotRecommendation {
   recommended_projected: number | null;
   recommended_floor: number | null;
   recommended_ceiling: number | null;
+  recommended_projection_state: ProjectionState | null;
   current_player_id: string | null;
   current_projected: number | null;
+  current_projection_state: ProjectionState | null;
   projection_difference: number | null;
+  /** the slot's recommended player differs from its current occupant */
   is_change: boolean;
+  /** the recommended player is genuinely ENTERING the starting lineup (not a
+   *  reshuffle of an already-started player) */
+  is_starter_set_change: boolean;
   confidence: Confidence;
+  reason: string;
+}
+
+export interface LineupChange {
+  slot: string;
+  out: string | null;
+  in: string;
+  /** Always numeric — a change hinging on a missing projection is not a
+   *  `LineupChange` at all; it goes to `unresolved_decisions`. */
+  gain: number;
+}
+
+export interface UnresolvedLineupDecision {
+  slot: string;
+  current_player_id: string | null;
+  candidate_player_id: string;
   reason: string;
 }
 
 export interface LineupResult {
   week: number;
   slots: SlotRecommendation[];
-  optimal_total: number;
-  current_total: number;
-  points_left_on_bench: number;
+  /** COMPLETE only when no UNKNOWN player could change the optimal answer. */
+  optimality_status: "COMPLETE" | "PROVISIONAL";
+  provisional_reason: string | null;
+  /** null when an UNKNOWN starter would distort it (never a silently-low number). */
+  optimal_total: number | null;
+  current_total: number | null;
+  /** always available — sum of the KNOWN + VERIFIED_ZERO starters only. */
+  known_optimal_subtotal: number;
+  known_current_subtotal: number;
+  projection_coverage: {
+    optimal_slots_total: number;
+    optimal_slots_known: number;
+    current_slots_filled: number;
+    current_slots_known: number;
+  };
+  points_left_on_bench: number | null;
   lineup_efficiency: number | null;
-  changes_recommended: Array<{ slot: string; out: string | null; in: string; gain: number }>;
-  projected_points_gained: number;
+  changes_recommended: LineupChange[];
+  /** entering/leaving pairs blocked by a missing projection — NOT confident moves. */
+  unresolved_decisions: UnresolvedLineupDecision[];
+  /** null when a total it depends on is null. */
+  projected_points_gained: number | null;
   injury_risks: Array<{ canonical_player_id: string; slot: string | null; injury_status: string; expected_availability: number }>;
   bye_problems: Array<{ canonical_player_id: string; slot: string }>;
   empty_slots: string[];
@@ -93,11 +150,21 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   const candidateIds = roster.all_players.filter((id) => !irSet.has(id) && !taxiSet.has(id));
 
   const proj = (id: string): WeeklyProjection | null => projections.by_player.get(id) ?? null;
-  const points = (id: string): number => {
+  const nameOf = (id: string): string => players.get(id)?.full_name ?? proj(id)?.canonical_player_id ?? id;
+
+  /** KNOWN | VERIFIED_ZERO (schedule-proven bye) | UNKNOWN (no projection). */
+  const projState = (id: string): ProjectionState => {
     const p = proj(id);
-    if (!p) return 0;
-    if (p.projection_status === "bye") return 0;
-    return p.projected_points ?? 0;
+    if (p && p.projection_status === "bye") return "VERIFIED_ZERO";
+    if (p && p.projected_points != null) return "KNOWN";
+    return "UNKNOWN";
+  };
+  /** Points for TOTALS: KNOWN -> number, VERIFIED_ZERO -> 0, UNKNOWN -> null. */
+  const knownPoints = (id: string): number | null => {
+    const st = projState(id);
+    if (st === "UNKNOWN") return null;
+    if (st === "VERIFIED_ZERO") return 0;
+    return proj(id)!.projected_points!;
   };
 
   // Stable candidate order for deterministic tie-breaking.
@@ -105,12 +172,19 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   const cand = [...candidateIds].sort((a, b) => (orderIndex.get(a)! - orderIndex.get(b)!));
 
   // Weight matrix: rows = slots, cols = candidates. -Inf when ineligible.
+  // An UNKNOWN player gets a sentinel weight far below every real projection, so
+  // the optimizer never *prefers* an unknown. It is solved over KNOWN +
+  // VERIFIED_ZERO players only; a slot the knowns cannot fill is then
+  // PROVISIONALLY assigned to an eligible UNKNOWN (deterministically) and the
+  // lineup is marked non-`COMPLETE`.
   const NEG = Number.NEGATIVE_INFINITY;
+  const knownCand = cand.filter((id) => projState(id) !== "UNKNOWN");
+  const unknownCand = cand.filter((id) => projState(id) === "UNKNOWN");
   const weight: number[][] = slots.map((slot) =>
-    cand.map((id) => {
+    knownCand.map((id) => {
       const pl = players.get(id);
       if (!pl || !isEligible(slot, pl)) return NEG;
-      return points(id);
+      return knownPoints(id)!; // known/verified-zero -> always a real number
     }),
   );
 
@@ -125,26 +199,56 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     si += 1;
   }
 
-  const usedRecommended = new Set<string>();
-  const slotRecs: SlotRecommendation[] = slots.map((slot, i) => {
+  // First pass — resolve each slot's recommended + current player.
+  const usedUnknown = new Set<string>();
+  const recBySlot: Array<string | null> = slots.map((slot, i) => {
     const recIdx = assignment[i];
-    const recId = recIdx != null && recIdx >= 0 && weight[i]![recIdx] !== NEG ? cand[recIdx]! : null;
-    if (recId) usedRecommended.add(recId);
-    const curId = currentBySlotIndex.get(i) ?? null;
+    const known = recIdx != null && recIdx >= 0 && weight[i]![recIdx] !== NEG ? knownCand[recIdx]! : null;
+    if (known) return known;
+    // No known player fills this slot -> provisionally an eligible UNKNOWN.
+    const u = unknownCand.find((id) => {
+      if (usedUnknown.has(id)) return false;
+      const pl = players.get(id);
+      return pl != null && isEligible(slot, pl);
+    });
+    if (u) {
+      usedUnknown.add(u);
+      return u;
+    }
+    return null;
+  });
+  const curBySlot: Array<string | null> = slots.map((_, i) => currentBySlotIndex.get(i) ?? null);
+
+  // ---- STARTER-SET difference (not slot permutations). Reshuffling the same
+  // starters among RB/WR/FLEX/duplicate slots is NOT an actionable move.
+  const currentStarterIds = curBySlot.filter((x): x is string => x != null);
+  const optimalStarterIds = recBySlot.filter((x): x is string => x != null);
+  const currentSet = new Set(currentStarterIds);
+  const optimalSet = new Set(optimalStarterIds);
+  const entering = [...new Set(optimalStarterIds.filter((id) => !currentSet.has(id)))];
+  const leaving = [...new Set(currentStarterIds.filter((id) => !optimalSet.has(id)))];
+
+  const slotRecs: SlotRecommendation[] = slots.map((slot, i) => {
+    const recId = recBySlot[i] ?? null;
+    const curId = curBySlot[i] ?? null;
 
     const recP = recId ? proj(recId) : null;
     const curP = curId ? proj(curId) : null;
-    const recPts = recId ? points(recId) : null;
-    const curPts = curId ? points(curId) : null;
+    const recState = recId ? projState(recId) : null;
+    const curState = curId ? projState(curId) : null;
+    const recPts = recId && recState !== "UNKNOWN" ? knownPoints(recId) : null;
+    const curPts = curId && curState !== "UNKNOWN" ? knownPoints(curId) : null;
 
+    // Per-slot diff is only meaningful when BOTH sides have a usable value.
     const diff = recPts != null && curPts != null ? round2(recPts - curPts) : null;
     const isChange = Boolean(recId && recId !== curId);
+    const isStarterSetChange = Boolean(recId && entering.includes(recId));
 
     const confidence = decisionConfidence({
       edge: diff ?? 0,
       std_dev_a: recP?.std_dev ?? null,
       std_dev_b: curP?.std_dev ?? null,
-      incomplete: (recId != null && recP?.projected_points == null) || (curId != null && curP?.projected_points == null),
+      incomplete: recState === "UNKNOWN" || curState === "UNKNOWN",
       uncertainty_is_heuristic:
         recP?.uncertainty_source === "position_volatility_heuristic" ||
         curP?.uncertainty_source === "position_volatility_heuristic",
@@ -154,31 +258,104 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
       slot,
       slot_index: i,
       recommended_player_id: recId,
-      recommended_projected: recP?.projected_points ?? null,
+      recommended_projected: recState === "UNKNOWN" ? null : recP?.projected_points ?? null,
       recommended_floor: recP?.floor_points ?? null,
       recommended_ceiling: recP?.ceiling_points ?? null,
+      recommended_projection_state: recState,
       current_player_id: curId,
-      current_projected: curP?.projected_points ?? null,
+      current_projected: curState === "UNKNOWN" ? null : curP?.projected_points ?? null,
+      current_projection_state: curState,
       projection_difference: diff,
       is_change: isChange,
+      is_starter_set_change: isStarterSetChange,
       confidence,
-      reason: lineupReason({ slot, recId, curId, recP, curP, diff, isChange }),
+      reason: lineupReason({ slot, recId, curId, recP, curP, diff, isChange, isStarterSetChange, recState, curState }),
     };
   });
 
-  const optimal_total = round2(slotRecs.reduce((s, r) => s + (r.recommended_projected ?? 0), 0));
-  const current_total = round2(slotRecs.reduce((s, r) => s + (r.current_projected ?? 0), 0));
-  const points_left_on_bench = round2(Math.max(0, optimal_total - current_total));
+  // ---- Totals. An UNKNOWN starter is NOT silently a 0: the affected total is
+  // returned null, with a separate always-available known subtotal + coverage.
+  const optimalHasUnknown = slotRecs.some((r) => r.recommended_projection_state === "UNKNOWN");
+  const currentHasUnknown = slotRecs.some((r) => r.current_projection_state === "UNKNOWN");
+  const known_optimal_subtotal = round2(
+    slotRecs.reduce((s, r) => s + (r.recommended_projection_state === "UNKNOWN" ? 0 : r.recommended_projected ?? 0), 0),
+  );
+  const known_current_subtotal = round2(
+    slotRecs.reduce((s, r) => s + (r.current_projection_state === "UNKNOWN" ? 0 : r.current_projected ?? 0), 0),
+  );
+  const optimal_total = optimalHasUnknown ? null : known_optimal_subtotal;
+  const current_total = currentHasUnknown ? null : known_current_subtotal;
+  const bothTotals = optimal_total != null && current_total != null;
+  const points_left_on_bench = bothTotals ? round2(Math.max(0, optimal_total! - current_total!)) : null;
+  const projected_points_gained = bothTotals ? round2(Math.max(0, optimal_total! - current_total!)) : null;
+  const lineup_efficiency =
+    bothTotals && optimal_total! > 0 ? Math.round((current_total! / optimal_total!) * 1000) / 1000 : null;
 
-  const changes = slotRecs
-    .filter((r) => r.is_change && (r.projection_difference ?? 0) > 0)
-    .map((r) => ({
-      slot: r.slot,
-      out: r.current_player_id,
-      in: r.recommended_player_id!,
-      gain: r.projection_difference ?? 0,
-    }))
-    .sort((a, b) => b.gain - a.gain);
+  const projection_coverage = {
+    optimal_slots_total: slotRecs.filter((r) => r.recommended_player_id).length,
+    optimal_slots_known: slotRecs.filter((r) => r.recommended_player_id && r.recommended_projection_state !== "UNKNOWN").length,
+    current_slots_filled: slotRecs.filter((r) => r.current_player_id).length,
+    current_slots_known: slotRecs.filter((r) => r.current_player_id && r.current_projection_state !== "UNKNOWN").length,
+  };
+
+  // ---- Actionable changes: derived from entering/leaving, paired for display.
+  // A pair that hinges on an UNKNOWN value is UNRESOLVED, never a numeric gain.
+  const leaversPool = [...leaving];
+  const changes: LineupChange[] = [];
+  const unresolved_decisions: UnresolvedLineupDecision[] = [];
+  for (const inId of entering) {
+    const slotRec = slotRecs.find((r) => r.recommended_player_id === inId)!;
+    let outId: string | null = null;
+    const slotCurrent = slotRec.current_player_id;
+    if (slotCurrent && leaversPool.includes(slotCurrent)) {
+      outId = slotCurrent;
+      leaversPool.splice(leaversPool.indexOf(slotCurrent), 1);
+    } else if (leaversPool.length > 0) {
+      outId = leaversPool.shift()!;
+    }
+    const inState = projState(inId);
+    const outState: ProjectionState = outId ? projState(outId) : "KNOWN"; // empty slot -> 0 baseline
+
+    if (inState === "UNKNOWN" || outState === "UNKNOWN") {
+      unresolved_decisions.push({
+        slot: slotRec.slot,
+        current_player_id: outId,
+        candidate_player_id: inId,
+        reason:
+          inState === "UNKNOWN"
+            ? `${nameOf(inId)} has no weekly projection — this move cannot be quantified or confidently recommended.`
+            : `current starter ${outId ? nameOf(outId) : "(slot)"} has no weekly projection — cannot confirm ${nameOf(inId)} is an upgrade or quantify the gain.`,
+      });
+      continue;
+    }
+
+    const inPts = inState === "VERIFIED_ZERO" ? 0 : proj(inId)!.projected_points!;
+    const outPts = outId ? (outState === "VERIFIED_ZERO" ? 0 : proj(outId)!.projected_points!) : 0;
+    const gain = round2(inPts - outPts);
+    if (gain > 0) changes.push({ slot: slotRec.slot, out: outId, in: inId, gain });
+  }
+  changes.sort((a, b) => b.gain - a.gain);
+
+  // ---- Optimality status. The known players form a legal lineup, but we CANNOT
+  // prove it is the true optimum while any rosterable, slot-eligible player has
+  // no projection (their real value could beat a started player).
+  const eligibleUnknownCandidates = cand.filter((id) => {
+    if (projState(id) !== "UNKNOWN") return false;
+    const pl = players.get(id);
+    return pl != null && slots.some((sl) => isEligible(sl, pl));
+  });
+  const startsUnknown = slotRecs.some((r) => r.recommended_projection_state === "UNKNOWN");
+  const currentStarterUnknown = slotRecs.some((r) => r.current_projection_state === "UNKNOWN");
+  const optimality_status: LineupResult["optimality_status"] =
+    eligibleUnknownCandidates.length > 0 ? "PROVISIONAL" : "COMPLETE";
+  const provisional_reason =
+    optimality_status === "COMPLETE"
+      ? null
+      : startsUnknown
+        ? "the provisional optimal lineup includes a player with no weekly projection."
+        : currentStarterUnknown
+          ? "a current starter has no weekly projection, so the current total and any gain cannot be quantified."
+          : `${eligibleUnknownCandidates.length} rostered, slot-eligible player(s) have no weekly projection — a breakout there is not modeled, so the assignment is not provably optimal.`;
 
   const injury_risks = slotRecs
     .filter((r) => r.recommended_player_id)
@@ -214,26 +391,50 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     if (n > 1) illegal.push(`player ${id} is started in ${n} slots simultaneously.`);
   }
 
+  // Current starters with NO usable projection — UNKNOWN, never a numeric 0.
   const unprojected_starters = slotRecs
-    .filter((r) => r.current_player_id && proj(r.current_player_id!)?.projected_points == null)
+    .filter((r) => r.current_projection_state === "UNKNOWN")
     .map((r) => r.current_player_id!);
   if (unprojected_starters.length > 0) {
     warnings.push({
       code: "starter_projection_missing",
-      message: `${unprojected_starters.length} current starter(s) have no weekly projection (treated as 0 for the optimizer, flagged not zeroed in outputs).`,
+      message: `${unprojected_starters.length} current starter(s) have no weekly projection — kept UNKNOWN (not zeroed); the current total and any lineup gain that depends on them is returned null.`,
       severity: "warning",
     });
+  }
+  if (optimality_status === "PROVISIONAL") {
+    warnings.push({
+      code: "lineup_optimality_provisional",
+      message: `Optimal lineup is PROVISIONAL: ${provisional_reason}`,
+      severity: startsUnknown || currentStarterUnknown ? "warning" : "info",
+    });
+  }
+  if (optimal_total == null) {
+    warnings.push({
+      code: "optimal_total_unavailable",
+      message: "Optimal projected total is unavailable — an UNKNOWN player is in the optimal lineup. Known subtotal is exposed separately.",
+      severity: "warning",
+    });
+  }
+  for (const u of unresolved_decisions) {
+    warnings.push({ code: "lineup_decision_unresolved", message: `${u.slot}: ${u.reason}`, severity: "warning" });
   }
 
   return {
     week,
     slots: slotRecs,
+    optimality_status,
+    provisional_reason,
     optimal_total,
     current_total,
+    known_optimal_subtotal,
+    known_current_subtotal,
+    projection_coverage,
     points_left_on_bench,
-    lineup_efficiency: optimal_total > 0 ? Math.round((current_total / optimal_total) * 1000) / 1000 : null,
+    lineup_efficiency,
     changes_recommended: changes,
-    projected_points_gained: round2(changes.reduce((s, c) => s + c.gain, 0)),
+    unresolved_decisions,
+    projected_points_gained,
     injury_risks,
     bye_problems,
     empty_slots,
@@ -251,9 +452,16 @@ function lineupReason(x: {
   curP: WeeklyProjection | null;
   diff: number | null;
   isChange: boolean;
+  isStarterSetChange: boolean;
+  recState: ProjectionState | null;
+  curState: ProjectionState | null;
 }): string {
   if (!x.recId) return `no rostered player is eligible for ${x.slot} — empty slot.`;
   if (!x.isChange) return `keep current ${x.slot} (${fmt(x.recP?.projected_points)} projected).`;
+  if (!x.isStarterSetChange) return `same starters — ${x.slot} is a slot reshuffle only, no action needed.`;
+  if (x.recState === "UNKNOWN" || x.curState === "UNKNOWN") {
+    return `unresolved ${x.slot}: a projection is missing — cannot quantify or confidently recommend this change.`;
+  }
   const gain = x.diff != null ? `+${x.diff.toFixed(1)}` : "?";
   const byeNote = x.curP?.projection_status === "bye" ? " current starter is on bye." : "";
   const injNote =

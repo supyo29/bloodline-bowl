@@ -110,12 +110,39 @@ export async function buildWeeklyTeamContext(
   const snap = state.snapshot;
   const warnings: WeeklyWarning[] = snap.warnings.map((w) => ({ code: w.code, message: w.message, severity: "warning" }));
 
+  // ---- Distinguish three pre-manager-resolution states:
+  //   (a) auth / configuration degradation  -> honest 200 "configure me"
+  //   (b) provider FAILURE (PROVIDER_ERROR, upstream 5xx, malformed bundle)
+  //       -> came back as a degraded SHELL with an empty manager list. Propagate
+  //          it as the infrastructure failure it is. It must NEVER fall through
+  //          to manager resolution, which would mis-report it as a 404
+  //          `manager_not_in_league`.
+  //   (c) usable canonical live state (READY / PARTIAL with real managers) -> continue.
   if (snap.live_provider_status === "NOT_CONFIGURED" || snap.live_provider_status === "AUTH_REQUIRED") {
     return {
       ok: true,
       status: 200,
       code: snap.live_provider_status,
       detail: `Provider "${league.provider}" is ${snap.live_provider_status}; weekly analytics need live league state.`,
+      context: null,
+    };
+  }
+  const providerFailed =
+    !state.ok ||
+    snap.live_provider_status === "PROVIDER_ERROR" ||
+    (snap.managers.length === 0 && (snap.teams.length === 0 || snap.rosters.length === 0));
+  if (providerFailed) {
+    const code =
+      snap.live_provider_status && snap.live_provider_status !== "READY" && snap.live_provider_status !== "PARTIAL"
+        ? snap.live_provider_status
+        : state.code ?? "provider_unavailable";
+    return {
+      ok: false,
+      status: state.ok ? 502 : state.status,
+      code,
+      detail:
+        state.detail ??
+        `Provider "${league.provider}" could not serve live league state (live_provider_status=${snap.live_provider_status}).`,
       context: null,
     };
   }
@@ -137,19 +164,31 @@ export async function buildWeeklyTeamContext(
   }
 
   const currentWeek = snap.week && snap.week > 0 ? snap.week : 1;
-  const week = options.week ?? currentWeek;
 
-  // Matchups for the requested week (snapshot only carries the current week).
-  let matchups: CanonicalMatchup[] = snap.matchups;
-  if (week !== currentWeek) {
-    const provider = options.providerOverride ?? getProvider(league.provider);
-    const m = await provider.getMatchups(
-      { league_slug: league.league_slug, external_league_id: league.external_league_id, season: league.season, crosswalk },
-      week,
-    );
-    matchups = m.data ?? [];
-    if (!m.data) warnings.push({ code: "matchups_unavailable", message: `Week ${week} matchups unavailable.`, severity: "warning" });
+  // ---- Temporal consistency: Post-Draft Intelligence I only serves the current
+  // canonical league week. A non-current week would mix that week's matchup with
+  // TODAY's roster / ownership / free-agent / standings state — a temporally
+  // inconsistent context. Historical / future week intelligence needs a complete
+  // week-specific snapshot (roster, starters, ownership, waiver state) and
+  // belongs to the retrospective/history phase. The `/{week}` route shape is
+  // kept for that future expansion.
+  if (options.week != null && options.week !== currentWeek) {
+    return {
+      ok: false,
+      status: 400,
+      code: "NON_CURRENT_WEEK_UNSUPPORTED",
+      detail:
+        `Week ${options.week} was requested but the league's current week is ${currentWeek}. ` +
+        `Phase I weekly intelligence is only defined for the current week; historical/future week ` +
+        `hydration (a complete week-specific roster + ownership snapshot) is not implemented yet.`,
+      context: null,
+    };
   }
+  const week = currentWeek;
+
+  // Matchups always come from the current-week snapshot (the only week whose
+  // roster/ownership state is consistent with `week`).
+  const matchups: CanonicalMatchup[] = snap.matchups;
 
   const myMatchup = matchups.find((mu) => mu.sides.some((s) => s.canonical_team_id === team.canonical_team_id)) ?? null;
   const oppSide = myMatchup?.sides.find((s) => s.canonical_team_id !== team.canonical_team_id) ?? null;

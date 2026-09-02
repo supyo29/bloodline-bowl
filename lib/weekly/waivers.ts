@@ -43,7 +43,9 @@ export interface WaiverCandidateEval {
   drop_cost: number;
 
   net_roster_gain: number;
-  starter_impact: number;
+  /** counterfactual optimal-lineup gain; `null` when a projection gap makes it unresolvable */
+  starter_impact: number | null;
+  starter_impact_status: "RESOLVED" | "UNRESOLVED";
   bench_impact: number;
   bye_coverage_impact: number;
   injury_hedge_impact: number;
@@ -108,8 +110,13 @@ export function buildWaiverRecommendations(
    * Counterfactual: does ADD (dropping `dropId`) raise the OPTIMAL legal lineup?
    * Runs the same Hungarian optimizer on the hypothetical roster — the waiver
    * engine consumes lineup optimization, it does not re-approximate FLEX logic.
+   *
+   * Returns `null` (NOT 0) when the comparison cannot be supported because a
+   * projection gap makes the baseline or hypothetical optimal total unavailable
+   * — a candidate must never earn a fake starter gain off an UNKNOWN baseline.
    */
-  const optimalStarterGain = (add: CanonicalPlayer, dropId: string | null): number => {
+  const optimalStarterGain = (add: CanonicalPlayer, dropId: string | null): number | null => {
+    if (baselineOptimal == null) return null;
     const hypoPlayers = new Map(myPlayers);
     hypoPlayers.set(add.canonical_player_id, add);
     const keep = ctx.roster.all_players.filter((id) => id !== dropId);
@@ -127,6 +134,7 @@ export function buildWaiverRecommendations(
       players: hypoPlayers,
       projections: ctx.projections,
     });
+    if (hypo.optimal_total == null) return null;
     return Math.round((hypo.optimal_total - baselineOptimal) * 100) / 100;
   };
 
@@ -220,7 +228,11 @@ export function buildWaiverRecommendations(
     const drop_cost = dropChoice ? round2(dropChoice.keep) : 0;
 
     // Counterfactual: does this add (with that drop) raise the OPTIMAL lineup?
-    const starterGain = Math.max(0, optimalStarterGain(fa.player, dropChoice?.player.canonical_player_id ?? null));
+    // `null` => the comparison is unsupported (projection gap in the baseline or
+    // hypothetical optimal lineup) — NOT a 0, and it downgrades confidence.
+    const starterGainRaw = optimalStarterGain(fa.player, dropChoice?.player.canonical_player_id ?? null);
+    const starterGainUnresolved = starterGainRaw == null;
+    const starterGain = Math.max(0, starterGainRaw ?? 0);
 
     const benchImpact = starterGain > 0.25 ? 0 : Math.max(0, vor.vor ?? -3) * 0.5;
     const scarcity = ctx.positional_needs.find((n) => n.position === pos);
@@ -233,7 +245,7 @@ export function buildWaiverRecommendations(
     const riMaterialDisagree = riDisagrees && Math.abs(rosSig?.disagreement_pct ?? 0) > 0.3;
 
     const score = buildScore([
-      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGain > 0.25 ? round2(starterGain) : null, note: dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : "into an open active spot" },
+      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGainUnresolved || starterGain <= 0.25 ? null : round2(starterGain), note: starterGainUnresolved ? "unresolved — a projection gap makes the counterfactual optimal lineup unavailable" : dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : "into an open active spot" },
       { key: "weekly_vor", label: "Weekly value over replacement", raw: vor.vor },
       { key: "bench_utility", label: "Bench depth value", raw: benchImpact > 0 ? round2(benchImpact) : null },
       { key: "positional_scarcity", label: "Position is thin on this roster", raw: scarcityRaw || null },
@@ -241,16 +253,16 @@ export function buildWaiverRecommendations(
       { key: "injury_hedge", label: "Hedges an injured starter at this position", raw: hedgeRaw || null },
       { key: "rest_of_season_value", label: "Rest-of-season edge over replacement (pts/week, external)", raw: rosEdgePerWeek(pos, ros ?? null), note: `ROS confidence ${rosSig?.confidence ?? "n/a"}${riDisagrees ? `; RI ${rosSig?.disagreement_direction}` : ""}` },
       { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : "open active roster spot" },
-      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree ? -1.5 : null, note: riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
+      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree || starterGainUnresolved ? -1.5 : null, note: starterGainUnresolved ? "counterfactual lineup gain unresolved (projection gap)" : riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
     ]);
 
     const net = score.total;
     const confidence: Confidence =
-      weekly == null || riMaterialDisagree ? "LOW" : starterGain >= 3 && net >= 4 ? "HIGH" : net >= 2 ? "MEDIUM" : "LOW";
+      weekly == null || riMaterialDisagree || starterGainUnresolved ? "LOW" : starterGain >= 3 && net >= 4 ? "HIGH" : net >= 2 ? "MEDIUM" : "LOW";
 
     let priority: WaiverCandidateEval["priority"];
     if (net < MIN_NET_TO_RECOMMEND) priority = "DO_NOT_ADD";
-    else if (net >= 4 && (starterGain > 0.5 || byeRaw > 0 || hedgeRaw > 0)) priority = "HIGH";
+    else if (net >= 4 && !starterGainUnresolved && (starterGain > 0.5 || byeRaw > 0 || hedgeRaw > 0)) priority = "HIGH";
     else if (net >= 2) priority = "MEDIUM";
     else priority = "LOW";
 
@@ -275,7 +287,8 @@ export function buildWaiverRecommendations(
             : "limited rest-of-season value";
 
     const reasons: string[] = [];
-    if (starterGain > 0.25) reasons.push(`Raises the optimal legal lineup by +${starterGain.toFixed(1)} (add ${nameOf(fa.player)}${dropChoice ? `, drop ${nameOf(dropChoice.player)}` : ""}).`);
+    if (starterGainUnresolved) reasons.push("Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.");
+    if (!starterGainUnresolved && starterGain > 0.25) reasons.push(`Raises the optimal legal lineup by +${starterGain.toFixed(1)} (add ${nameOf(fa.player)}${dropChoice ? `, drop ${nameOf(dropChoice.player)}` : ""}).`);
     if (byeRaw > 0) reasons.push(`Covers a ${pos} bye hole this week.`);
     if (hedgeRaw > 0) reasons.push(`Insurance for an injured ${pos} starter.`);
     if (starterGain <= 0.25 && (vor.vor ?? 0) > 3) reasons.push(`+${vor.vor?.toFixed(1)} weekly VOR — playable depth, but not a starter upgrade in the optimal lineup.`);
@@ -298,7 +311,8 @@ export function buildWaiverRecommendations(
       drop_name: dropChoice ? nameOf(dropChoice.player) : null,
       drop_cost,
       net_roster_gain: net,
-      starter_impact: round2(starterGain),
+      starter_impact: starterGainUnresolved ? null : round2(starterGain),
+      starter_impact_status: starterGainUnresolved ? "UNRESOLVED" : "RESOLVED",
       bench_impact: round2(benchImpact),
       bye_coverage_impact: round2(byeRaw),
       injury_hedge_impact: round2(hedgeRaw),

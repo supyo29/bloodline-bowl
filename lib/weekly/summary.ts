@@ -18,7 +18,7 @@ export interface WeeklySummary {
     projected_margin: number | null;
     win_probability: number | null;
     lineup_efficiency: number | null;
-    points_left_on_bench: number;
+    points_left_on_bench: number | null;
   };
 }
 

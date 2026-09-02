@@ -199,7 +199,7 @@ describe("waiver starter impact is COUNTERFACTUAL (optimizer-driven), not weakes
     const rec = res.recommendations.find((r) => r.add_name === "Candidate WR 10");
     const dna = res.do_not_add.find((d) => d.add_name === "Candidate WR 10");
     // Either it's DO_NOT_ADD, or it's recommended but starter_impact ~ 0.
-    if (rec) assert.ok(rec.starter_impact < 0.5, `starter_impact should be ~0, got ${rec.starter_impact}`);
+    if (rec) assert.ok((rec.starter_impact ?? 0) < 0.5, `starter_impact should be ~0, got ${rec.starter_impact}`);
     else assert.ok(dna, "should be evaluated (recommended-with-0-impact or DO_NOT_ADD)");
   });
 
@@ -227,7 +227,8 @@ describe("waiver starter impact is COUNTERFACTUAL (optimizer-driven), not weakes
     const res = buildWaiverRecommendations(ctx);
     const rec = res.recommendations.find((r) => r.add_name === "Real FLEX WR")!;
     assert.ok(rec, "genuine FLEX upgrade should be recommended");
-    assert.ok(rec.starter_impact >= 4, `counterfactual gain should be ~+7 (13 - 6), got ${rec.starter_impact}`);
+    assert.equal(rec.starter_impact_status, "RESOLVED");
+    assert.ok((rec.starter_impact ?? 0) >= 4, `counterfactual gain should be ~+7 (13 - 6), got ${rec.starter_impact}`);
     assert.ok(rec.drop_player_id != null, "a drop is required (roster is full)");
   });
 });
@@ -299,6 +300,45 @@ describe("active vs reserve roster capacity", () => {
     if (rec) {
       assert.ok(rec.drop_player_id != null);
       assert.notEqual(rec.drop_player_id, "hurt", "the IR player is not an active-roster drop candidate");
+    }
+  });
+});
+
+describe("waiver counterfactual inherits UNKNOWN-vs-zero semantics (issue 4)", () => {
+  it("an UNKNOWN starter in the baseline optimal lineup -> starter_impact UNRESOLVED, not a fake gain", () => {
+    // te1 (the only TE) has NO projection -> the baseline optimal lineup has an
+    // UNKNOWN starter -> baseline.optimal_total is null -> the counterfactual
+    // cannot be computed for ANY candidate.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => player(id, "RB")),
+    ];
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 12), proj("wr1", "WR", 14),
+      proj("wr2", "WR", 12), /* te1: NO projection */ proj("fx", "RB", 9), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => proj(id, "RB", 5)),
+    ];
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["b1", "b2", "b3", "b4", "b5"]);
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faRb", "RB", { name: "Wire RB" })],
+      faProjections: [proj("faRb", "RB", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    const evald =
+      res.recommendations.find((r) => r.add_name === "Wire RB") ??
+      res.do_not_add.find((d) => d.add_name === "Wire RB");
+    assert.ok(evald, "candidate should still be evaluated");
+    const rec = res.recommendations.find((r) => r.add_name === "Wire RB");
+    if (rec) {
+      assert.equal(rec.starter_impact, null, "no fabricated starter gain off an UNKNOWN baseline");
+      assert.equal(rec.starter_impact_status, "UNRESOLVED");
+      assert.equal(rec.confidence, "LOW");
+      assert.ok(rec.priority !== "HIGH");
     }
   });
 });

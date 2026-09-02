@@ -55,7 +55,12 @@ describe("live: full weekly engine for the three primary managers", () => {
         const p = i.matchup.team_lineup.slots.find((x) => x.slot === s.slot);
         assert.ok(p, "slot present");
       }
-      assert.ok(lu.optimal_total > 50 && lu.optimal_total < 260, `optimal total ${lu.optimal_total} is in a sane range`);
+      assert.ok(
+        lu.optimal_total == null || (lu.optimal_total > 50 && lu.optimal_total < 260),
+        `optimal total ${lu.optimal_total} is in a sane range`,
+      );
+      assert.ok(lu.known_optimal_subtotal > 50, `known optimal subtotal ${lu.known_optimal_subtotal} is sane`);
+      assert.ok(["COMPLETE", "PROVISIONAL"].includes(lu.optimality_status));
       assert.ok(lu.lineup_efficiency == null || (lu.lineup_efficiency > 0 && lu.lineup_efficiency <= 1.0001));
       // recommended change gains are never negative
       for (const c of lu.changes_recommended) assert.ok(c.gain > 0);

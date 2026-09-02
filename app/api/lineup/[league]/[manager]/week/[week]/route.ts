@@ -34,7 +34,13 @@ export async function GET(
       projections: ctx.projections,
     });
     const start_sit = lineup.slots
-      .filter((s) => s.recommended_player_id && s.current_player_id && s.recommended_player_id !== s.current_player_id)
+      .filter(
+        (s) =>
+          s.is_starter_set_change &&
+          s.recommended_player_id &&
+          s.current_player_id &&
+          s.recommended_player_id !== s.current_player_id,
+      )
       .map((s) =>
         compareStartSit({
           slot: s.slot,

@@ -91,8 +91,26 @@ describe("matchup: probability + degraded state", () => {
     assert.equal(m.win_probability, null);
     assert.equal(m.win_probability_confidence, "UNAVAILABLE");
     assert.ok(m.warnings.some((w) => w.code === "win_probability_unavailable"));
-    // margin is still returned (best-effort, LOW confidence).
+    // 6 of my 9 optimal starters are UNKNOWN -> the optimal total (and margin)
+    // is UNAVAILABLE, never a silently-low number (issue 4).
+    assert.equal(m.team_optimal_total, null);
+    assert.equal(m.projected_margin, null);
+    assert.equal(m.projected_margin_status, "UNAVAILABLE");
+    assert.ok(m.warnings.some((w) => w.code === "projected_margin_unavailable"));
+    // a known subtotal is still exposed for display.
+    assert.ok(m.team_known_subtotal > 0 && m.team_known_subtotal < (m.opponent_known_subtotal || Infinity));
+  });
+
+  it("a team with a fully-projected optimal lineup still gets a real margin", () => {
+    const ctx = weeklyContext({
+      myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      players: [...nine("a"), ...nine("b")],
+      projections: [...nineProj("a", 20), ...nineProj("b", 15)],
+    });
+    const m = buildMatchup(ctx);
     assert.equal(typeof m.projected_margin, "number");
+    assert.ok(["COMPLETE", "PARTIAL_PROVISIONAL"].includes(m.projected_margin_status));
   });
 
   it("full coverage -> a seeded, deterministic, LOW-confidence Monte-Carlo probability", () => {

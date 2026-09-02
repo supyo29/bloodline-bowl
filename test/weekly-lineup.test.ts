@@ -161,9 +161,200 @@ describe("lineup efficiency", () => {
 
   it("suboptimal current -> efficiency < 1, points_left_on_bench = optimal - current", () => {
     const r = run(["qb1", "rb1", "rb3", "wr1", "wr2", "te1", "rb2", "k1", "def1"], ["wr3", "te2"]);
+    assert.ok(r.optimal_total != null && r.current_total != null && r.projected_points_gained != null);
     assert.ok(r.lineup_efficiency! < 1);
     assert.equal(r.points_left_on_bench, Math.round((r.optimal_total - r.current_total) * 100) / 100);
     assert.ok(r.projected_points_gained > 0);
+  });
+});
+
+describe("lineup: actions come from the STARTER SET, not slot permutations (issue 3)", () => {
+  // A(RB 10) and B(RB 11) are both started; the optimizer may assign them to
+  // RB2 / FLEX in either order. Under the old per-slot filter that produced a
+  // phantom "+1 start B over A". The starter set {A,B,...} is unchanged.
+  const permPlayers = [
+    player("qb1", "QB"), player("A", "RB"), player("B", "RB"),
+    player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+    player("k1", "K"), player("def1", "DEF"), player("bnRb", "RB"),
+  ];
+  const permProjs = [
+    proj("qb1", "QB", 20), proj("A", "RB", 10), proj("B", "RB", 11),
+    proj("wr1", "WR", 14), proj("wr2", "WR", 12), proj("te1", "TE", 9),
+    proj("k1", "K", 8), proj("def1", "DEF", 7), proj("bnRb", "RB", 3),
+  ];
+
+  it("RB/FLEX permutation of the same starters -> 0 changes, 0 gain", () => {
+    // current RB1=A(10), RB2=B(11), FLEX=bnRb(3). The optimizer may re-order A/B
+    // between the two RB slots (equal total). Old per-slot code emitted a phantom
+    // "+1 start B over A"; the starter set {qb1,A,B,wr1,wr2,te1,bnRb,k1,def1} is
+    // unchanged, so there is no move.
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "A", "B", "wr1", "wr2", "te1", "bnRb", "k1", "def1"], [], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(permPlayers.map((p) => [p.canonical_player_id, p])),
+      projections: batch(permProjs, permPlayers),
+    });
+    assert.equal(r.changes_recommended.length, 0, "no starter-set change");
+    assert.equal(r.projected_points_gained, 0);
+    assert.ok(r.slots.every((s) => !s.is_starter_set_change));
+  });
+
+  it("two duplicate WR slots swapping occupants -> 0 changes", () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("W1", "WR"), player("W2", "WR"), player("te1", "TE"),
+      player("rb3", "RB"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 15), proj("rb2", "RB", 12),
+      proj("W1", "WR", 15), proj("W2", "WR", 12), proj("te1", "TE", 9),
+      proj("rb3", "RB", 8), proj("k1", "K", 8), proj("def1", "DEF", 7),
+    ];
+    // current WR1=W2, WR2=W1 (swapped vs a points-sort)
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "rb1", "rb2", "W2", "W1", "te1", "rb3", "k1", "def1"], [], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    assert.equal(r.changes_recommended.length, 0);
+    assert.equal(r.projected_points_gained, 0);
+  });
+
+  it("a genuine bench->starter upgrade is exactly ONE change", () => {
+    const r = run(["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "rb3", "k1", "def1"], ["qb2", "wr3", "te2"]);
+    // wr3(10) beats rb3(9) for FLEX
+    assert.equal(r.changes_recommended.length, 1);
+    assert.equal(r.changes_recommended[0]!.in, "wr3");
+    assert.equal(r.changes_recommended[0]!.out, "rb3");
+    assert.ok(r.projected_points_gained! > 0);
+    assert.equal(r.projected_points_gained, Math.round((r.optimal_total! - r.current_total!) * 100) / 100);
+  });
+
+  it("two genuine simultaneous starter-set changes", () => {
+    const players = [...PLAYERS, player("benchWR", "WR"), player("benchRB", "RB")];
+    const projs = [...PROJS, proj("benchWR", "WR", 22), proj("benchRB", "RB", 19)];
+    // current starts wr2(14) and rb2(12); bench studs beat both.
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "rb3", "k1", "def1"], ["benchWR", "benchRB"], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    const ins = new Set(r.changes_recommended.map((c) => c.in));
+    assert.ok(ins.has("benchWR") && ins.has("benchRB"));
+    assert.equal(r.changes_recommended.length, 2);
+    const entering = new Set(r.slots.filter((s) => s.is_starter_set_change).map((s) => s.recommended_player_id));
+    assert.deepEqual([...entering].sort(), ["benchRB", "benchWR"]);
+  });
+
+  it("equal-projection tie: optimizer reassigns slots but the starter set is identical -> 0 changes", () => {
+    const players = [
+      player("qb1", "QB"), player("R1", "RB"), player("R2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("R3", "RB"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("R1", "RB", 10), proj("R2", "RB", 10),
+      proj("wr1", "WR", 14), proj("wr2", "WR", 12), proj("te1", "TE", 9),
+      proj("R3", "RB", 10), proj("k1", "K", 8), proj("def1", "DEF", 7),
+    ];
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "R1", "R2", "wr1", "wr2", "te1", "R3", "k1", "def1"], [], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    assert.equal(r.changes_recommended.length, 0);
+    assert.equal(r.projected_points_gained, 0);
+  });
+});
+
+describe("lineup: UNKNOWN vs VERIFIED_ZERO inside the optimizer (issue 4)", () => {
+  it("an UNKNOWN current starter + a projected bench player -> NO fabricated numeric gain", () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("hurtRB", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("wr3", "WR"), player("k1", "K"), player("def1", "DEF"),
+      player("benchRB", "RB"),
+    ];
+    // hurtRB (a current starter) has NO projection entry at all -> UNKNOWN.
+    const projs = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 15),
+      proj("wr1", "WR", 14), proj("wr2", "WR", 12), proj("te1", "TE", 9),
+      proj("wr3", "WR", 8), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("benchRB", "RB", 8),
+    ];
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "rb1", "hurtRB", "wr1", "wr2", "te1", "wr3", "k1", "def1"], ["benchRB"], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    // benchRB may be the provisional pick, but the swap hinges on an UNKNOWN
+    // value -> it is UNRESOLVED, never a confident numeric change.
+    assert.ok(!r.changes_recommended.some((c) => c.in === "benchRB"), "no fabricated numeric change");
+    assert.ok(r.unresolved_decisions.some((u) => u.candidate_player_id === "benchRB"));
+    assert.equal(r.current_total, null, "current total unavailable — an UNKNOWN starter cannot be a numeric 0");
+    assert.equal(r.projected_points_gained, null, "no fabricated gain");
+    assert.equal(r.optimality_status, "PROVISIONAL");
+    assert.ok(r.unprojected_starters.includes("hurtRB"));
+  });
+
+  it("an UNKNOWN bench candidate never fabricates an upgrade", () => {
+    const players = [...PLAYERS, player("mysteryRB", "RB")];
+    const projs = [...PROJS]; // mysteryRB has NO projection
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"], ["mysteryRB", "rb3"], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch([...projs, proj("wr3", "WR", 10)], players),
+    });
+    assert.ok(!r.changes_recommended.some((c) => c.in === "mysteryRB"));
+    assert.ok(!r.slots.some((s) => s.recommended_player_id === "mysteryRB"), "unknown bench player is not started over knowns");
+    // optimal starters are all known -> the total is a real number...
+    assert.notEqual(r.optimal_total, null);
+    assert.equal(r.optimal_total, r.known_optimal_subtotal);
+    // ...but optimality is PROVISIONAL because a rosterable RB has no projection.
+    assert.equal(r.optimality_status, "PROVISIONAL");
+  });
+
+  it("a VERIFIED_ZERO (schedule-proven bye) is a valid numeric 0, not UNKNOWN", () => {
+    const players = [player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wrBye", "WR"), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"), player("rb3", "RB")];
+    const projs = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 15), proj("rb2", "RB", 12),
+      proj("wrBye", "WR", 0, { projection_status: "bye", is_bye: true }),
+      proj("te1", "TE", 10), proj("k1", "K", 8), proj("def1", "DEF", 7), proj("rb3", "RB", 9),
+    ];
+    // only one WR on the roster -> the bye player must take the WR slot at 0.
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "rb1", "rb2", "wrBye", "wrBye", "te1", "rb3", "k1", "def1"].map((x, i) => (i === 4 ? "wrBye" : x)), [], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    const byeSlot = r.slots.find((s) => s.recommended_player_id === "wrBye");
+    assert.ok(byeSlot, "the bye player is still fielded (a real 0 beats an empty slot)");
+    assert.equal(byeSlot!.recommended_projected, 0);
+    assert.equal(byeSlot!.recommended_projection_state, "VERIFIED_ZERO");
+    assert.notEqual(r.optimal_total, null, "a verified-zero starter does NOT null the total");
+    assert.ok(r.bye_problems.some((b) => b.canonical_player_id === "wrBye"));
+  });
+
+  it("a fully-projected lineup is COMPLETE and behaves exactly as before", () => {
+    const r = run(["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"], ["qb2", "rb3", "te2"]);
+    assert.equal(r.optimality_status, "COMPLETE");
+    assert.equal(r.provisional_reason, null);
+    assert.notEqual(r.optimal_total, null);
+    assert.notEqual(r.current_total, null);
+    assert.equal(r.unresolved_decisions.length, 0);
   });
 });
 

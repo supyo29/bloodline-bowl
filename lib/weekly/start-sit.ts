@@ -20,7 +20,7 @@ export interface StartSitComparison {
   availability_edge: "safer" | "riskier" | "neutral";
   replacement_impact: "positive" | "neutral" | "negative";
   confidence: Confidence;
-  recommendation: "START_A" | "START_B" | "TOO_CLOSE";
+  recommendation: "START_A" | "START_B" | "TOO_CLOSE" | "UNRESOLVED_PROJECTION";
   reasons: string[];
 }
 
@@ -65,18 +65,27 @@ export function compareStartSit(input: {
       b?.uncertainty_source === "position_volatility_heuristic",
   });
 
+  // Exactly one side (or both) has no projection -> the decision cannot be
+  // quantified. Do NOT emit a confident START_x off a missing value.
+  const oneSideUnknown = aPts == null || bPts == null;
+
   let recommendation: StartSitComparison["recommendation"] = "TOO_CLOSE";
-  if (projection_edge != null) {
+  if (oneSideUnknown) {
+    recommendation = "UNRESOLVED_PROJECTION";
+  } else if (projection_edge != null) {
     if (projection_edge >= 0.75 && confidence !== "LOW") recommendation = "START_A";
     else if (projection_edge <= -0.75 && confidence !== "LOW") recommendation = "START_B";
     else if (Math.abs(projection_edge) >= 2.5) recommendation = projection_edge > 0 ? "START_A" : "START_B";
-  } else if (aPts != null && bPts == null) recommendation = "START_A";
-  else if (bPts != null && aPts == null) recommendation = "START_B";
+  }
 
   const reasons: string[] = [];
-  if (projection_edge != null) {
+  if (oneSideUnknown) {
+    reasons.push(
+      `${aPts == null ? "A" : "B"} has no weekly projection — this start/sit cannot be quantified or confidently recommended.`,
+    );
+  } else if (projection_edge != null) {
     reasons.push(`Projection edge ${signed(projection_edge)} to ${projection_edge >= 0 ? "A" : "B"}.`);
-  } else reasons.push("One side has no projection — decision is low confidence.");
+  }
   if (floor_edge != null) reasons.push(`Floor edge ${signed(floor_edge)}.`);
   if (ceiling_edge != null) reasons.push(`Ceiling edge ${signed(ceiling_edge)}.`);
   if (availability_edge !== "neutral") reasons.push(`Availability: A is ${availability_edge}.`);

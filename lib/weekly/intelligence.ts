@@ -184,6 +184,9 @@ function buildCloseCalls(ctx: WeeklyTeamContext, lineup: LineupResult): StartSit
   for (const s of lineup.slots) {
     if (!s.recommended_player_id || !s.current_player_id) continue;
     if (s.recommended_player_id === s.current_player_id) continue;
+    // Only genuine starter-set changes — a slot reshuffle of the same starters
+    // is not a start/sit decision.
+    if (!s.is_starter_set_change) continue;
     out.push(
       compareStartSit({
         slot: s.slot,
