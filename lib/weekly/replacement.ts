@@ -27,10 +27,28 @@ import type {
 } from "./schema";
 
 const BASE_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
-/** how far down the free-agent board a "realistic" pickup sits */
-const FA_CUSHION = 1;
 /** extra rank past the last starter when falling back to the full pool */
 const POOL_CUSHION_PER_TEAM = 0.5;
+
+/**
+ * Explicit replacement-frontier strategy (configurable, not an unexplained
+ * constant). The actual available pool always stays central — none of these
+ * modes regress to a generic QB12/RB24 rank.
+ *
+ *  - `nth_best_available` (default, n=1): the (n+1)-th best free agent at the
+ *    position. n=1 also solves candidate self-influence: the single best FA at a
+ *    position (often the candidate under evaluation) never sets its own
+ *    replacement, and a candidate ranked 3rd+ cannot move the 2nd-best.
+ *  - `best_available`: the single best free agent (aggressive — tends to
+ *    understate VOR).
+ *  - `marginal_starter`: the last "true starter" — projection at rank
+ *    `base_starters + flex_share` of the FULL (rostered + FA) pool.
+ */
+export interface ReplacementFrontier {
+  mode: "nth_best_available" | "best_available" | "marginal_starter";
+  n?: number;
+}
+export const DEFAULT_FRONTIER: ReplacementFrontier = { mode: "nth_best_available", n: 1 };
 
 interface Input {
   league_slug: string;
@@ -39,10 +57,12 @@ interface Input {
   constraints: RosterConstraints;
   projections: WeeklyProjectionBatch;
   availability: LeagueAvailability;
+  frontier?: ReplacementFrontier;
 }
 
 export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
   const { constraints, projections, availability, team_count } = input;
+  const frontier = input.frontier ?? DEFAULT_FRONTIER;
   const warnings: WeeklyWarning[] = [];
 
 
@@ -75,10 +95,30 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
     return base + flexShare;
   };
 
+  const faIndex = (len: number): number => {
+    if (len === 0) return 0;
+    if (frontier.mode === "best_available") return 0;
+    if (frontier.mode === "nth_best_available") return Math.min(frontier.n ?? 1, len - 1);
+    return Math.min(1, len - 1); // marginal_starter falls back to nth for the FA-only branch
+  };
+
   const level = (pos: string): ReplacementLevel => {
     const fa = poolFA[pos] ?? [];
+    const all = poolAll[pos] ?? [];
+
+    if (frontier.mode === "marginal_starter" && all.length > 0) {
+      const rank = Math.round(starterLine(pos));
+      const idx = Math.min(Math.max(0, rank - 1), all.length - 1);
+      return {
+        position: pos,
+        replacement_points: round2(all[idx]!),
+        basis: "position_rank_fallback",
+        derived_from_rank: idx + 1,
+        sample_size: all.length,
+      };
+    }
     if (fa.length >= 1) {
-      const idx = Math.min(FA_CUSHION, fa.length - 1);
+      const idx = faIndex(fa.length);
       return {
         position: pos,
         replacement_points: round2(fa[idx]!),
@@ -87,7 +127,6 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
         sample_size: fa.length,
       };
     }
-    const all = poolAll[pos] ?? [];
     if (all.length > 0) {
       const rank = Math.round(starterLine(pos) + POOL_CUSHION_PER_TEAM * team_count);
       const idx = Math.min(Math.max(0, rank), all.length - 1);
@@ -123,9 +162,9 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
     flexFA.length > 0
       ? {
           position: "FLEX",
-          replacement_points: round2(flexFA[Math.min(FA_CUSHION, flexFA.length - 1)]!),
+          replacement_points: round2(flexFA[faIndex(flexFA.length)]!),
           basis: "available_pool_marginal",
-          derived_from_rank: Math.min(FA_CUSHION, flexFA.length - 1) + 1,
+          derived_from_rank: faIndex(flexFA.length) + 1,
           sample_size: flexFA.length,
         }
       : {

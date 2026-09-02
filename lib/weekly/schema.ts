@@ -51,6 +51,33 @@ export interface WeeklyWarning {
 export type ProjectionStatus = "projected" | "unavailable" | "bye" | "out";
 
 /**
+ * Rest-of-season signal for a player. Absolute points come from the EXTERNAL
+ * (Sleeper/RotoWire) season projection, prorated by remaining weeks — the
+ * repo's Roster Intel (RI) season model has a known absolute-level calibration
+ * caveat, so RI is used ORDINALLY (position/VOR rank, tier) plus as a
+ * disagreement/confidence signal, never numerically ensembled with Sleeper.
+ */
+export interface RosSignal {
+  /** Absolute rest-of-season points in league scoring (external, prorated). */
+  points: number | null;
+  source: string;
+  /** External (Sleeper) full-season projection in league scoring. */
+  external_season_points: number | null;
+  /** RI's independent full-season projection in league scoring (absolute — use with care). */
+  ri_season_points: number | null;
+  ri_position_rank: number | null;
+  ri_vor: number | null;
+  ri_tier: number | null;
+  ri_confidence: "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW" | null;
+  /** RI vs external, as a fraction of the external season projection. Null unless both exist. */
+  disagreement_pct: number | null;
+  disagreement_direction: "RI_ABOVE" | "RI_BELOW" | "AGREE" | "ONE_SOURCE" | "NONE";
+  /** Confidence in the ROS signal — downgraded on large RI/external disagreement. */
+  confidence: Confidence;
+  warnings: string[];
+}
+
+/**
  * A weekly projection for ONE player in ONE league's scoring. `projected_points`
  * is `null` (never 0) when the source has no projection — the caller degrades
  * explicitly. Floor/ceiling come from a documented position-volatility band when
@@ -76,8 +103,10 @@ export interface WeeklyProjection {
   is_bye: boolean;
   injury_status: string | null;
 
-  /** Rest-of-season points in league scoring, when a season source is available. */
+  /** Rest-of-season points in league scoring (external, prorated). Alias of `ros?.points`. */
   rest_of_season_points: number | null;
+  /** Full rest-of-season signal (external + RI ordinal + disagreement). Null if unattempted. */
+  ros: RosSignal | null;
 
   source: string;
   model_version: string;
@@ -178,7 +207,13 @@ export interface RosterConstraints {
   bench_slots: number;
   ir_slots: number;
   taxi_slots: number;
+  /** starters + bench + ir + taxi (kept for reference). */
   roster_size_limit: number | null;
+  /** starters + bench — the seats a HEALTHY player must occupy. */
+  active_roster_capacity: number;
+  /** ir seats — a healthy player may NOT occupy these. */
+  reserve_ir_capacity: number;
+  taxi_capacity: number;
   flex_positions: string[];
   flex_slots: number;
 }
@@ -201,11 +236,15 @@ export interface PositionalNeed {
 /* -------------------------------------------------------------------------- */
 
 export interface ByeInfo {
-  /** canonical_player_id -> the week that player's NFL team is on bye, if known. */
-  by_player: Record<string, number | null>;
-  /** manager starters on bye THIS week */
-  starters_on_bye_this_week: string[];
+  /** Whether an authoritative schedule was available to VERIFY byes this run. */
+  bye_status: "VERIFIED" | "UNVERIFIED";
   schedule_source: string | null;
+  /** canonical_player_id -> the week its NFL team is on bye. Only set when VERIFIED. */
+  by_player: Record<string, number | null>;
+  /** manager starters on a SCHEDULE-VERIFIED bye THIS week */
+  starters_on_bye_this_week: string[];
+  /** teams the schedule proved are on bye this week (empty when UNVERIFIED) */
+  teams_on_bye: string[];
 }
 
 export interface WeeklyTeamContext {
@@ -246,6 +285,15 @@ export interface WeeklyTeamContext {
   projections: WeeklyProjectionBatch;
   replacement: WeeklyReplacement;
   availability: LeagueAvailability;
+
+  /** How the rest-of-season signal was assembled (external + RI ordinal). */
+  ros_signal: {
+    status: "READY" | "UNAVAILABLE";
+    ri_model_version: string | null;
+    external_source: string;
+    players_with_ri: number;
+    players_with_disagreement: number;
+  } | null;
 
   byes: ByeInfo;
   positional_needs: PositionalNeed[];

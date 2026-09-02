@@ -168,6 +168,141 @@ describe("waiver context signals", () => {
   });
 });
 
+describe("waiver starter impact is COUNTERFACTUAL (optimizer-driven), not weakestFlex()", () => {
+  it("the classic weakestFlex failure: mandatory RB2 projects 7, FLEX projects 11, candidate WR projects 10 -> NOT a starter upgrade", () => {
+    // Starters: QB RB RB WR WR TE FLEX K DEF. rb2 (mandatory RB2 slot) = 7,
+    // the FLEX is filled by a 11-pt WR. A 10-pt FA WR does NOT enter the optimal
+    // lineup (it beats neither the 11 FLEX nor either 13/12 WR), so the honest
+    // counterfactual gain is 0 even though it "beats the weakest flex-eligible
+    // starter" (rb2 at 7).
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("flexWr", "WR", { name: "FLEX WR" }), player("k1", "K"), player("def1", "DEF"),
+      ...["b1", "b2", "b3", "b4", "b5", "b6"].map((id) => player(id, "RB")),
+    ];
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "flexWr", "k1", "def1"],
+      ["b1", "b2", "b3", "b4", "b5", "b6"]);
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 7),
+      proj("wr1", "WR", 13), proj("wr2", "WR", 12), proj("te1", "TE", 10),
+      proj("flexWr", "WR", 11), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      ...["b1", "b2", "b3", "b4", "b5", "b6"].map((id) => proj(id, "RB", 4)),
+    ];
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faWr", "WR", { name: "Candidate WR 10" })],
+      faProjections: [proj("faWr", "WR", 10, { rest_of_season_points: 120 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    const rec = res.recommendations.find((r) => r.add_name === "Candidate WR 10");
+    const dna = res.do_not_add.find((d) => d.add_name === "Candidate WR 10");
+    // Either it's DO_NOT_ADD, or it's recommended but starter_impact ~ 0.
+    if (rec) assert.ok(rec.starter_impact < 0.5, `starter_impact should be ~0, got ${rec.starter_impact}`);
+    else assert.ok(dna, "should be evaluated (recommended-with-0-impact or DO_NOT_ADD)");
+  });
+
+  it("a genuine FLEX upgrade IS detected via the optimizer counterfactual", () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("flexWk", "WR", { name: "Weak FLEX" }), player("k1", "K"), player("def1", "DEF"),
+      ...["b1", "b2", "b3", "b4", "b5", "b6"].map((id) => player(id, "RB")),
+    ];
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "flexWk", "k1", "def1"],
+      ["b1", "b2", "b3", "b4", "b5", "b6"]);
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 13),
+      proj("wr1", "WR", 15), proj("wr2", "WR", 14), proj("te1", "TE", 11),
+      proj("flexWk", "WR", 6), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      ...["b1", "b2", "b3", "b4", "b5", "b6"].map((id) => proj(id, "RB", 4)),
+    ];
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faWr", "WR", { name: "Real FLEX WR" })],
+      faProjections: [proj("faWr", "WR", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    const rec = res.recommendations.find((r) => r.add_name === "Real FLEX WR")!;
+    assert.ok(rec, "genuine FLEX upgrade should be recommended");
+    assert.ok(rec.starter_impact >= 4, `counterfactual gain should be ~+7 (13 - 6), got ${rec.starter_impact}`);
+    assert.ok(rec.drop_player_id != null, "a drop is required (roster is full)");
+  });
+});
+
+describe("active vs reserve roster capacity", () => {
+  const base = () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
+      player("bn1", "RB"), player("bn2", "WR"), player("bn3", "WR"), player("bn4", "TE"), player("bn5", "RB"),
+      player("hurt", "RB", { name: "Hurt Guy", injury: "IR" }),
+    ];
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 12), proj("wr1", "WR", 14),
+      proj("wr2", "WR", 12), proj("te1", "TE", 10), proj("fx", "RB", 9), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("bn1", "RB", 6), proj("bn2", "WR", 6), proj("bn3", "WR", 5), proj("bn4", "TE", 5), proj("bn5", "RB", 4),
+      proj("hurt", "RB", 0, { projection_status: "out", expected_availability: 0.03 }),
+    ];
+    return { players, P };
+  };
+
+  it("full active roster (14) + empty IR slot -> a healthy add STILL requires a drop", () => {
+    const { players, P } = base();
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["bn1", "bn2", "bn3", "bn4", "bn5"]); // 14 active, 0 on IR (IR slot empty)
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faRb", "RB", { name: "Add RB" })],
+      faProjections: [proj("faRb", "RB", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    assert.equal(res.roster_has_open_spot, false, "empty IR slot is NOT an open active spot");
+    const rec = res.recommendations.find((r) => r.add_name === "Add RB");
+    if (rec) assert.ok(rec.drop_player_id != null, "healthy add needs a drop despite the empty IR slot");
+  });
+
+  it("genuinely open bench slot -> no drop required", () => {
+    const { players, P } = base();
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["bn1", "bn2", "bn3"]); // 12 active, cap 14 -> 2 open bench seats
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faRb", "RB", { name: "Add RB" })],
+      faProjections: [proj("faRb", "RB", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    assert.equal(res.roster_has_open_spot, true);
+    const rec = res.recommendations.find((r) => r.add_name === "Add RB")!;
+    assert.equal(rec.drop_player_id, null);
+    assert.equal(rec.drop_cost, 0);
+  });
+
+  it("full active roster + IR slot occupied -> still needs a drop, and the IR player is not the drop", () => {
+    const { players, P } = base();
+    const R = roster("team:test-league:1",
+      ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"],
+      ["bn1", "bn2", "bn3", "bn4", "bn5"], { ir: ["hurt"] }); // 14 active + 1 IR
+    const ctx = weeklyContext({
+      myRoster: R, players, projections: P,
+      freeAgents: [player("faRb", "RB", { name: "Add RB" })],
+      faProjections: [proj("faRb", "RB", 13, { rest_of_season_points: 150 })],
+    });
+    const res = buildWaiverRecommendations(ctx);
+    assert.equal(res.roster_has_open_spot, false);
+    const rec = res.recommendations.find((r) => r.add_name === "Add RB");
+    if (rec) {
+      assert.ok(rec.drop_player_id != null);
+      assert.notEqual(rec.drop_player_id, "hurt", "the IR player is not an active-roster drop candidate");
+    }
+  });
+});
+
 describe("duplicate provider identity -> one canonical player", () => {
   it("the same gsis-mapped player from two providers is one free agent, not two", () => {
     const p = player("player:gsis:00-0033280", "RB", { name: "Christian McCaffrey" });

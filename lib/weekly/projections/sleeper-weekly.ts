@@ -21,7 +21,7 @@
 
 import { SLEEPER_ROOT_URL, fetchSleeper } from "@/lib/sleeper/client";
 import { canonicalPosition } from "@/lib/canonical/players";
-import { scoreWeeklyLine } from "../scoring";
+import { scoreWeeklyLine, NON_SCORING_KEY } from "../scoring";
 import { weeklyBand } from "../uncertainty";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch, WeeklyWarning } from "../schema";
@@ -180,21 +180,28 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       const uncertainty: WeeklyProjection["uncertainty_source"] = "position_volatility_heuristic";
       const pWarnings: string[] = [];
 
+      // Projection PRESENCE is decided by whether the source published real
+      // stats for this player-week — NOT by the sign of the scored points. A
+      // legitimate 0 (or negative) projection is data, not "unavailable".
+      const hasRealStats = Object.keys(stats).some((k) => !NON_SCORING_KEY.test(k));
+
       if (pos === "K" || pos === "DEF") {
         const std = Number(stats.pts_std);
-        points = Number.isFinite(std) && std !== 0 ? Math.round(std * 100) / 100 : null;
+        points = hasRealStats && Number.isFinite(std) ? Math.round(std * 100) / 100 : null;
         if (points != null) {
           kdefApproximated += 1;
           pWarnings.push("k_dst_uses_sleeper_standard_points (league-specific weekly K/DST scoring not reconstructable)");
         }
-      } else {
+      } else if (hasRealStats) {
         const scored = scoreWeeklyLine(stats, league.raw_scoring);
-        points = scored.points > 0 ? scored.points : null;
+        points = scored.points; // keep 0 / negative — it is a real projection
         if (scored.unscored_keys.length > 6) unscoredNoise += 1;
+      } else {
+        points = null;
       }
 
-      if (points == null && (stats.gp === 0 || stats.gp == null)) {
-        status = "out";
+      if (points == null && !hasRealStats) {
+        status = stats.gp === 0 ? "out" : "unavailable";
       }
 
       const band = points != null ? weeklyBand(points, pos, availability) : null;
@@ -216,6 +223,7 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
         is_bye: false,
         injury_status: injury,
         rest_of_season_points: rosByCanonical.get(cid) ?? null,
+        ros: null,
         source: this.name,
         model_version: this.model_version,
         uncertainty_source: uncertainty,

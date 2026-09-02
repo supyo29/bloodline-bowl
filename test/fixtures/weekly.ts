@@ -59,6 +59,24 @@ export function proj(
     is_bye: opts.is_bye ?? false,
     injury_status: opts.injury_status ?? null,
     rest_of_season_points: opts.rest_of_season_points ?? (points != null ? points * 12 : null),
+    ros:
+      opts.ros ??
+      (points != null
+        ? {
+            points: opts.rest_of_season_points ?? points * 12,
+            source: "test",
+            external_season_points: points * 17,
+            ri_season_points: null,
+            ri_position_rank: null,
+            ri_vor: null,
+            ri_tier: null,
+            ri_confidence: null,
+            disagreement_pct: null,
+            disagreement_direction: "ONE_SOURCE" as const,
+            confidence: "MEDIUM" as const,
+            warnings: [],
+          }
+        : null),
     source: "test",
     model_version: "test",
     uncertainty_source: "position_volatility_heuristic",
@@ -124,6 +142,9 @@ export const STD_CONSTRAINTS: RosterConstraints = {
   ir_slots: 1,
   taxi_slots: 0,
   roster_size_limit: 15,
+  active_roster_capacity: 14,
+  reserve_ir_capacity: 1,
+  taxi_capacity: 0,
   flex_positions: ["RB", "WR", "TE"],
   flex_slots: 1,
 };
@@ -135,6 +156,9 @@ export const SUPERFLEX_CONSTRAINTS: RosterConstraints = {
   ir_slots: 1,
   taxi_slots: 0,
   roster_size_limit: 16,
+  active_roster_capacity: 15,
+  reserve_ir_capacity: 1,
+  taxi_capacity: 0,
   flex_positions: ["QB", "RB", "WR", "TE"],
   flex_slots: 1,
 };
@@ -309,7 +333,8 @@ export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
     projections: projBatch,
     replacement,
     availability,
-    byes: { by_player: {}, starters_on_bye_this_week: [], schedule_source: "test" },
+    ros_signal: { status: "UNAVAILABLE", ri_model_version: null, external_source: "test", players_with_ri: 0, players_with_disagreement: 0 },
+    byes: { bye_status: "VERIFIED", schedule_source: "test", by_player: {}, starters_on_bye_this_week: [], teams_on_bye: [] },
     positional_needs: [],
     status: "READY",
     persistence_status: "READY",

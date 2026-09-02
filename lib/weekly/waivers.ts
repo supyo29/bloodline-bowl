@@ -15,6 +15,8 @@
 
 import { buildScore, type DecisionScore } from "./decision-score";
 import { weeklyVOR } from "./replacement";
+import { buildOptimalLineup } from "./lineup";
+import type { CanonicalRoster } from "@/lib/canonical/schema";
 import type {
   Confidence,
   Priority,
@@ -50,6 +52,7 @@ export interface WaiverCandidateEval {
   confidence: Confidence;
   score: DecisionScore;
   reasons: string[];
+  ros_signal: import("./schema").RosSignal | null;
 }
 
 export interface WaiverResult {
@@ -77,9 +80,55 @@ export function buildWaiverRecommendations(
   const proj = (id: string) => ctx.projections.by_player.get(id) ?? null;
 
   const myPlayers = new Map<string, CanonicalPlayer>(ctx.all_rostered.map((p) => [p.canonical_player_id, p]));
-  const rosterSizeLimit = ctx.league.roster_constraints.roster_size_limit;
-  const openSpot = rosterSizeLimit != null && ctx.roster.all_players.length < rosterSizeLimit;
+
+  // ---- Active vs reserve capacity. A HEALTHY waiver candidate must occupy a
+  // starter/bench seat; an empty IR/taxi slot does NOT create an open active
+  // spot, so it does not remove the need to drop an active-roster player.
+  const irSet = new Set(ctx.roster.ir);
+  const taxiSet = new Set(ctx.roster.taxi);
+  const activeIds = ctx.roster.all_players.filter((id) => !irSet.has(id) && !taxiSet.has(id));
+  const activeCap = ctx.league.roster_constraints.active_roster_capacity;
+  const openActiveSpot = activeCap > 0 && activeIds.length < activeCap;
+  const openReserveIr = ctx.league.roster_constraints.reserve_ir_capacity > ctx.roster.ir.length;
+
   const weeksRemaining = Math.max(1, 18 - ctx.league.week);
+
+  // ---- Baseline optimal legal lineup — the source of truth for starter impact.
+  const constraints = ctx.league.roster_constraints;
+  const baseline = buildOptimalLineup({
+    week: ctx.league.week,
+    roster: ctx.roster,
+    constraints,
+    players: myPlayers,
+    projections: ctx.projections,
+  });
+  const baselineOptimal = baseline.optimal_total;
+
+  /**
+   * Counterfactual: does ADD (dropping `dropId`) raise the OPTIMAL legal lineup?
+   * Runs the same Hungarian optimizer on the hypothetical roster — the waiver
+   * engine consumes lineup optimization, it does not re-approximate FLEX logic.
+   */
+  const optimalStarterGain = (add: CanonicalPlayer, dropId: string | null): number => {
+    const hypoPlayers = new Map(myPlayers);
+    hypoPlayers.set(add.canonical_player_id, add);
+    const keep = ctx.roster.all_players.filter((id) => id !== dropId);
+    const hypoRoster: CanonicalRoster = {
+      ...ctx.roster,
+      all_players: [...keep, add.canonical_player_id],
+      starters: ctx.roster.starters.filter((id) => id !== dropId),
+      bench: [...ctx.roster.bench.filter((id) => id !== dropId), add.canonical_player_id],
+      slots: ctx.roster.slots.filter((s) => s.canonical_player_id !== dropId),
+    };
+    const hypo = buildOptimalLineup({
+      week: ctx.league.week,
+      roster: hypoRoster,
+      constraints,
+      players: hypoPlayers,
+      projections: ctx.projections,
+    });
+    return Math.round((hypo.optimal_total - baselineOptimal) * 100) / 100;
+  };
 
   // Rest-of-season replacement per position: the ROS points of a "realistically
   // available" free agent, so the ROS component is a per-week EDGE, not raw
@@ -112,19 +161,6 @@ export function buildWaiverRecommendations(
   });
   const dropBoard = [...rosterValue].sort((a, b) => a.keep - b.keep); // worst first
 
-  // best current starter proj by position (for "does this upgrade a starter?")
-  const bestStarterAt: Record<string, number | null> = {};
-  const weakestStarterAt: Record<string, { id: string; pts: number } | null> = {};
-  for (const pos of BASE_POS) {
-    const startersHere = ctx.roster.starters
-      .map((id) => ({ id, p: myPlayers.get(id), wp: proj(id) }))
-      .filter((x) => x.p && (x.p.position === pos || x.p.eligible_positions.includes(pos as never)));
-    const pts = startersHere.map((x) => x.wp?.projected_points ?? 0);
-    bestStarterAt[pos] = pts.length ? Math.max(...pts) : null;
-    const weakest = startersHere.sort((a, b) => (a.wp?.projected_points ?? 0) - (b.wp?.projected_points ?? 0))[0];
-    weakestStarterAt[pos] = weakest ? { id: weakest.id, pts: weakest.wp?.projected_points ?? 0 } : null;
-  }
-
   const injuredStarterPos = new Set<string>(
     ctx.roster.starters
       .map((id) => ({ p: myPlayers.get(id), wp: proj(id) }))
@@ -138,80 +174,112 @@ export function buildWaiverRecommendations(
       .map((x) => String(x)),
   );
 
-  const evals: WaiverCandidateEval[] = [];
-  let considered = 0;
+  // ---- prefilter: only players who could plausibly matter get the (more
+  // expensive) counterfactual optimizer run.
+  const prefiltered = ctx.availability.free_agents
+    .map((fa) => ({ fa, wp: proj(fa.canonical_player_id) }))
+    .filter(({ wp }) => wp && (wp.projected_points != null || wp.rest_of_season_points != null))
+    .map(({ fa, wp }) => {
+      const vor = weeklyVOR(fa.canonical_player_id, wp!.position, wp!.projected_points, ctx.replacement);
+      const rosEdge = rosEdgePerWeek(wp!.position, wp!.rest_of_season_points ?? null) ?? 0;
+      const cheapScore = (wp!.projected_points ?? 0) + Math.max(0, rosEdge) * 2;
+      return { fa, wp: wp!, vor, rosEdge, cheapScore };
+    });
+  const considered = prefiltered.length;
 
-  for (const fa of ctx.availability.free_agents) {
-    const wp = proj(fa.canonical_player_id);
-    if (!wp || (wp.projected_points == null && wp.rest_of_season_points == null)) continue;
-    considered += 1;
+  const needBoost = new Set(
+    ctx.positional_needs.filter((n) => n.severity === "critical" || n.severity === "weak").map((n) => n.position),
+  );
+  const serious = prefiltered
+    .filter(
+      (c) =>
+        (c.vor.vor ?? -99) > -4 ||
+        c.rosEdge > 0.5 ||
+        needBoost.has(c.wp.position) ||
+        byeHolePos.has(c.wp.position) ||
+        injuredStarterPos.has(c.wp.position),
+    )
+    .sort((a, b) => b.cheapScore - a.cheapScore)
+    .slice(0, 60);
+
+  const evals: WaiverCandidateEval[] = [];
+
+  for (const { fa, wp, vor } of serious) {
     const pos = wp.position;
     const weekly = wp.projected_points;
     const ros = wp.rest_of_season_points;
+    const rosSig = wp.ros;
 
-    const vor = weeklyVOR(fa.canonical_player_id, pos, weekly, ctx.replacement);
+    // Drop side — the lowest-keep active player (a HEALTHY add needs an active seat).
+    const dropChoice =
+      openActiveSpot
+        ? null
+        : dropBoard.find(
+            (d) => d.player.canonical_player_id !== fa.canonical_player_id && activeIds.includes(d.player.canonical_player_id),
+          ) ?? null;
+    const drop_cost = dropChoice ? round2(dropChoice.keep) : 0;
 
-    // starter upgrade?
-    const weakest = weakestStarterAt[pos] ?? null;
-    const starterUpgrade = weekly != null && weakest && weakest.pts != null ? Math.max(0, weekly - weakest.pts) : 0;
-    const flexWeakest = pos === "RB" || pos === "WR" || pos === "TE" ? weakestFlex(ctx, myPlayers, proj) : null;
-    const flexUpgrade =
-      starterUpgrade === 0 && weekly != null && flexWeakest != null ? Math.max(0, weekly - flexWeakest) : 0;
+    // Counterfactual: does this add (with that drop) raise the OPTIMAL lineup?
+    const starterGain = Math.max(0, optimalStarterGain(fa.player, dropChoice?.player.canonical_player_id ?? null));
 
-    const benchImpact = starterUpgrade > 0 || flexUpgrade > 0 ? 0 : Math.max(0, (vor.vor ?? -3)) * 0.5;
+    const benchImpact = starterGain > 0.25 ? 0 : Math.max(0, vor.vor ?? -3) * 0.5;
     const scarcity = ctx.positional_needs.find((n) => n.position === pos);
-    const scarcityRaw = scarcity && scarcity.severity === "critical" ? 4 : scarcity && scarcity.severity === "weak" ? 2 : 0;
+    const scarcityRaw = scarcity?.severity === "critical" ? 4 : scarcity?.severity === "weak" ? 2 : 0;
     const byeRaw = byeHolePos.has(pos) && !wp.is_bye ? Math.min(6, weekly ?? 0) : 0;
     const hedgeRaw = injuredStarterPos.has(pos) && !wp.is_bye ? Math.min(5, (weekly ?? 0) * 0.5) : 0;
 
-    // Drop side.
-    const dropChoice = openSpot ? null : dropBoard.find((d) => d.player.canonical_player_id !== fa.canonical_player_id) ?? null;
-    const drop_cost = openSpot ? 0 : round2(dropChoice?.keep ?? 0);
+    // RI ordinal ROS signal + disagreement.
+    const riDisagrees = rosSig?.disagreement_direction === "RI_ABOVE" || rosSig?.disagreement_direction === "RI_BELOW";
+    const riMaterialDisagree = riDisagrees && Math.abs(rosSig?.disagreement_pct ?? 0) > 0.3;
 
     const score = buildScore([
-      { key: "starter_upgrade", label: "Upgrades a current starter", raw: starterUpgrade > 0 ? round2(starterUpgrade) : null, note: weakest ? `over weakest ${pos} starter (${weakest.pts.toFixed(1)})` : undefined },
-      { key: "flex_utility", label: "Upgrades a FLEX slot", raw: flexUpgrade > 0 ? round2(flexUpgrade) : null },
+      { key: "starter_upgrade", label: "Raises the optimal legal lineup (counterfactual add/drop)", raw: starterGain > 0.25 ? round2(starterGain) : null, note: dropChoice ? `vs dropping ${nameOf(dropChoice.player)}` : "into an open active spot" },
       { key: "weekly_vor", label: "Weekly value over replacement", raw: vor.vor },
       { key: "bench_utility", label: "Bench depth value", raw: benchImpact > 0 ? round2(benchImpact) : null },
       { key: "positional_scarcity", label: "Position is thin on this roster", raw: scarcityRaw || null },
       { key: "bye_coverage", label: "Covers a bye-week hole this week", raw: byeRaw || null },
       { key: "injury_hedge", label: "Hedges an injured starter at this position", raw: hedgeRaw || null },
-      { key: "rest_of_season_value", label: "Rest-of-season edge over replacement (pts/week)", raw: rosEdgePerWeek(pos, ros ?? null), note: "clamped per-remaining-week ROS VOR" },
-      { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : "open roster spot" },
-      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: wp.projection_status !== "projected" || weekly == null ? -1.5 : null },
+      { key: "rest_of_season_value", label: "Rest-of-season edge over replacement (pts/week, external)", raw: rosEdgePerWeek(pos, ros ?? null), note: `ROS confidence ${rosSig?.confidence ?? "n/a"}${riDisagrees ? `; RI ${rosSig?.disagreement_direction}` : ""}` },
+      { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : "open active roster spot" },
+      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree ? -1.5 : null, note: riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
     ]);
 
     const net = score.total;
     const confidence: Confidence =
-      weekly == null ? "LOW" : starterUpgrade >= 3 && net >= 4 ? "HIGH" : net >= 2 ? "MEDIUM" : "LOW";
+      weekly == null || riMaterialDisagree ? "LOW" : starterGain >= 3 && net >= 4 ? "HIGH" : net >= 2 ? "MEDIUM" : "LOW";
 
     let priority: WaiverCandidateEval["priority"];
     if (net < MIN_NET_TO_RECOMMEND) priority = "DO_NOT_ADD";
-    else if (net >= 4 && (starterUpgrade > 0 || flexUpgrade > 0 || byeRaw > 0 || hedgeRaw > 0)) priority = "HIGH";
+    else if (net >= 4 && (starterGain > 0.5 || byeRaw > 0 || hedgeRaw > 0)) priority = "HIGH";
     else if (net >= 2) priority = "MEDIUM";
     else priority = "LOW";
 
     const immediate_role =
-      starterUpgrade > 0
-        ? `${pos} starter upgrade (+${starterUpgrade.toFixed(1)} vs weakest starter)`
-        : flexUpgrade > 0
-          ? `FLEX upgrade (+${flexUpgrade.toFixed(1)})`
-          : byeRaw > 0
-            ? `bye-week fill at ${pos}`
-            : hedgeRaw > 0
-              ? `injury insurance at ${pos}`
-              : (vor.vor ?? -1) > 1
-                ? `${pos} bench depth`
-                : "marginal";
+      starterGain > 0.5
+        ? `raises optimal lineup +${starterGain.toFixed(1)}${dropChoice ? "" : " (open spot)"}`
+        : byeRaw > 0
+          ? `bye-week fill at ${pos}`
+          : hedgeRaw > 0
+            ? `injury insurance at ${pos}`
+            : (vor.vor ?? -1) > 1
+              ? `${pos} bench depth`
+              : "marginal";
+    const riRank = rosSig?.ri_position_rank;
     const rest_of_season_role =
-      ros != null && ros > 60 ? `${pos}2/3 rest-of-season value` : ros != null && ros > 25 ? `${pos} streamer / stash` : "limited rest-of-season value";
+      riRank != null && riRank <= 30
+        ? `RI has him ~${pos}${riRank} rest-of-season`
+        : ros != null && ros > 60
+          ? `${pos}2/3 rest-of-season value`
+          : ros != null && ros > 25
+            ? `${pos} streamer / stash`
+            : "limited rest-of-season value";
 
     const reasons: string[] = [];
-    if (starterUpgrade > 0) reasons.push(`Projects +${starterUpgrade.toFixed(1)} over the weakest ${pos} starter this week.`);
-    if (flexUpgrade > 0) reasons.push(`Projects +${flexUpgrade.toFixed(1)} over the weakest FLEX option.`);
+    if (starterGain > 0.25) reasons.push(`Raises the optimal legal lineup by +${starterGain.toFixed(1)} (add ${nameOf(fa.player)}${dropChoice ? `, drop ${nameOf(dropChoice.player)}` : ""}).`);
     if (byeRaw > 0) reasons.push(`Covers a ${pos} bye hole this week.`);
     if (hedgeRaw > 0) reasons.push(`Insurance for an injured ${pos} starter.`);
-    if ((vor.vor ?? 0) > 3 && starterUpgrade === 0) reasons.push(`+${vor.vor?.toFixed(1)} weekly VOR — playable depth.`);
+    if (starterGain <= 0.25 && (vor.vor ?? 0) > 3) reasons.push(`+${vor.vor?.toFixed(1)} weekly VOR — playable depth, but not a starter upgrade in the optimal lineup.`);
+    if (riDisagrees) reasons.push(`RI season model is ${rosSig!.disagreement_direction === "RI_ABOVE" ? "higher" : "lower"} than the external projection by ${Math.round(Math.abs(rosSig!.disagreement_pct ?? 0) * 100)}% (${rosSig!.warnings[0] ?? "see ros"}).`);
     if (priority === "DO_NOT_ADD") reasons.push(`Net roster gain ${net.toFixed(1)} does not clear the drop cost (${drop_cost.toFixed(1)}).`);
     if (weekly == null) reasons.push("No weekly projection — rest-of-season stash only, low confidence.");
 
@@ -230,7 +298,7 @@ export function buildWaiverRecommendations(
       drop_name: dropChoice ? nameOf(dropChoice.player) : null,
       drop_cost,
       net_roster_gain: net,
-      starter_impact: round2(starterUpgrade),
+      starter_impact: round2(starterGain),
       bench_impact: round2(benchImpact),
       bye_coverage_impact: round2(byeRaw),
       injury_hedge_impact: round2(hedgeRaw),
@@ -238,8 +306,10 @@ export function buildWaiverRecommendations(
       confidence,
       score,
       reasons,
+      ros_signal: rosSig ?? null,
     });
   }
+  void openReserveIr;
 
   evals.sort((a, b) => b.net_roster_gain - a.net_roster_gain);
   const recommendations = evals.filter((e) => e.priority !== "DO_NOT_ADD").slice(0, limit);
@@ -263,7 +333,7 @@ export function buildWaiverRecommendations(
     week: ctx.league.week,
     league_slug: ctx.league.slug,
     waiver_model,
-    roster_has_open_spot: openSpot,
+    roster_has_open_spot: openActiveSpot,
     faab:
       waiver_model === "faab"
         ? {
@@ -284,17 +354,6 @@ export function buildWaiverRecommendations(
   };
 }
 
-function weakestFlex(
-  ctx: WeeklyTeamContext,
-  players: Map<string, CanonicalPlayer>,
-  proj: (id: string) => ReturnType<WeeklyTeamContext["projections"]["by_player"]["get"]> | null,
-): number | null {
-  const flexEligible = ctx.roster.starters
-    .map((id) => ({ p: players.get(id), wp: proj(id) }))
-    .filter((x) => x.p && ["RB", "WR", "TE"].includes(x.p.position));
-  const pts = flexEligible.map((x) => x.wp?.projected_points ?? 0).sort((a, b) => a - b);
-  return pts.length ? pts[0]! : null;
-}
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));

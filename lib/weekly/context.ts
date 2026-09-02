@@ -21,8 +21,12 @@ import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-sou
 import { getProvider } from "@/lib/providers/registry";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { getWeeklyProjectionProvider } from "./projections/registry";
+import { getScheduleProvider } from "./schedule/registry";
+import type { ScheduleProvider } from "./schedule/types";
+import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
+import { assembleRosSignals, type RosAssemblyResult } from "./ros";
 import { buildLeagueAvailability } from "./availability";
-import { computeWeeklyReplacement } from "./replacement";
+import { computeWeeklyReplacement, type ReplacementFrontier } from "./replacement";
 import {
   WEEKLY_ENGINE_VERSION,
   type ByeInfo,
@@ -62,7 +66,14 @@ export interface BuildWeeklyContextOptions {
   crosswalkOverride?: PlayerCrosswalk;
   providerOverride?: ReturnType<typeof getProvider>;
   projectionProviderOverride?: ReturnType<typeof getWeeklyProjectionProvider>;
+  scheduleProviderOverride?: ScheduleProvider;
+  /** Inject the RI season-signal provider (tests). `null` disables it. */
+  riSeasonProviderOverride?: RiSeasonSignalProvider | null;
   wantRestOfSeason?: boolean;
+  /** Skip the RI season signal entirely (default: attempt it best-effort). */
+  skipRiSeasonSignal?: boolean;
+  /** Override the replacement-frontier strategy (default `{nth_best_available, n:1}`). */
+  replacementFrontier?: ReplacementFrontier;
 }
 
 export async function buildWeeklyTeamContext(
@@ -161,6 +172,9 @@ export async function buildWeeklyTeamContext(
     ir_slots: rs.ir_slots,
     taxi_slots: rs.taxi_slots,
     roster_size_limit: rs.starting_slots.length + rs.bench_slots + rs.ir_slots + rs.taxi_slots || null,
+    active_roster_capacity: rs.starting_slots.length + rs.bench_slots,
+    reserve_ir_capacity: rs.ir_slots,
+    taxi_capacity: rs.taxi_slots,
     flex_positions: flexPositions.length ? flexPositions : ["RB", "WR", "TE"],
     flex_slots: rs.starting_slots.filter((s) => FLEX_ELIGIBILITY[s]).length,
   };
@@ -181,17 +195,44 @@ export async function buildWeeklyTeamContext(
     want_rest_of_season: options.wantRestOfSeason ?? true,
   });
 
-  // Bye detection for rostered players (team not in this week's game set).
-  const teamsWithGames = new Set(projections.teams_with_games.map((t) => t.toUpperCase()));
+  // ---- Rest-of-season signal: external (Sleeper) absolute + Roster Intel ORDINAL.
+  // Best-effort — weekly analytics run unchanged if RI is unavailable.
+  let ros_meta: RosAssemblyResult | null = null;
+  if ((options.skipRiSeasonSignal ?? false) === false && projections.by_player.size > 0) {
+    const riProvider =
+      options.riSeasonProviderOverride === null
+        ? null
+        : options.riSeasonProviderOverride ?? new RosterIntelSeasonSignalProvider();
+    const ri = riProvider
+      ? await riProvider.getSeasonSignal({ league_slug: league.league_slug, league_id: league.external_league_id }).catch(() => ({
+          status: "UNAVAILABLE" as const,
+          model_version: null,
+          by_sleeper_id: new Map(),
+          warning: "RI season signal threw",
+        }))
+      : { status: "UNAVAILABLE" as const, model_version: null, by_sleeper_id: new Map(), warning: null };
+    ros_meta = assembleRosSignals(projections, ri, week);
+    for (const w of ros_meta.warnings) warnings.push({ code: "ros_signal", message: w, severity: "info" });
+  }
+
+  // ---- Bye detection: ONLY from an authoritative schedule, never from feed absence.
+  const scheduleProvider = options.scheduleProviderOverride ?? getScheduleProvider();
+  const schedule = await scheduleProvider.getWeekSchedule(league.season, week);
+  for (const w of schedule.warnings) warnings.push(w);
+
   const byeByPlayer: Record<string, number | null> = {};
   const startersOnBye: string[] = [];
+
   for (const p of lookup(allRosteredIds)) {
     const t = (p.nfl_team ?? "").toUpperCase();
-    const onByeThisWeek =
-      teamsWithGames.size > 0 && t.length > 0 && !teamsWithGames.has(t) && !projections.by_player.has(p.canonical_player_id);
-    byeByPlayer[p.canonical_player_id] = onByeThisWeek ? week : null;
-    if (onByeThisWeek) {
-      // Record a real 0 for a bye player (not "missing").
+    const projected = projections.by_player.get(p.canonical_player_id);
+    const scheduleProvenBye = schedule.status === "READY" && t.length > 0 && schedule.teams_on_bye.has(t);
+
+    byeByPlayer[p.canonical_player_id] = scheduleProvenBye ? week : null;
+
+    if (scheduleProvenBye) {
+      // A bye is a genuine 0 (the player will not play). Overrides any stale
+      // feed entry.
       projections.by_player.set(p.canonical_player_id, {
         canonical_player_id: p.canonical_player_id,
         week,
@@ -208,17 +249,37 @@ export async function buildWeeklyTeamContext(
         expected_availability: 0,
         is_bye: true,
         injury_status: p.injury_status,
-        rest_of_season_points: null,
+        rest_of_season_points: projected?.rest_of_season_points ?? null,
+        ros: projected?.ros ?? null,
         source: projections.source,
         model_version: projections.model_version,
         uncertainty_source: "none",
-        warnings: [],
+        warnings: ["bye_verified_by_schedule"],
       });
       if (roster.starters.includes(p.canonical_player_id)) startersOnBye.push(p.canonical_player_id);
+    } else if (!projected || projected.projected_points == null) {
+      // No projection AND not a proven bye -> UNKNOWN. Stays null / "unavailable".
+      // We do NOT fabricate a 0 just because the team is absent from the feed.
+      if (projected && projected.projection_status !== "unavailable") {
+        projections.by_player.set(p.canonical_player_id, { ...projected, projection_status: "unavailable" });
+      }
     }
   }
-  // Anything still missing after bye handling is genuinely unavailable — stays null.
-  const stillMissing = allRosteredIds.filter((id) => !projections.by_player.has(id));
+
+  if (schedule.status !== "READY") {
+    warnings.push({
+      code: "BYE_STATUS_UNVERIFIED",
+      message:
+        "No authoritative NFL schedule this run — bye weeks are NOT asserted; unprojected players are left 'unavailable', not zeroed.",
+      severity: "warning",
+    });
+  }
+
+  // Anything still without a usable projection after bye handling is genuinely
+  // unknown — it stays null, never 0.
+  const stillMissing = allRosteredIds.filter(
+    (id) => (projections.by_player.get(id)?.projected_points ?? null) == null && projections.by_player.get(id)?.projection_status !== "bye",
+  );
   projections.missing = stillMissing;
 
   // Availability — candidate universe is every player projected this week + rostered.
@@ -247,6 +308,7 @@ export async function buildWeeklyTeamContext(
     constraints,
     projections,
     availability,
+    frontier: options.replacementFrontier,
   });
 
   // Positional needs.
@@ -260,9 +322,11 @@ export async function buildWeeklyTeamContext(
   });
 
   const byes: ByeInfo = {
+    bye_status: schedule.status === "READY" ? "VERIFIED" : "UNVERIFIED",
+    schedule_source: schedule.status === "READY" ? schedule.source : null,
     by_player: byeByPlayer,
     starters_on_bye_this_week: startersOnBye,
-    schedule_source: teamsWithGames.size > 0 ? "sleeper_weekly_feed" : null,
+    teams_on_bye: [...schedule.teams_on_bye],
   };
 
   const rosterProjected = roster.all_players.filter(
@@ -322,6 +386,15 @@ export async function buildWeeklyTeamContext(
     projections,
     replacement,
     availability,
+    ros_signal: ros_meta
+      ? {
+          status: ros_meta.ri_status,
+          ri_model_version: ros_meta.ri_model_version,
+          external_source: ros_meta.external_source,
+          players_with_ri: ros_meta.players_with_ri,
+          players_with_disagreement: ros_meta.players_with_disagreement,
+        }
+      : null,
     byes,
     positional_needs,
     status,

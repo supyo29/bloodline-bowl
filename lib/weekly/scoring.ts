@@ -10,7 +10,7 @@
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
 
 /** Sleeper projection keys that are metadata / ADP, never scoring stats. */
-const NON_SCORING_KEY = /^(adp_|pos_adp_|pos_rank|rank_|gp$|gms_active$|gp_|snp_)/;
+export const NON_SCORING_KEY = /^(adp_|pos_adp_|pos_rank|rank_|gp$|gms_active$|gp_|snp_)/;
 
 export interface ScoredLine {
   points: number;

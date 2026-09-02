@@ -177,6 +177,7 @@ function fakeProjections(slug: string, status: WeeklyProjectionBatch["status"] =
             is_bye: false,
             injury_status: null,
             rest_of_season_points: 120,
+            ros: null,
             source: this.name,
             model_version: this.model_version,
             uncertainty_source: "position_volatility_heuristic",
@@ -203,14 +204,29 @@ function fakeProjections(slug: string, status: WeeklyProjectionBatch["status"] =
 
 const cw = () => new PlayerCrosswalk(NoCrosswalk);
 
+/** Deterministic fakes: a full schedule (no byes) + RI disabled. */
+const fakeSchedule = {
+  name: "fake-schedule",
+  async getWeekSchedule(season: number, week: number) {
+    const teams = new Set(["KC", "LV", "SF", "MIN", "DAL", "BUF", "BAL", "PHI", "GB", "DET", "SEA", "LAR"]);
+    return {
+      season, week, status: "READY" as const, source: "fake-schedule",
+      teams_with_games: teams, teams_on_bye: new Set<string>(), opponent_by_team: {}, warnings: [],
+    };
+  },
+};
+function withFakes<T extends Record<string, unknown>>(o: T): T & { scheduleProviderOverride: typeof fakeSchedule; riSeasonProviderOverride: null } {
+  return { ...o, scheduleProviderOverride: fakeSchedule, riSeasonProviderOverride: null };
+}
+
 describe("weekly context: league isolation", () => {
   it("Bloodline context contains ONLY Bloodline players/teams/scoring", async () => {
-    const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", {
+    const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", withFakes({
       week: 3,
       providerOverride: fakeProvider("bloodline-bowl"),
       projectionProviderOverride: fakeProjections("bloodline-bowl"),
       crosswalkOverride: cw(),
-    });
+    }));
     assert.ok(r.context, r.detail);
     const c = r.context;
     assert.equal(c.league.slug, "bloodline-bowl");
@@ -222,12 +238,12 @@ describe("weekly context: league isolation", () => {
   });
 
   it("Devoted context is fully independent — different scoring, different players, different waiver model", async () => {
-    const r = await buildWeeklyTeamContext("devoted-to-the-game", "DarthMarker", {
+    const r = await buildWeeklyTeamContext("devoted-to-the-game", "DarthMarker", withFakes({
       week: 3,
       providerOverride: fakeProvider("devoted-to-the-game"),
       projectionProviderOverride: fakeProjections("devoted-to-the-game"),
       crosswalkOverride: cw(),
-    });
+    }));
     assert.ok(r.context, r.detail);
     const c = r.context;
     assert.equal(c.manager.manager_slug, "darthmarker");
@@ -237,12 +253,12 @@ describe("weekly context: league isolation", () => {
   });
 
   it("manager routing: a non-member is rejected, never swapped", async () => {
-    const r = await buildWeeklyTeamContext("bloodline-bowl", "darthmarker", {
+    const r = await buildWeeklyTeamContext("bloodline-bowl", "darthmarker", withFakes({
       week: 3,
       providerOverride: fakeProvider("bloodline-bowl"),
       projectionProviderOverride: fakeProjections("bloodline-bowl"),
       crosswalkOverride: cw(),
-    });
+    }));
     assert.equal(r.ok, false);
     assert.equal(r.code, "manager_not_in_league");
   });
@@ -250,12 +266,12 @@ describe("weekly context: league isolation", () => {
 
 describe("weekly context: honest degradation", () => {
   it("no projection source -> status PROJECTIONS_UNAVAILABLE, projections null (not 0)", async () => {
-    const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", {
+    const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", withFakes({
       week: 3,
       providerOverride: fakeProvider("bloodline-bowl"),
       projectionProviderOverride: fakeProjections("bloodline-bowl", "PROJECTIONS_UNAVAILABLE"),
       crosswalkOverride: cw(),
-    });
+    }));
     assert.ok(r.context);
     assert.equal(r.context.status, "PROJECTIONS_UNAVAILABLE");
     for (const p of r.context.all_rostered) {
@@ -267,12 +283,12 @@ describe("weekly context: honest degradation", () => {
 
   it("persistence independence: analytics still build when history persistence is down", async () => {
     setPersistence(null); // getPersistence() re-evaluates -> NOT_CONFIGURED
-    const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", {
+    const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", withFakes({
       week: 3,
       providerOverride: fakeProvider("bloodline-bowl"),
       projectionProviderOverride: fakeProjections("bloodline-bowl"),
       crosswalkOverride: cw(),
-    });
+    }));
     setPersistence(memoryPersistence());
     assert.ok(r.context, r.detail);
     // Context is usable; persistence status is reported, not fatal.
