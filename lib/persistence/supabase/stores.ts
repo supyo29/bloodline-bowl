@@ -2,7 +2,7 @@
  * Supabase-backed SnapshotStore / LedgerStore / CaptureRunStore — the
  * production persistence implementation.
  *
- * Tables (see migration `bridge_post_draft_foundation`):
+ * Tables (see migration supabase/migrations/20260902172602_bridge_post_draft_foundation.sql):
  *   bridge_league_snapshots     immutable, versioned; DB trigger blocks UPDATE/DELETE
  *   bridge_transaction_ledger   append-only; UNIQUE(league_slug,season,provider,provider_transaction_id)
  *   bridge_capture_runs         run metadata

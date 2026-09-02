@@ -183,6 +183,30 @@ export function yahooBundleToCanonical(
     if (u) unresolved.push(u);
   }
 
+  /**
+   * Resolve a Yahoo player_key to a canonical id via the SAME crosswalk. A key
+   * only seen in a transaction (a player dropped before the roster was read)
+   * still goes through identity resolution and, if it cannot be resolved,
+   * records an `UnresolvedPlayer` with provenance rather than silently emitting
+   * a bare `player:yahoo:<key>` string.
+   */
+  const resolveYahooKey = (playerKey: string): string => {
+    const known = canonicalByYahooKey.get(playerKey);
+    if (known) return known;
+    const { player, unresolved: u } = crosswalk.resolve({
+      provider: "yahoo",
+      provider_player_id: playerKey,
+      full_name: null,
+      position: null,
+      nfl_team: null,
+      known_identifiers: { yahoo_player_key: playerKey },
+    });
+    players.set(player.canonical_player_id, player);
+    canonicalByYahooKey.set(playerKey, player.canonical_player_id);
+    if (u) unresolved.push(u);
+    return player.canonical_player_id;
+  };
+
   const managers = new Map<string, CanonicalManager>();
   const teams: CanonicalFantasyTeam[] = [];
   const rosters: CanonicalRoster[] = [];
@@ -233,7 +257,7 @@ export function yahooBundleToCanonical(
     const ir: string[] = [];
     const all: string[] = [];
     const slots = yt.roster.map((entry, i) => {
-      const cid = canonicalByYahooKey.get(entry.player_key) ?? `player:yahoo:${entry.player_key}`;
+      const cid = resolveYahooKey(entry.player_key);
       all.push(cid);
       if (entry.selected_position === "BN") bench.push(cid);
       else if (entry.selected_position === "IR" || entry.selected_position === "IL") ir.push(cid);
@@ -300,7 +324,7 @@ export function yahooBundleToCanonical(
       players_added: tx.players
         .filter((p) => p.type === "add")
         .map((p) => ({
-          canonical_player_id: canonicalByYahooKey.get(p.player_key) ?? `player:yahoo:${p.player_key}`,
+          canonical_player_id: resolveYahooKey(p.player_key),
           canonical_team_id: p.destination_team_key
             ? teamKeyToCanonical(leagueSlug, bundle, p.destination_team_key)
             : null,
@@ -308,7 +332,7 @@ export function yahooBundleToCanonical(
       players_dropped: tx.players
         .filter((p) => p.type === "drop")
         .map((p) => ({
-          canonical_player_id: canonicalByYahooKey.get(p.player_key) ?? `player:yahoo:${p.player_key}`,
+          canonical_player_id: resolveYahooKey(p.player_key),
           canonical_team_id: p.source_team_key
             ? teamKeyToCanonical(leagueSlug, bundle, p.source_team_key)
             : null,

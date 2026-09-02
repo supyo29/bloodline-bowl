@@ -21,6 +21,7 @@ import {
 } from "@/lib/sleeper/client";
 import type { RawDraftPick } from "@/lib/sleeper/types";
 import {
+  createSleeperResolver,
   toCanonicalDraftPicks,
   toCanonicalLeague,
   toCanonicalManagers,
@@ -124,6 +125,10 @@ export class SleeperProvider implements FantasyProvider {
       return new Map();
     });
 
+    // ONE resolver shared by rosters + draft picks so every canonical_player_id
+    // in the bundle is crosswalk-derived and mutually consistent.
+    const resolver = createSleeperResolver(playerIndex, ctx.crosswalk);
+
     const rosterRes = toCanonicalRosters(
       ctx.league_slug,
       rosters,
@@ -131,6 +136,7 @@ export class SleeperProvider implements FantasyProvider {
       playerIndex,
       ctx.crosswalk,
       syncedAt,
+      resolver,
     );
 
     const picksByDraft = new Map<string, RawDraftPick[]>();
@@ -139,24 +145,34 @@ export class SleeperProvider implements FantasyProvider {
       picksByDraft.set(d.draft_id, picks);
     }
 
+    const draftPicks = toCanonicalDraftPicks(
+      ctx.league_slug,
+      ctx.season,
+      drafts,
+      picksByDraft,
+      playerIndex,
+      ctx.crosswalk,
+      users,
+      syncedAt,
+      resolver,
+    );
+
+    if (resolver.unresolved.length > 0) {
+      warnings.push({
+        code: "unresolved_player_identities",
+        message: `${resolver.unresolved.length} player id(s) could not be resolved to a stable identity; provider provenance is preserved on each.`,
+      });
+    }
+
     const bundle: CanonicalLeagueStateBundle = {
       league: canonLeague,
       managers: toCanonicalManagers(ctx.league_slug, users, rosters, syncedAt),
       teams: toCanonicalTeams(ctx.league_slug, rosters, faab, syncedAt),
       rosters: rosterRes.rosters,
       standings: toCanonicalStandings(ctx.league_slug, rosters),
-      draft_picks: toCanonicalDraftPicks(
-        ctx.league_slug,
-        ctx.season,
-        drafts,
-        picksByDraft,
-        playerIndex,
-        ctx.crosswalk,
-        users,
-        syncedAt,
-      ),
-      players: rosterRes.players,
-      unresolved_players: rosterRes.unresolved,
+      draft_picks: draftPicks,
+      players: [...resolver.players.values()],
+      unresolved_players: resolver.unresolved,
     };
 
     return ok(bundle, { warnings, provider_synced_at: syncedAt });
@@ -215,9 +231,16 @@ export class SleeperProvider implements FantasyProvider {
         getMatchups(ctx.external_league_id, week),
         getPlayerIndex().catch(() => new Map()),
       ]);
-      return ok(
-        toCanonicalMatchups(ctx.league_slug, week, raw, playerIndex, ctx.crosswalk, new Date().toISOString()),
+      const resolver = createSleeperResolver(playerIndex, ctx.crosswalk);
+      const matchups = toCanonicalMatchups(
+        ctx.league_slug, week, raw, playerIndex, ctx.crosswalk, new Date().toISOString(), resolver,
       );
+      return ok(matchups, {
+        warnings:
+          resolver.unresolved.length > 0
+            ? [{ code: "unresolved_player_identities", message: `${resolver.unresolved.length} matchup player id(s) unresolved; provenance preserved.` }]
+            : [],
+      });
     } catch (error) {
       return degraded("PROVIDER_ERROR", "sleeper_upstream_error", describe(error));
     }
@@ -231,17 +254,33 @@ export class SleeperProvider implements FantasyProvider {
       query.week != null ? [query.week] : Array.from({ length: MAX_WEEK }, (_, i) => i + 1);
     const warnings: ProviderResult<unknown>["warnings"] = [];
     try {
-      const results = await Promise.all(
-        weeks.map((w) =>
-          getLeagueTransactions(ctx.external_league_id, w).catch((error) => {
-            warnings.push({ code: "week_transactions_unavailable", message: `week ${w}: ${describe(error)}` });
-            return [];
-          }),
+      await ctx.crosswalk.ensureLoaded();
+      const [results, playerIndex] = await Promise.all([
+        Promise.all(
+          weeks.map((w) =>
+            getLeagueTransactions(ctx.external_league_id, w).catch((error) => {
+              warnings.push({ code: "week_transactions_unavailable", message: `week ${w}: ${describe(error)}` });
+              return [];
+            }),
+          ),
         ),
-      );
+        getPlayerIndex().catch(() => {
+          warnings.push({ code: "player_database_unavailable", message: "Sleeper player DB unavailable; transaction players fall back to provider ids." });
+          return new Map();
+        }),
+      ]);
       const raw = results.flat().filter((t) => t.status === "complete");
-      let canon = toCanonicalTransactions(ctx.league_slug, ctx.season, raw, new Date().toISOString());
+      // Same resolver contract as rosters — transaction player ids are
+      // crosswalk-derived, never a raw `player:sleeper:<id>` when better evidence exists.
+      const resolver = createSleeperResolver(playerIndex, ctx.crosswalk);
+      let canon = toCanonicalTransactions(ctx.league_slug, ctx.season, raw, new Date().toISOString(), resolver);
       if (query.limit && canon.length > query.limit) canon = canon.slice(0, query.limit);
+      if (resolver.unresolved.length > 0) {
+        warnings.push({
+          code: "unresolved_player_identities",
+          message: `${resolver.unresolved.length} transaction player id(s) could not be resolved; provider provenance preserved.`,
+        });
+      }
       return ok(canon, { warnings, provider_synced_at: new Date().toISOString() });
     } catch (error) {
       return degraded("PROVIDER_ERROR", "sleeper_upstream_error", describe(error));

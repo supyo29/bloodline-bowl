@@ -31,6 +31,7 @@ import {
   type CrosswalkSource,
 } from "../lib/canonical/players";
 import {
+  createSleeperResolver,
   toCanonicalLeague,
   toCanonicalManagers,
   toCanonicalRosters,
@@ -236,7 +237,13 @@ describe("Sleeper fixture -> canonical schema", () => {
         waiver_budget: [{ sender: 1, receiver: 2, amount: 5 }], settings: null, consenter_ids: [1, 2],
       },
     ];
-    const canon = toCanonicalTransactions("fixture-league", 2026, raw, null);
+    const canon = toCanonicalTransactions(
+      "fixture-league",
+      2026,
+      raw,
+      null,
+      createSleeperResolver(new Map(), new PlayerCrosswalk(NoCrosswalk)),
+    );
     const byId = Object.fromEntries(canon.map((t) => [t.provenance.provider_id, t]));
     assert.equal(byId.t_add!.type, "free_agent_add");
     assert.equal(byId.t_waiver!.type, "waiver_add");

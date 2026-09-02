@@ -121,6 +121,16 @@ guessed)**. Name matching strips suffixes, punctuation and accents
 (`Michael Pittman Jr.` → `michael pittman`). The crosswalk source is pluggable;
 production reads the shared Supabase `nfl_players` table read-only.
 
+**Every** player reference — roster slot, matchup lineup, transaction add/drop,
+trade leg, draft pick — passes through the SAME crosswalk resolver
+(`createSleeperResolver` for Sleeper, the closure in `yahooBundleToCanonical` for
+Yahoo). The same NFL player therefore gets ONE `canonical_player_id` across all
+surfaces; a raw `player:sleeper:<id>` / `player:yahoo:<key>` string only appears
+when that is genuinely the best available identity, and an `UnresolvedPlayer`
+with provider provenance + a `PROVIDER_ERROR`-free `unresolved_player_identities`
+warning is emitted rather than a silent guess. Covered by
+`test/transaction-identity-parity.test.ts`.
+
 ---
 
 ## 5. Persistence
@@ -130,7 +140,7 @@ interfaces** — it is an implementation detail, never part of the domain model.
 Tests use `memoryPersistence()`; a filesystem/JSON path exists for export and
 recovery (`lib/persistence/serialize.ts`).
 
-### Tables (migration `bridge_post_draft_foundation`)
+### Tables (migration supabase/migrations/20260902172602_bridge_post_draft_foundation.sql)
 
 | Table | Contract |
 | --- | --- |

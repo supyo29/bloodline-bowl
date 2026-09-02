@@ -51,6 +51,54 @@ function prov(providerId: string | null, syncedAt: string | null): Provenance {
   return { provider: "sleeper", provider_id: providerId, provider_synced_at: syncedAt };
 }
 
+/**
+ * ONE Sleeper player-identity resolver, shared across every surface (rosters,
+ * matchups, transactions, draft picks) so the same NFL player gets the same
+ * `canonical_player_id` everywhere — via the crosswalk, not a raw
+ * `player:sleeper:<id>` string. Memoized per raw id; accumulates the full
+ * `CanonicalPlayer` set and any unresolved identities.
+ */
+export interface SleeperPlayerResolver {
+  resolve(rawId: string): string;
+  readonly players: Map<string, CanonicalPlayer>;
+  readonly unresolved: UnresolvedPlayer[];
+}
+
+export function createSleeperResolver(
+  playerIndex: PlayerIndex,
+  crosswalk: PlayerCrosswalk,
+): SleeperPlayerResolver {
+  const players = new Map<string, CanonicalPlayer>();
+  const unresolved: UnresolvedPlayer[] = [];
+  const cache = new Map<string, string>();
+
+  return {
+    players,
+    unresolved,
+    resolve(rawId: string): string {
+      const cached = cache.get(rawId);
+      if (cached) return cached;
+      const slim = playerIndex.get(rawId);
+      const { player, unresolved: u } = crosswalk.resolve({
+        provider: "sleeper",
+        provider_player_id: rawId,
+        full_name: slim?.full_name ?? null,
+        first_name: slim?.first_name ?? null,
+        last_name: slim?.last_name ?? null,
+        position: slim?.position ?? null,
+        nfl_team: slim?.team ?? null,
+        status: slim?.status ?? null,
+        injury_status: slim?.injury_status ?? null,
+        eligible_positions: slim?.fantasy_positions ?? null,
+      });
+      players.set(player.canonical_player_id, player);
+      if (u) unresolved.push(u);
+      cache.set(rawId, player.canonical_player_id);
+      return player.canonical_player_id;
+    },
+  };
+}
+
 function scoringCategory(key: string): CanonicalScoringRule["category"] {
   if (key.startsWith("pass_")) return "passing";
   if (key.startsWith("rush_")) return "rushing";
@@ -206,28 +254,10 @@ export function toCanonicalRosters(
   playerIndex: PlayerIndex,
   crosswalk: PlayerCrosswalk,
   syncedAt: string | null,
+  sharedResolver?: SleeperPlayerResolver,
 ): RosterResolution {
-  const players = new Map<string, CanonicalPlayer>();
-  const unresolved: UnresolvedPlayer[] = [];
-
-  const resolveId = (rawId: string): string => {
-    const slim = playerIndex.get(rawId);
-    const { player, unresolved: u } = crosswalk.resolve({
-      provider: "sleeper",
-      provider_player_id: rawId,
-      full_name: slim?.full_name ?? null,
-      first_name: slim?.first_name ?? null,
-      last_name: slim?.last_name ?? null,
-      position: slim?.position ?? null,
-      nfl_team: slim?.team ?? null,
-      status: slim?.status ?? null,
-      injury_status: slim?.injury_status ?? null,
-      eligible_positions: slim?.fantasy_positions ?? null,
-    });
-    players.set(player.canonical_player_id, player);
-    if (u) unresolved.push(u);
-    return player.canonical_player_id;
-  };
+  const resolver = sharedResolver ?? createSleeperResolver(playerIndex, crosswalk);
+  const resolveId = (rawId: string): string => resolver.resolve(rawId);
 
   const clean = (ids: string[] | null | undefined): string[] =>
     (ids ?? []).filter(
@@ -286,7 +316,11 @@ export function toCanonicalRosters(
     })
     .sort((a, b) => a.canonical_team_id.localeCompare(b.canonical_team_id));
 
-  return { rosters: canonicalRosters, players: [...players.values()], unresolved };
+  return {
+    rosters: canonicalRosters,
+    players: [...resolver.players.values()],
+    unresolved: resolver.unresolved,
+  };
 }
 
 export function toCanonicalStandings(
@@ -328,6 +362,7 @@ export function toCanonicalMatchups(
   playerIndex: PlayerIndex,
   crosswalk: PlayerCrosswalk,
   syncedAt: string | null,
+  sharedResolver?: SleeperPlayerResolver,
 ): CanonicalMatchup[] {
   const byMatchup = new Map<number, RawMatchup[]>();
   for (const row of rawMatchups) {
@@ -337,17 +372,8 @@ export function toCanonicalMatchups(
     byMatchup.set(key, bucket);
   }
 
-  const resolveId = (rawId: string): string => {
-    const slim = playerIndex.get(rawId);
-    const { player } = crosswalk.resolve({
-      provider: "sleeper",
-      provider_player_id: rawId,
-      full_name: slim?.full_name ?? null,
-      position: slim?.position ?? null,
-      nfl_team: slim?.team ?? null,
-    });
-    return player.canonical_player_id;
-  };
+  const resolver = sharedResolver ?? createSleeperResolver(playerIndex, crosswalk);
+  const resolveId = (rawId: string): string => resolver.resolve(rawId);
 
   return [...byMatchup.entries()]
     .map(([key, rows]) => {
@@ -385,16 +411,17 @@ export function toCanonicalTransactions(
   season: number,
   raw: RawTransaction[],
   syncedAt: string | null,
+  resolver: SleeperPlayerResolver,
 ): CanonicalTransaction[] {
   return raw
     .map((t): CanonicalTransaction => {
       const type = mapTransactionType(t);
       const added = Object.entries(t.adds ?? {}).map(([pid, rid]) => ({
-        canonical_player_id: `player:sleeper:${pid}`,
+        canonical_player_id: resolver.resolve(pid),
         canonical_team_id: teamId(leagueSlug, String(rid)),
       }));
       const dropped = Object.entries(t.drops ?? {}).map(([pid, rid]) => ({
-        canonical_player_id: `player:sleeper:${pid}`,
+        canonical_player_id: resolver.resolve(pid),
         canonical_team_id: teamId(leagueSlug, String(rid)),
       }));
 
@@ -404,7 +431,7 @@ export function toCanonicalTransactions(
               canonical_team_id: teamId(leagueSlug, String(rid)),
               received_player_ids: Object.entries(t.adds ?? {})
                 .filter(([, r]) => r === rid)
-                .map(([pid]) => `player:sleeper:${pid}`),
+                .map(([pid]) => resolver.resolve(pid)),
               received_pick_labels: (t.draft_picks ?? [])
                 .filter((p) => p.owner_id === rid)
                 .map((p) => `${p.season} R${p.round}`),
@@ -457,7 +484,9 @@ export function toCanonicalDraftPicks(
   crosswalk: PlayerCrosswalk,
   users: RawLeagueUser[],
   syncedAt: string | null,
+  sharedResolver?: SleeperPlayerResolver,
 ): CanonicalDraftPick[] {
+  const resolver = sharedResolver ?? createSleeperResolver(playerIndex, crosswalk);
   const out: CanonicalDraftPick[] = [];
   const userSlug = (uid: string | null): string => {
     if (!uid) return uid ?? "";
@@ -473,17 +502,7 @@ export function toCanonicalDraftPicks(
           : typeof p.roster_id === "string" && p.roster_id
             ? Number.parseInt(p.roster_id, 10)
             : null;
-      let cpid: string | null = null;
-      if (p.player_id) {
-        const slim = playerIndex.get(p.player_id);
-        cpid = crosswalk.resolve({
-          provider: "sleeper",
-          provider_player_id: p.player_id,
-          full_name: slim?.full_name ?? null,
-          position: slim?.position ?? null,
-          nfl_team: slim?.team ?? null,
-        }).player.canonical_player_id;
-      }
+      const cpid: string | null = p.player_id ? resolver.resolve(p.player_id) : null;
       out.push({
         canonical_draft_pick_id: draftPickId(leagueSlug, season, p.pick_no),
         canonical_league_id: leagueId(leagueSlug),
