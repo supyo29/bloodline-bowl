@@ -7,8 +7,12 @@
  *   bridge_transaction_ledger   append-only; UNIQUE(league_slug,season,provider,provider_transaction_id)
  *   bridge_capture_runs         run metadata
  *
- * Idempotency is enforced by Postgres UNIQUE constraints + PostgREST
- * `resolution=ignore-duplicates`, not by "fetch since last run" bookkeeping.
+ * Idempotency is enforced by Postgres UNIQUE constraints + a conflict-safe
+ * `ON CONFLICT (<composite unique>) DO NOTHING` insert (see
+ * `SupabaseRest.insertIgnoreDuplicates`), not by "fetch since last run"
+ * bookkeeping. Two overlapping capture jobs that both try to persist the same
+ * provider transaction are safe: exactly one row remains, the loser's insert is
+ * a no-op, and both report success.
  */
 
 import { snapshotContentHash } from "../serialize";
@@ -36,6 +40,10 @@ import { SupabaseRest } from "./rest";
 const SNAP_TABLE = "bridge_league_snapshots";
 const LEDGER_TABLE = "bridge_transaction_ledger";
 const RUNS_TABLE = "bridge_capture_runs";
+
+/** Composite UNIQUE indexes — the conflict targets for idempotent inserts. */
+const SNAP_CONFLICT = ["league_slug", "season", "week", "capture_type", "content_hash"];
+const LEDGER_CONFLICT = ["league_slug", "season", "provider", "provider_transaction_id"];
 
 function errStatus(): PersistenceStatus {
   return "PERSISTENCE_ERROR";
@@ -87,11 +95,18 @@ export class SupabaseSnapshotStore implements SnapshotStore {
       capture_run_id: opts.capture_run_id ?? null,
     };
     try {
-      const inserted = await this.rest.insertIgnoreDuplicates<SnapshotRow>(SNAP_TABLE, [row]);
+      const inserted = await this.rest.insertIgnoreDuplicates<SnapshotRow>(
+        SNAP_TABLE,
+        [row],
+        SNAP_CONFLICT,
+      );
       if (inserted.length > 0) {
         return { status: "READY", outcome: "created", meta: toMeta(inserted[0]!) };
       }
-      // Duplicate content for this (league, season, week, capture_type).
+      // Identical content already stored for this (league, season, week,
+      // capture_type) — a concurrent/repeated capture. This is a no-op, not an
+      // error, and snapshot VERSIONING is unchanged: genuinely different content
+      // produces a different content_hash and lands as a new row.
       const existing = await this.rest.select<SnapshotRow>(SNAP_TABLE, {
         filter: {
           league_slug: `eq.${row.league_slug}`,
@@ -228,7 +243,15 @@ export class SupabaseLedgerStore implements LedgerStore {
       };
     });
     try {
-      const inserted = await this.rest.insertIgnoreDuplicates<LedgerRow>(LEDGER_TABLE, rows);
+      // ON CONFLICT (league_slug, season, provider, provider_transaction_id)
+      // DO NOTHING — a transaction another job (or an earlier run) already
+      // inserted is silently skipped. `inserted` is exactly the rows PostgREST
+      // returned; everything else in the batch already existed.
+      const inserted = await this.rest.insertIgnoreDuplicates<LedgerRow>(
+        LEDGER_TABLE,
+        rows,
+        LEDGER_CONFLICT,
+      );
       return {
         status: "READY",
         seen: transactions.length,
@@ -236,6 +259,8 @@ export class SupabaseLedgerStore implements LedgerStore {
         duplicates: transactions.length - inserted.length,
       };
     } catch (error) {
+      // A UNIQUE conflict is impossible here (DO NOTHING handles it), so any
+      // error is a genuine DB failure and must surface.
       return {
         status: errStatus(),
         seen: transactions.length,

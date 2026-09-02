@@ -47,11 +47,16 @@ export class SupabaseRestError extends Error {
     message: string,
     readonly status: number,
     readonly table: string,
+    /** Postgres SQLSTATE from the PostgREST error body, when present (e.g. "23505"). */
+    readonly code?: string,
   ) {
     super(message);
     this.name = "SupabaseRestError";
   }
 }
+
+/** Postgres unique-violation SQLSTATE. */
+export const PG_UNIQUE_VIOLATION = "23505";
 
 type Filter = Record<string, string>;
 
@@ -81,13 +86,30 @@ export class SupabaseRest {
   }
 
   /**
-   * Insert with `Prefer: resolution=ignore-duplicates` so a row that violates a
-   * UNIQUE constraint is silently skipped — the basis of idempotent append.
-   * Returns the rows actually inserted.
+   * Conflict-safe bulk insert: `ON CONFLICT (<conflictColumns>) DO NOTHING`.
+   *
+   * `conflictColumns` is REQUIRED and MUST match a real unique index. Without an
+   * explicit `on_conflict` target PostgREST infers the PRIMARY KEY, so a
+   * violation of a *composite* UNIQUE constraint from a concurrent or repeated
+   * insert would raise SQLSTATE 23505 instead of being ignored — which is the
+   * exact concurrency defect this parameter fixes.
+   *
+   * With `return=representation` + `DO NOTHING`, PostgREST returns exactly the
+   * rows that were actually inserted (skipped rows are not in `RETURNING`), so
+   * `result.length` is a reliable "new" count and `seen - result.length` is a
+   * reliable "already existed" count — safe under concurrency.
    */
-  async insertIgnoreDuplicates<T>(table: string, rows: unknown[]): Promise<T[]> {
+  async insertIgnoreDuplicates<T>(
+    table: string,
+    rows: unknown[],
+    conflictColumns: string[],
+  ): Promise<T[]> {
     if (rows.length === 0) return [];
-    return this.#request<T[]>("POST", table, rows, table, {
+    if (conflictColumns.length === 0) {
+      throw new Error("insertIgnoreDuplicates requires an explicit conflict target");
+    }
+    const path = `${table}?on_conflict=${conflictColumns.map(encodeURIComponent).join(",")}`;
+    return this.#request<T[]>("POST", path, rows, table, {
       Prefer: "return=representation,resolution=ignore-duplicates",
     });
   }
@@ -122,12 +144,20 @@ export class SupabaseRest {
       });
       const text = await res.text();
       if (!res.ok) {
-        // Never echo the response body wholesale (could contain row data); keep
-        // the error terse.
+        // Never echo the response body wholesale (PostgREST `details` can contain
+        // row values); surface only the SQLSTATE `code`, which is safe and useful.
+        let code: string | undefined;
+        try {
+          const parsed = JSON.parse(text) as { code?: unknown };
+          if (typeof parsed.code === "string") code = parsed.code;
+        } catch {
+          /* non-JSON error body */
+        }
         throw new SupabaseRestError(
-          `Supabase ${method} ${table} -> ${res.status}`,
+          `Supabase ${method} ${table} -> ${res.status}${code ? ` [${code}]` : ""}`,
           res.status,
           table,
+          code,
         );
       }
       return (text ? JSON.parse(text) : []) as T;

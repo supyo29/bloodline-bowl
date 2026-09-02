@@ -93,7 +93,8 @@ export async function GET(request: Request): Promise<Response> {
     console.log(
       `[cron:capture] ${target.key}: snapshot=${snapshot.snapshot_outcome}` +
         ` (id=${snapshot.snapshot_id ?? "-"}, week=${snapshot.week ?? "?"}, live=${snapshot.live_provider_status})` +
-        ` txn seen=${sync.seen} new=${sync.inserted} dup=${sync.duplicates}`,
+        ` txn seen=${sync.seen} new=${sync.inserted} existing=${sync.duplicates}` +
+        ` status=${sync.ok ? "READY" : "ERROR"}${sync.error ? ` error=${sync.error}` : ""}`,
     );
     for (const w of [...snapshot.warnings, ...sync.warnings]) console.warn(`[cron:capture] ${target.key} ! ${w}`);
 
@@ -108,10 +109,14 @@ export async function GET(request: Request): Promise<Response> {
         warnings: snapshot.warnings,
       },
       transactions: {
-        seen: sync.seen,
-        inserted: sync.inserted,
-        duplicates: sync.duplicates,
+        transactions_seen: sync.seen,
+        transactions_new: sync.inserted,
+        // An already-persisted transaction (inserted by an earlier or concurrent
+        // run) is counted here, never as an error.
+        transactions_existing: sync.duplicates,
+        status: sync.ok ? "READY" : "ERROR",
         persistence_status: sync.persistence_status,
+        error: sync.error ?? null,
         warnings: sync.warnings,
       },
     });
