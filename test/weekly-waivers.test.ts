@@ -400,64 +400,63 @@ describe("waiver add/drop must preserve a fieldable legal roster (Codex round 7,
     if (rec) assert.notEqual(rec.drop_player_id, "rb1", "dropping the lone RB doubles the RB hole -> illegal");
   });
 
-  it("evaluates EVERY assessable drop — the best legal pair is not missed when it ranks late by keep", () => {
-    // 8 cheapest-keep active players are all position-critical (dropping any
-    // leaves a hole the WR FA can't fill); a WR bench body ranked ~9th is the
-    // only legal drop and MUST be found.
+  it("evaluates EVERY assessable drop — a legal drop ranked ~14th by keep is still found (fails with the old top-8 cutoff)", () => {
+    // FA is a K. 13 assessable players are cheaper by keep and ALL illegal to
+    // drop for a kicker (QB/TE/DEF -> position hole; RB/WR -> FLEX/WR hole a K
+    // can't fill). k1 (proj 14) is the priciest keep -> ranks last -> the ONLY
+    // legal drop. The former .slice(0,8) never reached it and returned
+    // DO_NOT_ADD "no legal drop".
     const players = [
       player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
-      player("te1", "TE"), player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
-      // 5 bench WRs with LOWER keep than the 9 starters would be, plus one more:
-      player("bnWR1", "WR"), player("bnWR2", "WR"), player("bnWR3", "WR"), player("bnWR4", "WR"), player("bnWR5", "WR"),
+      player("te1", "TE"), player("fxWR", "WR"), player("k1", "K"), player("def1", "DEF"),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => player(id, "RB")),
     ];
     const P = [
-      proj("qb1", "QB", 20), proj("rb1", "RB", 17), proj("rb2", "RB", 15), proj("wr1", "WR", 16), proj("wr2", "WR", 14),
-      proj("te1", "TE", 12), proj("fx", "RB", 13), proj("k1", "K", 9), proj("def1", "DEF", 8),
-      proj("bnWR1", "WR", 3), proj("bnWR2", "WR", 3), proj("bnWR3", "WR", 3), proj("bnWR4", "WR", 3), proj("bnWR5", "WR", 3),
+      proj("qb1", "QB", 6), proj("rb1", "RB", 6), proj("rb2", "RB", 6), proj("wr1", "WR", 6), proj("wr2", "WR", 6),
+      proj("te1", "TE", 6), proj("fxWR", "WR", 6), proj("k1", "K", 14), proj("def1", "DEF", 6),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => proj(id, "RB", 5)),
     ];
-    // 14 active (9 starters + 5 bench), roster full.
+    // 14 active: FLEX currently a WR (fxWR) so an RB drop leaves an RB hole too.
     const c = weeklyContext({
-      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"], ["bnWR1", "bnWR2", "bnWR3", "bnWR4", "bnWR5"]),
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fxWR", "k1", "def1"], ["b1", "b2", "b3", "b4", "b5"]),
       players, projections: P,
-      freeAgents: [player("faWR", "WR", { name: "Wire WR3" })],
-      faProjections: [proj("faWR", "WR", 15, { rest_of_season_points: 180 })],
+      freeAgents: [player("faK", "K", { name: "Elite K" })],
+      faProjections: [proj("faK", "K", 20, { rest_of_season_points: 220 })],
     });
     const res = buildWaiverRecommendations(c);
-    const rec = res.recommendations.find((r) => r.add_name === "Wire WR3");
-    const dna = res.do_not_add.find((d) => d.add_name === "Wire WR3");
-    // a legal bench-WR drop exists -> must NOT be DO_NOT_ADD "no legal drop"
-    assert.ok(!dna || !/no legal drop/i.test(dna.reason), "the late-ranked legal drop was found");
-    if (rec) assert.ok(rec.drop_player_id?.startsWith("bnWR"), `drop should be a bench WR, got ${rec.drop_player_id}`);
+    assert.ok(!res.do_not_add.some((d) => d.add_name === "Elite K" && /no legal drop/i.test(d.reason)),
+      "must NOT be 'no legal drop' — the rank-14 legal drop exists (old top-8 cutoff would miss it)");
+    const rec = res.recommendations.find((r) => r.add_name === "Elite K");
+    assert.ok(rec, "the +6-net K upgrade is recommended once its only legal drop (k1) is found");
+    assert.equal(rec!.drop_player_id, "k1", "the only legal drop is k1");
   });
 
-  it("a legal add/drop pair that LOWERS the optimal lineup keeps a SIGNED (negative) starter_impact", () => {
-    // FA is a weak RB; the only legal drops are RB starters that all out-project
-    // it, so the best legal pair still costs starting points. The negative must
-    // survive into starter_impact / the score, not be clamped to 0.
+  it("a legal add/drop pair that LOWERS the optimal lineup keeps a SIGNED (negative) starter_impact — unconditionally", () => {
+    // Fully projected, no bench (active_roster_capacity 9). FA is a weak RB;
+    // every legal drop is an RB starter it out-projects, so the best legal pair
+    // still costs starting points. RESOLVED + negative, no PROVISIONAL escape.
     const players = [
       player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
       player("te1", "TE"), player("fx", "RB"), player("k1", "K"), player("def1", "DEF"),
-      ...["g1", "g2", "g3", "g4", "g5"].map((id) => player(id, "WR")),
     ];
     const P = [
       proj("qb1", "QB", 18), proj("rb1", "RB", 16), proj("rb2", "RB", 13), proj("wr1", "WR", 14), proj("wr2", "WR", 12),
       proj("te1", "TE", 10), proj("fx", "RB", 11), proj("k1", "K", 8), proj("def1", "DEF", 7),
-      // bench WRs UNKNOWN (unassessable) -> only RB starters are legal drops for an RB add
     ];
     const c = weeklyContext({
-      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"], ["g1", "g2", "g3", "g4", "g5"]),
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "k1", "def1"], []),
       players, projections: P,
+      constraints: { ...STD_CONSTRAINTS, active_roster_capacity: 9 },
       freeAgents: [player("faRb", "RB", { name: "Weak RB" })],
       faProjections: [proj("faRb", "RB", 8, { rest_of_season_points: 300 })],
     });
     const res = buildWaiverRecommendations(c);
     const entry =
       res.recommendations.find((r) => r.add_name === "Weak RB") ??
-      res.do_not_add.find((d) => d.add_name === "Weak RB");
+      res.do_not_add.find((d) => d.add_name === "Weak RB")!;
     assert.ok(entry, "candidate evaluated");
-    if (entry.starter_impact_status === "RESOLVED") {
-      assert.ok(entry.starter_impact != null && entry.starter_impact < 0, `signed negative starter_impact, got ${entry.starter_impact}`);
-    }
+    assert.equal(entry.starter_impact_status, "RESOLVED", "no PROVISIONAL escape — the lineup is fully projected");
+    assert.ok(entry.starter_impact != null && entry.starter_impact < 0, `signed negative starter_impact, got ${entry.starter_impact}`);
   });
 
   it("no assessable + legal drop exists -> DO_NOT_ADD 'no legal drop'", () => {
