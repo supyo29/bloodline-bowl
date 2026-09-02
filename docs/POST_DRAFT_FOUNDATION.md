@@ -196,6 +196,12 @@ values are never logged or returned to a client. The Supabase-backed token store
 (`yahoo_connections`) is a follow-up; the callback currently reports
 `CONNECTED_NOT_PERSISTED` after a successful exchange.
 
-For `Maclin on Chick's XVI` the human-facing id `82713` is registered; the full
-Yahoo `game.l.id` key is resolved and persisted (`yahoo_league_key`) only once
-authenticated access exists.
+Two Yahoo leagues are registered — `maclin-on-chicks-xvi` (`82713`) and
+`rogers-park` (`287140`) — proving the Yahoo path is not single-league. For each,
+only the human-facing id is known; the full Yahoo `game.l.id` key is resolved and
+persisted (`yahoo_league_key`) once authenticated access exists, and may differ
+per season. The canonical slug never changes and is the only analytical identity
+— Yahoo's provider ids stay in `provenance`, never in `canonical_league_id`.
+
+Initial registry: **4 leagues · 2 providers · 3 known manager contexts
+(`supyo29`, `BijiMac`, `DarthMarker`) · 1 shared canonical architecture.**
