@@ -42,15 +42,7 @@ import type {
   CanonicalRoster,
 } from "@/lib/canonical/schema";
 
-const FLEX_ELIGIBILITY: Record<string, string[]> = {
-  FLEX: ["RB", "WR", "TE"],
-  WRRB_FLEX: ["RB", "WR"],
-  REC_FLEX: ["WR", "TE"],
-  WRRB_WRT: ["RB", "WR", "TE"],
-  SUPER_FLEX: ["QB", "RB", "WR", "TE"],
-  SUPERFLEX: ["QB", "RB", "WR", "TE"],
-};
-const BASE_STARTING = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+import { BASE_STARTING, FLEX_ELIGIBILITY, isFlexSlot } from "./slots";
 
 export interface WeeklyContextResult {
   ok: boolean;
@@ -202,7 +194,7 @@ export async function buildWeeklyTeamContext(
   // Roster constraints (with FLEX resolution).
   const rs = snap.league.roster_settings;
   const flexPositions = uniq(
-    rs.starting_slots.filter((s) => FLEX_ELIGIBILITY[s]).flatMap((s) => FLEX_ELIGIBILITY[s]!),
+    rs.starting_slots.filter((s) => isFlexSlot(s)).flatMap((s) => FLEX_ELIGIBILITY[s]!),
   );
   const constraints: RosterConstraints = {
     starting_slots: rs.starting_slots,
@@ -215,7 +207,7 @@ export async function buildWeeklyTeamContext(
     reserve_ir_capacity: rs.ir_slots,
     taxi_capacity: rs.taxi_slots,
     flex_positions: flexPositions.length ? flexPositions : ["RB", "WR", "TE"],
-    flex_slots: rs.starting_slots.filter((s) => FLEX_ELIGIBILITY[s]).length,
+    flex_slots: rs.starting_slots.filter((s) => isFlexSlot(s)).length,
   };
 
   // Projections for everyone rostered in the league (roster + candidate universe).

@@ -62,8 +62,14 @@ describe("live: full weekly engine for the three primary managers", () => {
       assert.ok(lu.known_optimal_subtotal > 50, `known optimal subtotal ${lu.known_optimal_subtotal} is sane`);
       assert.ok(["COMPLETE", "PROVISIONAL"].includes(lu.optimality_status));
       assert.ok(lu.lineup_efficiency == null || (lu.lineup_efficiency > 0 && lu.lineup_efficiency <= 1.0001));
-      // recommended change gains are never negative
-      for (const c of lu.changes_recommended) assert.ok(c.gain > 0);
+      // the top recommended change is a genuine upgrade; each change pairs a real
+      // entrant with a real leaver (or an open slot).
+      if (lu.changes_recommended.length > 0) assert.ok(lu.changes_recommended[0]!.gain > 0);
+      const optimalIds = new Set(lu.slots.map((s) => s.recommended_player_id).filter(Boolean));
+      for (const c of lu.changes_recommended) {
+        assert.ok(optimalIds.has(c.in), "an entrant is in the optimal lineup");
+        assert.ok(c.out == null || !optimalIds.has(c.out), "a leaver is NOT in the optimal lineup");
+      }
 
       // ---- start/sit never overstates a tiny edge
       for (const ss of i.start_sit) {

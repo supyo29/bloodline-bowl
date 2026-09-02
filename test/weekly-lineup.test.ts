@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildOptimalLineup, hungarianMaxWeight, isEligible } from "../lib/weekly/lineup";
+import type { RosterConstraints } from "../lib/weekly/schema";
 import {
   STD_CONSTRAINTS,
   SUPERFLEX_CONSTRAINTS,
@@ -387,6 +388,130 @@ describe("lineup: UNKNOWN vs VERIFIED_ZERO inside the optimizer (issue 4)", () =
     assert.equal(r.unresolved_decisions.length, 0);
   });
 });
+
+describe("lineup: Yahoo slot labels + sparse roster slots (Codex re-review)", () => {
+  it("a Yahoo flex label (W/R/T) is eligible for RB/WR/TE and is actually filled", () => {
+    assert.equal(isEligible("W/R/T", player("x", "RB")), true);
+    assert.equal(isEligible("W/R/T", player("x", "TE")), true);
+    assert.equal(isEligible("Q/W/R/T", player("x", "QB")), true);
+    assert.equal(isEligible("W/R/T", player("x", "K")), false);
+
+    const yahooConstraints: RosterConstraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "W/R/T", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, "W/R/T": 1, K: 1, DEF: 1 },
+      flex_positions: ["RB", "WR", "TE"],
+      flex_slots: 1,
+    };
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("wr3", "WR"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 15), proj("rb2", "RB", 12), proj("wr1", "WR", 14),
+      proj("wr2", "WR", 12), proj("te1", "TE", 10), proj("wr3", "WR", 11), proj("k1", "K", 8), proj("def1", "DEF", 7),
+    ];
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"], [], { startingSlots: yahooConstraints.starting_slots }),
+      constraints: yahooConstraints,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    const flex = r.slots.find((s) => s.slot === "W/R/T")!;
+    assert.equal(flex.recommended_player_id, "wr3", "the W/R/T slot is filled, not left empty");
+    assert.ok(!r.empty_slots.includes("W/R/T"));
+    assert.notEqual(r.optimal_total, null);
+  });
+
+  it("a roster that omits its empty starter-slot entry does not shift later starters (Yahoo)", () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"),
+      player("k1", "K"), player("def1", "DEF"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 15), proj("rb2", "RB", 12),
+      proj("wr1", "WR", 14), proj("wr2", "WR", 12), proj("te1", "TE", 10),
+      proj("k1", "K", 8), proj("def1", "DEF", 7),
+    ];
+    // Yahoo-style: NO entry for the unfilled FLEX slot; entries carry their label.
+    const sparseRoster = {
+      canonical_roster_id: "roster:t:1",
+      canonical_team_id: "team:t:1",
+      slots: [
+        { slot: "QB", slot_index: 0, canonical_player_id: "qb1", is_empty: false },
+        { slot: "RB", slot_index: 1, canonical_player_id: "rb1", is_empty: false },
+        { slot: "RB", slot_index: 2, canonical_player_id: "rb2", is_empty: false },
+        { slot: "WR", slot_index: 3, canonical_player_id: "wr1", is_empty: false },
+        { slot: "WR", slot_index: 4, canonical_player_id: "wr2", is_empty: false },
+        { slot: "TE", slot_index: 5, canonical_player_id: "te1", is_empty: false },
+        { slot: "K", slot_index: 6, canonical_player_id: "k1", is_empty: false },
+        { slot: "DEF", slot_index: 7, canonical_player_id: "def1", is_empty: false },
+      ],
+      starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "k1", "def1"],
+      bench: [],
+      ir: [],
+      taxi: [],
+      all_players: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "k1", "def1"],
+      provenance: { provider: "sleeper" as const, provider_id: "t", provider_synced_at: null },
+    };
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: sparseRoster,
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    // K and DEF are still aligned to their own slots — NOT shifted into FLEX/K.
+    assert.equal(r.slots.find((s) => s.slot === "K")!.current_player_id, "k1");
+    assert.equal(r.slots.find((s) => s.slot === "DEF")!.current_player_id, "def1");
+    assert.equal(r.slots.find((s) => s.slot === "FLEX")!.current_player_id, null, "FLEX is correctly empty");
+    assert.equal(r.illegal_situations.length, 0, "no false illegal-lineup alerts from a shifted DEF");
+  });
+});
+
+describe("lineup: multi-player swap pairing (Codex re-review)", () => {
+  it("pairs entrants with same-position leavers, and no genuine move disappears", () => {
+    const players = [
+      player("qb1", "QB"), player("A", "RB"), player("Bx", "WR"),
+      player("wr2", "WR"), player("wr3", "WR"), player("te1", "TE"),
+      player("Cx", "WR"), player("k1", "K"), player("def1", "DEF"),
+      player("D", "RB"), player("E", "WR"),
+    ];
+    const projs = [
+      proj("qb1", "QB", 20), proj("A", "RB", 10), proj("Bx", "WR", 11),
+      proj("wr2", "WR", 9), proj("wr3", "WR", 8), proj("te1", "TE", 12),
+      proj("Cx", "WR", 8), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("D", "RB", 16), proj("E", "WR", 15),
+    ];
+    // current: RB=A, RB=wr??; keep it simple: RB1=A, RB2=A? no. Use one RB slot
+    // A, and Bx/Cx in WR/FLEX. D (RB 16) and E (WR 15) on the bench beat them.
+    const r = buildOptimalLineup({
+      week: 1,
+      roster: roster("team:t:1", ["qb1", "A", "wr2", "Bx", "wr3", "te1", "Cx", "k1", "def1"], ["D", "E"], { startingSlots: STD_CONSTRAINTS.starting_slots }),
+      constraints: STD_CONSTRAINTS,
+      players: new Map(players.map((p) => [p.canonical_player_id, p])),
+      projections: batch(projs, players),
+    });
+    const ins = r.changes_recommended.map((c) => c.in);
+    assert.ok(ins.includes("D") && ins.includes("E"), "both genuine entrants are reported");
+    // E (WR) should be paired with a WR leaver, never with A (an RB who stays).
+    const eChange = r.changes_recommended.find((c) => c.in === "E")!;
+    assert.equal(basePosOf(players, eChange.out), "WR");
+    for (const c of r.changes_recommended) {
+      assert.notEqual(c.out, "A", "A stays a starter (slides slots) — never a leaver");
+    }
+    // authoritative aggregate is optimal - current, not a sum of pair deltas.
+    assert.equal(r.projected_points_gained, Math.round((r.optimal_total! - r.current_total!) * 100) / 100);
+  });
+});
+
+function basePosOf(players: ReturnType<typeof player>[], id: string | null): string | null {
+  if (!id) return null;
+  return players.find((p) => p.canonical_player_id === id)?.position ?? null;
+}
 
 describe("hungarian core", () => {
   it("solves a small assignment optimally", () => {

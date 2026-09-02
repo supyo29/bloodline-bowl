@@ -38,20 +38,9 @@ import type {
   WeeklyWarning,
 } from "./schema";
 
-const FLEX_ELIGIBILITY: Record<string, string[]> = {
-  FLEX: ["RB", "WR", "TE"],
-  WRRB_FLEX: ["RB", "WR"],
-  REC_FLEX: ["WR", "TE"],
-  WRRB_WRT: ["RB", "WR", "TE"],
-  SUPER_FLEX: ["QB", "RB", "WR", "TE"],
-  SUPERFLEX: ["QB", "RB", "WR", "TE"],
-  IDP_FLEX: ["DL", "LB", "DB"],
-};
+import { NON_STARTING_SLOTS, slotEligiblePositions } from "./slots";
 
-export function slotEligiblePositions(slot: string): string[] {
-  if (FLEX_ELIGIBILITY[slot]) return FLEX_ELIGIBILITY[slot]!;
-  return [slot];
-}
+export { slotEligiblePositions };
 
 export function isEligible(slot: string, player: CanonicalPlayer): boolean {
   const allowed = slotEligiblePositions(slot);
@@ -190,13 +179,28 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
 
   const assignment = hungarianMaxWeight(weight);
 
-  // Current lineup from the canonical roster's starting slots.
-  const currentBySlotIndex = new Map<number, string | null>();
-  let si = 0;
-  for (const s of roster.slots) {
-    if (["BN", "IR", "TAXI"].includes(s.slot)) continue;
-    currentBySlotIndex.set(si, s.is_empty ? null : s.canonical_player_id);
-    si += 1;
+  // Current lineup from the canonical roster's starting slots. Aligned to
+  // `constraints.starting_slots` by LABEL + occurrence, not by sequential index:
+  // a provider (Yahoo) that omits placeholder entries for unfilled starter slots
+  // would otherwise shift every later starter forward (a DEF read as an RB).
+  const startingRosterSlots = roster.slots.filter((s) => !NON_STARTING_SLOTS.has(s.slot));
+  const slotQueueByLabel = new Map<string, Array<string | null>>();
+  for (const s of startingRosterSlots) {
+    const q = slotQueueByLabel.get(s.slot) ?? [];
+    q.push(s.is_empty ? null : s.canonical_player_id);
+    slotQueueByLabel.set(s.slot, q);
+  }
+  const leftoverStarters: Array<string | null> = [];
+  const curBySlot: Array<string | null> = slots.map((label) => {
+    const q = slotQueueByLabel.get(label);
+    if (q && q.length > 0) return q.shift() ?? null;
+    return undefined as unknown as string | null; // fill from leftovers below
+  });
+  // Roster starters whose slot label matched nothing in `starting_slots`
+  // (label vocabulary mismatch) still get placed, in order, into remaining holes.
+  for (const [, q] of slotQueueByLabel) for (const id of q) leftoverStarters.push(id);
+  for (let i = 0; i < curBySlot.length; i += 1) {
+    if (curBySlot[i] === undefined) curBySlot[i] = leftoverStarters.shift() ?? null;
   }
 
   // First pass — resolve each slot's recommended + current player.
@@ -217,7 +221,6 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     }
     return null;
   });
-  const curBySlot: Array<string | null> = slots.map((_, i) => currentBySlotIndex.get(i) ?? null);
 
   // ---- STARTER-SET difference (not slot permutations). Reshuffling the same
   // starters among RB/WR/FLEX/duplicate slots is NOT an actionable move.
@@ -298,23 +301,36 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     current_slots_known: slotRecs.filter((r) => r.current_player_id && r.current_projection_state !== "UNKNOWN").length,
   };
 
-  // ---- Actionable changes: derived from entering/leaving, paired for display.
-  // A pair that hinges on an UNKNOWN value is UNRESOLVED, never a numeric gain.
-  const leaversPool = [...leaving];
+  // ---- Actionable changes: derived from the entering/leaving SET difference,
+  // paired for display. Pairing prefers a same-base-position leaver, then a
+  // slot-eligible leaver, then the highest-value remaining leaver; an entrant
+  // left unpaired is filling a freed/empty slot (`out: null`). Every genuine
+  // entrant is reported — a move is never dropped because an arbitrary
+  // cross-position pair happened to have a non-positive delta. The authoritative
+  // aggregate gain is `optimal_total - current_total`, not a sum of these.
+  const basePos = (id: string): string => {
+    const p = players.get(id);
+    return p ? p.position : "";
+  };
+  const enteringSorted = [...entering].sort((a, b) => (knownPoints(b) ?? -1e9) - (knownPoints(a) ?? -1e9));
+  const leaverPool = [...leaving];
   const changes: LineupChange[] = [];
   const unresolved_decisions: UnresolvedLineupDecision[] = [];
-  for (const inId of entering) {
+  for (const inId of enteringSorted) {
     const slotRec = slotRecs.find((r) => r.recommended_player_id === inId)!;
     let outId: string | null = null;
-    const slotCurrent = slotRec.current_player_id;
-    if (slotCurrent && leaversPool.includes(slotCurrent)) {
-      outId = slotCurrent;
-      leaversPool.splice(leaversPool.indexOf(slotCurrent), 1);
-    } else if (leaversPool.length > 0) {
-      outId = leaversPool.shift()!;
+    const samePos = leaverPool.find((l) => basePos(l) === basePos(inId));
+    const slotEligible = leaverPool.find((l) => {
+      const pl = players.get(l);
+      return pl != null && isEligible(slotRec.slot, pl);
+    });
+    const pick = samePos ?? slotEligible ?? (leaverPool.length > 0 ? leaverPool[0] : undefined);
+    if (pick) {
+      outId = pick;
+      leaverPool.splice(leaverPool.indexOf(pick), 1);
     }
     const inState = projState(inId);
-    const outState: ProjectionState = outId ? projState(outId) : "KNOWN"; // empty slot -> 0 baseline
+    const outState: ProjectionState = outId ? projState(outId) : "KNOWN"; // freed slot -> 0 baseline
 
     if (inState === "UNKNOWN" || outState === "UNKNOWN") {
       unresolved_decisions.push({
@@ -331,8 +347,7 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
 
     const inPts = inState === "VERIFIED_ZERO" ? 0 : proj(inId)!.projected_points!;
     const outPts = outId ? (outState === "VERIFIED_ZERO" ? 0 : proj(outId)!.projected_points!) : 0;
-    const gain = round2(inPts - outPts);
-    if (gain > 0) changes.push({ slot: slotRec.slot, out: outId, in: inId, gain });
+    changes.push({ slot: slotRec.slot, out: outId, in: inId, gain: round2(inPts - outPts) });
   }
   changes.sort((a, b) => b.gain - a.gain);
 
