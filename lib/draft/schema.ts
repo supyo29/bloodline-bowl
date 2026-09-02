@@ -316,6 +316,13 @@ export interface RecommendationProvenance {
   recommendation_model_version: string;
   recommendation_schema_version: string;
   draft_state_timestamp: string;
+  /**
+   * Per-required-position projection coverage: the model version backing each
+   * position group, or `null` when that group has no valid production coverage
+   * (which degrades readiness). QB/RB/WR/TE come from `ri-structural-2026.3`;
+   * K/DEF from `ri-kicker-2026.1` / `ri-defense-2026.1`.
+   */
+  projection_coverage: Record<string, string | null>;
 }
 
 /* -------------------------------------------------------------------------- */

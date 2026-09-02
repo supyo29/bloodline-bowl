@@ -20,7 +20,9 @@ import {
 import { buildDraftBundle } from "@/lib/sleeper/draft-service";
 import { loadLeagueConfig } from "@/lib/projections/service";
 import { buildBaseProjections, buildLeagueProjections } from "@/lib/projections/build";
-import type { FantasyPosition } from "@/lib/projections/schema";
+import { leagueScoringContext } from "@/lib/projections/league";
+import { buildSpecialTeamsProjections, withoutRosteredSpecialTeams } from "@/lib/projections/special-teams";
+import { PROJECTION_MODEL_VERSION, type FantasyPosition } from "@/lib/projections/schema";
 import type { ResolvedManager } from "@/lib/leagues/resolve";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
@@ -170,7 +172,29 @@ export async function buildManagerRecommendationResponse(
     };
   }
 
-  const league = buildLeagueProjections(base, cfg);
+  const offense = buildLeagueProjections(base, cfg);
+
+  // ---- K / DEF production coverage (ri-kicker-2026.1 / ri-defense-2026.1) --
+  // The frozen offensive structural model never covered K/DEF. These rows are
+  // built from a reproducible vendored snapshot, scored through the SAME live
+  // `scoring_settings` + `calculateFantasyPoints` Layer 2 uses, and appended to
+  // the pool. The engine re-derives replacement/VOR/tiers per position group, so
+  // no QB/RB/WR/TE number changes. The K/DST hard gate still controls timing.
+  const scoringCtx = leagueScoringContext(cfg.league_slug, cfg.league_id, cfg.scoring_settings);
+  const specialTeams = buildSpecialTeamsProjections({ ctx: scoringCtx, playerIndex });
+
+  const league = {
+    ...offense,
+    projections: [...offense.projections, ...specialTeams.kickers, ...specialTeams.defenses],
+  };
+  const projectionCoverage: Record<string, string | null> = {
+    QB: PROJECTION_MODEL_VERSION,
+    RB: PROJECTION_MODEL_VERSION,
+    WR: PROJECTION_MODEL_VERSION,
+    TE: PROJECTION_MODEL_VERSION,
+    K: specialTeams.coverage.K.status === "VALID" ? specialTeams.coverage.K.version : null,
+    DEF: specialTeams.coverage.DEF.status === "VALID" ? specialTeams.coverage.DEF.version : null,
+  };
 
   // ---- manager roster --------------------------------------------
   let rosterPlayers: NormalizedPlayer[];
@@ -195,9 +219,12 @@ export async function buildManagerRecommendationResponse(
   }
   const market = buildMarketConsensusSnapshot({ searchRankByPlayer });
 
+  // ---- "one K, one DEF" — never surface a second (Phase 7 K/DST policy) ----
+  const enginePool = withoutRosteredSpecialTeams(league.projections, rosterPlayers);
+
   // ---- run the engine -------------------------------------------
   const response = recommendDraft({
-    leaguePool: league.projections,
+    leaguePool: enginePool,
     rosterPositions: cfg.roster_positions,
     numTeams: cfg.num_teams,
     draftType: draftType ?? "snake",
@@ -212,6 +239,7 @@ export async function buildManagerRecommendationResponse(
     },
     rosterPlayers,
     market,
+    projectionCoverage,
     provenance: {
       projection_source: "roster-intel",
       projection_version: base.model_version,

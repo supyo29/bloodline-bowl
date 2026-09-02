@@ -253,23 +253,58 @@ describe("ri-snake-decision-2026.2 — positional-advantage damping", () => {
   });
 });
 
-/* ------------------------------------------------ §31 K/DEF pool-gap diagnostic */
+/* --------------------------------------- §31 K/DEF coverage-based readiness */
 
-describe("K/DEF projection-pool gap is surfaced, not silent", () => {
-  it("readiness degrades + warns when the pool has no K/DEF", () => {
+describe("K/DEF projection coverage drives readiness (evidence-based, not silent)", () => {
+  const mkInput = (over: Partial<EngineInput> = {}): EngineInput => {
     const skillOnly = pool().filter((x) => x.position !== "K" && x.position !== "DEF");
-    const input: EngineInput = {
+    return {
       leaguePool: skillOnly, rosterPositions: ROSTER_POSITIONS, numTeams: 12, draftType: "snake", rounds: 15,
       completedPicks: [], manager: { roster_id: 7, sleeper_user_id: "u", manager_slug: "m", draft_slot: 7 },
       rosterPlayers: [],
       market: buildMarketSnapshot({ adpByPlayer: null, searchRankByPlayer: new Map(skillOnly.map((x) => [x.player_id, null])), timestamp: "t" }),
       provenance: { projection_source: "t", projection_version: "v", projection_timestamp: "t", league_scoring_hash: "h", draft_state_timestamp: "t" },
+      ...over,
     };
-    const res = recommendDraft(input);
+  };
+
+  it("DEGRADED when a required position has no coverage (K/DEF absent, no coverage passed)", () => {
+    const res = recommendDraft(mkInput());
     assert.equal(res.readiness.snake_engine_status, "DEGRADED");
-    assert.ok(res.readiness.degraded_reasons.some((r) => /K is absent/.test(r)));
-    assert.ok(res.readiness.degraded_reasons.some((r) => /DEF is absent/.test(r)));
-    assert.ok(res.warnings.some((w) => /no K projections/.test(w)));
+    assert.ok(res.readiness.degraded_reasons.some((r) => /K has no valid production projection coverage/.test(r)));
+    assert.ok(res.readiness.degraded_reasons.some((r) => /DEF has no valid production projection coverage/.test(r)));
+    assert.ok(res.warnings.some((w) => /K projection coverage unavailable/.test(w)));
+    assert.equal(res.provenance.projection_coverage.K, null);
+    assert.equal(res.provenance.projection_coverage.DEF, null);
+  });
+
+  it("READY when every required position has coverage (K/DEF rows + coverage versions)", () => {
+    const full = pool(); // includes K + DEF rows
+    const res = recommendDraft(
+      mkInput({
+        leaguePool: full,
+        projectionCoverage: { QB: "ri-structural-2026.3", RB: "ri-structural-2026.3", WR: "ri-structural-2026.3", TE: "ri-structural-2026.3", K: "ri-kicker-2026.1", DEF: "ri-defense-2026.1" },
+        market: buildMarketSnapshot({ adpByPlayer: null, searchRankByPlayer: new Map(full.map((x) => [x.player_id, null])), timestamp: "t" }),
+      }),
+    );
+    assert.equal(res.readiness.snake_engine_status, "READY");
+    assert.deepEqual(res.readiness.degraded_reasons, []);
+    assert.equal(res.provenance.projection_coverage.K, "ri-kicker-2026.1");
+    assert.equal(res.provenance.projection_coverage.DEF, "ri-defense-2026.1");
+  });
+
+  it("DEGRADED for exactly the one position whose coverage is null (K source failed)", () => {
+    const full = pool();
+    const res = recommendDraft(
+      mkInput({
+        leaguePool: full,
+        projectionCoverage: { QB: "ri-structural-2026.3", RB: "ri-structural-2026.3", WR: "ri-structural-2026.3", TE: "ri-structural-2026.3", K: null, DEF: "ri-defense-2026.1" },
+        market: buildMarketSnapshot({ adpByPlayer: null, searchRankByPlayer: new Map(full.map((x) => [x.player_id, null])), timestamp: "t" }),
+      }),
+    );
+    assert.equal(res.readiness.snake_engine_status, "DEGRADED");
+    assert.ok(res.readiness.degraded_reasons.some((r) => /K has no valid production projection coverage/.test(r)));
+    assert.ok(!res.readiness.degraded_reasons.some((r) => /DEF has no valid production projection coverage/.test(r)));
   });
 });
 

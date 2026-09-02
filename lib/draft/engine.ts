@@ -97,6 +97,13 @@ export interface EngineInput {
     league_scoring_hash: string;
     draft_state_timestamp: string;
   };
+  /**
+   * Per-position production projection coverage: model version, or `null` when a
+   * required position group has no valid coverage. When omitted, coverage is
+   * inferred from whether the pool contains any row for that position (keeps the
+   * frozen synthetic fixtures working unchanged).
+   */
+  projectionCoverage?: Record<string, string | null>;
   weights?: UtilityWeights;
   /** how many players to return per bucket */
   limits?: { alternates?: number; wait?: number; doNotReach?: number };
@@ -106,6 +113,24 @@ function supportedOrder(draftType: string | null): SupportedDraftType | null {
   if (draftType === "snake") return "snake";
   if (draftType === "linear") return "linear";
   return null;
+}
+
+const REQUIRED_POSITIONS: FantasyPosition[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
+
+/** Model version per position, or null when a required group has no coverage. */
+function coverageOf(input: EngineInput): Record<string, string | null> {
+  if (input.projectionCoverage) {
+    return Object.fromEntries(
+      REQUIRED_POSITIONS.map((p) => [p, input.projectionCoverage![p] ?? null]),
+    );
+  }
+  // fallback: infer from pool presence (frozen synthetic fixtures pass K/DEF rows)
+  return Object.fromEntries(
+    REQUIRED_POSITIONS.map((p) => [
+      p,
+      input.leaguePool.some((x) => x.position === p) ? input.provenance.projection_version : null,
+    ]),
+  );
 }
 
 function provenanceOf(input: EngineInput, marketSource: MarketSnapshot["source"]): RecommendationProvenance {
@@ -125,6 +150,7 @@ function provenanceOf(input: EngineInput, marketSource: MarketSnapshot["source"]
     recommendation_model_version: RECOMMENDATION_MODEL_VERSION,
     recommendation_schema_version: RECOMMENDATION_SCHEMA_VERSION,
     draft_state_timestamp: input.provenance.draft_state_timestamp,
+    projection_coverage: coverageOf(input),
   };
 }
 
@@ -271,18 +297,22 @@ export function recommendDraft(input: EngineInput): RecommendationResponse {
       [...draftable].some((d) => d === p.position),
   );
 
-  // Diagnostic (discovered Phase 6): the frozen Layer-1 projection pool can be
-  // entirely missing a required position (e.g. K/DEF are outside the offensive
-  // opportunity model's coverage) — this is a Layer-1/2 gap, not something this
-  // engine can fix, but it must never fail silently. Surface it so a caller
-  // knows to fall back to the candidate list (`.../draft`) for that position.
-  for (const pos of ["K", "DEF"] as FantasyPosition[]) {
-    if (draftable.has(pos) && !input.leaguePool.some((p) => p.position === pos)) {
+  // Readiness is EVIDENCE-BASED coverage, not a capability flag: every required
+  // position group this league drafts must have valid production projection
+  // coverage. QB/RB/WR/TE come from `ri-structural-2026.3`; K/DEF from
+  // `ri-kicker-2026.1` / `ri-defense-2026.1`. A group with `null` coverage
+  // (source missing/stale, or job-security validation failed) degrades the
+  // engine and points the caller at the `.../draft` fallback for that slot.
+  const coverage = coverageOf(input);
+  for (const pos of REQUIRED_POSITIONS) {
+    if (!draftable.has(pos)) continue;
+    const covered = coverage[pos] != null && input.leaguePool.some((p) => p.position === pos);
+    if (!covered) {
       readiness.snake_engine_status = readiness.snake_engine_status === "BLOCKED" ? "BLOCKED" : "DEGRADED";
       readiness.degraded_reasons.push(
-        `${pos} is absent from the projection pool — the recommendation engine cannot suggest a ${pos}; use the .../draft candidate list for that slot`,
+        `${pos} has no valid production projection coverage — use the .../draft candidate list for that slot`,
       );
-      warnings.push(`no ${pos} projections available — projection engine gap, not a draft-legality issue`);
+      warnings.push(`${pos} projection coverage unavailable — projection engine gap, not a draft-legality issue`);
     }
   }
 
