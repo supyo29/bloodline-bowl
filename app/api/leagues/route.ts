@@ -50,6 +50,9 @@ export async function GET(): Promise<Response> {
   return jsonResponse(
     {
       generated_at: new Date().toISOString(),
+      ai_discovery: "/api/ai",
+      ai_discovery_note:
+        "Fresh AI assistants should start at /api/ai for the full service map (capabilities, route templates, known managers).",
       identity_model: {
         note: "league identity != manager identity. Use a manager-specific route for personalized (roster / draft slot / recommendation) data.",
         league_route: "/api/leagues/{leagueSlug}",
