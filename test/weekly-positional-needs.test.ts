@@ -215,6 +215,48 @@ describe("computePositionalNeeds — aggregate FLEX demand", () => {
     assert.deepEqual(qwrt.eligible_positions.sort(), ["QB", "RB", "TE", "WR"]);
   });
 
+  it("flex marginal considers base-slot starters too — the weaker interchangeable player is the marginal (Codex round 15)", () => {
+    const constraints = { ...STD_CONSTRAINTS, starting_slots: ["WR", "FLEX"], slot_requirements: { WR: 1, FLEX: 1 } };
+    // roster order lowWR(10) first: the optimizer can park lowWR at WR and
+    // goodWR(20) at FLEX. The FLEX marginal must still be 10 (drop the FLEX slot
+    // and lowWR is the one who stops starting).
+    const players = [player("lowWR", "WR"), player("goodWR", "WR")];
+    const P = [proj("lowWR", "WR", 10), proj("goodWR", "WR", 20)];
+    const needs = setup({ starters: ["lowWR", "goodWR"], players, projections: P, constraints });
+    const flex = needs.find((n) => n.position === "FLEX")!;
+    assert.equal(flex.current_best_points, 10, "the FLEX marginal is the weaker interchangeable WR, not the one parked in the flex slot");
+  });
+
+  it("marginal_starter frontier counts ALL overlapping flex slots in the rank (Codex round 15)", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    // 120 QB/RB/WR/TE players so the rank actually resolves inside the pool.
+    const players = [
+      ...Array.from({ length: 40 }, (_, i) => player(`rb${i}`, "RB")),
+      ...Array.from({ length: 40 }, (_, i) => player(`wr${i}`, "WR")),
+      ...Array.from({ length: 20 }, (_, i) => player(`te${i}`, "TE")),
+      ...Array.from({ length: 20 }, (_, i) => player(`qb${i}`, "QB")),
+      player("k1", "K"), player("def1", "DEF"),
+    ];
+    const P = players.map((p, i) => proj(p.canonical_player_id, p.position, Math.max(1, 40 - i * 0.3)));
+    const R = roster("team:test-league:1", ["qb0", "rb0", "rb1", "wr0", "wr1", "te0", "rb2", "qb1", "k1", "def1"], [], { startingSlots: constraints.starting_slots });
+    const pb = batch(P, players);
+    const snap = {
+      schema_version: CANONICAL_SCHEMA_VERSION, captured_at: "", provider_synced_at: null,
+      league: { canonical_league_id: "league:t", league_slug: "test-league", name: "t", season: 2026, status: "in_season", sport: "nfl", team_count: 12, current_week: 1, scoring_rules: [], raw_scoring: {}, roster_settings: { starting_slots: constraints.starting_slots, bench_slots: 5, ir_slots: 1, taxi_slots: 0, slot_requirements: constraints.slot_requirements }, playoff_settings: { playoff_team_count: 6, playoff_start_week: 15, championship_week: 17 }, waiver_settings: { type: "faab" as const, faab_budget: 100, waiver_day: null }, provenance: { provider: "sleeper" as const, provider_id: "t", provider_synced_at: null } },
+      season: 2026, week: 1, managers: [], teams: [], rosters: [R], standings: [], matchups: [], recent_transactions: [], draft_picks: [], waiver_state: null, players, unresolved_players: [], live_provider_status: "READY" as const, history_persistence_status: "READY" as const, warnings: [],
+    } as unknown as CanonicalLeagueSnapshot;
+    const av = buildLeagueAvailability({ snapshot: snap, manager_team_id: "team:test-league:1", week: 1, candidates: players, startable_positions: new Set(["QB", "RB", "WR", "TE", "K", "DEF"]) });
+    const rep = computeWeeklyReplacement({ league_slug: "test-league", week: 1, team_count: 12, constraints, projections: pb, availability: av, frontier: { mode: "marginal_starter" } });
+    // SUPER_FLEX rank = (QB1+RB2+WR2+TE1 = 6 + FLEX(1) + SUPER_FLEX(1) = 8) * 12 = 96
+    assert.equal(rep.by_position.SUPER_FLEX?.derived_from_rank, 96);
+  });
+
   it("flex marginal pairing preserves eligibility — a QB is never paired to an ordinary FLEX (Codex round 14)", () => {
     const constraints = {
       ...STD_CONSTRAINTS,

@@ -160,10 +160,16 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
   // (a league mixing FLEX and SUPER_FLEX gets a different bar for each), keyed by
   // the label; `by_position.FLEX` is the union of `constraints.flex_positions`
   // for back-compat.
-  const flexStarterLine = (label: string, eligiblePositions: string[]): number => {
+  const flexStarterLine = (eligiblePositions: string[]): number => {
+    const eligSet = new Set(eligiblePositions);
     const base = eligiblePositions.reduce((s, p) => s + (constraints.slot_requirements[p] ?? 0), 0);
-    const labelSlots = constraints.starting_slots.filter((s) => s === label).length || constraints.flex_slots;
-    return (base + labelSlots) * team_count;
+    // Count EVERY flex slot that draws from an overlapping pool — an ordinary
+    // FLEX starter and a SUPER_FLEX starter compete for the same RB/WR/TE, so
+    // both flex slots push the SUPER_FLEX marginal-starter rank down.
+    const flexSlots = constraints.starting_slots.filter(
+      (s) => FLEX_ELIGIBILITY[s] && FLEX_ELIGIBILITY[s]!.some((p) => eligSet.has(p)),
+    ).length;
+    return (base + flexSlots) * team_count;
   };
   const flexLevel = (label: string, eligiblePositions: string[]): ReplacementLevel => {
     const combinedAll: number[] = [];
@@ -179,7 +185,7 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
     // `level()` path does): the last true starter at rank
     // (base flex requirements + this label's slots) of the FULL combined pool.
     if (frontier.mode === "marginal_starter" && combinedAll.length > 0) {
-      const idx = Math.min(Math.max(0, Math.round(flexStarterLine(label, eligiblePositions)) - 1), combinedAll.length - 1);
+      const idx = Math.min(Math.max(0, Math.round(flexStarterLine(eligiblePositions)) - 1), combinedAll.length - 1);
       return {
         position: label,
         replacement_points: round2(combinedAll[idx]!),

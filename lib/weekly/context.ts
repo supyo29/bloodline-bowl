@@ -528,20 +528,34 @@ export function computePositionalNeeds(input: {
 
   // ---- One need PER DISTINCT flex slot label, each with its OWN eligibility.
   const flexLabels = uniq(startLabels.filter((l) => isFlexSlot(l)));
-  // The optimizer's total is invariant to which overlapping flex label an
-  // interchangeable starter occupies, so read the MARGINAL through an
-  // eligibility-preserving max-min assignment: over all LEGAL bijections of the
-  // flex starters to the flex slots, pick the one that maximises the minimum
-  // (starter points − label replacement bar). Sizes are tiny (≤ ~6 flex slots).
-  const flexStarters = lineup.slots
-    .filter((s) => isFlexSlot(s.slot) && s.recommended_player_id != null && s.recommended_projected != null)
+  // The optimizer's total is invariant to which slot (base OR flex) an
+  // interchangeable starter occupies, so the flex "starters" are NOT just whoever
+  // the optimizer parked in a flex slot. Take EVERY optimal starter, remove the
+  // top `slot_requirements[p]` at each base position (the players a base slot
+  // genuinely dedicates), and what remains is the pool that only starts because
+  // of flex demand. Then run the eligibility-preserving max-min assignment of
+  // that pool to the flex slots.
+  const optimalStarters = lineup.slots
+    .filter((s) => s.recommended_player_id != null && s.recommended_projected != null)
     .map((s) => {
       const pl = playerMap.get(s.recommended_player_id!);
       return {
+        id: s.recommended_player_id!,
         pts: s.recommended_projected!,
         positions: new Set(pl ? [pl.position, ...pl.eligible_positions] : [s.slot]),
       };
     });
+  const baseConsumed = new Set<string>();
+  for (const pos of ["QB", "RB", "WR", "TE", "K", "DEF"]) {
+    const req = constraints.slot_requirements[pos] ?? 0;
+    const atPos = optimalStarters
+      .filter((x) => !baseConsumed.has(x.id) && x.positions.has(pos))
+      .sort((a, b) => b.pts - a.pts);
+    for (let i = 0; i < req && i < atPos.length; i += 1) baseConsumed.add(atPos[i]!.id);
+  }
+  const flexStarters = optimalStarters
+    .filter((x) => !baseConsumed.has(x.id))
+    .map((x) => ({ pts: x.pts, positions: x.positions }));
   const flexSlotList = startLabels
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => isFlexSlot(l))
