@@ -33,6 +33,33 @@ export async function GET(): Promise<Response> {
   const body = {
     service: SERVICE_DESCRIPTION,
     identity_model: IDENTITY_MODEL,
+    endpoint_status_semantics: {
+      http_200_means: "the route resolved — nothing more",
+      you_must_also_check: [
+        "status",
+        "warnings",
+        "data_quality",
+        "snake_engine_status",
+        "live_provider_status",
+        "history_persistence_status",
+      ],
+      non_actionable_states_that_still_return_200: [
+        "BLOCKED",
+        "DEGRADED",
+        "AUTH_REQUIRED",
+        "PERSISTENCE_NOT_CONFIGURED",
+        "NOT_CONFIGURED",
+        "UNSUPPORTED_MODE",
+      ],
+      rule: "Do not treat HTTP 200 alone as 'recommendations are currently available'.",
+    },
+    discovery_contract: {
+      canonical_entry_point: "/api/ai",
+      note:
+        "'Canonical' means: this is the discovery contract, and the URLs it advertises are the ones to call. " +
+        "It does NOT mean every route shares one /api/leagues/... prefix — routes span several namespaces " +
+        "(/api/league/..., /api/context/..., /api/intelligence/..., etc.). Follow advertised URLs; do not infer route structure.",
+    },
     start_here: {
       ai_discovery: "/api/ai",
       league_discovery: "/api/leagues",

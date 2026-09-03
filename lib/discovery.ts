@@ -541,12 +541,14 @@ export const SERVICE_DESCRIPTION = {
   github_repository: GITHUB_REPOSITORY,
   read_only: true,
   ai_instructions: [
-    "Start at /api/ai. Every URL you need is either listed here or reachable by following links in the responses it points to.",
-    "Follow the links and route_templates returned by the API. Do not guess or hand-construct URLs.",
+    "Start at /api/ai. This is the canonical DISCOVERY CONTRACT. Every URL you need is listed here or reachable by following links in the responses it points to.",
+    "Follow the links and route_templates returned by the API verbatim. Do not guess, hand-construct, or normalize URLs. Route structure is NOT uniform: valid paths live under several namespaces (/api/leagues/..., /api/league/..., /api/context/..., /api/intelligence/..., /api/lineup/..., /api/matchup/..., /api/waivers/..., /api/transactions/..., /api/history/...). 'canonical' here means 'the advertised route to use', not 'all under one prefix'.",
     "Resolve identity in two steps: first the league slug, then the manager slug WITHIN that league. They are different namespaces.",
-    "If you are given only a manager username, look it up in registered_managers below (or call /api/leagues/{leagueSlug}/managers) to find its league, then use the canonical manager URL.",
+    "If you are given only a manager username, look it up in registered_managers below (or call /api/leagues/{leagueSlug}/managers) to find its league, then use the advertised manager URL.",
     "A manager who is not a member of the league you name returns an explicit 4xx error — never a different manager. Do not retry with a different league to 'make it work'.",
     "Weekly routes need a {week}. Get the current NFL week from /api/league/{leagueSlug}/state (`state.current_week`).",
+    "HTTP 200 means only that the route RESOLVED. It does NOT mean the answer is actionable. Always inspect the endpoint-level `status` / `warnings` / `data_quality` / `snake_engine_status` / `live_provider_status` / `history_persistence_status` (or equivalent) fields in the body.",
+    "A capability can resolve with HTTP 200 and still legitimately be BLOCKED, DEGRADED, AUTH_REQUIRED, PERSISTENCE_NOT_CONFIGURED, NOT_CONFIGURED, or UNSUPPORTED_MODE. Do not report 'recommendations are available' or 'the lineup is set' on the basis of the HTTP status alone.",
     "GitHub is optional. It is for inspecting methodology only; the live bridge is fully usable without it.",
   ],
 } as const;

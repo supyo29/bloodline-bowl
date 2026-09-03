@@ -11,12 +11,22 @@ matchup, waivers). Every request operates on exactly one league; nothing is merg
 https://bloodline-bowl-sleeper-bridge.vercel.app/api/ai
 ```
 
-`GET /api/ai` is the universal discovery endpoint. From that single response a fresh model learns
-what the service is, which leagues exist and their provider/readiness, which known managers belong
-to which league, the canonical routing hierarchy, and every read-only capability with a concrete
-route template. **Follow the links it returns — don't guess URLs.**
+`GET /api/ai` is the universal discovery endpoint — the **canonical discovery contract**. From that
+single response a fresh model learns what the service is, which leagues exist and their
+provider/readiness, which known managers belong to which league, the routing hierarchy, and every
+read-only capability with a concrete route template. **Follow the links it returns — don't guess or
+normalize URLs.** "Canonical" means *the advertised route to call*, not *one uniform prefix*: valid
+routes span several namespaces (`/api/leagues/…`, `/api/league/…`, `/api/context/…`,
+`/api/intelligence/…`, …).
 
-Supplemental: [`/llms.txt`](https://bloodline-bowl-sleeper-bridge.vercel.app/llms.txt) (plain-text
+**HTTP 200 means only that the route resolved.** Consumers must still inspect the endpoint-level
+`status` / `warnings` / `data_quality` / `snake_engine_status` / `live_provider_status` /
+`history_persistence_status` fields — a capability can return 200 and still legitimately be
+`BLOCKED`, `DEGRADED`, `AUTH_REQUIRED`, `PERSISTENCE_NOT_CONFIGURED`, or `UNSUPPORTED_MODE`. Never
+read HTTP 200 alone as "recommendations are currently available".
+
+Supplemental: [`/ai`](https://bloodline-bowl-sleeper-bridge.vercel.app/ai) (human-readable HTML
+overview), [`/llms.txt`](https://bloodline-bowl-sleeper-bridge.vercel.app/llms.txt) (plain-text
 guide), `/sitemap.xml`, `/robots.txt`.
 
 ## Canonical league / manager routing

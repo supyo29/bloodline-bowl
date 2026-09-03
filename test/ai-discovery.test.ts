@@ -30,6 +30,33 @@ const SECRET_HINTS = [
   "apikey",
 ];
 
+/** Walk a React element tree, collecting visible text and every `href` prop. */
+function collectElement(node: unknown): { text: string; hrefs: string[] } {
+  const hrefs: string[] = [];
+  let text = "";
+  const visit = (n: unknown): void => {
+    if (n == null || typeof n === "boolean") return;
+    if (typeof n === "string" || typeof n === "number") {
+      text += ` ${n}`;
+      return;
+    }
+    if (Array.isArray(n)) {
+      n.forEach(visit);
+      return;
+    }
+    const el = n as { type?: unknown; props?: Record<string, unknown> };
+    const props = el.props ?? {};
+    if (typeof props.href === "string") hrefs.push(props.href);
+    if (typeof el.type === "function") {
+      visit((el.type as (p: unknown) => unknown)(props));
+      return;
+    }
+    visit(props.children);
+  };
+  visit(node);
+  return { text, hrefs };
+}
+
 function assertNoSecrets(text: string): void {
   for (const hint of SECRET_HINTS) {
     assert.ok(
@@ -122,6 +149,42 @@ describe("GET /api/ai", () => {
     }
   });
 
+  it("documents that HTTP 200 is not 'actionable' and lists the status fields to check", async () => {
+    const { GET } = await import("../app/api/ai/route");
+    const body = await (await GET()).json();
+    const instr = (body.service.ai_instructions as string[]).join(" ").toLowerCase();
+    assert.ok(instr.includes("http 200"));
+    assert.ok(instr.includes("blocked") && instr.includes("degraded"));
+    assert.ok(instr.includes("auth_required"));
+
+    const sem = body.endpoint_status_semantics;
+    assert.ok(sem.you_must_also_check.includes("status"));
+    assert.ok(sem.you_must_also_check.includes("warnings"));
+    assert.ok(
+      sem.non_actionable_states_that_still_return_200.includes(
+        "PERSISTENCE_NOT_CONFIGURED",
+      ),
+    );
+  });
+
+  it("scopes the word 'canonical' to the discovery contract, not a uniform prefix", async () => {
+    const { GET } = await import("../app/api/ai/route");
+    const body = await (await GET()).json();
+    assert.equal(body.discovery_contract.canonical_entry_point, "/api/ai");
+    const note = String(body.discovery_contract.note).toLowerCase();
+    assert.ok(note.includes("/api/league/"));
+    assert.ok(note.includes("do not infer route structure"));
+    // The advertised capability templates genuinely span multiple namespaces.
+    const prefixes = new Set(
+      body.capabilities.map(
+        (c: { route_template: string }) => c.route_template.split("/")[2],
+      ),
+    );
+    assert.ok(prefixes.size > 1, "capabilities should span >1 namespace");
+    assert.ok(prefixes.has("intelligence"));
+    assert.ok(prefixes.has("context"));
+  });
+
   it("labels legacy ?league= routes as legacy, canonical routes as canonical", async () => {
     const { GET } = await import("../app/api/ai/route");
     const body = await (await GET()).json();
@@ -205,6 +268,52 @@ describe("discovery capability catalog", () => {
   });
 });
 
+describe("/ai human-readable landing page", () => {
+  it("is index/follow and points at /api/ai with fantasy-analysis language", async () => {
+    const mod = await import("../app/ai/page");
+    const meta = mod.metadata;
+    assert.deepEqual(meta.robots, { index: true, follow: true });
+    assert.equal(meta.alternates?.canonical, "/ai");
+    const blob = `${meta.title} ${meta.description}`.toLowerCase();
+    for (const term of [
+      "fantasy football",
+      "intelligence",
+      "projections",
+      "waiver",
+      "lineup",
+      "matchup",
+    ]) {
+      assert.ok(blob.includes(term), `metadata should mention "${term}"`);
+    }
+  });
+
+  it("renders manager names and the three direct manager links as real HTML", async () => {
+    const mod = await import("../app/ai/page");
+    const { text, hrefs } = collectElement(mod.default());
+    for (const name of ["Supyo29", "BijiMac", "DarthMarker", "Bloodline Bowl", "Devoted to the Game"]) {
+      assert.ok(text.includes(name), `/ai should contain the text "${name}"`);
+    }
+    for (const href of [
+      "/api/ai",
+      "/api/leagues/bloodline-bowl/managers/supyo29",
+      "/api/leagues/bloodline-bowl/managers/bijimac",
+      "/api/leagues/devoted-to-the-game/managers/darthmarker",
+    ]) {
+      assert.ok(hrefs.includes(href), `/ai should link to ${href}`);
+    }
+    for (const heading of [
+      "Roster and current-state analysis",
+      "Weekly intelligence",
+      "Waiver / add-drop analysis",
+      "Lineup and start/sit optimization",
+      "Matchup analysis",
+      "Transactions and history",
+    ]) {
+      assert.ok(text.includes(heading), `/ai should have a "${heading}" heading`);
+    }
+  });
+});
+
 describe("crawler discovery files", () => {
   it("/robots.txt allows crawling and points at the sitemap", async () => {
     const mod = await import("../app/robots");
@@ -223,6 +332,12 @@ describe("crawler discovery files", () => {
     const urls = entries.map((e) => e.url);
     assert.ok(
       urls.includes("https://bloodline-bowl-sleeper-bridge.vercel.app/api/ai"),
+    );
+    assert.ok(
+      urls.includes("https://bloodline-bowl-sleeper-bridge.vercel.app/"),
+    );
+    assert.ok(
+      urls.includes("https://bloodline-bowl-sleeper-bridge.vercel.app/ai"),
     );
     assert.ok(
       urls.includes(

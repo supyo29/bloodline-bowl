@@ -55,6 +55,16 @@ export default function StatusPage() {
             links it returns; don&apos;t guess URLs.
           </span>
         </p>
+        <p style={{ margin: "0 0 8px" }}>
+          <a href="/ai" style={link}>
+            Human-readable overview: <code>/ai</code>
+          </a>
+          <span style={muted}>
+            {" "}
+            — what the bridge is, the leagues and managers it covers, and every
+            analysis capability, in plain HTML.
+          </span>
+        </p>
         <p style={{ margin: 0, ...muted }}>
           Also: <a href="/llms.txt" style={link}><code>/llms.txt</code></a>{" "}
           (plain-text guide), <a href="/sitemap.xml" style={link}><code>/sitemap.xml</code></a>,{" "}

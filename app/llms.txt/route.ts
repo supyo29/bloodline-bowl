@@ -34,9 +34,13 @@ export async function GET(): Promise<Response> {
   lines.push("");
   lines.push("## Start here");
   lines.push("");
-  lines.push(`Canonical AI entry point: ${PRODUCTION_BASE_URL}/api/ai`);
+  lines.push(`Canonical discovery contract (machine-readable): ${PRODUCTION_BASE_URL}/api/ai`);
+  lines.push(`Human-readable overview: ${PRODUCTION_BASE_URL}/ai`);
   lines.push(
-    "Fetch it first. It returns the full service map: leagues, known managers, every capability, and concrete route templates. Follow the links it returns — do not guess URLs.",
+    "Fetch /api/ai first. It returns the full service map: leagues, known managers, every capability, and concrete route templates. Follow the links it returns — do not guess or normalize URLs. Routes span several namespaces (/api/leagues/..., /api/league/..., /api/context/..., /api/intelligence/..., ...); 'canonical' means 'the advertised route', not 'one prefix'.",
+  );
+  lines.push(
+    "HTTP 200 means only that the route resolved. Always check the response body's status / warnings / data_quality / *_status fields — a capability can return 200 and still be BLOCKED, DEGRADED, AUTH_REQUIRED, PERSISTENCE_NOT_CONFIGURED, or UNSUPPORTED_MODE.",
   );
   lines.push("");
   lines.push("## Routing hierarchy (canonical)");

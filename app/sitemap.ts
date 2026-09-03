@@ -15,7 +15,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   const abs = (p: string) => `${PRODUCTION_BASE_URL}${p}`;
 
-  const roots = ["/", "/api/ai", "/api/leagues", "/api/providers", "/llms.txt"];
+  const roots = [
+    "/",
+    "/ai",
+    "/api/ai",
+    "/api/leagues",
+    "/api/providers",
+    "/llms.txt",
+  ];
 
   const leaguePaths = discoveryLeagues().flatMap((l) => [
     `/api/leagues/${l.league_slug}`,
@@ -28,6 +35,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: abs(path),
     lastModified: now,
     changeFrequency: "daily",
-    priority: path === "/api/ai" ? 1 : path === "/" ? 0.9 : 0.7,
+    priority:
+      path === "/api/ai" ? 1 : path === "/" || path === "/ai" ? 0.9 : 0.7,
   }));
 }
