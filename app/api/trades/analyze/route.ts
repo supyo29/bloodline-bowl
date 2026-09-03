@@ -1,12 +1,20 @@
 /**
- * POST /api/trades/analyze — multi-team trade analysis (Phase 1).
+ * POST /api/trades/analyze — multi-team trade analysis.
  *
- * Evaluates how a proposed transaction changes the ACTUAL utility of each
- * participating manager's roster: every roster is reconstructed before/after and
- * re-run through the same optimal-lineup / VOR / positional-need machinery used
- * elsewhere in Bloodline Bowl. 2-team and 3-team trades are the same code path
- * (a generalized `participants` + `transfers` model); arbitrary transfer routing
- * is supported (no bilateral reciprocity required).
+ * Phase 1 (`ri-trade-foundation-2026.2`, FROZEN): how a proposed transaction
+ * changes each participating manager's ACTUAL current-week roster utility —
+ * every roster reconstructed before/after and re-run through the same
+ * optimal-lineup / VOR / positional-need machinery used elsewhere. 2- and
+ * 3-team trades are one code path; arbitrary transfer routing, no bilateral
+ * reciprocity.
+ *
+ * Phase 2 (`ri-trade-contextual-2026.1`, ADDITIVE): a per-participant `phase2`
+ * block with rest-of-season usable value, bye-week coverage, playoff window,
+ * usable depth and roster fragility — assembled from ONE immutable league
+ * snapshot (no second provider read). Every Phase 2 composite weight defaults to
+ * 0 (components exposed, not folded in), so `contextual_utility_delta` equals
+ * the Phase 1 `roster_utility_delta` unless a caller sets `config.phase2.weights`.
+ * A Phase 2 failure never removes the frozen Phase 1 output.
  *
  * Read-only and stateless. Nothing is persisted.
  *
@@ -16,10 +24,9 @@
  *     "participants": ["supyo29", "manager_b", "manager_c"],
  *     "transfers": [
  *       { "from_manager_id": "supyo29", "to_manager_id": "manager_b",
- *         "asset": { "type": "PLAYER", "player_id": "4046" } },
- *       ...
+ *         "asset": { "type": "PLAYER", "player_id": "4046" } }
  *     ],
- *     "config": { ...optional threshold overrides... }
+ *     "config": { "phase2": { "weights": { "ros_usable_value": 0 } }, ... }
  *   }
  */
 
@@ -30,7 +37,7 @@ import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_PARTICIPANTS = 6;

@@ -75,6 +75,39 @@ export interface TradeConfig {
     /** every participant's delta must be >= this for MODERATE */
     moderate_min_participant_delta: number;
   };
+
+  /**
+   * Phase 2 (contextual valuation) — `ri-trade-contextual-2026.1`.
+   *
+   * `contextual_utility_delta = roster_utility_delta (Phase 1) + Σ weightᵢ·componentᵢ`.
+   *
+   * EVERY Phase 2 weight defaults to **0**: the Phase 1 audit found a
+   * double-count between `starter_points` and `starter_vor`, so no new component
+   * gets a nonzero composite weight before its correlation with the Phase 1
+   * terms and its sign convention are inspected and documented (see
+   * `docs/TRADE_ENGINE_PHASE2.md`, "Calibration"). With defaults,
+   * `contextual_utility_delta === roster_utility_delta` and
+   * `contextual_acceptance === phase1_acceptance` — Phase 2 is exposed, not
+   * folded in. Set weights explicitly to opt a component into the scalar.
+   *
+   * Component units (all per-remaining-week-equivalent, sign: + = better):
+   *   ros_usable_value   — Δ optimal ROS lineup value ÷ remaining weeks
+   *   playoff_window     — Δ optimal playoff-window value ÷ playoff weeks
+   *   bye_coverage       — reduction in (slot × week) ROS bye holes
+   *   usable_depth       — Δ Phase 2C usable-depth score
+   *   roster_fragility   — fragility improvement (pre_score − post_score)
+   *   replacement_context — net weekly production lost after replacement (≤ 0)
+   */
+  phase2: {
+    weights: {
+      ros_usable_value: number;
+      playoff_window: number;
+      bye_coverage: number;
+      usable_depth: number;
+      roster_fragility: number;
+      replacement_context: number;
+    };
+  };
 }
 
 export const DEFAULT_TRADE_CONFIG: TradeConfig = {
@@ -96,6 +129,16 @@ export const DEFAULT_TRADE_CONFIG: TradeConfig = {
     high_min_participant_delta: 0.5,
     moderate_min_participant_delta: -0.5,
   },
+  phase2: {
+    weights: {
+      ros_usable_value: 0,
+      playoff_window: 0,
+      bye_coverage: 0,
+      usable_depth: 0,
+      roster_fragility: 0,
+      replacement_context: 0,
+    },
+  },
 };
 
 export type PartialTradeConfig = {
@@ -103,6 +146,7 @@ export type PartialTradeConfig = {
   thresholds?: Partial<TradeConfig["thresholds"]>;
   acceptance_floor?: number;
   viability?: Partial<TradeConfig["viability"]>;
+  phase2?: { weights?: Partial<TradeConfig["phase2"]["weights"]> };
 };
 
 export function resolveTradeConfig(override?: PartialTradeConfig): TradeConfig {
@@ -112,6 +156,7 @@ export function resolveTradeConfig(override?: PartialTradeConfig): TradeConfig {
     thresholds: { ...d.thresholds, ...(override?.thresholds ?? {}) },
     acceptance_floor: override?.acceptance_floor ?? d.acceptance_floor,
     viability: { ...d.viability, ...(override?.viability ?? {}) },
+    phase2: { weights: { ...d.phase2.weights, ...(override?.phase2?.weights ?? {}) } },
   };
   assertThresholdOrder(cfg.thresholds);
   return cfg;

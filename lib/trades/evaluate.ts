@@ -13,7 +13,7 @@
  * identical result. No randomness, no time-dependent branch.
  */
 
-import type { CanonicalPlayer } from "@/lib/canonical/schema";
+import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
 import type {
   RosterConstraints,
   WeeklyProjectionBatch,
@@ -27,9 +27,16 @@ import { computePositionalNeeds } from "@/lib/weekly/context";
 import type { TradeConfig } from "./config";
 import { classifyAcceptance } from "./config";
 import { reconstructRosters } from "./reconstruct";
+import type { TradeAnalysisContext } from "./context";
+import { evaluateRosParticipant } from "./ros";
+import { evaluateDepthParticipant } from "./depth";
 import type {
+  AcceptanceClass,
   NormalizedProposal,
   ParticipantTradeResult,
+  Phase2Components,
+  Phase2ParticipantResult,
+  Phase2Summary,
   PositionalNeedChange,
   RosterSnapshotView,
   TradeDiagnostic,
@@ -51,11 +58,18 @@ export interface TradeEvaluationInput {
   config: TradeConfig;
   /** projection quality carried through from context, for a top-level diagnostic */
   projections_status?: WeeklyProjectionBatch["status"];
+  /**
+   * Phase 2 contextual-valuation context. When present, each participant result
+   * gets an additive `phase2` block and the output carries a `phase2_summary`.
+   * Phase 1 output is byte-identical whether or not this is supplied.
+   */
+  context?: TradeAnalysisContext;
 }
 
 export interface TradeEvaluationOutput {
   participants: Record<string, ParticipantTradeResult>;
   trade_summary: TradeSummary;
+  phase2_summary: Phase2Summary | null;
   diagnostics: TradeDiagnostic[];
 }
 
@@ -93,6 +107,13 @@ export function evaluateTrade(input: TradeEvaluationInput): TradeEvaluationOutpu
   const posOf = (id: string): string => players_by_id.get(id)?.position ?? projections.by_player.get(id)?.position ?? "UNKNOWN";
 
   const results: ParticipantTradeResult[] = [];
+  const p2inputs: Array<{
+    manager_id: string;
+    before: CanonicalRoster;
+    after: CanonicalRoster;
+    incoming: string[];
+    outgoing: string[];
+  }> = [];
 
   for (const p of input.participants) {
     const mid = p.manager.canonical_manager_id;
@@ -221,6 +242,7 @@ export function evaluateTrade(input: TradeEvaluationInput): TradeEvaluationOutpu
       above_acceptance_floor: aboveFloor,
       diagnostics: pDiag,
     });
+    p2inputs.push({ manager_id: mid, before, after, incoming, outgoing });
   }
 
   for (const r of results) for (const d of r.diagnostics) if (d.code === "TRADE_ANALYSIS_DEGRADED") {
@@ -229,9 +251,174 @@ export function evaluateTrade(input: TradeEvaluationInput): TradeEvaluationOutpu
 
   const trade_summary = summarize(results, input.config);
 
+  // ---- Phase 2: contextual valuation (additive; Phase 1 above is untouched) --
+  let phase2_summary: Phase2Summary | null = null;
+  if (input.context) {
+    phase2_summary = attachPhase2(results, p2inputs, input.context, input.config, diagnostics);
+  }
+
   const bySlug: Record<string, ParticipantTradeResult> = {};
   for (const r of results) bySlug[r.manager_slug] = r;
-  return { participants: bySlug, trade_summary, diagnostics };
+  return { participants: bySlug, trade_summary, phase2_summary, diagnostics };
+}
+
+/* ------------------------------------------------------------- Phase 2 layer */
+
+function attachPhase2(
+  results: ParticipantTradeResult[],
+  p2inputs: Array<{ manager_id: string; before: CanonicalRoster; after: CanonicalRoster; incoming: string[]; outgoing: string[] }>,
+  ctx: TradeAnalysisContext,
+  config: TradeConfig,
+  topDiag: TradeDiagnostic[],
+): Phase2Summary {
+  const w = config.phase2.weights;
+  const rosWeeks = Math.max(1, ctx.ros.weeks.length);
+  const poWeeks = Math.max(1, ctx.ros.playoff_weeks.length);
+
+  const anyRosSignal = [...ctx.projections.by_player.values()].some((wp) => (wp.ros?.points ?? wp.rest_of_season_points) != null);
+  if (!anyRosSignal) {
+    topDiag.push({
+      code: "ROS_PROJECTIONS_UNAVAILABLE",
+      message: "No rest-of-season signal for any player — Phase 2 ROS metrics are 0/degraded; Phase 1 analysis is unaffected.",
+      severity: "warning",
+    });
+  }
+
+  // `results` and `p2inputs` are pushed in the same participant order.
+  results.forEach((r, i) => {
+    const pin = p2inputs[i];
+    if (!pin) return;
+
+    const ros = evaluateRosParticipant({
+      ctx,
+      manager_id: pin.manager_id,
+      before: pin.before,
+      after: pin.after,
+      incoming_ids: pin.incoming,
+      outgoing_ids: pin.outgoing,
+    });
+    const depth = evaluateDepthParticipant({
+      ctx,
+      before: pin.before,
+      after: pin.after,
+      incoming_ids: pin.incoming,
+      outgoing_ids: pin.outgoing,
+    });
+
+    // fill Phase-1-unit marginal starter delta (current-week leave-one-out)
+    for (const m of ros.marginal_player_utility) {
+      m.marginal_starter_delta = currentWeekLoo(
+        m.direction === "INCOMING" ? pin.after : pin.before,
+        m.canonical_player_id,
+        ctx,
+        m.direction,
+      );
+    }
+
+    const components: Phase2Components = {
+      ros_usable_value: round2(ros.ros_usable_value_delta / rosWeeks),
+      playoff_window: ros.playoff_window_delta == null ? null : round2(ros.playoff_window_delta / poWeeks),
+      bye_coverage: ros.bye_coverage_delta,
+      usable_depth: depth.usable_depth_delta,
+      roster_fragility: depth.fragility_delta,
+      replacement_context: depth.replacement_context_delta,
+    };
+
+    const weightedAdd =
+      w.ros_usable_value * components.ros_usable_value +
+      w.playoff_window * (components.playoff_window ?? 0) +
+      w.bye_coverage * components.bye_coverage +
+      w.usable_depth * components.usable_depth +
+      w.roster_fragility * components.roster_fragility +
+      w.replacement_context * components.replacement_context;
+    const contextualUtilityDelta = round2(r.roster_utility_delta + weightedAdd);
+    const contextualAcceptance = classifyAcceptance(contextualUtilityDelta, config);
+
+    let divergence: string | null = null;
+    if (contextualAcceptance !== r.acceptance) {
+      const drivers: string[] = [];
+      if (components.ros_usable_value <= -0.25) drivers.push(`ROS usable value falls (${ros.ros_usable_value_delta.toFixed(1)} over ${ctx.ros.weeks.length} wks)`);
+      if (components.ros_usable_value >= 0.25) drivers.push(`ROS usable value rises (${ros.ros_usable_value_delta.toFixed(1)} over ${ctx.ros.weeks.length} wks)`);
+      if (components.roster_fragility <= -1) drivers.push(`roster fragility worsens (${(-components.roster_fragility).toFixed(1)})`);
+      if (components.roster_fragility >= 1) drivers.push(`roster fragility improves (${components.roster_fragility.toFixed(1)})`);
+      if (components.bye_coverage <= -1) drivers.push(`ROS bye holes increase by ${-components.bye_coverage}`);
+      if (components.bye_coverage >= 1) drivers.push(`ROS bye holes decrease by ${components.bye_coverage}`);
+      divergence = `Phase 1: ${r.acceptance}; Phase 2: ${contextualAcceptance}. ${drivers.join("; ") || "contextual weights shifted the composite"}.`;
+    }
+
+    const p2diag: TradeDiagnostic[] = [...ros.diagnostics, ...depth.diagnostics];
+
+    r.phase2 = {
+      ros,
+      depth,
+      components,
+      contextual_utility_delta: contextualUtilityDelta,
+      contextual_acceptance: contextualAcceptance,
+      phase1_acceptance: r.acceptance,
+      acceptance_divergence_reason: divergence,
+      diagnostics: p2diag,
+    };
+  });
+
+  // dedupe Phase 2 diagnostics to the top level
+  const seen = new Set(topDiag.map((d) => d.code));
+  for (const r of results) for (const d of r.phase2?.diagnostics ?? []) {
+    if (!seen.has(d.code)) {
+      topDiag.push({ ...d, message: `Phase 2: ${d.message}` });
+      seen.add(d.code);
+    }
+  }
+
+  const withP2 = results.filter((r): r is ParticipantTradeResult & { phase2: Phase2ParticipantResult } => Boolean(r.phase2));
+  const rosByBest = [...withP2].sort(
+    (a, b) => b.phase2.ros.ros_usable_value_delta - a.phase2.ros.ros_usable_value_delta || a.manager_slug.localeCompare(b.manager_slug),
+  );
+  const contextualDeltas = withP2.map((r) => r.phase2.contextual_utility_delta);
+
+  return {
+    all_teams_improve_ros: withP2.length > 0 && withP2.every((r) => r.phase2.ros.ros_usable_value_delta > 0),
+    ros_largest_beneficiary: rosByBest[0]?.manager_slug ?? null,
+    ros_losers_phase1_missed: withP2
+      .filter((r) => r.roster_utility_delta > 0 && r.phase2.ros.ros_usable_value_delta < -0.5)
+      .map((r) => r.manager_slug),
+    fragility_worsened_for: withP2.filter((r) => r.phase2.depth.fragility_delta < -1).map((r) => r.manager_slug),
+    contextual_viability: classifyViabilityFromDeltas(contextualDeltas, withP2.map((r) => r.phase2.contextual_acceptance), config),
+  };
+}
+
+/** current-week optimal-lineup leave-one-out for a single player (Phase 1 unit). */
+function currentWeekLoo(
+  roster: CanonicalRoster,
+  playerId: string,
+  ctx: TradeAnalysisContext,
+  direction: "INCOMING" | "OUTGOING",
+): number | null {
+  const playerMap = new Map<string, CanonicalPlayer>();
+  for (const id of roster.all_players) {
+    const m = ctx.players_by_id.get(id);
+    if (m) playerMap.set(id, m);
+  }
+  const full = buildOptimalLineup({ week: ctx.week, roster, constraints: ctx.constraints, players: playerMap, projections: ctx.projections });
+  const stripped: CanonicalRoster = {
+    ...roster,
+    all_players: roster.all_players.filter((id) => id !== playerId),
+    starters: roster.starters.filter((id) => id !== playerId),
+    bench: roster.bench.filter((id) => id !== playerId),
+    slots: roster.slots.filter((s) => s.canonical_player_id !== playerId),
+  };
+  const without = buildOptimalLineup({ week: ctx.week, roster: stripped, constraints: ctx.constraints, players: playerMap, projections: ctx.projections });
+  if (full.optimal_total == null || without.optimal_total == null) return null;
+  const d = round2(full.optimal_total - without.optimal_total);
+  return direction === "INCOMING" ? d : -d;
+}
+
+function classifyViabilityFromDeltas(deltas: number[], acceptances: AcceptanceClass[], cfg: TradeConfig): TradeViability {
+  if (deltas.length === 0) return "NON_VIABLE";
+  const min = Math.min(...deltas);
+  if (acceptances.some((a) => a === "HARD_REJECT" || a === "REJECT") || min < cfg.thresholds.reluctant_floor) return "NON_VIABLE";
+  if (deltas.every((d) => d >= cfg.viability.high_min_participant_delta)) return "HIGH";
+  if (deltas.every((d) => d >= cfg.viability.moderate_min_participant_delta)) return "MODERATE";
+  return "LOW";
 }
 
 /* ------------------------------------------------------------------ helpers */

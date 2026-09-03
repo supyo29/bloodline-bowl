@@ -67,6 +67,17 @@ export interface BuildWeeklyContextOptions {
   skipRiSeasonSignal?: boolean;
   /** Override the replacement-frontier strategy (default `{nth_best_available, n:1}`). */
   replacementFrontier?: ReplacementFrontier;
+  /**
+   * Assemble the weekly context from an ALREADY-BUILT canonical snapshot instead
+   * of performing a fresh `buildCanonicalLeagueState` read. This is the
+   * single-provider-read path used by the trade engine (Phase 2A): the caller
+   * reads league state ONCE and threads the same immutable snapshot into every
+   * derived context, so two reads can never disagree mid-analysis. When set,
+   * `providerOverride` / `crosswalkOverride` are not consulted for the read (the
+   * snapshot is authoritative); everything downstream (projections, replacement,
+   * byes, positional needs) is derived from this snapshot exactly as normal.
+   */
+  snapshotOverride?: import("@/lib/canonical/schema").CanonicalLeagueSnapshot;
 }
 
 export async function buildWeeklyTeamContext(
@@ -84,13 +95,15 @@ export async function buildWeeklyTeamContext(
     options.crosswalkOverride ??
     (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
 
-  const state = await buildCanonicalLeagueState(leagueSlug, {
-    includeMatchups: true,
-    includeRecentTransactions: true,
-    reportPersistence: true,
-    providerOverride: options.providerOverride,
-    crosswalkOverride: crosswalk,
-  });
+  const state = options.snapshotOverride
+    ? { ok: true, status: 200, code: undefined as string | undefined, detail: undefined as string | undefined, snapshot: options.snapshotOverride }
+    : await buildCanonicalLeagueState(leagueSlug, {
+        includeMatchups: true,
+        includeRecentTransactions: true,
+        reportPersistence: true,
+        providerOverride: options.providerOverride,
+        crosswalkOverride: crosswalk,
+      });
   if (!state.snapshot) {
     return {
       ok: false,

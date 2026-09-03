@@ -19,8 +19,20 @@ import type {
 import type { RosterConstraints, WeeklyProjection } from "../../lib/weekly/schema";
 import type { TradeEvaluationInput } from "../../lib/trades/evaluate";
 import type { NormalizedProposal, TradeParticipantInput } from "../../lib/trades/schema";
+import type { TradeAnalysisContext } from "../../lib/trades/context";
 import { resolveTradeConfig, type PartialTradeConfig } from "../../lib/trades/config";
 import { validateTrade, type TradeResolution } from "../../lib/trades/validate";
+
+export interface TradeContextOpts {
+  /** number of remaining fantasy weeks (inclusive of current), default 6 */
+  rosWeeks?: number;
+  championshipWeek?: number;
+  /** if set and inside the week range, splits regular vs playoff windows */
+  playoffStartWeek?: number;
+  /** NFL team abbr -> weeks that team is on bye */
+  byeWeeksByTeam?: Record<string, number[]>;
+  scheduleStatus?: "READY" | "PARTIAL" | "UNAVAILABLE";
+}
 
 export interface TeamSpec {
   slug: string;
@@ -39,10 +51,19 @@ export interface TradeFixtureSpec {
   teamCount?: number;
   transfers: NormalizedProposal["transfers"];
   config?: PartialTradeConfig;
+  /**
+   * When set, every projection's rest-of-season total is normalised to
+   * `projected_points × rosFlatHorizon` (a flat ROS == weekly by default), so
+   * Phase 2 ROS tests are not distorted by `proj()`'s full-season default.
+   * Override specific players after construction for hot-now / hot-ROS cases.
+   */
+  rosFlatHorizon?: number;
 }
 
 export interface TradeFixture {
   input: TradeEvaluationInput;
+  /** synthetic Phase 2 context (no network) */
+  context: (opts?: TradeContextOpts) => TradeAnalysisContext;
   rosters: Map<string, CanonicalRoster>;
   ownership: Map<string, string>;
   playerPositions: Map<string, string[]>;
@@ -135,7 +156,15 @@ export function tradeFixture(spec: TradeFixtureSpec): TradeFixture {
     seenP.add(p.canonical_player_id);
     return true;
   });
-  const allProjs = [...spec.projections, ...(spec.faProjections ?? [])];
+  const rawProjs = [...spec.projections, ...(spec.faProjections ?? [])];
+  const allProjs =
+    spec.rosFlatHorizon == null
+      ? rawProjs
+      : rawProjs.map((p) => {
+          if (p.projected_points == null) return p;
+          const ros = Math.round(p.projected_points * spec.rosFlatHorizon!);
+          return { ...p, rest_of_season_points: ros, ros: p.ros ? { ...p.ros, points: ros } : p.ros };
+        });
   const projections = batch(allProjs, allPlayers);
   const players_by_id = new Map(allPlayers.map((p) => [p.canonical_player_id, p]));
   const playerPositions = new Map(allPlayers.map((p) => [p.canonical_player_id, [p.position, ...p.eligible_positions]]));
@@ -254,8 +283,60 @@ export function tradeFixture(spec: TradeFixtureSpec): TradeFixture {
     projections_status: "READY",
   };
 
+  // ---- Phase 2: synthetic TradeAnalysisContext (no network) ----------------
+  const context = (copts: TradeContextOpts = {}): TradeAnalysisContext => {
+    const cw = week;
+    const championship = copts.championshipWeek ?? cw + (copts.rosWeeks ?? 6) - 1;
+    const weeks: number[] = [];
+    for (let w = cw; w <= championship; w += 1) weeks.push(w);
+    const playoffStart =
+      copts.playoffStartWeek != null && copts.playoffStartWeek > cw && copts.playoffStartWeek <= championship
+        ? copts.playoffStartWeek
+        : null;
+    const regular = playoffStart == null ? [...weeks] : weeks.filter((w) => w < playoffStart);
+    const playoff = playoffStart == null ? [] : weeks.filter((w) => w >= playoffStart);
+    const byeMap = new Map<string, Set<number>>();
+    for (const [team, ws] of Object.entries(copts.byeWeeksByTeam ?? {})) byeMap.set(team.toUpperCase(), new Set(ws));
+    const scheduleStatus = copts.scheduleStatus ?? "READY";
+    return {
+      league_slug: "test-league",
+      season: 2026,
+      week: cw,
+      team_count: teamCount,
+      scoring: { raw_scoring: snapshot.league.raw_scoring, scoring_rules: [] },
+      constraints,
+      players_by_id,
+      projections,
+      replacement,
+      byes: { bye_status: "VERIFIED", schedule_source: "test", by_player: {}, starters_on_bye_this_week: [], teams_on_bye: [] },
+      ros: {
+        weeks,
+        regular_season_weeks: regular,
+        playoff_weeks: playoff,
+        playoff_window_available: playoff.length > 0,
+        playoff_start_week: playoffStart,
+        championship_week: championship,
+        bye_weeks_by_team: byeMap,
+        schedule_status: scheduleStatus,
+        weeks_with_verified_schedule: scheduleStatus === "READY" ? [...weeks] : scheduleStatus === "UNAVAILABLE" ? [] : weeks.slice(0, Math.ceil(weeks.length / 2)),
+      },
+      rosters_by_manager: rosters,
+      snapshot,
+      versions: {
+        trade_foundation_version: "ri-trade-foundation-2026.2",
+        trade_context_version: "ri-trade-contextual-2026.1",
+        weekly_engine_version: "post-draft-intel-2026.1",
+        projections_model_version: "test",
+        ros_model_version: null,
+      },
+      warnings: [],
+      diagnostics: [],
+    };
+  };
+
   return {
     input,
+    context,
     rosters,
     ownership,
     playerPositions,

@@ -196,6 +196,63 @@ export interface ParticipantTradeResult {
   above_acceptance_floor: boolean;
 
   diagnostics: TradeDiagnostic[];
+
+  /**
+   * Phase 2 contextual valuation (`ri-trade-contextual-2026.1`). Present only
+   * when `evaluateTrade` was given a `TradeAnalysisContext` (the API path).
+   * Every Phase 1 field above is unchanged and authoritative; Phase 2 is an
+   * ADDITIVE layer, never a replacement.
+   */
+  phase2?: Phase2ParticipantResult;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Phase 2 — contextual valuation                                              */
+/* -------------------------------------------------------------------------- */
+
+export interface Phase2Components {
+  /** ros_usable_value_delta expressed as a per-remaining-week equivalent */
+  ros_usable_value: number;
+  /** playoff-window usable-value delta, per playoff week; null when unavailable */
+  playoff_window: number | null;
+  /** bye-hole (slot × week) reduction across the ROS range */
+  bye_coverage: number;
+  /** Phase 2C usable-depth score delta */
+  usable_depth: number;
+  /** Phase 2C fragility improvement (before_score − after_score; + = less fragile) */
+  roster_fragility: number;
+  /** net weekly production lost after realistic replacement of outgoing players (<=0) */
+  replacement_context: number;
+}
+
+export interface Phase2ParticipantResult {
+  ros: import("./ros").RosParticipantResult;
+  depth: import("./depth").DepthParticipantResult;
+  components: Phase2Components;
+  /**
+   * Phase 2 composite: `roster_utility_delta` (Phase 1) + Σ weightᵢ·componentᵢ.
+   * All Phase 2 weights DEFAULT TO 0 (components exposed, not summed) until
+   * calibration supports inclusion — so by default this equals the Phase 1
+   * `roster_utility_delta`.
+   */
+  contextual_utility_delta: number;
+  contextual_acceptance: AcceptanceClass;
+  /** Phase 1 acceptance, copied here for side-by-side comparison */
+  phase1_acceptance: AcceptanceClass;
+  /** populated when contextual_acceptance != phase1_acceptance */
+  acceptance_divergence_reason: string | null;
+  diagnostics: TradeDiagnostic[];
+}
+
+export interface Phase2Summary {
+  /** every participant's ros_usable_value_delta > 0 */
+  all_teams_improve_ros: boolean;
+  ros_largest_beneficiary: string | null;
+  /** a participant Phase 1 rates as improving but whose ROS usable value drops */
+  ros_losers_phase1_missed: string[];
+  /** any participant whose fragility materially worsens (fragility_delta < -1) */
+  fragility_worsened_for: string[];
+  contextual_viability: TradeViability;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -238,7 +295,16 @@ export type TradeDiagnosticCode =
   | "POSITIONAL_NEED_MODEL_UNAVAILABLE"
   | "LINEUP_PROVISIONAL"
   | "PROJECTIONS_PARTIAL"
-  | "ROSTER_UNKNOWN_PLAYER";
+  | "ROSTER_UNKNOWN_PLAYER"
+  // ---- Phase 2
+  | "ROS_PROJECTIONS_UNAVAILABLE"
+  | "ROS_PARTIAL_PLAYER_COVERAGE"
+  | "BYE_DATA_UNAVAILABLE"
+  | "PLAYOFF_WINDOW_UNAVAILABLE"
+  | "REPLACEMENT_POOL_DEGRADED"
+  | "DEPTH_MODEL_DEGRADED"
+  | "TRADE_CONTEXT_SNAPSHOT_INCOMPLETE"
+  | "PHASE2_UNAVAILABLE";
 
 export interface TradeDiagnostic {
   code: TradeDiagnosticCode;
@@ -252,7 +318,11 @@ export interface TradeDiagnostic {
 
 export interface TradeAnalysis {
   status: "OK" | "VALIDATION_FAILED" | "CONTEXT_UNAVAILABLE";
+  /** frozen Phase 1 transaction-layer version */
   trade_version: typeof TRADE_ENGINE_VERSION;
+  trade_foundation_version: typeof TRADE_ENGINE_VERSION;
+  /** Phase 2 contextual-valuation version; null when Phase 2 did not run */
+  trade_context_version: string | null;
   league_slug: string;
   week: number;
   config: import("./config").TradeConfig;
@@ -263,6 +333,8 @@ export interface TradeAnalysis {
 
   participants: Record<string, ParticipantTradeResult>;
   trade_summary: TradeSummary | null;
+  /** Phase 2 trade-level rollup; null when Phase 2 did not run */
+  phase2_summary: Phase2Summary | null;
   diagnostics: TradeDiagnostic[];
   generated_at: string;
 }
