@@ -20,6 +20,7 @@ import {
 } from "@/lib/analytics/roster";
 import { managerContext } from "@/lib/leagues/resolve";
 import { resolveManagerRoute } from "@/lib/leagues/api";
+import { managerCapabilityUrls } from "@/lib/discovery";
 import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 import type { NormalizedPlayer } from "@/lib/sleeper/types";
 
@@ -69,9 +70,17 @@ export async function GET(
         context: managerContext(manager),
         canonical_urls: {
           manager: `/api/leagues/${manager.league_slug}/managers/${manager.manager_slug}`,
-          draft: `/api/leagues/${manager.league_slug}/managers/${manager.manager_slug}/draft`,
-          snapshot: `/api/leagues/${manager.league_slug}/managers/${manager.manager_slug}/snapshot`,
           league: `/api/leagues/${manager.league_slug}`,
+          ...managerCapabilityUrls(manager.league_slug, manager.manager_slug),
+        },
+        capabilities_note:
+          "canonical_urls covers every manager-specific and league-wide capability reachable from this identity. " +
+          "Routes containing {week}: substitute the current NFL week (see league_state -> state.current_week). " +
+          "Start at /api/ai for the full service map.",
+        discovery: {
+          ai: "/api/ai",
+          league: `/api/leagues/${manager.league_slug}`,
+          league_managers: `/api/leagues/${manager.league_slug}/managers`,
         },
         manager: {
           manager_slug: manager.manager_slug,

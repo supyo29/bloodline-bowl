@@ -1,32 +1,109 @@
-# Bloodline Bowl — Sleeper Data Bridge
+# Fantasy Football Intelligence Bridge
 
-A small, read-only service that turns the **Bloodline Bowl** fantasy football league into a
-single, self-describing JSON document an AI can fetch and reason about directly.
+A read-only JSON API that turns multiple Sleeper (and, once authorized, Yahoo) fantasy football
+leagues into self-describing documents an AI assistant can fetch and reason about directly —
+rosters, scoring, projections, draft help, and a full weekly decision engine (lineup, start/sit,
+matchup, waivers). Every request operates on exactly one league; nothing is merged across leagues.
 
-Point any model at one URL:
+## The one URL to give an AI assistant
 
 ```text
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/league
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/ai
 ```
 
-…and it can answer "who owns each team", "what does every roster look like", "who holds which
-draft picks", and "what are the scoring rules" without a single screenshot or manual export.
+`GET /api/ai` is the universal discovery endpoint — the **canonical discovery contract**. From that
+single response a fresh model learns what the service is, which leagues exist and their
+provider/readiness, which known managers belong to which league, the routing hierarchy, and every
+read-only capability with a concrete route template. **Follow the links it returns — don't guess or
+normalize URLs.** "Canonical" means *the advertised route to call*, not *one uniform prefix*: valid
+routes span several namespaces (`/api/leagues/…`, `/api/league/…`, `/api/context/…`,
+`/api/intelligence/…`, …).
 
-During the draft, point it at `/api/draft` instead for a live war-room view: who has been taken,
-what they cost, who is left, and exactly how much each rival can still bid.
+**HTTP 200 means only that the route resolved.** Consumers must still inspect the endpoint-level
+`status` / `warnings` / `data_quality` / `snake_engine_status` / `live_provider_status` /
+`history_persistence_status` fields — a capability can return 200 and still legitimately be
+`BLOCKED`, `DEGRADED`, `AUTH_REQUIRED`, `PERSISTENCE_NOT_CONFIGURED`, or `UNSUPPORTED_MODE`. Never
+read HTTP 200 alone as "recommendations are currently available".
 
-To evaluate the league's scoring rules — is a rushing QB favored over a pocket passer, does the
-reception value overvalue possession receivers, how would a small scoring tweak ripple across
-positions — point it at `/api/scoring`.
+Supplemental: [`/ai`](https://bloodline-bowl-sleeper-bridge.vercel.app/ai) (human-readable HTML
+overview), [`/llms.txt`](https://bloodline-bowl-sleeper-bridge.vercel.app/llms.txt) (plain-text
+guide), `/sitemap.xml`, `/robots.txt`.
 
-**This bridge serves more than one league.** Every endpoint accepts an optional `?league=`
-selector; omit it and you get the default league (Bloodline Bowl). See
+## Canonical league / manager routing
+
+```text
+/api/ai
+  → /api/leagues                                          all leagues
+    → /api/leagues/{leagueSlug}                            one league (settings, teams, standings)
+      → /api/leagues/{leagueSlug}/managers                 every manager in the league
+        → /api/leagues/{leagueSlug}/managers/{managerSlug} one manager (roster + every capability URL)
+          → specific analysis capability
+```
+
+### league identity != manager identity
+
+The **league slug** (`bloodline-bowl`) selects *which league*. The **manager slug** (`bijimac`)
+selects *which team owner inside it*. They are separate namespaces. Membership is validated live on
+every request: `bloodline-bowl` + `darthmarker` does **not** resolve, and there is no cross-league
+fallback — a non-member or unknown manager is an explicit `4xx`, never a different manager.
+
+Given only a manager username, find its league via `registered_managers` in `/api/ai` (or
+`/api/leagues/{leagueSlug}/managers`), then descend league → manager → capability.
+
+### The three known manager routes
+
+```text
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/bloodline-bowl/managers/supyo29
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/bloodline-bowl/managers/bijimac
+https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/devoted-to-the-game/managers/darthmarker
+```
+
+| Key                        | League              | Sleeper league ID     | Sleeper account | Known managers      |
+| -------------------------- | ------------------- | --------------------- | --------------- | ------------------- |
+| `bloodline-bowl` (default) | Bloodline Bowl      | `1395549281678532608` | supyo29         | supyo29, bijimac    |
+| `devoted-to-the-game`      | Devoted to the Game | `1389735763649761280` | darthmarker     | darthmarker         |
+
+## Analysis capabilities
+
+Every capability below is read-only and reachable from `/api/ai`. Manager-scoped and
+`manager-week` routes come pre-filled in the `canonical_urls` block of a manager's response.
+
+| Capability                     | Scope        | Route template |
+| ------------------------------ | ------------ | -------------- |
+| League overview                | league       | `/api/leagues/{leagueSlug}` |
+| Canonical league state         | league       | `/api/league/{leagueSlug}/state` |
+| Scoring rules + analysis       | league       | `/api/leagues/{leagueSlug}/scoring` |
+| League projections             | league       | `/api/leagues/{leagueSlug}/projections` |
+| League / manager draft         | both         | `/api/leagues/{leagueSlug}/draft`, `/api/leagues/{leagueSlug}/managers/{managerSlug}/draft` |
+| Snake recommendation engine    | manager      | `/api/leagues/{leagueSlug}/managers/{managerSlug}/recommendations` |
+| Need-weighted projections      | manager      | `/api/leagues/{leagueSlug}/managers/{managerSlug}/projections` |
+| Manager home + roster          | manager      | `/api/leagues/{leagueSlug}/managers/{managerSlug}` |
+| Manager analytical context     | manager      | `/api/context/{leagueSlug}/{managerSlug}` |
+| Weekly intelligence (combined) | manager-week | `/api/intelligence/{leagueSlug}/{managerSlug}/week/{week}` |
+| Optimal lineup + start/sit     | manager-week | `/api/lineup/{leagueSlug}/{managerSlug}/week/{week}` |
+| Matchup analysis               | manager-week | `/api/matchup/{leagueSlug}/{managerSlug}/week/{week}` |
+| Waiver / add-drop engine       | manager-week | `/api/waivers/{leagueSlug}/{managerSlug}/week/{week}` |
+| Transaction ledger             | league       | `/api/transactions/{leagueSlug}` |
+| Historical weekly snapshots    | league       | `/api/history/{leagueSlug}/week/{week}` |
+| Provider + persistence health  | service      | `/api/providers` |
+
+`{week}` is the current NFL week — read `state.current_week` from `/api/league/{leagueSlug}/state`.
+Additional historical-analysis endpoints (standings, historical matchups, roster analysis, player
+availability, player values, weekly stats) are currently exposed only in the legacy `?league=`
+form; `/api/ai` lists them under `legacy_routes`.
+
+## Legacy compatibility
+
+The original `?league=<slug>` query-form routes (`/api/league`, `/api/draft`, `/api/scoring`,
+`/api/snapshot`, `/api/transactions`, …) still work unchanged for existing clients but are legacy.
+Prefer the canonical path routes above. Full details in
+[Canonical routing](#canonical-routing-league-identity--manager-identity) and
 [Multi-league support](#multi-league-support) below.
 
-| Key                        | League              | Sleeper league ID     | Sleeper account |
-| -------------------------- | ------------------- | --------------------- | --------------- |
-| `bloodline-bowl` (default) | Bloodline Bowl      | `1395549281678532608` | supyo29         |
-| `devoted-to-the-game`      | Devoted to the Game | `1389735763649761280` | darthmarker     |
+## GitHub is optional
+
+The public repository (`github.com/supyo29/bloodline-bowl`) is for inspecting methodology and
+implementation only. The live bridge is fully usable by an external AI with no GitHub access.
 
 ---
 
