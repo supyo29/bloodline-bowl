@@ -25,6 +25,7 @@ import type {
   WeeklyVOR,
   WeeklyWarning,
 } from "./schema";
+import { FLEX_ELIGIBILITY } from "./slots";
 
 const BASE_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
 /** extra rank past the last starter when falling back to the full pool */
@@ -154,27 +155,36 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
   const by_position: Record<string, ReplacementLevel> = {};
   for (const p of BASE_POSITIONS) by_position[p] = level(p);
 
-  // FLEX replacement — best realistically available across flex-eligible FAs.
-  const flexFA: number[] = [];
-  for (const pos of constraints.flex_positions) flexFA.push(...(poolFA[pos] ?? []));
-  flexFA.sort((a, b) => b - a);
-  by_position.FLEX =
-    flexFA.length > 0
-      ? {
-          position: "FLEX",
-          replacement_points: round2(flexFA[faIndex(flexFA.length)]!),
-          basis: "available_pool_marginal",
-          derived_from_rank: faIndex(flexFA.length) + 1,
-          sample_size: flexFA.length,
-        }
-      : {
-          position: "FLEX",
-          replacement_points:
-            Math.max(...constraints.flex_positions.map((p) => by_position[p]?.replacement_points ?? 0)) || null,
-          basis: "position_rank_fallback",
-          derived_from_rank: null,
-          sample_size: 0,
-        };
+  // FLEX replacement — the configured frontier applied to the UNION of free
+  // agents eligible for the flex slot. One entry per DISTINCT flex slot label
+  // (a league mixing FLEX and SUPER_FLEX gets a different bar for each), keyed by
+  // the label; `by_position.FLEX` is the union of `constraints.flex_positions`
+  // for back-compat.
+  const flexLevel = (label: string, eligiblePositions: string[]): ReplacementLevel => {
+    const combined: number[] = [];
+    for (const pos of eligiblePositions) combined.push(...(poolFA[pos] ?? []));
+    combined.sort((a, b) => b - a);
+    if (combined.length > 0) {
+      return {
+        position: label,
+        replacement_points: round2(combined[faIndex(combined.length)]!),
+        basis: "available_pool_marginal",
+        derived_from_rank: faIndex(combined.length) + 1,
+        sample_size: combined.length,
+      };
+    }
+    return {
+      position: label,
+      replacement_points: Math.max(...eligiblePositions.map((p) => by_position[p]?.replacement_points ?? 0)) || null,
+      basis: "position_rank_fallback",
+      derived_from_rank: null,
+      sample_size: 0,
+    };
+  };
+  by_position.FLEX = flexLevel("FLEX", constraints.flex_positions);
+  for (const label of new Set(constraints.starting_slots.filter((s) => FLEX_ELIGIBILITY[s]))) {
+    by_position[label] = flexLevel(label, FLEX_ELIGIBILITY[label]!);
+  }
 
   return {
     league_slug: input.league_slug,

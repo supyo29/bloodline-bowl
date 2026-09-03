@@ -154,6 +154,39 @@ describe("computePositionalNeeds — aggregate FLEX demand", () => {
     assert.notEqual(rb.severity, "strong", "a marginal RB2 barely above replacement is not 'strong'");
   });
 
+  it("each flex label's replacement is the frontier of the UNION of its eligible FAs (Codex round 13)", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    // rostered base; FREE-AGENT RBs 20/1, WRs 19/18. Combined FLEX (RB/WR/TE) pool
+    // sorted = [20,19,18,1] -> 2nd best = 19. max(2nd-best RB=1, 2nd-best WR=18)
+    // would wrongly give 18.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("wr3", "WR"), player("qb2", "QB"), player("k1", "K"), player("def1", "DEF"),
+      player("faRBa", "RB"), player("faRBb", "RB"), player("faWRa", "WR"), player("faWRb", "WR"),
+    ];
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 15), proj("wr1", "WR", 14), proj("wr2", "WR", 13),
+      proj("te1", "TE", 12), proj("wr3", "WR", 11), proj("qb2", "QB", 10), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("faRBa", "RB", 20), proj("faRBb", "RB", 1), proj("faWRa", "WR", 19), proj("faWRb", "WR", 18),
+    ];
+    const R = roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "qb2", "k1", "def1"], [], { startingSlots: constraints.starting_slots });
+    const pb = batch(P, players);
+    const snap = {
+      schema_version: CANONICAL_SCHEMA_VERSION, captured_at: "", provider_synced_at: null,
+      league: { canonical_league_id: "league:t", league_slug: "test-league", name: "t", season: 2026, status: "in_season", sport: "nfl", team_count: 12, current_week: 1, scoring_rules: [], raw_scoring: {}, roster_settings: { starting_slots: constraints.starting_slots, bench_slots: 5, ir_slots: 1, taxi_slots: 0, slot_requirements: constraints.slot_requirements }, playoff_settings: { playoff_team_count: 6, playoff_start_week: 15, championship_week: 17 }, waiver_settings: { type: "faab" as const, faab_budget: 100, waiver_day: null }, provenance: { provider: "sleeper" as const, provider_id: "t", provider_synced_at: null } },
+      season: 2026, week: 1, managers: [], teams: [], rosters: [R], standings: [], matchups: [], recent_transactions: [], draft_picks: [], waiver_state: null, players, unresolved_players: [], live_provider_status: "READY" as const, history_persistence_status: "READY" as const, warnings: [],
+    } as unknown as CanonicalLeagueSnapshot;
+    const av = buildLeagueAvailability({ snapshot: snap, manager_team_id: "team:test-league:1", week: 1, candidates: players, startable_positions: new Set(["QB", "RB", "WR", "TE", "K", "DEF"]) });
+    const rep = computeWeeklyReplacement({ league_slug: "test-league", week: 1, team_count: 12, constraints, projections: pb, availability: av });
+    assert.equal(rep.by_position.FLEX?.replacement_points, 19, "FLEX bar = 2nd-best of the combined RB/WR/TE FA pool");
+  });
+
   it("Yahoo W/R/T + Q/W/R/T eligibility is preserved", () => {
     const constraints = {
       ...STD_CONSTRAINTS,
@@ -172,6 +205,40 @@ describe("computePositionalNeeds — aggregate FLEX demand", () => {
     const qwrt = needs.find((n) => n.position === "Q/W/R/T")!;
     assert.deepEqual(wrt.eligible_positions.sort(), ["RB", "TE", "WR"]);
     assert.deepEqual(qwrt.eligible_positions.sort(), ["QB", "RB", "TE", "WR"]);
+  });
+
+  it("flex marginals are deterministic and label-aware, not read from one arbitrary assignment (Codex round 13)", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    // 2 interchangeable spare WRs (20 and 12) land in the two flex slots; a spare
+    // QB FA raises the SUPER_FLEX replacement bar above the ordinary FLEX bar.
+    const base = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("sp1", "WR"), player("sp2", "WR"), player("k1", "K"), player("def1", "DEF"),
+      player("faQB", "QB"), player("faRB", "RB"), player("faWR", "WR"),
+    ];
+    const P = [
+      proj("qb1", "QB", 22), proj("rb1", "RB", 18), proj("rb2", "RB", 17), proj("wr1", "WR", 16), proj("wr2", "WR", 15),
+      proj("te1", "TE", 14), proj("sp1", "WR", 20), proj("sp2", "WR", 12), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("faQB", "QB", 13), proj("faRB", "RB", 10), proj("faWR", "WR", 9),
+    ];
+    const run = (players: typeof base) =>
+      setup({ starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "sp1", "sp2", "k1", "def1"], players, projections: P, constraints });
+    const a = run(base);
+    const b = run([...base].reverse()); // different roster order -> must be identical
+    const flexA = a.find((n) => n.position === "FLEX")!;
+    const sfA = a.find((n) => n.position === "SUPER_FLEX")!;
+    const flexB = b.find((n) => n.position === "FLEX")!;
+    const sfB = b.find((n) => n.position === "SUPER_FLEX")!;
+    assert.equal(flexA.current_best_points, flexB.current_best_points, "FLEX marginal is order-invariant");
+    assert.equal(sfA.current_best_points, sfB.current_best_points, "SUPER_FLEX marginal is order-invariant");
+    // favourable pairing: the higher flex starter goes to the higher-bar label.
+    assert.ok((sfA.current_best_points ?? 0) >= (flexA.current_best_points ?? 0), "20-pt WR -> SUPER_FLEX (higher replacement bar), 12-pt -> FLEX");
   });
 
   it("deep RB/WR/TE rosters do not raise a false FLEX need", () => {

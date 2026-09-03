@@ -486,15 +486,12 @@ export function computePositionalNeeds(input: {
     }
   }
 
-  // per-flex-label replacement level — the best realistically-available FA among
-  // THAT label's eligible positions (a SUPER_FLEX QB must not set the ordinary
-  // FLEX replacement bar).
-  const labelReplacement = (eligible: string[]): number | null => {
-    const vals = eligible
-      .map((p) => replacement.by_position[p]?.replacement_points ?? null)
-      .filter((x): x is number => x != null);
-    return vals.length ? Math.max(...vals) : replacement.by_position.FLEX?.replacement_points ?? null;
-  };
+  // per-flex-label replacement level — `computeWeeklyReplacement` builds one per
+  // DISTINCT flex slot label from the configured frontier applied to the union
+  // of that label's eligible free agents (a SUPER_FLEX QB never sets the
+  // ordinary FLEX bar).
+  const labelReplacement = (label: string): number | null =>
+    replacement.by_position[label]?.replacement_points ?? replacement.by_position.FLEX?.replacement_points ?? null;
 
   for (const pos of ["QB", "RB", "WR", "TE", "K", "DEF"]) {
     const atPos = activePlayers.filter((p) => p.position === pos || p.eligible_positions.includes(pos as never));
@@ -531,6 +528,25 @@ export function computePositionalNeeds(input: {
 
   // ---- One need PER DISTINCT flex slot label, each with its OWN eligibility.
   const flexLabels = uniq(startLabels.filter((l) => isFlexSlot(l)));
+  // The optimizer's total is invariant to which overlapping flex label an
+  // interchangeable starter occupies, so read the MARGINAL through a label-aware
+  // assignment: pair the highest-projected flex starters with the labels that
+  // have the highest replacement bar (maximises the minimum gap — Codex round 13).
+  const flexStarterPts = lineup.slots
+    .filter((s) => isFlexSlot(s.slot) && s.recommended_projected != null)
+    .map((s) => s.recommended_projected!)
+    .sort((a, b) => b - a);
+  const labelInfo = flexLabels
+    .map((label) => ({ label, count: startLabels.filter((l) => l === label).length, rep: labelReplacement(label) }))
+    .sort((a, b) => (b.rep ?? -Infinity) - (a.rep ?? -Infinity));
+  const marginalByLabel = new Map<string, number | null>();
+  let fi = 0;
+  for (const { label, count } of labelInfo) {
+    const got = flexStarterPts.slice(fi, fi + count);
+    fi += count;
+    marginalByLabel.set(label, got.length > 0 ? Math.min(...got) : null);
+  }
+
   for (const label of flexLabels) {
     const labelNeed = startLabels.filter((l) => l === label).length;
     const eligible = slotEligiblePositions(label);
@@ -538,15 +554,9 @@ export function computePositionalNeeds(input: {
     const flexEligiblePlayers = activePlayers.filter(
       (p) => eligSet.has(p.position) || p.eligible_positions.some((e) => eligSet.has(e)),
     );
-    // MARGINAL starter = the lowest-projected player the PROJECTION-AWARE optimal
-    // lineup actually placed in a slot of this label.
     const labelSlots = lineup.slots.filter((s) => s.slot === label);
-    const assignedPts = labelSlots
-      .map((s) => s.recommended_projected)
-      .filter((x): x is number => x != null)
-      .sort((a, b) => b - a);
-    const marginal = assignedPts.length > 0 ? assignedPts.at(-1)! : null;
-    const rep = labelReplacement(eligible);
+    const marginal = marginalByLabel.get(label) ?? null;
+    const rep = labelReplacement(label);
     const gap = marginal != null && rep != null ? Math.round((marginal - rep) * 100) / 100 : null;
     const emptyOfLabel = labelSlots.filter((s) => s.recommended_player_id == null).length;
 
