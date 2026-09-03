@@ -241,17 +241,24 @@ export function buildWaiverRecommendations(
     if (n.severity !== "critical" && n.severity !== "weak") continue;
     for (const p of n.eligible_positions) needBoost.add(p);
   }
-  const serious = prefiltered
-    .filter(
-      (c) =>
-        (c.vor.vor ?? -99) > -4 ||
-        c.rosEdge > 0.5 ||
-        needBoost.has(c.wp.position) ||
-        byeHolePos.has(c.wp.position) ||
-        injuredStarterPos.has(c.wp.position),
-    )
+  // A candidate is "needed" if it addresses a critical/weak positional need, a
+  // bye hole, or an injured starter — these are NOT subject to the global
+  // points-ranked cutoff (which could otherwise drop every K/DEF option behind
+  // 60 higher-scoring skill players when the K/DEF slot is empty or on bye).
+  const isNeeded = (c: (typeof prefiltered)[number]) =>
+    needBoost.has(c.wp.position) || byeHolePos.has(c.wp.position) || injuredStarterPos.has(c.wp.position);
+  const filtered = prefiltered.filter(
+    (c) => (c.vor.vor ?? -99) > -4 || c.rosEdge > 0.5 || isNeeded(c),
+  );
+  const neededCands = filtered.filter(isNeeded).sort((a, b) => b.cheapScore - a.cheapScore);
+  const otherCands = filtered
+    .filter((c) => !isNeeded(c))
     .sort((a, b) => b.cheapScore - a.cheapScore)
     .slice(0, 60);
+  const serious = [
+    ...neededCands,
+    ...otherCands.filter((c) => !neededCands.includes(c)),
+  ].slice(0, Math.max(60, neededCands.length + 20));
 
   const evals: WaiverCandidateEval[] = [];
 

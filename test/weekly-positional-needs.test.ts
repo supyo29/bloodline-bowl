@@ -33,7 +33,7 @@ function setup(opts: {
   } as unknown as CanonicalLeagueSnapshot;
   const availability = buildLeagueAvailability({ snapshot, manager_team_id: "team:test-league:1", week: 1, candidates: opts.players, startable_positions: new Set(["QB", "RB", "WR", "TE", "K", "DEF"]) });
   const replacement = computeWeeklyReplacement({ league_slug: "test-league", week: 1, team_count: 12, constraints, projections: projBatch, availability });
-  return computePositionalNeeds({ roster: R, constraints, teamCount: 12, projections: projBatch, replacement, lookup });
+  return computePositionalNeeds({ roster: R, constraints, teamCount: 12, week: 1, projections: projBatch, replacement, lookup });
 }
 
 describe("computePositionalNeeds — reserve players excluded", () => {
@@ -102,6 +102,56 @@ describe("computePositionalNeeds — aggregate FLEX demand", () => {
     assert.deepEqual(sf.eligible_positions.sort(), ["QB", "RB", "TE", "WR"]);
     assert.equal(flex.severity, "critical", "ordinary FLEX cannot be filled — only QBs are spare");
     assert.notEqual(sf.severity, "critical", "SUPER_FLEX takes the spare QB");
+  });
+
+  it("STRUCTURAL need credits QB when a QB fills SUPER_FLEX and frees a WR for FLEX (Codex round 12)", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "SUPER_FLEX", "FLEX", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, SUPER_FLEX: 1, FLEX: 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    // base RB/RB/WR/WR/TE + exactly ONE spare flex body (wr3). SUPER_FLEX or FLEX
+    // takes wr3; the other is short. A QB, RB, WR or TE addition all resolve it.
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("wr3", "WR"), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    const P = players.map((p, i) => proj(p.canonical_player_id, p.position, 14 - i));
+    const needs = setup({ starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "wr3", "k1", "def1"].map((x, i) => (i === 7 ? "wr3" : x)), players, projections: P, constraints });
+    const structural = needs.find((n) => n.position === "STRUCTURAL");
+    assert.ok(structural, "a STRUCTURAL need is emitted");
+    assert.equal(structural!.severity, "critical");
+    for (const p of ["QB", "RB", "WR", "TE"]) assert.ok(structural!.eligible_positions.includes(p), `${p} resolves the hole`);
+    assert.ok(!structural!.eligible_positions.includes("K"), "a K cannot fill a flex hole");
+  });
+
+  it("marginal FLEX starter comes from the PROJECTION-AWARE lineup, not roster order (Codex round 12)", () => {
+    const constraints = { ...STD_CONSTRAINTS, starting_slots: ["RB", "FLEX"], slot_requirements: { RB: 1, FLEX: 1 } };
+    // roster order RB(20), WR(5), WR(15): structural matching by order would leave
+    // WR(5) in FLEX; the optimal lineup starts WR(15).
+    const players = [player("bigRB", "RB"), player("lowWR", "WR"), player("goodWR", "WR")];
+    const P = [proj("bigRB", "RB", 20), proj("lowWR", "WR", 5), proj("goodWR", "WR", 15)];
+    const needs = setup({ starters: ["bigRB", "lowWR"], bench: ["goodWR"], players, projections: P, constraints });
+    const flex = needs.find((n) => n.position === "FLEX")!;
+    assert.equal(flex.current_best_points, 15, "the marginal FLEX starter is the 15-pt WR, not the 5-pt one");
+  });
+
+  it("base position uses the MARGINAL required starter, not the best (Codex round 12)", () => {
+    const players = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("wr3", "WR"), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    // RB1 20, RB2 10.5 vs a ~10-pt replacement -> RB2 is barely above replacement.
+    const P = [
+      proj("qb1", "QB", 18), proj("rb1", "RB", 20), proj("rb2", "RB", 10.5), proj("wr1", "WR", 14), proj("wr2", "WR", 13),
+      proj("wr3", "WR", 12), proj("te1", "TE", 10), proj("k1", "K", 8), proj("def1", "DEF", 7),
+    ];
+    const needs = setup({ starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "wr3", "k1", "def1"], players, projections: P });
+    const rb = needs.find((n) => n.position === "RB")!;
+    assert.equal(rb.current_best_points, 10.5, "current_best_points is RB2 (the marginal required starter)");
+    assert.notEqual(rb.severity, "strong", "a marginal RB2 barely above replacement is not 'strong'");
   });
 
   it("Yahoo W/R/T + Q/W/R/T eligibility is preserved", () => {

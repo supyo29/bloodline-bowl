@@ -508,6 +508,38 @@ describe("waiver add/drop must preserve a fieldable legal roster (Codex round 7,
   });
 });
 
+describe("waiver shortlist keeps need/bye/injury candidates past the global cutoff (Codex round 12)", () => {
+  it("a bye-week K hole still surfaces a K add even behind 60+ higher-scoring skill FAs", () => {
+    const roster9 = [
+      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
+      player("te1", "TE"), player("fx", "RB"), player("myK", "K"), player("def1", "DEF"),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => player(id, "RB")),
+    ];
+    const P = [
+      proj("qb1", "QB", 20), proj("rb1", "RB", 16), proj("rb2", "RB", 12), proj("wr1", "WR", 14), proj("wr2", "WR", 12),
+      proj("te1", "TE", 10), proj("fx", "RB", 9), proj("myK", "K", 0, { projection_status: "bye", is_bye: true }), proj("def1", "DEF", 7),
+      ...["b1", "b2", "b3", "b4", "b5"].map((id) => proj(id, "RB", 6)),
+    ];
+    // 70 skill-position FAs projecting HIGHER than any K, plus one streamer K.
+    const skillFAs = Array.from({ length: 70 }, (_, i) => player(`fa${i}`, "WR", { name: `FA WR ${i}` }));
+    const skillProj = skillFAs.map((p, i) => proj(p.canonical_player_id, "WR", 18 - i * 0.1, { rest_of_season_points: 120 }));
+    const kFA = player("faK", "K", { name: "Streamer K" });
+    const ctx = weeklyContext({
+      myRoster: roster("team:test-league:1", ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "fx", "myK", "def1"], ["b1", "b2", "b3", "b4", "b5"]),
+      players: roster9, projections: P,
+      freeAgents: [...skillFAs, kFA],
+      faProjections: [...skillProj, proj("faK", "K", 9, { rest_of_season_points: 130 })],
+    });
+    ctx.byes.starters_on_bye_this_week = ["myK"]; // my K is on bye this week
+    const res = buildWaiverRecommendations(ctx);
+    const evaluated = [
+      ...res.recommendations.map((r) => r.add_name),
+      ...res.do_not_add.map((d) => d.add_name),
+    ];
+    assert.ok(evaluated.includes("Streamer K"), "the K bye-hole replacement is evaluated despite 70 higher-scoring skill FAs");
+  });
+});
+
 describe("waiver counterfactual inherits UNKNOWN-vs-zero semantics (issue 4)", () => {
   it("an UNKNOWN starter in the baseline optimal lineup -> starter_impact UNRESOLVED, not a fake gain", () => {
     // te1 (the only TE) has NO projection -> the baseline optimal lineup has an
