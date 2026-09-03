@@ -141,17 +141,20 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     });
   }
 
-  // Positional edges from the OPTIMAL lineups. A base position that has an
-  // UNKNOWN starter on EITHER side is omitted — an unknown fed in as 0 would
-  // falsely characterise positional strength.
+  // Positional edges from the OPTIMAL lineups. A base-position FAMILY is omitted
+  // when ANY eligible UNKNOWN player on either roster — starter OR bench — could
+  // affect it: an unprojected backup QB invalidates the QB comparison, an
+  // unprojected FLEX-eligible bench WR invalidates the WR and FLEX comparisons.
   const teamBySlot = groupBySlotBase(teamLineup);
   const oppBySlot = groupBySlotBase(oppLineup);
-  const teamUnknownBase = unknownBasePositions(teamLineup);
-  const oppUnknownBase = unknownBasePositions(oppLineup);
+  const teamSuspect = suspectBaseFamilies(ctx, ctx.roster, ctx.all_rostered);
+  const oppSuspect = ctx.opponent?.roster
+    ? suspectBaseFamilies(ctx, ctx.opponent.roster, ctx.opponent.all_rostered)
+    : new Set<string>();
   const allBases = uniq([...Object.keys(teamBySlot), ...Object.keys(oppBySlot)]);
-  const partialEdgeBases = allBases.filter((pos) => teamUnknownBase.has(pos) || oppUnknownBase.has(pos));
+  const partialEdgeBases = allBases.filter((pos) => teamSuspect.has(pos) || oppSuspect.has(pos));
   const edges: PositionalEdge[] = allBases
-    .filter((pos) => !teamUnknownBase.has(pos) && !oppUnknownBase.has(pos))
+    .filter((pos) => !teamSuspect.has(pos) && !oppSuspect.has(pos))
     .map((pos) => {
       const tp = teamBySlot[pos] ?? 0;
       const op = oppBySlot[pos] ?? 0;
@@ -161,7 +164,7 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
   if (partialEdgeBases.length > 0) {
     warnings.push({
       code: "positional_edges_partial",
-      message: `Positional advantage not computed for ${partialEdgeBases.join(", ")} — an UNKNOWN projected starter there.`,
+      message: `Positional advantage not computed for ${partialEdgeBases.join(", ")} — an eligible UNKNOWN player could affect it.`,
       severity: "info",
     });
   }
@@ -395,11 +398,27 @@ function groupBySlotBase(lineup: LineupResult): Record<string, number> {
   return out;
 }
 
-/** base positions whose optimal starter has an UNKNOWN projection */
-function unknownBasePositions(lineup: LineupResult): Set<string> {
+/**
+ * base-position families that an eligible UNKNOWN player on this roster could
+ * affect — a QB backup makes "QB" suspect; a FLEX-eligible bench RB makes "RB"
+ * AND "FLEX" suspect. Reserve (IR/taxi) players are ignored.
+ */
+function suspectBaseFamilies(
+  ctx: WeeklyTeamContext,
+  roster: { ir: string[]; taxi: string[] },
+  rostered: CanonicalPlayer[],
+): Set<string> {
+  const reserve = new Set([...roster.ir, ...roster.taxi]);
+  const flexPos = new Set(ctx.league.roster_constraints.flex_positions);
   const s = new Set<string>();
-  for (const slot of lineup.slots) {
-    if (slot.recommended_projection_state === "UNKNOWN") s.add(baseOf(slot.slot));
+  for (const p of rostered) {
+    if (reserve.has(p.canonical_player_id)) continue;
+    const wp = ctx.projections.by_player.get(p.canonical_player_id);
+    const unknown = !wp || (wp.projected_points == null && wp.projection_status !== "bye");
+    if (!unknown) continue;
+    const positions = [p.position, ...p.eligible_positions];
+    for (const pos of positions) s.add(baseOf(pos));
+    if (positions.some((pos) => flexPos.has(pos))) s.add("FLEX");
   }
   return s;
 }

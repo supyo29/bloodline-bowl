@@ -60,26 +60,68 @@ describe("computePositionalNeeds — reserve players excluded", () => {
 });
 
 describe("computePositionalNeeds — aggregate FLEX demand", () => {
-  it("2 RB / 2 WR / 1 TE fills every base slot but leaves the FLEX slot(s) unfilled -> FLEX need", () => {
+  it("exactly 2 RB / 2 WR / 1 TE + 2 QB fills every base slot but the FLEX slot is unfillable -> critical FLEX need", () => {
     const players = [
-      player("qb1", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"), player("wr2", "WR"),
-      player("te1", "TE"), player("k1", "K"), player("def1", "DEF"), player("teFlex", "TE"),
+      player("qb1", "QB"), player("qb2", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"),
+      player("wr2", "WR"), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"),
     ];
     const P = [
-      proj("qb1", "QB", 18), proj("rb1", "RB", 14), proj("rb2", "RB", 12), proj("wr1", "WR", 13), proj("wr2", "WR", 11),
-      proj("te1", "TE", 10), proj("k1", "K", 8), proj("def1", "DEF", 7), proj("teFlex", "TE", 8),
+      proj("qb1", "QB", 18), proj("qb2", "QB", 15), proj("rb1", "RB", 14), proj("rb2", "RB", 12), proj("wr1", "WR", 13),
+      proj("wr2", "WR", 11), proj("te1", "TE", 10), proj("k1", "K", 8), proj("def1", "DEF", 7),
     ];
-    // exactly 2 RB, 2 WR, 2 TE -> the 2 Bloodline FLEX slots need 4 RB/WR/TE
-    // beyond the base 5 (RB2+WR2+TE1), i.e. 7 total; only 6 flex-eligible exist.
+    // 5 flex-eligible players (2RB,2WR,1TE) cover the base RB/RB/WR/WR/TE; nothing
+    // left for FLEX, and the spare QB cannot fill it.
     const needs = setup({
-      starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "teFlex", "k1", "def1"],
+      starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "qb2", "k1", "def1"],
       players, projections: P,
     });
-    const flex = needs.find((n) => n.position === "FLEX");
-    assert.ok(flex, "a FLEX aggregate need is emitted");
-    assert.equal(flex!.need, 6, "RB(2)+WR(2)+TE(1) base + 1 STD FLEX slot = 6");
-    // only 6 flex-eligible players exist for a demand of 6 -> no surplus -> not 'strong'
-    assert.notEqual(flex!.severity, "strong");
+    const flex = needs.find((n) => n.position === "FLEX")!;
+    assert.ok(flex, "a FLEX need is emitted per flex slot label");
+    assert.equal(flex.need, 1, "STD has 1 FLEX slot");
+    assert.deepEqual(flex.eligible_positions.sort(), ["RB", "TE", "WR"]);
+    assert.equal(flex.severity, "critical", "the FLEX slot cannot be fielded");
+  });
+
+  it("FLEX + SUPER_FLEX: 3 QB + exactly base RB/WR/TE -> ordinary FLEX still short, SUPER_FLEX ok", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    const players = [
+      player("qb1", "QB"), player("qb2", "QB"), player("qb3", "QB"), player("rb1", "RB"), player("rb2", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    const P = players.map((p, i) => proj(p.canonical_player_id, p.position, 18 - i));
+    const needs = setup({ starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "qb2", "qb3", "k1", "def1"], players, projections: P, constraints });
+    const flex = needs.find((n) => n.position === "FLEX")!;
+    const sf = needs.find((n) => n.position === "SUPER_FLEX")!;
+    assert.deepEqual(flex.eligible_positions.sort(), ["RB", "TE", "WR"]);
+    assert.deepEqual(sf.eligible_positions.sort(), ["QB", "RB", "TE", "WR"]);
+    assert.equal(flex.severity, "critical", "ordinary FLEX cannot be filled — only QBs are spare");
+    assert.notEqual(sf.severity, "critical", "SUPER_FLEX takes the spare QB");
+  });
+
+  it("Yahoo W/R/T + Q/W/R/T eligibility is preserved", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "W/R/T", "Q/W/R/T", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, "W/R/T": 1, "Q/W/R/T": 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    const players = [
+      player("qb1", "QB"), player("qb2", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("rb3", "RB"),
+      player("wr1", "WR"), player("wr2", "WR"), player("te1", "TE"), player("k1", "K"), player("def1", "DEF"),
+    ];
+    const P = players.map((p) => proj(p.canonical_player_id, p.position, 12));
+    const needs = setup({ starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "rb3", "qb2", "k1", "def1"], players, projections: P, constraints });
+    const wrt = needs.find((n) => n.position === "W/R/T")!;
+    const qwrt = needs.find((n) => n.position === "Q/W/R/T")!;
+    assert.deepEqual(wrt.eligible_positions.sort(), ["RB", "TE", "WR"]);
+    assert.deepEqual(qwrt.eligible_positions.sort(), ["QB", "RB", "TE", "WR"]);
   });
 
   it("deep RB/WR/TE rosters do not raise a false FLEX need", () => {

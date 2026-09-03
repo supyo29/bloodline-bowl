@@ -146,7 +146,7 @@ describe("waiver context signals", () => {
       faProjections: [proj("faWr", "WR", 12, { rest_of_season_points: 150 })],
       // pretend the needs engine flagged WR weak
     });
-    ctx.positional_needs = [{ position: "WR", have_startable: 1, need: 2, current_best_points: 16, gap_vs_replacement: 8, severity: "weak" }];
+    ctx.positional_needs = [{ position: "WR", eligible_positions: ["WR"], have_startable: 1, need: 2, current_best_points: 16, gap_vs_replacement: 8, severity: "weak" }];
     const res = buildWaiverRecommendations(ctx);
     const rec = res.recommendations.find((r) => r.add_name === "Real WR2")!;
     assert.ok(rec);

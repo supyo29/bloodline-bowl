@@ -40,7 +40,7 @@ describe("matchup: optimal legal lineups", () => {
 
     const ctx = weeklyContext({
       myRoster, oppRoster, players: [...myPlayers, ...nine("b")],
-      projections: [...myProjs, ...nineProj("b", 15)],
+      projections: [...myProjs, ...nineProj("b", 12)],
     });
     const m = buildMatchup(ctx);
     // My optimal MUST include the 30-pt bench stud in a WR/FLEX slot.
@@ -110,7 +110,7 @@ describe("matchup: probability + degraded state", () => {
       myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), ["aMystery"], { startingSlots: SLOTS }),
       oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
       players: [...myP, ...nine("b")],
-      projections: [...nineProj("a", 20), ...nineProj("b", 15)], // all 9+9 STARTERS projected
+      projections: [...nineProj("a", 20), ...nineProj("b", 12)], // all 9+9 STARTERS projected
     });
     const m = buildMatchup(ctx);
     // all optimal starters are projected, so the margin is a real number...
@@ -126,7 +126,7 @@ describe("matchup: probability + degraded state", () => {
   it("positional edges + bench advantage omit / neutralise UNKNOWN starters (Codex round 10)", () => {
     const myP = [...nine("a"), player("aGhostWR", "WR")];
     // my only QB (aqb) has NO projection and no backup -> UNKNOWN QB starter.
-    const myProjs = [...nineProj("a", 16).filter((p) => p.canonical_player_id !== "aqb"), proj("aGhostWR", "WR", null)];
+    const myProjs = [...nineProj("a", 22).filter((p) => p.canonical_player_id !== "aqb"), proj("aGhostWR", "WR", null)];
     const ctx = weeklyContext({
       myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), ["aGhostWR"], { startingSlots: SLOTS }),
       oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
@@ -142,12 +142,56 @@ describe("matchup: probability + degraded state", () => {
     assert.ok(m.bench_depth.team_bench_unknown >= 1);
   });
 
+  it("an UNKNOWN BENCH backup QB suppresses the QB edge but leaves unrelated edges numeric (Codex round 11)", () => {
+    const myP = [...nine("a"), player("aBackupQB", "QB")];
+    const myProjs = [...nineProj("a", 22), proj("aBackupQB", "QB", null)]; // bench QB UNKNOWN
+    const ctx = weeklyContext({
+      myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), ["aBackupQB"], { startingSlots: SLOTS }),
+      oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      players: [...myP, ...nine("b")],
+      projections: [...myProjs, ...nineProj("b", 12)],
+    });
+    const m = buildMatchup(ctx);
+    const all = [...m.positional_advantages, ...m.positional_disadvantages];
+    assert.equal(all.find((e) => e.position === "QB"), undefined, "QB edge suppressed — an UNKNOWN backup QB could be better");
+    assert.ok(all.some((e) => e.position === "TE" || e.position === "RB" || e.position === "WR"), "unrelated edges still numeric");
+    assert.ok(m.warnings.some((w) => w.code === "positional_edges_partial"));
+  });
+
+  it("an UNKNOWN FLEX-eligible bench WR suppresses BOTH the WR and FLEX edges", () => {
+    const myP = [...nine("a"), player("aBenchWR", "WR")];
+    const myProjs = [...nineProj("a", 22), proj("aBenchWR", "WR", null)];
+    const ctx = weeklyContext({
+      myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), ["aBenchWR"], { startingSlots: SLOTS }),
+      oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      players: [...myP, ...nine("b")],
+      projections: [...myProjs, ...nineProj("b", 12)],
+    });
+    const m = buildMatchup(ctx);
+    const positions = new Set([...m.positional_advantages, ...m.positional_disadvantages].map((e) => e.position));
+    assert.ok(!positions.has("WR"));
+    assert.ok(!positions.has("FLEX"));
+    assert.ok(positions.has("QB") || positions.has("TE"), "unrelated positions unaffected");
+  });
+
+  it("fully-projected rosters -> all positional edges present, no partial warning", () => {
+    const ctx = weeklyContext({
+      myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
+      players: [...nine("a"), ...nine("b")],
+      projections: [...nineProj("a", 18), ...nineProj("b", 12)],
+    });
+    const m = buildMatchup(ctx);
+    assert.ok(!m.warnings.some((w) => w.code === "positional_edges_partial"));
+    assert.ok(m.positional_advantages.length + m.positional_disadvantages.length >= 1);
+  });
+
   it("a team with a fully-projected optimal lineup still gets a real margin", () => {
     const ctx = weeklyContext({
       myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
       oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
       players: [...nine("a"), ...nine("b")],
-      projections: [...nineProj("a", 20), ...nineProj("b", 15)],
+      projections: [...nineProj("a", 20), ...nineProj("b", 12)],
     });
     const m = buildMatchup(ctx);
     assert.equal(typeof m.projected_margin, "number");
@@ -178,12 +222,12 @@ describe("matchup: probability + degraded state", () => {
 describe("summary: unavailable margin != no opponent (Codex round 10)", () => {
   it("opponent EXISTS but a lineup has an UNKNOWN starter -> 'margin unavailable', not 'No opponent'", () => {
     const myP = [...nine("a")];
-    const myProjs = nineProj("a", 16).filter((p) => p.canonical_player_id !== "aqb"); // aqb UNKNOWN
+    const myProjs = nineProj("a", 22).filter((p) => p.canonical_player_id !== "aqb"); // aqb UNKNOWN
     const ctx = weeklyContext({
       myRoster: roster("team:test-league:1", nine("a").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
       oppRoster: roster("team:test-league:2", nine("b").map((p) => p.canonical_player_id), [], { startingSlots: SLOTS }),
       players: [...myP, ...nine("b")],
-      projections: [...myProjs, ...nineProj("b", 15)],
+      projections: [...myProjs, ...nineProj("b", 12)],
     });
     const lineup = buildOptimalLineup({ week: 1, roster: ctx.roster, constraints: ctx.league.roster_constraints, players: new Map(ctx.all_rostered.map((p) => [p.canonical_player_id, p])), projections: ctx.projections });
     const matchup = buildMatchup(ctx);

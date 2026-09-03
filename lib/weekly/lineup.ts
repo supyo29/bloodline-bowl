@@ -164,20 +164,25 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   const orderIndex = new Map(candidateIds.map((id, i) => [id, i]));
   const cand = [...candidateIds].sort((a, b) => (orderIndex.get(a)! - orderIndex.get(b)!));
 
-  // Weight matrix: rows = slots, cols = candidates. -Inf when ineligible.
-  // An UNKNOWN player gets a sentinel weight far below every real projection, so
-  // the optimizer never *prefers* an unknown. It is solved over KNOWN +
-  // VERIFIED_ZERO players only; a slot the knowns cannot fill is then
-  // PROVISIONALLY assigned to an eligible UNKNOWN (deterministically) and the
-  // lineup is marked non-`COMPLETE`.
+  // Weight matrix: rows = slots, cols = ALL candidates (known + unknown), solved
+  // in ONE assignment. Lexicographic objective via a large base offset:
+  //   FILLING a slot (either state) >> leaving it empty
+  //   among fillings, a KNOWN player > an UNKNOWN player
+  //   among KNOWNs, higher projected points wins
+  // so the optimizer maximises cardinality first, then projected points, and an
+  // UNKNOWN is only ever taken to fill a slot the knowns cannot. A slot that
+  // ends up on an UNKNOWN makes the lineup non-`COMPLETE`.
   const NEG = Number.NEGATIVE_INFINITY;
-  const knownCand = cand.filter((id) => projState(id) !== "UNKNOWN");
-  const unknownCand = cand.filter((id) => projState(id) === "UNKNOWN");
+  const FILL_BASE = 1_000_000;
+  const UNKNOWN_FILL = 900_000; // < FILL_BASE + min projected points, > 0
+  const optW = (id: string): number => {
+    const kp = knownPoints(id);
+    return kp == null ? UNKNOWN_FILL : FILL_BASE + kp;
+  };
   const weight: number[][] = slots.map((slot) =>
-    knownCand.map((id) => {
+    cand.map((id) => {
       const pl = players.get(id);
-      if (!pl || !isEligible(slot, pl)) return NEG;
-      return knownPoints(id)!; // known/verified-zero -> always a real number
+      return pl != null && isEligible(slot, pl) ? optW(id) : NEG;
     }),
   );
 
@@ -207,30 +212,10 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     if (curBySlot[i] === undefined) curBySlot[i] = leftoverStarters.shift() ?? null;
   }
 
-  // First pass — the known/verified-zero assignment.
   const recBySlot: Array<string | null> = slots.map((_, i) => {
     const recIdx = assignment[i];
-    return recIdx != null && recIdx >= 0 && weight[i]![recIdx] !== NEG ? knownCand[recIdx]! : null;
+    return recIdx != null && recIdx >= 0 && weight[i]![recIdx] !== NEG ? cand[recIdx]! : null;
   });
-
-  // Second pass — fill any slot the knowns could not with a PROVISIONAL UNKNOWN,
-  // via a cardinality-aware matching so a first-fit choice can't strand a
-  // required slot (e.g. FLEX grabbing the only RB-eligible unknown when the RB
-  // slot then has none). rows = unknown candidates, cols = still-empty slots.
-  const emptyIdx = recBySlot.map((v, i) => (v == null ? i : -1)).filter((i) => i >= 0);
-  if (emptyIdx.length > 0 && unknownCand.length > 0) {
-    const uWeight: number[][] = unknownCand.map((id) => {
-      const pl = players.get(id);
-      return emptyIdx.map((si) => (pl != null && isEligible(slots[si]!, pl) ? 1 : NEG));
-    });
-    const uAsg = hungarianMaxWeight(uWeight);
-    unknownCand.forEach((id, k) => {
-      const col = uAsg[k];
-      if (col != null && col >= 0 && col < emptyIdx.length && uWeight[k]![col] !== NEG) {
-        recBySlot[emptyIdx[col]!] = id;
-      }
-    });
-  }
 
   // ---- STARTER-SET difference (not slot permutations). Reshuffling the same
   // starters among RB/WR/FLEX/duplicate slots is NOT an actionable move.

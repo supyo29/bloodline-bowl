@@ -233,11 +233,13 @@ export function buildWaiverRecommendations(
     });
   const considered = prefiltered.length;
 
+  // A candidate is boosted only if it can ACTUALLY fill the deficient slot —
+  // each need carries its own `eligible_positions` (a base position, or the flex
+  // slot's own eligibility set), so a QB never gets an ordinary-FLEX boost.
   const needBoost = new Set<string>();
   for (const n of ctx.positional_needs) {
     if (n.severity !== "critical" && n.severity !== "weak") continue;
-    if (n.position === "FLEX") for (const p of ctx.league.roster_constraints.flex_positions) needBoost.add(p);
-    else needBoost.add(n.position);
+    for (const p of n.eligible_positions) needBoost.add(p);
   }
   const serious = prefiltered
     .filter(
@@ -303,12 +305,13 @@ export function buildWaiverRecommendations(
     const starterGain = Math.max(0, starterGainSigned);
 
     const benchImpact = starterGain > 0.25 ? 0 : Math.max(0, vor.vor ?? -3) * 0.5;
-    // Position need OR — for a flex-eligible add — the aggregate FLEX need.
-    const flexEligible = ctx.league.roster_constraints.flex_positions.includes(pos);
-    const sev = (n?: { severity: string }) => (n?.severity === "critical" ? 4 : n?.severity === "weak" ? 2 : 0);
+    // Scarcity credit = the strongest need this candidate's position can ACTUALLY
+    // solve (its own base need, or any flex-slot need whose eligibility set
+    // includes `pos`).
+    const sev = (s?: string) => (s === "critical" ? 4 : s === "weak" ? 2 : 0);
     const scarcityRaw = Math.max(
-      sev(ctx.positional_needs.find((n) => n.position === pos)),
-      flexEligible ? sev(ctx.positional_needs.find((n) => n.position === "FLEX")) : 0,
+      0,
+      ...ctx.positional_needs.filter((n) => n.eligible_positions.includes(pos)).map((n) => sev(n.severity)),
     );
     const byeRaw = byeHolePos.has(pos) && !wp.is_bye ? Math.min(6, weekly ?? 0) : 0;
     const hedgeRaw = injuredStarterPos.has(pos) && !wp.is_bye ? Math.min(5, (weekly ?? 0) * 0.5) : 0;

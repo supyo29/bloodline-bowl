@@ -554,26 +554,64 @@ function basePosOf(players: ReturnType<typeof player>[], id: string | null): str
   return players.find((p) => p.canonical_player_id === id)?.position ?? null;
 }
 
-describe("lineup: UNKNOWN slots are matched jointly, not first-fit (Codex round 10)", () => {
-  it("slot order [FLEX, RB] with UNKNOWN candidates [RB, WR] fills BOTH slots", () => {
-    const constraints: RosterConstraints = {
-      ...STD_CONSTRAINTS,
-      starting_slots: ["FLEX", "RB"],
-      slot_requirements: { RB: 1, FLEX: 1 },
-    };
-    const players = [player("uRB", "RB"), player("uWR", "WR")]; // both UNKNOWN (no proj)
-    const r = buildOptimalLineup({
+describe("lineup: KNOWN + UNKNOWN candidates matched in ONE assignment (Codex round 10/11)", () => {
+  const mk = (startingSlots: string[], slot_requirements: Record<string, number>, ids: string[], pl: [string, "QB" | "RB" | "WR" | "TE" | "K" | "DEF"][], pr: [string, number][]) => {
+    const constraints: RosterConstraints = { ...STD_CONSTRAINTS, starting_slots: startingSlots, slot_requirements, flex_positions: ["RB", "WR", "TE"], flex_slots: startingSlots.filter((s) => s === "FLEX" || s === "SUPER_FLEX").length };
+    const players = pl.map(([id, pos]) => player(id, pos));
+    const projs = pr.map(([id, v]) => proj(id, players.find((p) => p.canonical_player_id === id)!.position, v));
+    return buildOptimalLineup({
       week: 1,
-      roster: roster("team:t:1", ["uRB", "uWR"], [], { startingSlots: constraints.starting_slots }),
+      roster: roster("team:t:1", ids, [], { startingSlots }),
       constraints,
       players: new Map(players.map((p) => [p.canonical_player_id, p])),
-      projections: batch([], players),
+      projections: batch(projs, players),
     });
+  };
+
+  it("[FLEX, RB]: known RB(10) + UNKNOWN WR -> RB->RB, WR->FLEX, both filled", () => {
+    const r = mk(["FLEX", "RB"], { RB: 1, FLEX: 1 }, ["A", "B"], [["A", "RB"], ["B", "WR"]], [["A", 10]]);
     const bySlot = Object.fromEntries(r.slots.map((s) => [s.slot, s.recommended_player_id]));
-    assert.ok(bySlot.RB != null, "the RB slot is filled (uRB), not stranded by FLEX taking it first");
-    assert.ok(bySlot.FLEX != null, "the FLEX slot is filled");
-    assert.notEqual(bySlot.RB, bySlot.FLEX);
-    assert.equal(r.empty_slots.length, 0, "no false empty slot");
+    assert.equal(bySlot.RB, "A");
+    assert.equal(bySlot.FLEX, "B");
+    assert.equal(r.empty_slots.length, 0);
+    assert.equal(r.optimality_status, "PROVISIONAL");
+  });
+
+  it("[SUPER_FLEX, QB]: known QB + UNKNOWN RB -> QB->QB, RB->SUPER_FLEX", () => {
+    const r = mk(["SUPER_FLEX", "QB"], { QB: 1, SUPER_FLEX: 1 }, ["Q", "R"], [["Q", "QB"], ["R", "RB"]], [["Q", 22]]);
+    const bySlot = Object.fromEntries(r.slots.map((s) => [s.slot, s.recommended_player_id]));
+    assert.equal(bySlot.QB, "Q", "the known QB fills the required QB slot");
+    assert.equal(bySlot.SUPER_FLEX, "R");
+    assert.equal(r.empty_slots.length, 0);
+  });
+
+  it("[FLEX, RB, WR]: maximum fieldability before projected-points optimisation", () => {
+    // known WR big(20) is eligible for FLEX and WR; the RB slot's only filler is
+    // the UNKNOWN RB. Cardinality must win: bigWR -> WR, uRB -> RB, uWR2 -> FLEX.
+    const r = mk(["FLEX", "RB", "WR"], { RB: 1, WR: 1, FLEX: 1 }, ["bigWR", "uRB", "uWR2"], [["bigWR", "WR"], ["uRB", "RB"], ["uWR2", "WR"]], [["bigWR", 20]]);
+    assert.equal(r.empty_slots.length, 0, "cardinality wins — all 3 slots fielded");
+    const started = new Set(r.slots.map((s) => s.recommended_player_id));
+    assert.ok(started.has("bigWR"), "the known WR is started (not benched for an unknown)");
+    assert.equal(r.slots.find((s) => s.slot === "RB")!.recommended_player_id, "uRB", "the RB slot's only filler is the unknown RB");
+  });
+
+  it("all-known lineup: optimal projection behaviour unchanged", () => {
+    const r = run(["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "rb3", "k1", "def1"], ["qb2", "wr3", "te2"]);
+    // wr3(10) is the optimal FLEX over rb3(9) — same as before the joint change.
+    assert.equal(r.slots.find((s) => s.slot === "FLEX")!.recommended_player_id, "wr3");
+    assert.equal(r.optimality_status, "COMPLETE");
+  });
+
+  it("known bye-zero vs UNKNOWN: fieldability correct, UNKNOWN is not numeric zero", () => {
+    const constraints: RosterConstraints = { ...STD_CONSTRAINTS, starting_slots: ["FLEX", "RB"], slot_requirements: { RB: 1, FLEX: 1 } };
+    const players = [player("byeRB", "RB"), player("uWR", "WR")];
+    const projs = [proj("byeRB", "RB", 0, { projection_status: "bye", is_bye: true })];
+    const r = buildOptimalLineup({ week: 1, roster: roster("team:t:1", ["byeRB", "uWR"], [], { startingSlots: constraints.starting_slots }), constraints, players: new Map(players.map((p) => [p.canonical_player_id, p])), projections: batch(projs, players) });
+    const bySlot = Object.fromEntries(r.slots.map((s) => [s.slot, [s.recommended_player_id, s.recommended_projection_state]]));
+    // byeRB is VERIFIED_ZERO -> preferred to fill RB; uWR (UNKNOWN) -> FLEX.
+    assert.deepEqual(bySlot.RB, ["byeRB", "VERIFIED_ZERO"]);
+    assert.deepEqual(bySlot.FLEX, ["uWR", "UNKNOWN"]);
+    assert.equal(r.slots.find((s) => s.slot === "FLEX")!.recommended_projected, null, "UNKNOWN is not 0");
   });
 });
 

@@ -219,14 +219,19 @@ export interface RosterConstraints {
 }
 
 export interface PositionalNeed {
+  /** a base position ("RB") or a flex slot label ("FLEX", "SUPER_FLEX", "W/R/T") */
   position: string;
+  /** which base positions can actually fill this need (self for a base position;
+   *  the flex slot's eligibility set for a flex label). */
+  eligible_positions: string[];
   /** startable players the manager currently rosters at this position */
   have_startable: number;
-  /** starter slots that require this position (base + share of flex) */
+  /** starter slots that require this position (base requirement, or the count of
+   *  this flex slot label) */
   need: number;
-  /** projected points of the manager's current best option here */
+  /** projected points of the marginal starter actually needed to satisfy `need` */
   current_best_points: number | null;
-  /** gap between current best and the league replacement level */
+  /** gap between the marginal starter and the league replacement level */
   gap_vs_replacement: number | null;
   severity: "critical" | "weak" | "adequate" | "strong";
 }

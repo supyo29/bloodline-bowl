@@ -42,7 +42,7 @@ import type {
   CanonicalRoster,
 } from "@/lib/canonical/schema";
 
-import { BASE_STARTING, FLEX_ELIGIBILITY, isFlexSlot } from "./slots";
+import { BASE_STARTING, FLEX_ELIGIBILITY, isFlexSlot, maxSlotMatching, slotEligiblePositions } from "./slots";
 
 export interface WeeklyContextResult {
   ok: boolean;
@@ -460,34 +460,46 @@ export function computePositionalNeeds(input: {
   const reserve = new Set([...roster.ir, ...roster.taxi]);
   const rosterPlayers = lookup(roster.all_players.filter((id) => !reserve.has(id)));
   const out: PositionalNeed[] = [];
+  const ptsOf = (id: string) => projections.by_player.get(id)?.projected_points ?? null;
+
+  // ---- Structural fieldability of the WHOLE starting lineup (shared helper).
+  const startLabels = constraints.starting_slots;
+  const matchCands = rosterPlayers.map((p) => ({
+    id: p.canonical_player_id,
+    positions: uniq([p.position, ...p.eligible_positions]),
+  }));
+  const match = maxSlotMatching(startLabels, matchCands);
+  const unfilledLabelCount = new Map<string, number>();
+  for (const si of match.unfilled) {
+    const l = startLabels[si]!;
+    unfilledLabelCount.set(l, (unfilledLabelCount.get(l) ?? 0) + 1);
+  }
 
   for (const pos of ["QB", "RB", "WR", "TE", "K", "DEF"]) {
     const atPos = rosterPlayers.filter((p) => p.position === pos || p.eligible_positions.includes(pos as never));
     const pts = atPos
-      .map((p) => projections.by_player.get(p.canonical_player_id)?.projected_points)
+      .map((p) => ptsOf(p.canonical_player_id))
       .filter((x): x is number => x != null)
       .sort((a, b) => b - a);
     const rep = replacement.by_position[pos]?.replacement_points ?? null;
-    // Need is the BASE starting requirement only — FLEX is shared across RB/WR/TE
-    // and must not be charged in full to every position.
     const need = constraints.slot_requirements[pos] ?? 0;
     const startable = rep == null ? atPos.length : pts.filter((p) => p >= rep).length;
     const best = pts[0] ?? null;
     const gap = best != null && rep != null ? Math.round((best - rep) * 100) / 100 : null;
-    // Backup value at K / DEF / (1-QB) QB is minimal and streaming is trivial, so
-    // "no backup here" is not a weakness — only an unfillable slot is.
     const lowBackupValue = pos === "K" || pos === "DEF" || (pos === "QB" && (constraints.slot_requirements.QB ?? 0) <= 1);
     const depthCount = pts.filter((p) => rep == null || p >= rep).length;
 
     const isKD = pos === "K" || pos === "DEF";
     let severity: PositionalNeed["severity"] = "adequate";
-    if (need > 0 && atPos.length < need) severity = "critical"; // literally cannot field the slot
-    else if (need > 0 && startable < need) severity = isKD ? "adequate" : "critical"; // K/DEF proj diffs are noise
+    // The shared matching proves whether this base slot can be fielded at all.
+    if ((unfilledLabelCount.get(pos) ?? 0) > 0) severity = "critical";
+    else if (need > 0 && startable < need) severity = isKD ? "adequate" : "critical";
     else if (!lowBackupValue && need > 0 && startable === need && (gap == null || gap < 2)) severity = "weak";
     else if (gap != null && gap > 6 && depthCount >= need + 2) severity = "strong";
 
     out.push({
       position: pos,
+      eligible_positions: [pos],
       have_startable: startable,
       need: Math.round(need * 100) / 100,
       current_best_points: best,
@@ -496,37 +508,48 @@ export function computePositionalNeeds(input: {
     });
   }
 
-  // ---- Aggregate FLEX demand. Base RB/WR/TE requirements can each look adequate
-  // while the roster still cannot fill its FLEX slot(s) — e.g. exactly 2 RB / 2
-  // WR / 1 TE leaves both Bloodline FLEX slots empty. Model the SHARED flex
-  // demand once instead of charging every position the full amount.
-  if (constraints.flex_slots > 0 && constraints.flex_positions.length > 0) {
-    const flexPos = new Set(constraints.flex_positions);
-    const flexEligible = rosterPlayers.filter(
-      (p) => flexPos.has(p.position) || p.eligible_positions.some((e) => flexPos.has(e)),
+  // ---- One need PER DISTINCT flex slot label, with its OWN eligibility. A
+  // league mixing FLEX (RB/WR/TE) and SUPER_FLEX (QB/RB/WR/TE) must not collapse
+  // into one union — 3 QBs can satisfy SUPER_FLEX while the ordinary FLEX is
+  // still short. Fieldability comes from the shared whole-lineup matching.
+  const flexLabels = uniq(startLabels.filter((l) => isFlexSlot(l)));
+  for (const label of flexLabels) {
+    const slotIdx = startLabels.map((l, i) => (l === label ? i : -1)).filter((i) => i >= 0);
+    const labelNeed = slotIdx.length;
+    const eligible = slotEligiblePositions(label);
+    const eligSet = new Set(eligible);
+    const flexEligiblePlayers = rosterPlayers.filter(
+      (p) => eligSet.has(p.position) || p.eligible_positions.some((e) => eligSet.has(e)),
     );
-    const flexRep = replacement.by_position.FLEX?.replacement_points ?? null;
-    const flexPts = flexEligible
-      .map((p) => projections.by_player.get(p.canonical_player_id)?.projected_points)
+    // players the shared matching actually assigned to THIS label's slots.
+    const assignedToLabel = slotIdx
+      .map((i) => match.assignment.get(i))
+      .filter((id): id is string => id != null);
+    const assignedPts = assignedToLabel
+      .map((id) => ptsOf(id))
       .filter((x): x is number => x != null)
       .sort((a, b) => b - a);
-    // starter slots RB/WR/TE fill in total = base RB/WR/TE requirements + flex slots.
-    const baseFlexReq = [...flexPos].reduce((s, p) => s + (constraints.slot_requirements[p] ?? 0), 0);
-    const totalFlexDemand = baseFlexReq + constraints.flex_slots;
-    const haveForFlex = flexRep == null ? flexEligible.length : flexPts.filter((p) => p >= flexRep).length;
-    const flexBest = flexPts[Math.min(totalFlexDemand, flexPts.length - 1)] ?? flexPts.at(-1) ?? null; // the "marginal" flex starter
-    const flexGap = flexBest != null && flexRep != null ? Math.round((flexBest - flexRep) * 100) / 100 : null;
-    let flexSeverity: PositionalNeed["severity"] = "adequate";
-    if (flexEligible.length < totalFlexDemand) flexSeverity = "critical"; // cannot field the flex slot(s)
-    else if (haveForFlex < totalFlexDemand) flexSeverity = "weak";
-    else if (haveForFlex >= totalFlexDemand + 2 && (flexGap == null || flexGap > 3)) flexSeverity = "strong";
+    // MARGINAL required starter = the lowest-projected player actually holding a
+    // slot of this label (or, if all its slots are filled and there are none
+    // projected, null).
+    const marginal = assignedPts.length > 0 ? assignedPts.at(-1)! : null;
+    const flexRep = replacement.by_position.FLEX?.replacement_points ?? null;
+    const gap = marginal != null && flexRep != null ? Math.round((marginal - flexRep) * 100) / 100 : null;
+    const unfilled = unfilledLabelCount.get(label) ?? 0;
+
+    let severity: PositionalNeed["severity"] = "adequate";
+    if (unfilled > 0) severity = "critical"; // cannot field this flex slot at all
+    else if (gap != null && gap < 2) severity = "weak";
+    else if (gap != null && gap > 4 && flexEligiblePlayers.length >= labelNeed + 2) severity = "strong";
+
     out.push({
-      position: "FLEX",
-      have_startable: haveForFlex,
-      need: totalFlexDemand,
-      current_best_points: flexBest,
-      gap_vs_replacement: flexGap,
-      severity: flexSeverity,
+      position: label,
+      eligible_positions: eligible,
+      have_startable: assignedToLabel.length,
+      need: labelNeed,
+      current_best_points: marginal,
+      gap_vs_replacement: gap,
+      severity,
     });
   }
 
