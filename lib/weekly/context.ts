@@ -529,22 +529,60 @@ export function computePositionalNeeds(input: {
   // ---- One need PER DISTINCT flex slot label, each with its OWN eligibility.
   const flexLabels = uniq(startLabels.filter((l) => isFlexSlot(l)));
   // The optimizer's total is invariant to which overlapping flex label an
-  // interchangeable starter occupies, so read the MARGINAL through a label-aware
-  // assignment: pair the highest-projected flex starters with the labels that
-  // have the highest replacement bar (maximises the minimum gap — Codex round 13).
-  const flexStarterPts = lineup.slots
-    .filter((s) => isFlexSlot(s.slot) && s.recommended_projected != null)
-    .map((s) => s.recommended_projected!)
-    .sort((a, b) => b - a);
-  const labelInfo = flexLabels
-    .map((label) => ({ label, count: startLabels.filter((l) => l === label).length, rep: labelReplacement(label) }))
-    .sort((a, b) => (b.rep ?? -Infinity) - (a.rep ?? -Infinity));
+  // interchangeable starter occupies, so read the MARGINAL through an
+  // eligibility-preserving max-min assignment: over all LEGAL bijections of the
+  // flex starters to the flex slots, pick the one that maximises the minimum
+  // (starter points − label replacement bar). Sizes are tiny (≤ ~6 flex slots).
+  const flexStarters = lineup.slots
+    .filter((s) => isFlexSlot(s.slot) && s.recommended_player_id != null && s.recommended_projected != null)
+    .map((s) => {
+      const pl = playerMap.get(s.recommended_player_id!);
+      return {
+        pts: s.recommended_projected!,
+        positions: new Set(pl ? [pl.position, ...pl.eligible_positions] : [s.slot]),
+      };
+    });
+  const flexSlotList = startLabels
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => isFlexSlot(l))
+    .map(({ l }) => ({ label: l, rep: labelReplacement(l) ?? 0, eligible: new Set(slotEligiblePositions(l)) }));
+
   const marginalByLabel = new Map<string, number | null>();
-  let fi = 0;
-  for (const { label, count } of labelInfo) {
-    const got = flexStarterPts.slice(fi, fi + count);
-    fi += count;
-    marginalByLabel.set(label, got.length > 0 ? Math.min(...got) : null);
+  {
+    let best: number[] | null = null;
+    let bestMin = -Infinity;
+    const used = new Array(flexSlotList.length).fill(false);
+    const cur: number[] = [];
+    const rec = (si: number): void => {
+      if (si === flexStarters.length) {
+        let m = Infinity;
+        for (let k = 0; k < flexStarters.length; k += 1) {
+          m = Math.min(m, flexStarters[k]!.pts - flexSlotList[cur[k]!]!.rep);
+        }
+        if (m > bestMin) {
+          bestMin = m;
+          best = [...cur];
+        }
+        return;
+      }
+      for (let j = 0; j < flexSlotList.length; j += 1) {
+        if (used[j]) continue;
+        if (![...flexStarters[si]!.positions].some((p) => flexSlotList[j]!.eligible.has(p))) continue;
+        used[j] = true;
+        cur.push(j);
+        rec(si + 1);
+        cur.pop();
+        used[j] = false;
+      }
+    };
+    if (flexStarters.length > 0 && flexSlotList.length >= flexStarters.length) rec(0);
+    for (const label of flexLabels) marginalByLabel.set(label, null);
+    if (best) {
+      for (let k = 0; k < flexStarters.length; k += 1) {
+        const label = flexSlotList[(best as number[])[k]!]!.label;
+        marginalByLabel.set(label, Math.min(marginalByLabel.get(label) ?? Infinity, flexStarters[k]!.pts));
+      }
+    }
   }
 
   for (const label of flexLabels) {

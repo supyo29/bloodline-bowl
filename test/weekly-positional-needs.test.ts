@@ -185,6 +185,14 @@ describe("computePositionalNeeds — aggregate FLEX demand", () => {
     const av = buildLeagueAvailability({ snapshot: snap, manager_team_id: "team:test-league:1", week: 1, candidates: players, startable_positions: new Set(["QB", "RB", "WR", "TE", "K", "DEF"]) });
     const rep = computeWeeklyReplacement({ league_slug: "test-league", week: 1, team_count: 12, constraints, projections: pb, availability: av });
     assert.equal(rep.by_position.FLEX?.replacement_points, 19, "FLEX bar = 2nd-best of the combined RB/WR/TE FA pool");
+
+    // marginal_starter frontier must apply to the FLEX label too (not stay on
+    // the available-pool branch) — Codex round 14.
+    const repMS = computeWeeklyReplacement({
+      league_slug: "test-league", week: 1, team_count: 12, constraints, projections: pb, availability: av,
+      frontier: { mode: "marginal_starter" },
+    });
+    assert.equal(repMS.by_position.FLEX?.basis, "position_rank_fallback", "FLEX honours the marginal_starter (last-true-starter) frontier");
   });
 
   it("Yahoo W/R/T + Q/W/R/T eligibility is preserved", () => {
@@ -205,6 +213,36 @@ describe("computePositionalNeeds — aggregate FLEX demand", () => {
     const qwrt = needs.find((n) => n.position === "Q/W/R/T")!;
     assert.deepEqual(wrt.eligible_positions.sort(), ["RB", "TE", "WR"]);
     assert.deepEqual(qwrt.eligible_positions.sort(), ["QB", "RB", "TE", "WR"]);
+  });
+
+  it("flex marginal pairing preserves eligibility — a QB is never paired to an ordinary FLEX (Codex round 14)", () => {
+    const constraints = {
+      ...STD_CONSTRAINTS,
+      starting_slots: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"],
+      slot_requirements: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPER_FLEX: 1, K: 1, DEF: 1 },
+      flex_positions: ["QB", "RB", "WR", "TE"],
+      flex_slots: 2,
+    };
+    // spare RB(20) -> FLEX, spare QB(12) -> SUPER_FLEX. Two spare-QB FAs raise the
+    // SUPER_FLEX bar (~18) well above the ordinary FLEX bar (~7). The only LEGAL
+    // pairing is RB->FLEX / QB->SUPER_FLEX -> SUPER_FLEX gap -6 (weak).
+    const players = [
+      player("qb1", "QB"), player("qb2", "QB"), player("rb1", "RB"), player("rb2", "RB"), player("wr1", "WR"),
+      player("wr2", "WR"), player("te1", "TE"), player("sp1", "RB"), player("k1", "K"), player("def1", "DEF"),
+      player("faQBa", "QB"), player("faQBb", "QB"), player("faRB", "RB"), player("faWR", "WR"), player("faTE", "TE"),
+    ];
+    const P = [
+      proj("qb1", "QB", 22), proj("qb2", "QB", 12), proj("rb1", "RB", 25), proj("rb2", "RB", 24), proj("wr1", "WR", 16),
+      proj("wr2", "WR", 15), proj("te1", "TE", 14), proj("sp1", "RB", 20), proj("k1", "K", 8), proj("def1", "DEF", 7),
+      proj("faQBa", "QB", 20), proj("faQBb", "QB", 18), proj("faRB", "RB", 8), proj("faWR", "WR", 7), proj("faTE", "TE", 6),
+    ];
+    const needs = setup({ starters: ["qb1", "rb1", "rb2", "wr1", "wr2", "te1", "sp1", "qb2", "k1", "def1"], players, projections: P, constraints });
+    const flex = needs.find((n) => n.position === "FLEX")!;
+    const sf = needs.find((n) => n.position === "SUPER_FLEX")!;
+    assert.equal(flex.current_best_points, 20, "the RB is the FLEX marginal (the QB is ineligible for FLEX)");
+    assert.equal(sf.current_best_points, 12, "the QB is the SUPER_FLEX marginal");
+    assert.equal(sf.severity, "weak", "SUPER_FLEX gap is 12 - ~18 -> weak");
+    assert.ok(sf.eligible_positions.includes("QB"));
   });
 
   it("flex marginals are deterministic and label-aware, not read from one arbitrary assignment (Codex round 13)", () => {

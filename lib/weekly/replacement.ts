@@ -160,17 +160,41 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
   // (a league mixing FLEX and SUPER_FLEX gets a different bar for each), keyed by
   // the label; `by_position.FLEX` is the union of `constraints.flex_positions`
   // for back-compat.
+  const flexStarterLine = (label: string, eligiblePositions: string[]): number => {
+    const base = eligiblePositions.reduce((s, p) => s + (constraints.slot_requirements[p] ?? 0), 0);
+    const labelSlots = constraints.starting_slots.filter((s) => s === label).length || constraints.flex_slots;
+    return (base + labelSlots) * team_count;
+  };
   const flexLevel = (label: string, eligiblePositions: string[]): ReplacementLevel => {
-    const combined: number[] = [];
-    for (const pos of eligiblePositions) combined.push(...(poolFA[pos] ?? []));
-    combined.sort((a, b) => b - a);
-    if (combined.length > 0) {
+    const combinedAll: number[] = [];
+    const combinedFA: number[] = [];
+    for (const pos of eligiblePositions) {
+      combinedAll.push(...(poolAll[pos] ?? []));
+      combinedFA.push(...(poolFA[pos] ?? []));
+    }
+    combinedAll.sort((a, b) => b - a);
+    combinedFA.sort((a, b) => b - a);
+
+    // `marginal_starter` frontier — honour it for flex labels too (the base
+    // `level()` path does): the last true starter at rank
+    // (base flex requirements + this label's slots) of the FULL combined pool.
+    if (frontier.mode === "marginal_starter" && combinedAll.length > 0) {
+      const idx = Math.min(Math.max(0, Math.round(flexStarterLine(label, eligiblePositions)) - 1), combinedAll.length - 1);
       return {
         position: label,
-        replacement_points: round2(combined[faIndex(combined.length)]!),
+        replacement_points: round2(combinedAll[idx]!),
+        basis: "position_rank_fallback",
+        derived_from_rank: idx + 1,
+        sample_size: combinedAll.length,
+      };
+    }
+    if (combinedFA.length > 0) {
+      return {
+        position: label,
+        replacement_points: round2(combinedFA[faIndex(combinedFA.length)]!),
         basis: "available_pool_marginal",
-        derived_from_rank: faIndex(combined.length) + 1,
-        sample_size: combined.length,
+        derived_from_rank: faIndex(combinedFA.length) + 1,
+        sample_size: combinedFA.length,
       };
     }
     return {
