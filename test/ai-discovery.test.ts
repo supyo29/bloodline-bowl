@@ -274,7 +274,11 @@ describe("/ai human-readable landing page", () => {
     const meta = mod.metadata;
     assert.deepEqual(meta.robots, { index: true, follow: true });
     assert.equal(meta.alternates?.canonical, "/ai");
-    const blob = `${meta.title} ${meta.description}`.toLowerCase();
+    const title =
+      typeof meta.title === "object" && meta.title && "absolute" in meta.title
+        ? meta.title.absolute
+        : String(meta.title);
+    const blob = `${title} ${meta.description}`.toLowerCase();
     for (const term of [
       "fantasy football",
       "intelligence",

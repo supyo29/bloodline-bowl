@@ -27,7 +27,7 @@ const DESCRIPTION =
   "Public, read-only fantasy football intelligence API and analysis bridge. Roster and current-state analysis, projections, weekly intelligence, waiver / add-drop analysis, lineup and start/sit optimization, matchup analysis, transactions and history — for multiple Sleeper leagues including Bloodline Bowl and Devoted to the Game. AI assistants start at /api/ai.";
 
 export const metadata: Metadata = {
-  title: TITLE,
+  title: { absolute: TITLE },
   description: DESCRIPTION,
   alternates: { canonical: "/ai" },
   robots: { index: true, follow: true },
