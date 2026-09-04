@@ -108,6 +108,31 @@ export interface TradeConfig {
       replacement_context: number;
     };
   };
+
+  /**
+   * Phase 3 (calibration + player intelligence) — `ri-trade-calibrated-2026.1`.
+   * SHADOW MODE: `shadow_utility_delta = contextual_utility_delta (Phase 2) +
+   * roleAdjustmentWeight·role_adjustment + scheduleAdjustmentWeight·schedule_adjustment`.
+   *
+   * Both weights default to 0 because NEITHER signal is source-backed today —
+   * this repository has no live in-season usage-share feed and no
+   * opponent-adjusted schedule-strength source (see `lib/trades/intelligence.ts`).
+   * The calibration gate (`docs/TRADE_ENGINE_PHASE3_CALIBRATION_REPORT.md`)
+   * requires ablation evidence of incremental value before either becomes
+   * nonzero; until then the caps below only bound what a caller-supplied
+   * override could do, they do not imply the signals are active.
+   */
+  phase3: {
+    weights: {
+      role_adjustment: number;
+      schedule_adjustment: number;
+    };
+    /** absolute per-player caps on each adjustment, in weekly points — prevents one signal from dominating even if a future weight is enabled */
+    caps: {
+      max_role_adjustment: number;
+      max_schedule_adjustment: number;
+    };
+  };
 }
 
 export const DEFAULT_TRADE_CONFIG: TradeConfig = {
@@ -139,6 +164,16 @@ export const DEFAULT_TRADE_CONFIG: TradeConfig = {
       replacement_context: 0,
     },
   },
+  phase3: {
+    weights: {
+      role_adjustment: 0,
+      schedule_adjustment: 0,
+    },
+    caps: {
+      max_role_adjustment: 3,
+      max_schedule_adjustment: 2,
+    },
+  },
 };
 
 export type PartialTradeConfig = {
@@ -147,6 +182,7 @@ export type PartialTradeConfig = {
   acceptance_floor?: number;
   viability?: Partial<TradeConfig["viability"]>;
   phase2?: { weights?: Partial<TradeConfig["phase2"]["weights"]> };
+  phase3?: { weights?: Partial<TradeConfig["phase3"]["weights"]>; caps?: Partial<TradeConfig["phase3"]["caps"]> };
 };
 
 export function resolveTradeConfig(override?: PartialTradeConfig): TradeConfig {
@@ -157,6 +193,10 @@ export function resolveTradeConfig(override?: PartialTradeConfig): TradeConfig {
     acceptance_floor: override?.acceptance_floor ?? d.acceptance_floor,
     viability: { ...d.viability, ...(override?.viability ?? {}) },
     phase2: { weights: { ...d.phase2.weights, ...(override?.phase2?.weights ?? {}) } },
+    phase3: {
+      weights: { ...d.phase3.weights, ...(override?.phase3?.weights ?? {}) },
+      caps: { ...d.phase3.caps, ...(override?.phase3?.caps ?? {}) },
+    },
   };
   assertThresholdOrder(cfg.thresholds);
   return cfg;

@@ -204,6 +204,68 @@ export interface ParticipantTradeResult {
    * ADDITIVE layer, never a replacement.
    */
   phase2?: Phase2ParticipantResult;
+
+  /**
+   * Phase 3 calibration + player intelligence (`ri-trade-calibrated-2026.1`),
+   * SHADOW MODE ONLY — present only when `evaluateTrade` was given a
+   * `TradeAnalysisContext`. It never changes `acceptance`, `roster_utility_delta`,
+   * `trade_summary`, or Phase 2's own fields. `shadow_acceptance` /
+   * `shadow_utility_delta` are informational until a calibration pass promotes
+   * a signal out of weight 0.
+   */
+  phase3?: Phase3ParticipantResult;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Phase 3 — calibration + player intelligence (shadow mode)                   */
+/* -------------------------------------------------------------------------- */
+
+export type Phase3Confidence = "HIGH" | "MEDIUM" | "LOW" | "DEGRADED";
+
+export interface Phase3PlayerAttribution {
+  canonical_player_id: string;
+  direction: "INCOMING" | "OUTGOING";
+  /** pass-through of the Phase 2 leave-one-out ROS marginal for this player */
+  phase2_marginal_ros: number | null;
+  /** always 0 today — no validated role/usage signal exists to adjust from (see intelligence.ts) */
+  role_adjustment: number;
+  /** always 0 today — no validated schedule-strength signal exists */
+  schedule_adjustment: number;
+  uncertainty: import("./intelligence").VolatilityLevel;
+  /** phase2_marginal_ros + role_adjustment + schedule_adjustment (== phase2_marginal_ros today) */
+  phase3_adjusted_value: number | null;
+}
+
+export interface ValuationRangeView {
+  estimate: number;
+  low: number;
+  high: number;
+  basis: "std_dev_heuristic" | "single_point_no_band";
+}
+
+export interface Phase3ParticipantResult {
+  /** unmodified pass-through of phase2.ros.ros_usable_value_delta */
+  phase2_ros_value: number;
+  /** phase2_ros_value + Σ role/schedule adjustments (== phase2_ros_value today; all adjustments are 0) */
+  phase3_role_adjusted_ros_value: number;
+  /** the Phase 3 calibrated composite (SHADOW): phase2.contextual_utility_delta + Σ calibratedWeight·component (all weights 0 today) */
+  shadow_utility_delta: number;
+  shadow_acceptance: AcceptanceClass;
+  phase2_contextual_acceptance: AcceptanceClass;
+  phase1_acceptance: AcceptanceClass;
+  confidence: Phase3Confidence;
+  confidence_reasons: string[];
+  valuation_range: ValuationRangeView;
+  /** populated when shadow_acceptance != phase2_contextual_acceptance */
+  divergence_reason: string | null;
+  player_attribution: Phase3PlayerAttribution[];
+  diagnostics: TradeDiagnostic[];
+}
+
+export interface Phase3Summary {
+  shadow_only: true;
+  participants_with_divergence: string[];
+  participants_with_low_confidence: string[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -304,7 +366,18 @@ export type TradeDiagnosticCode =
   | "REPLACEMENT_POOL_DEGRADED"
   | "DEPTH_MODEL_DEGRADED"
   | "TRADE_CONTEXT_SNAPSHOT_INCOMPLETE"
-  | "PHASE2_UNAVAILABLE";
+  | "PHASE2_UNAVAILABLE"
+  // ---- Phase 3
+  | "PLAYER_INTELLIGENCE_UNAVAILABLE"
+  | "USAGE_DATA_STALE"
+  | "USAGE_SAMPLE_TOO_SMALL"
+  | "ROLE_TREND_UNCERTAIN"
+  | "INJURY_STATUS_UNCERTAIN"
+  | "SCHEDULE_STRENGTH_UNAVAILABLE"
+  | "CALIBRATION_DATA_INSUFFICIENT"
+  | "CALIBRATION_SIGNAL_DISABLED"
+  | "MODEL_DISAGREEMENT_HIGH"
+  | "PHASE3_SHADOW_ONLY";
 
 export interface TradeDiagnostic {
   code: TradeDiagnosticCode;
@@ -323,6 +396,13 @@ export interface TradeAnalysis {
   trade_foundation_version: typeof TRADE_ENGINE_VERSION;
   /** Phase 2 contextual-valuation version; null when Phase 2 did not run */
   trade_context_version: string | null;
+  /** Phase 3 calibration version; null when Phase 3 did not run */
+  trade_calibrated_version: string | null;
+  versions: {
+    foundation: typeof TRADE_ENGINE_VERSION;
+    contextual: string | null;
+    calibrated: string | null;
+  };
   league_slug: string;
   week: number;
   config: import("./config").TradeConfig;
@@ -335,6 +415,8 @@ export interface TradeAnalysis {
   trade_summary: TradeSummary | null;
   /** Phase 2 trade-level rollup; null when Phase 2 did not run */
   phase2_summary: Phase2Summary | null;
+  /** Phase 3 trade-level rollup (shadow mode); null when Phase 3 did not run */
+  phase3_summary: Phase3Summary | null;
   diagnostics: TradeDiagnostic[];
   generated_at: string;
 }

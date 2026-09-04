@@ -243,9 +243,9 @@ describe("audit §21 — no hidden contextual penalty outside the configured com
     assert.ok(withCtx.participants.X!.phase2!.depth.fragility_delta < 0, "fixture should worsen fragility");
     // every Phase 1 field is identical whether or not the fragility-worsening
     // Phase 2 context was supplied — only the additive `phase2` key differs.
-    const { phase2: p2X, ...phase1OnlyX } = withCtx.participants.X!;
-    const { phase2: p2Y, ...phase1OnlyY } = withCtx.participants.Y!;
-    void p2X; void p2Y;
+    const { phase2: p2X, phase3: p3X, ...phase1OnlyX } = withCtx.participants.X!;
+    const { phase2: p2Y, phase3: p3Y, ...phase1OnlyY } = withCtx.participants.Y!;
+    void p2X; void p2Y; void p3X; void p3Y;
     assert.deepEqual(noCtx.participants.X, phase1OnlyX);
     assert.deepEqual(noCtx.participants.Y, phase1OnlyY);
     assert.deepEqual(noCtx.trade_summary, withCtx.trade_summary);

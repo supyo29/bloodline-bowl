@@ -16,6 +16,15 @@
  * the Phase 1 `roster_utility_delta` unless a caller sets `config.phase2.weights`.
  * A Phase 2 failure never removes the frozen Phase 1 output.
  *
+ * Phase 3 (`ri-trade-calibrated-2026.1`, SHADOW MODE): a per-participant
+ * `phase3` block with source-backed player intelligence (availability +
+ * volatility — no fabricated usage/role/schedule signal exists in this repo),
+ * a data-quality `confidence` level, a `valuation_range`, and a
+ * `shadow_utility_delta`/`shadow_acceptance` that run ALONGSIDE Phase 1/2
+ * without changing them. `config.phase3.weights` default to 0, so
+ * `shadow_utility_delta === contextual_utility_delta` exactly until a
+ * calibration pass promotes a signal out of shadow mode.
+ *
  * Read-only and stateless. Nothing is persisted.
  *
  * Request body:

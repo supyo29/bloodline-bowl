@@ -30,6 +30,7 @@ import { reconstructRosters } from "./reconstruct";
 import type { TradeAnalysisContext } from "./context";
 import { evaluateRosParticipant } from "./ros";
 import { evaluateDepthParticipant } from "./depth";
+import { evaluatePhase3Participant, summarizePhase3 } from "./phase3";
 import type {
   AcceptanceClass,
   NormalizedProposal,
@@ -37,6 +38,7 @@ import type {
   Phase2Components,
   Phase2ParticipantResult,
   Phase2Summary,
+  Phase3Summary,
   PositionalNeedChange,
   RosterSnapshotView,
   TradeDiagnostic,
@@ -70,6 +72,7 @@ export interface TradeEvaluationOutput {
   participants: Record<string, ParticipantTradeResult>;
   trade_summary: TradeSummary;
   phase2_summary: Phase2Summary | null;
+  phase3_summary: Phase3Summary | null;
   diagnostics: TradeDiagnostic[];
 }
 
@@ -256,13 +259,42 @@ export function evaluateTrade(input: TradeEvaluationInput): TradeEvaluationOutpu
 
   // ---- Phase 2: contextual valuation (additive; Phase 1 above is untouched) --
   let phase2_summary: Phase2Summary | null = null;
+  let phase3_summary: Phase3Summary | null = null;
   if (input.context) {
     phase2_summary = attachPhase2(results, p2inputs, input.context, input.config, diagnostics);
+
+    // ---- Phase 3: calibration + player intelligence, SHADOW MODE ONLY. Runs
+    // after Phase 2 is fully attached (phase3 reads phase2.ros / .contextual_*)
+    // and only ever adds a new `r.phase3` key — never touches anything above.
+    const projStatus = input.projections_status ?? "READY";
+    results.forEach((r, i) => {
+      const pin = p2inputs[i];
+      if (!pin || !r.phase2) return;
+      r.phase3 = evaluatePhase3Participant({
+        ctx: input.context!,
+        config: input.config,
+        phase1_acceptance: r.acceptance,
+        phase2: r.phase2,
+        incoming_ids: pin.incoming,
+        outgoing_ids: pin.outgoing,
+        projections_status: projStatus,
+        roster_size: pin.after.all_players.length,
+      });
+    });
+    phase3_summary = summarizePhase3(results.map((r) => ({ manager_slug: r.manager_slug, phase3: r.phase3 })));
+    const seen3 = new Set(diagnostics.map((d) => d.code));
+    for (const r of results) for (const d of r.phase3?.diagnostics ?? []) {
+      if (d.code === "PHASE3_SHADOW_ONLY" || d.code === "CALIBRATION_SIGNAL_DISABLED") continue; // expected on every run, not worth top-level noise
+      if (!seen3.has(d.code)) {
+        diagnostics.push({ ...d, message: `Phase 3: ${d.message}` });
+        seen3.add(d.code);
+      }
+    }
   }
 
   const bySlug: Record<string, ParticipantTradeResult> = {};
   for (const r of results) bySlug[r.manager_slug] = r;
-  return { participants: bySlug, trade_summary, phase2_summary, diagnostics };
+  return { participants: bySlug, trade_summary, phase2_summary, phase3_summary, diagnostics };
 }
 
 /* ------------------------------------------------------------- Phase 2 layer */

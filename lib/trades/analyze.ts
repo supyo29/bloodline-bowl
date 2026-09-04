@@ -9,11 +9,13 @@
  *      transferred player through the snapshot's identifier crosswalk.
  *   3. Validate the proposal (explicit failure codes, never silent correction).
  *   4. `evaluateTrade` — Phase 1 (frozen `ri-trade-foundation-2026.2`) plus the
- *      additive Phase 2 contextual valuation (`ri-trade-contextual-2026.2`).
+ *      additive Phase 2 contextual valuation (`ri-trade-contextual-2026.2`) and
+ *      the additive, SHADOW-MODE Phase 3 calibration/player-intelligence layer
+ *      (`ri-trade-calibrated-2026.1`) — see `lib/trades/phase3.ts`.
  *
  * Degradation is explicit: a provider outage, an auth gap, missing projections
- * or a partial ROS/schedule surface as `status` / `diagnostics`. A Phase 2
- * failure never destroys the frozen Phase 1 output.
+ * or a partial ROS/schedule surface as `status` / `diagnostics`. A Phase 2 or
+ * Phase 3 failure never destroys the frozen Phase 1 output.
  */
 
 import { resolveManager } from "@/lib/canonical/manager-context";
@@ -27,6 +29,7 @@ import {
   TRADE_CONTEXT_VERSION,
   type BuildTradeContextOptions,
 } from "./context";
+import { TRADE_CALIBRATED_VERSION } from "./phase3";
 import {
   TRADE_ENGINE_VERSION,
   type TradeAnalysis,
@@ -53,6 +56,8 @@ export async function analyzeTrade(
     trade_version: TRADE_ENGINE_VERSION,
     trade_foundation_version: TRADE_ENGINE_VERSION,
     trade_context_version: null,
+    trade_calibrated_version: null,
+    versions: { foundation: TRADE_ENGINE_VERSION, contextual: null, calibrated: null },
     league_slug: leagueSlug,
     week: 0,
     config,
@@ -61,6 +66,7 @@ export async function analyzeTrade(
     participants: {},
     trade_summary: null,
     phase2_summary: null,
+    phase3_summary: null,
     diagnostics,
     generated_at: now,
     ...extra,
@@ -179,7 +185,13 @@ export async function analyzeTrade(
 
   const { result: validation, normalized } = validateTrade(resolution);
   if (!validation.ok || !normalized) {
-    return base({ status: "VALIDATION_FAILED", validation, week: snap.week, trade_context_version: TRADE_CONTEXT_VERSION });
+    return base({
+      status: "VALIDATION_FAILED",
+      validation,
+      week: snap.week,
+      trade_context_version: TRADE_CONTEXT_VERSION,
+      versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: null },
+    });
   }
 
   const players_by_id = new Map<string, CanonicalPlayer>(playerById);
@@ -211,11 +223,14 @@ export async function analyzeTrade(
     status: "OK",
     week: tctx.week,
     trade_context_version: TRADE_CONTEXT_VERSION,
+    trade_calibrated_version: TRADE_CALIBRATED_VERSION,
+    versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: TRADE_CALIBRATED_VERSION },
     validation,
     normalized,
     participants: evaluation.participants,
     trade_summary: evaluation.trade_summary,
     phase2_summary: evaluation.phase2_summary,
+    phase3_summary: evaluation.phase3_summary,
     diagnostics: [...diagnostics, ...evaluation.diagnostics],
   });
 }
