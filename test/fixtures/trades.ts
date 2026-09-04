@@ -19,7 +19,7 @@ import type {
 import type { RosterConstraints, WeeklyProjection } from "../../lib/weekly/schema";
 import type { TradeEvaluationInput } from "../../lib/trades/evaluate";
 import type { NormalizedProposal, TradeParticipantInput } from "../../lib/trades/schema";
-import type { TradeAnalysisContext } from "../../lib/trades/context";
+import { resolveRosWeekPlan, type TradeAnalysisContext } from "../../lib/trades/context";
 import { resolveTradeConfig, type PartialTradeConfig } from "../../lib/trades/config";
 import { validateTrade, type TradeResolution } from "../../lib/trades/validate";
 
@@ -287,14 +287,10 @@ export function tradeFixture(spec: TradeFixtureSpec): TradeFixture {
   const context = (copts: TradeContextOpts = {}): TradeAnalysisContext => {
     const cw = week;
     const championship = copts.championshipWeek ?? cw + (copts.rosWeeks ?? 6) - 1;
-    const weeks: number[] = [];
-    for (let w = cw; w <= championship; w += 1) weeks.push(w);
-    const playoffStart =
-      copts.playoffStartWeek != null && copts.playoffStartWeek > cw && copts.playoffStartWeek <= championship
-        ? copts.playoffStartWeek
-        : null;
-    const regular = playoffStart == null ? [...weeks] : weeks.filter((w) => w < playoffStart);
-    const playoff = playoffStart == null ? [] : weeks.filter((w) => w >= playoffStart);
+    // Shared with the real buildTradeAnalysisContext — one implementation of the
+    // week/playoff partition, so a fixed defect there is exercised by these tests.
+    const plan = resolveRosWeekPlan(cw, championship, copts.playoffStartWeek ?? null);
+    const { weeks, regular_season_weeks: regular, playoff_weeks: playoff, playoff_start_week: playoffStart } = plan;
     const byeMap = new Map<string, Set<number>>();
     for (const [team, ws] of Object.entries(copts.byeWeeksByTeam ?? {})) byeMap.set(team.toUpperCase(), new Set(ws));
     const scheduleStatus = copts.scheduleStatus ?? "READY";
@@ -324,7 +320,7 @@ export function tradeFixture(spec: TradeFixtureSpec): TradeFixture {
       snapshot,
       versions: {
         trade_foundation_version: "ri-trade-foundation-2026.2",
-        trade_context_version: "ri-trade-contextual-2026.1",
+        trade_context_version: "ri-trade-contextual-2026.2",
         weekly_engine_version: "post-draft-intel-2026.1",
         projections_model_version: "test",
         ros_model_version: null,

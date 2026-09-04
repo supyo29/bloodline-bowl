@@ -8,7 +8,7 @@
  * 3-team trades are one code path; arbitrary transfer routing, no bilateral
  * reciprocity.
  *
- * Phase 2 (`ri-trade-contextual-2026.1`, ADDITIVE): a per-participant `phase2`
+ * Phase 2 (`ri-trade-contextual-2026.2`, ADDITIVE): a per-participant `phase2`
  * block with rest-of-season usable value, bye-week coverage, playoff window,
  * usable depth and roster fragility — assembled from ONE immutable league
  * snapshot (no second provider read). Every Phase 2 composite weight defaults to

@@ -9,7 +9,7 @@
  *      transferred player through the snapshot's identifier crosswalk.
  *   3. Validate the proposal (explicit failure codes, never silent correction).
  *   4. `evaluateTrade` — Phase 1 (frozen `ri-trade-foundation-2026.2`) plus the
- *      additive Phase 2 contextual valuation (`ri-trade-contextual-2026.1`).
+ *      additive Phase 2 contextual valuation (`ri-trade-contextual-2026.2`).
  *
  * Degradation is explicit: a provider outage, an auth gap, missing projections
  * or a partial ROS/schedule surface as `status` / `diagnostics`. A Phase 2

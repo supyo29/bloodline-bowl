@@ -77,7 +77,7 @@ export interface TradeConfig {
   };
 
   /**
-   * Phase 2 (contextual valuation) — `ri-trade-contextual-2026.1`.
+   * Phase 2 (contextual valuation) — `ri-trade-contextual-2026.2`.
    *
    * `contextual_utility_delta = roster_utility_delta (Phase 1) + Σ weightᵢ·componentᵢ`.
    *

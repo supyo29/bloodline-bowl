@@ -30,7 +30,12 @@ import { buildOptimalLineup } from "@/lib/weekly/lineup";
 import type { TradeAnalysisContext, RosScheduleContext } from "./context";
 import type { TradeDiagnostic } from "./schema";
 
-const round2 = (v: number): number => Math.round(v * 100) / 100;
+/** Rounds to 2dp and normalizes -0 -> 0 (a leave-one-out delta of exactly zero
+ *  should never display or compare as the surprising `-0`). */
+const round2 = (v: number): number => {
+  const r = Math.round(v * 100) / 100;
+  return r === 0 ? 0 : r;
+};
 
 export interface RosPlayerSignal {
   canonical_player_id: string;
@@ -154,7 +159,7 @@ function rosWeekProjection(
     rest_of_season_points: null,
     ros: null,
     source: "trade_ros_model",
-    model_version: "ri-trade-contextual-2026.1",
+    model_version: "ri-trade-contextual-2026.2",
     uncertainty_source: "none",
     warnings: [],
   };
@@ -190,7 +195,7 @@ function rosWeekBatch(
     by_player,
     resolved_players,
     source: "trade_ros_model",
-    model_version: "ri-trade-contextual-2026.1",
+    model_version: "ri-trade-contextual-2026.2",
     missing: [],
     teams_with_games: [],
     warnings: [],

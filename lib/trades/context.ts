@@ -38,7 +38,17 @@ import type {
 import { TRADE_ENGINE_VERSION } from "./schema";
 import type { TradeDiagnostic } from "./schema";
 
-export const TRADE_CONTEXT_VERSION = "ri-trade-contextual-2026.1" as const;
+/**
+ * Contextual-valuation version (not the frozen Phase 1 foundation version).
+ * Bump on any change that can alter a Phase 2 result.
+ *   2026.1 — initial Phase 2 (2A/2B/2C)
+ *   2026.2 — audit pass: playoff-window mislabeling fixed for a trade evaluated
+ *            at/after the league's playoff start week (the whole remaining
+ *            window is now correctly the playoff window, never "regular
+ *            season"); usable_depth_score/fragility_score no longer double-count
+ *            a player eligible at multiple BASE positions.
+ */
+export const TRADE_CONTEXT_VERSION = "ri-trade-contextual-2026.2" as const;
 
 /** Last fantasy week the ROS layer will ever look at (NFL regular season is 18). */
 const MAX_FANTASY_WEEK = 18;
@@ -94,6 +104,55 @@ export interface TradeAnalysisContext {
   };
   warnings: WeeklyWarning[];
   diagnostics: TradeDiagnostic[];
+}
+
+export interface RosWeekPlan {
+  weeks: number[];
+  regular_season_weeks: number[];
+  playoff_weeks: number[];
+  playoff_window_available: boolean;
+  playoff_start_week: number | null;
+  championship_week: number;
+  /** reason a playoff window was NOT produced, for the diagnostic message */
+  playoff_unresolved_reason: "unresolved" | "outside_range" | null;
+}
+
+/**
+ * Pure week/playoff-partition logic — extracted so it has exactly one
+ * implementation, shared by `buildTradeAnalysisContext` and directly
+ * unit-testable without a snapshot or provider.
+ *
+ * `playoffStartWeekRaw` is clamped to be no earlier than `week`: if the trade is
+ * evaluated at or after the league's configured playoff start (mid-playoff-push,
+ * or the entire remaining horizon is the playoffs), the WHOLE remaining window
+ * is the playoff window — it is never mislabeled "regular season" just because
+ * the configured start week has already passed.
+ */
+export function resolveRosWeekPlan(week: number, championshipWeek: number, playoffStartWeekRaw: number | null): RosWeekPlan {
+  let playoffStartWeek: number | null = null;
+  let playoffUnresolvedReason: RosWeekPlan["playoff_unresolved_reason"] = null;
+  if (playoffStartWeekRaw == null) {
+    playoffUnresolvedReason = "unresolved";
+  } else {
+    const effectiveStart = Math.max(playoffStartWeekRaw, week);
+    if (effectiveStart <= championshipWeek) playoffStartWeek = effectiveStart;
+    else playoffUnresolvedReason = "outside_range";
+  }
+
+  const weeks: number[] = [];
+  for (let w = week; w <= championshipWeek; w += 1) weeks.push(w);
+  const regular_season_weeks = playoffStartWeek == null ? [...weeks] : weeks.filter((w) => w < playoffStartWeek);
+  const playoff_weeks = playoffStartWeek == null ? [] : weeks.filter((w) => w >= playoffStartWeek);
+
+  return {
+    weeks,
+    regular_season_weeks,
+    playoff_weeks,
+    playoff_window_available: playoff_weeks.length > 0,
+    playoff_start_week: playoffStartWeek,
+    championship_week: championshipWeek,
+    playoff_unresolved_reason: playoff_weeks.length > 0 ? null : playoffUnresolvedReason,
+  };
 }
 
 export interface BuildTradeContextOptions extends BuildWeeklyContextOptions {
@@ -179,23 +238,15 @@ export async function buildTradeAnalysisContext(
     options.rosHorizonWeek ?? ps.championship_week ?? DEFAULT_CHAMPIONSHIP_WEEK,
     week,
   );
-  const playoffStartWeek =
-    ps.playoff_start_week != null && ps.playoff_start_week > week && ps.playoff_start_week <= championshipWeek
-      ? ps.playoff_start_week
-      : null;
-
-  const weeks: number[] = [];
-  for (let w = week; w <= championshipWeek; w += 1) weeks.push(w);
-  const regular_season_weeks = playoffStartWeek == null ? [...weeks] : weeks.filter((w) => w < playoffStartWeek);
-  const playoff_weeks = playoffStartWeek == null ? [] : weeks.filter((w) => w >= playoffStartWeek);
-  const playoff_window_available = playoff_weeks.length > 0;
+  const plan = resolveRosWeekPlan(week, championshipWeek, ps.playoff_start_week);
+  const { weeks, regular_season_weeks, playoff_weeks, playoff_window_available, playoff_start_week: playoffStartWeek } = plan;
   if (!playoff_window_available) {
     diagnostics.push({
       code: "PLAYOFF_WINDOW_UNAVAILABLE",
       message:
-        ps.playoff_start_week == null
+        plan.playoff_unresolved_reason === "unresolved"
           ? "League playoff settings did not resolve a playoff start week — playoff-window value is not reported separately."
-          : `Playoff start week ${ps.playoff_start_week} is not inside the remaining week range (${week}..${championshipWeek}).`,
+          : `Playoff start week ${ps.playoff_start_week} falls outside the analyzed remaining-week range (${week}..${championshipWeek}) — no playoff weeks fall within this analysis.`,
       severity: "info",
     });
   }

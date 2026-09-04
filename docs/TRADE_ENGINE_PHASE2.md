@@ -1,7 +1,7 @@
 # Bloodline Bowl Trade Engine — Phase 2: Contextual Roster Valuation
 
 Phase 1 foundation: **`ri-trade-foundation-2026.2`** (frozen)
-Phase 2 valuation: **`ri-trade-contextual-2026.1`** (new)
+Phase 2 valuation: **`ri-trade-contextual-2026.2`** (audited — see `TRADE_ENGINE_PHASE2_AUDIT.md`; was `2026.1` at initial build)
 
 Both versions are returned on every `POST /api/trades/analyze` response
 (`trade_foundation_version`, `trade_context_version`).
@@ -370,6 +370,13 @@ None outstanding. (Phase 2 did not surface any Phase 1 defect.)
 ```
 PHASE 2 CONTEXTUAL VALUATION:
 READY FOR AUDIT
+```
+
+Audited 2026-09-04 (`TRADE_ENGINE_PHASE2_AUDIT.md`): 2 defects found (0xP0, 0xP1, 2xP2, 2xP3), all fixed; version bumped to `ri-trade-contextual-2026.2`.
+
+```
+PHASE 2 CONTEXTUAL VALUATION AUDIT:
+READY TO FREEZE
 ```
 
 ### Recommended Phase 2 audit focus

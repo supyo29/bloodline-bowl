@@ -2,7 +2,7 @@
  * Trade Engine — Phase 2: contextual roster valuation.
  *
  * Phase 1 (`ri-trade-foundation-2026.2`) stays frozen and authoritative; Phase 2
- * (`ri-trade-contextual-2026.1`) is an ADDITIVE layer. These tests verify:
+ * (`ri-trade-contextual-2026.2`) is an ADDITIVE layer. These tests verify:
  *   2A snapshot consistency (one provider read per analysis)
  *   2B rest-of-season contextual valuation (marginal usable, bye weeks, playoff
  *      window, scarcity / replacement context, consolidation vs depth)
@@ -171,7 +171,7 @@ describe("audit §2A — one provider read per analysis", () => {
     );
     assert.equal(calls(), 1, `expected exactly ONE getLeagueState call, got ${calls()}`);
     assert.equal(r.status, "OK", JSON.stringify(r.validation.failures ?? r.diagnostics));
-    assert.equal(r.trade_context_version, "ri-trade-contextual-2026.1");
+    assert.equal(r.trade_context_version, "ri-trade-contextual-2026.2");
     assert.ok(r.participants.supyo29?.phase2);
   });
 
@@ -211,7 +211,7 @@ describe("audit §2A — one provider read per analysis", () => {
     const { provider } = countingProvider();
     const ctx = (await buildTradeAnalysisContext("bloodline-bowl", { ...P2OPTS, providerOverride: provider })).context!;
     assert.equal(ctx.versions.trade_foundation_version, "ri-trade-foundation-2026.2");
-    assert.equal(ctx.versions.trade_context_version, "ri-trade-contextual-2026.1");
+    assert.equal(ctx.versions.trade_context_version, "ri-trade-contextual-2026.2");
     assert.ok(ctx.ros.weeks.length > 0);
   });
 });

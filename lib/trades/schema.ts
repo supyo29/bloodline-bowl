@@ -198,7 +198,7 @@ export interface ParticipantTradeResult {
   diagnostics: TradeDiagnostic[];
 
   /**
-   * Phase 2 contextual valuation (`ri-trade-contextual-2026.1`). Present only
+   * Phase 2 contextual valuation (`ri-trade-contextual-2026.2`). Present only
    * when `evaluateTrade` was given a `TradeAnalysisContext` (the API path).
    * Every Phase 1 field above is unchanged and authoritative; Phase 2 is an
    * ADDITIVE layer, never a replacement.

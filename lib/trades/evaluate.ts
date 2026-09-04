@@ -73,7 +73,10 @@ export interface TradeEvaluationOutput {
   diagnostics: TradeDiagnostic[];
 }
 
-const round2 = (v: number): number => Math.round(v * 100) / 100;
+const round2 = (v: number): number => {
+  const r = Math.round(v * 100) / 100;
+  return r === 0 ? 0 : r;
+};
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 const SEVERITY_RANK: Record<string, number> = { critical: 0, weak: 1, adequate: 2, strong: 3, absent: 2 };

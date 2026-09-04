@@ -26,7 +26,10 @@ import type { TradeAnalysisContext } from "./context";
 import type { TradeDiagnostic } from "./schema";
 
 const BASE_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"] as const;
-const round2 = (v: number): number => Math.round(v * 100) / 100;
+const round2 = (v: number): number => {
+  const r = Math.round(v * 100) / 100;
+  return r === 0 ? 0 : r;
+};
 
 /** Position importance weight for the aggregate scores (RB/WR carry FLEX load). */
 const POS_WEIGHT: Record<string, number> = { RB: 1.4, WR: 1.4, TE: 1.0, QB: 1.0, K: 0.4, DEF: 0.4 };
@@ -97,7 +100,6 @@ function ptsOf(id: string, ctx: TradeAnalysisContext): number | null {
 
 export function rosterResilience(roster: CanonicalRoster, ctx: TradeAnalysisContext): RosterResilience {
   const players = activePlayers(roster, ctx);
-  const starters = new Set(roster.starters);
   const flexSlots = ctx.constraints.starting_slots.filter((s) => isFlexSlot(s)).length;
   const flexEligPositions = new Set(
     ctx.constraints.starting_slots.filter((s) => isFlexSlot(s)).flatMap((s) => slotEligiblePositions(s)),
@@ -105,7 +107,12 @@ export function rosterResilience(roster: CanonicalRoster, ctx: TradeAnalysisCont
 
   const by_position: PositionDepth[] = [];
   for (const pos of BASE_POSITIONS) {
-    const atPos = players.filter((p) => p.position === pos || p.eligible_positions.includes(pos as never));
+    // PRIMARY position only. A player multi-eligible across base positions (a
+    // real Sleeper case — e.g. a QB/TE-flagged player) must be attributed to
+    // exactly one base-position bucket, or `usable_depth_score`/`fragility_score`
+    // (which SUM across positions) would double-count them. Their extra
+    // eligibility is still captured, once, by the separate FLEX-pool count below.
+    const atPos = players.filter((p) => p.position === pos);
     const rep = ctx.replacement.by_position[pos]?.replacement_points ?? null;
     const req = ctx.constraints.slot_requirements[pos] ?? 0;
 
@@ -117,7 +124,6 @@ export function rosterResilience(roster: CanonicalRoster, ctx: TradeAnalysisCont
     const viable = rep == null ? scored : scored.filter((x) => x.pts >= rep);
     const viableStarters = viable.length;
     const usableBackups = Math.max(0, viableStarters - req);
-    const nominalBackups = Math.max(0, atPos.length - viableStarters - (starters.size > 0 ? 0 : 0));
 
     const marginalStarter = req > 0 ? scored[req - 1]?.pts ?? scored.at(-1)?.pts ?? null : scored[0]?.pts ?? null;
     const bestBackup = scored[req]?.pts ?? null;
@@ -137,7 +143,6 @@ export function rosterResilience(roster: CanonicalRoster, ctx: TradeAnalysisCont
       understaffed: req > 0 && viableStarters < req,
       no_cover: req > 0 && viableStarters === req && usableBackups === 0,
     });
-    void nominalBackups;
   }
 
   // FLEX pool: viable players beyond each base position's requirement that are flex-eligible
