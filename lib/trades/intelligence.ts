@@ -92,7 +92,18 @@ export interface PlayerIntelligence {
 const NO_USAGE_FEED =
   "No live in-season usage-stats feed exists in this repository (snap share / target share / route participation / red-zone touches). The preseason Roster Intel draft model is not a defensible weekly usage tracker and is not substituted here.";
 
-function classifyAvailability(injuryStatus: string | null): AvailabilityStatus {
+/**
+ * `hasAnyRecord` distinguishes two very different kinds of "no injury_status
+ * string": (1) a resolvable player with no injury designation — the normal
+ * representation of "not injured" in this repo's source data, correctly
+ * HEALTHY — versus (2) an identity with NO canonical record and NO weekly
+ * projection at all, where there is literally no evidence of anything. (2)
+ * must never be reported as HEALTHY — that would assert a specific favorable
+ * claim from zero data, exactly the "unavailable treated as neutral evidence"
+ * failure mode Phase 3 is required to avoid.
+ */
+function classifyAvailability(injuryStatus: string | null, hasAnyRecord: boolean): AvailabilityStatus {
+  if (!hasAnyRecord) return "UNKNOWN";
   if (!injuryStatus) return "HEALTHY";
   const s = injuryStatus.toLowerCase();
   if (s.includes("ir") || s.includes("injured reserve")) return "IR";
@@ -123,14 +134,17 @@ export function buildPlayerIntelligence(playerId: string, ctx: TradeAnalysisCont
   const wp: WeeklyProjection | undefined = ctx.projections.by_player.get(playerId);
   const diagnostics: TradeDiagnostic[] = [];
 
+  const hasAnyRecord = meta != null || wp != null;
   const injuryStatus = meta?.injury_status ?? wp?.injury_status ?? null;
   const availability: AvailabilityIntelligence = {
-    status: classifyAvailability(injuryStatus),
+    status: classifyAvailability(injuryStatus, hasAnyRecord),
     expected_availability: wp?.expected_availability ?? null,
     raw_injury_status: injuryStatus,
     meta: { source: "canonical_player.injury_status + current-week projection", updated_at: null, freshness: wp ? "CURRENT" : "UNAVAILABLE" },
   };
-  if (availability.status === "UNKNOWN") {
+  if (!hasAnyRecord) {
+    diagnostics.push({ code: "PLAYER_INTELLIGENCE_UNAVAILABLE", message: `Player ${playerId} has no canonical record and no weekly projection in this context — availability is UNKNOWN, never asserted HEALTHY from zero evidence.`, severity: "info" });
+  } else if (availability.status === "UNKNOWN") {
     diagnostics.push({ code: "INJURY_STATUS_UNCERTAIN", message: `Player ${playerId} has an unrecognized injury-status string ("${injuryStatus}") — treated as UNKNOWN, not HEALTHY.`, severity: "info" });
   }
 

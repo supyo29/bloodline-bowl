@@ -1,8 +1,15 @@
 # Bloodline Bowl Trade Engine — Phase 3: Calibration and Player Intelligence
 
+> **Superseded by audit:** the Phase 3 audit (`docs/TRADE_ENGINE_PHASE3_AUDIT.md`)
+> found and fixed one P1 defect in the player-intelligence layer described
+> below (an unresolved player identity was asserted `HEALTHY` from zero
+> evidence). The version bumped to **`ri-trade-calibrated-2026.2`**. This
+> document is kept as the as-built record of the pre-audit implementation;
+> see the audit doc for the corrected behavior and current version.
+
 Phase 1 foundation: **`ri-trade-foundation-2026.2`** (frozen)
 Phase 2 contextual layer: **`ri-trade-contextual-2026.2`** (frozen)
-Phase 3 calibration/player-intelligence: **`ri-trade-calibrated-2026.1`** (new, **shadow mode**)
+Phase 3 calibration/player-intelligence: **`ri-trade-calibrated-2026.1`** (as originally built; see note above) (**shadow mode**)
 
 ## A. Freeze confirmation
 

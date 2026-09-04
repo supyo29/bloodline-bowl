@@ -95,11 +95,21 @@ describe("audit — player intelligence is source-backed, never fabricated", () 
     assert.ok(codes.includes("SCHEDULE_STRENGTH_UNAVAILABLE"));
   });
 
-  it("a player absent from the context (unknown id) does not crash — returns UNKNOWN/no signal", () => {
+  it("a player absent from the context (unknown id) does not crash and is NOT asserted HEALTHY — no evidence is not the same as evidence of health (audit fix)", () => {
     const f = scene([T("X"), T("Y")], []);
     const intel = buildPlayerIntelligence("no_such_player", f.context({ rosWeeks: ROS_WEEKS }));
-    assert.equal(intel.availability.status, "HEALTHY"); // no injury_status found -> defaults healthy, not a crash
+    assert.equal(intel.availability.status, "UNKNOWN");
     assert.equal(intel.volatility.level, "UNKNOWN");
+    assert.ok(intel.diagnostics.some((d) => d.code === "PLAYER_INTELLIGENCE_UNAVAILABLE" && d.message.includes("no_such_player")));
+  });
+
+  it("a resolvable player with a real record but no injury_status string is still HEALTHY (the normal 'not injured' representation, distinct from 'no evidence')", () => {
+    const f = scene([T("X"), T("Y")], []);
+    const ctx = f.context({ rosWeeks: ROS_WEEKS });
+    const p = ctx.players_by_id.get("X_flex")!;
+    assert.equal(p.injury_status, null);
+    const intel = buildPlayerIntelligence("X_flex", ctx);
+    assert.equal(intel.availability.status, "HEALTHY");
   });
 });
 
@@ -285,7 +295,7 @@ describe("audit — shadow mode never becomes authoritative", () => {
   });
 
   it("versions are all exposed and Phase 3 does not silently overwrite Phase 1/2 version constants", () => {
-    assert.equal(TRADE_CALIBRATED_VERSION, "ri-trade-calibrated-2026.1");
+    assert.equal(TRADE_CALIBRATED_VERSION, "ri-trade-calibrated-2026.2");
   });
 });
 

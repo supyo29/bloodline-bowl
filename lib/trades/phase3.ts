@@ -34,12 +34,19 @@ import type { Phase2ParticipantResult } from "./schema";
 
 /**
  * Calibration/player-intelligence version (shadow mode). Bump on any change
- * that can alter a Phase 3 result. `2026.1` — initial Phase 3A–3E: calibration
- * framework, real-data-only player intelligence (availability + volatility;
- * usage/role/trend/schedule always UNAVAILABLE — no source exists), confidence
- * layer, shadow composite at weight 0.
+ * that can alter a Phase 3 result.
+ *   2026.1 — initial Phase 3A–3E: calibration framework, real-data-only player
+ *            intelligence (availability + volatility; usage/role/trend/schedule
+ *            always UNAVAILABLE — no source exists), confidence layer, shadow
+ *            composite at weight 0.
+ *   2026.2 — audit fix (D1, P1): an entirely unresolved player identity (no
+ *            canonical record AND no weekly projection) was classified
+ *            `availability.status: "HEALTHY"` — asserting a specific favorable
+ *            claim from zero evidence, not the "no injury reported" case it was
+ *            meant for. Now classified `UNKNOWN` with a diagnostic. See
+ *            `lib/trades/intelligence.ts` and `docs/TRADE_ENGINE_PHASE3_AUDIT.md`.
  */
-export const TRADE_CALIBRATED_VERSION = "ri-trade-calibrated-2026.1" as const;
+export const TRADE_CALIBRATED_VERSION = "ri-trade-calibrated-2026.2" as const;
 
 const round2 = (v: number): number => {
   if (!Number.isFinite(v)) return 0;

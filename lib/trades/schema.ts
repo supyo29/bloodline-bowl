@@ -206,7 +206,7 @@ export interface ParticipantTradeResult {
   phase2?: Phase2ParticipantResult;
 
   /**
-   * Phase 3 calibration + player intelligence (`ri-trade-calibrated-2026.1`),
+   * Phase 3 calibration + player intelligence (`ri-trade-calibrated-2026.2`),
    * SHADOW MODE ONLY — present only when `evaluateTrade` was given a
    * `TradeAnalysisContext`. It never changes `acceptance`, `roster_utility_delta`,
    * `trade_summary`, or Phase 2's own fields. `shadow_acceptance` /

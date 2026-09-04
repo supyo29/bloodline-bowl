@@ -11,7 +11,7 @@
  *   4. `evaluateTrade` — Phase 1 (frozen `ri-trade-foundation-2026.2`) plus the
  *      additive Phase 2 contextual valuation (`ri-trade-contextual-2026.2`) and
  *      the additive, SHADOW-MODE Phase 3 calibration/player-intelligence layer
- *      (`ri-trade-calibrated-2026.1`) — see `lib/trades/phase3.ts`.
+ *      (`ri-trade-calibrated-2026.2`) — see `lib/trades/phase3.ts`.
  *
  * Degradation is explicit: a provider outage, an auth gap, missing projections
  * or a partial ROS/schedule surface as `status` / `diagnostics`. A Phase 2 or

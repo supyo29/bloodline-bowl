@@ -110,7 +110,7 @@ export interface TradeConfig {
   };
 
   /**
-   * Phase 3 (calibration + player intelligence) — `ri-trade-calibrated-2026.1`.
+   * Phase 3 (calibration + player intelligence) — `ri-trade-calibrated-2026.2`.
    * SHADOW MODE: `shadow_utility_delta = contextual_utility_delta (Phase 2) +
    * roleAdjustmentWeight·role_adjustment + scheduleAdjustmentWeight·schedule_adjustment`.
    *
