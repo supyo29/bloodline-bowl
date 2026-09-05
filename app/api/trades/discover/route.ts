@@ -94,6 +94,7 @@ export async function POST(request: Request): Promise<Response> {
     max_assets_per_side: typeof b.max_assets_per_side === "number" ? b.max_assets_per_side : undefined,
     include_three_team: b.include_three_team === true,
     constraints: sanitizeConstraints(b.constraints),
+    include_strategic: b.include_strategic === true,
   };
 
   let result;

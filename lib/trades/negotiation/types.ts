@@ -151,6 +151,8 @@ export interface NegotiationRequest {
   sell_player_id?: string;
   proposal?: { participants: string[]; transfers: Array<{ from_manager_id: string; to_manager_id: string; canonical_player_id: string }> };
   untouchable_player_ids?: string[];
+  /** Phase 6, ADDITIVE and OPT-IN (default false). See `lib/trades/strategy/types.ts::StrategicOfferGuidance`. */
+  include_strategic?: boolean;
 }
 
 export interface NegotiationResponse {
@@ -182,6 +184,15 @@ export interface NegotiationResponse {
   behavioral_intelligence: ManagerBehaviorEvidence;
   phase3_shadow: Phase3ShadowNegotiationNote;
   diagnostics: Array<{ code: string; message: string; severity: "info" | "warning" | "error" }>;
+  /**
+   * Phase 6, ADDITIVE and OPTIONAL — present only when `include_strategic:
+   * true`. `strategic_offer_guidance` only ever names a tier already present
+   * in `offers` above (see `lib/trades/strategy/assess.ts::recommendOfferTier`
+   * — it never redefines tier construction or exceeds MAXIMUM_RATIONAL).
+   */
+  manager_strategic_profile?: import("../strategy/types").ManagerStrategicProfile | null;
+  strategic_offer_guidance?: import("../strategy/types").StrategicOfferGuidance | null;
+  strategy_version?: string;
 }
 
 export type { TradeDiscoveryResult, AcceptanceClass, TradeViability };

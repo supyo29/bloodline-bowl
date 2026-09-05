@@ -28,6 +28,9 @@ import { analyzeWalkAway } from "./walk-away";
 import { paretoFrontier, selectOfferTiers } from "./pareto";
 import { buildManagerBehaviorEvidence } from "./behavior";
 import type { NegotiationRequest, NegotiationResponse, NegotiationMode } from "./types";
+import { TRADE_STRATEGY_VERSION } from "../strategy/config";
+import { buildManagerStrategicProfile } from "../strategy/profile";
+import { recommendOfferTier } from "../strategy/assess";
 
 export interface NegotiateTradesOptions extends BuildTradeContextOptions {
   config?: PartialTradeConfig;
@@ -139,6 +142,20 @@ export async function negotiateTrade(req: NegotiationRequest, options: Negotiate
       }
     }
 
+    // Phase 6 (`ri-trade-strategy-2026.1`) — ADDITIVE and opt-in only
+    // (`include_strategic`). `recommendOfferTier` can only ever name a tier
+    // already present in `ladder` above — it never redefines the ladder or
+    // exceeds MAXIMUM_RATIONAL (see lib/trades/strategy/assess.ts).
+    let strategicExtra: Partial<NegotiationResponse> = {};
+    if (req.include_strategic) {
+      try {
+        const profile = buildManagerStrategicProfile(ctx, myManagerId, myManagerSlug);
+        strategicExtra = { manager_strategic_profile: profile, strategic_offer_guidance: recommendOfferTier(ladder, profile), strategy_version: TRADE_STRATEGY_VERSION };
+      } catch {
+        diagnostics.push({ code: "STRATEGIC_CONTEXT_UNAVAILABLE", message: "Phase 6 strategic context could not be computed for this request — base negotiation results are unaffected.", severity: "warning" });
+      }
+    }
+
     return base(req, {
       status: "OK", mode,
       target_dependency: targetDependency,
@@ -147,6 +164,7 @@ export async function negotiateTrade(req: NegotiationRequest, options: Negotiate
       sweeteners,
       walk_away: walkAway,
       phase3_shadow: { label: "SHADOW INTELLIGENCE — NOT INCLUDED IN NEGOTIATION VALUE", notes: shadowNotes },
+      ...strategicExtra,
       diagnostics: [...diagnostics, { code: "SEARCH_SUMMARY", message: `${candidates_considered} candidate(s) considered, ${frontier_size} on the Pareto frontier.`, severity: "info" }],
     });
   }

@@ -18,6 +18,7 @@
  */
 
 import type { AcceptanceClass, TradeViability, ParticipantTradeResult, TradeSummary, Phase2Summary, Phase3Summary } from "../schema";
+import type { StrategicTradeAssessment } from "../strategy/types";
 
 export type SearchMode =
   | "BEST_AVAILABLE"
@@ -53,6 +54,8 @@ export interface TradeDiscoveryRequest {
   max_assets_per_side?: number;
   include_three_team?: boolean;
   constraints?: TradeSearchConstraints;
+  /** Phase 6, ADDITIVE and OPT-IN (default false — existing callers see byte-identical responses). Attaches `strategic` to every result and `manager_strategic_profile` to the response. */
+  include_strategic?: boolean;
 }
 
 export type NeedSeverity = "CRITICAL" | "HIGH" | "MODERATE" | "LOW" | "NONE";
@@ -145,6 +148,13 @@ export interface TradeDiscoveryResult {
     complexity: number;
     partner_fit: number | null;
   };
+  /**
+   * Phase 6 (`ri-trade-strategy-2026.1`), ADDITIVE and OPTIONAL — present only
+   * when the request set `include_strategic: true`. Never read by ranking,
+   * `rank`, `my_gain`, or `trade_viability` above — those remain exactly what
+   * Phase 4's canonical search/evaluation already produced.
+   */
+  strategic?: StrategicTradeAssessment | null;
   /** the full canonical evaluation, for a caller that wants every detail (trade_summary, phase2, phase3, etc.) */
   full_evaluation: {
     trade_summary: TradeSummary;
@@ -184,4 +194,7 @@ export interface TradeDiscoveryResponse {
   results: TradeDiscoveryResult[];
   search_metadata: SearchFunnelDiagnostics & { truncated: boolean };
   diagnostics: Array<{ code: string; message: string; severity: "info" | "warning" | "error" }>;
+  /** Phase 6, ADDITIVE and OPTIONAL — present only when `include_strategic: true`. See `lib/trades/strategy/types.ts::ManagerStrategicProfile`. */
+  manager_strategic_profile?: import("../strategy/types").ManagerStrategicProfile | null;
+  strategy_version?: string;
 }

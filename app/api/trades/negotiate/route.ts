@@ -79,6 +79,7 @@ export async function POST(request: Request): Promise<Response> {
     sell_player_id: typeof b.sell_player_id === "string" ? b.sell_player_id : undefined,
     proposal: sanitizeProposal(b.proposal),
     untouchable_player_ids: Array.isArray(b.untouchable_player_ids) && b.untouchable_player_ids.every((x) => typeof x === "string") ? (b.untouchable_player_ids as string[]) : undefined,
+    include_strategic: b.include_strategic === true,
   };
 
   let result;

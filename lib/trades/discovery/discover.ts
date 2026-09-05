@@ -24,6 +24,9 @@ import { runBilateralSearch, emptyCounters } from "./bilateral";
 import { runThreeTeamSearch } from "./three-team";
 import { TRADE_DISCOVERY_VERSION, TRADE_CALIBRATION_MIN_REAL_TRADES, DEFAULT_SEARCH_LIMITS } from "./config";
 import type { TradeDiscoveryRequest, TradeDiscoveryResponse, TradeDiscoveryResult } from "./types";
+import { TRADE_STRATEGY_VERSION } from "../strategy/config";
+import { buildManagerStrategicProfile } from "../strategy/profile";
+import { assessDiscoveryResult } from "../strategy/assess";
 
 export interface DiscoverTradesOptions extends BuildTradeContextOptions {
   config?: PartialTradeConfig;
@@ -151,7 +154,28 @@ export async function discoverTrades(req: TradeDiscoveryRequest, options: Discov
   const truncated = counters.packages_evaluated >= limits.max_evaluated_candidates;
   if (truncated) diagnostics.push({ code: "SEARCH_TRUNCATED", message: `Search stopped after evaluating ${limits.max_evaluated_candidates} candidates (max_evaluated_candidates) — results may not include every possible package.`, severity: "info" });
 
-  return baseResponse(req, { results, search_metadata: { ...counters, truncated }, diagnostics });
+  // Phase 6 (`ri-trade-strategy-2026.1`) — ADDITIVE and opt-in only
+  // (`include_strategic`). Never changes `results`' order, `rank`, `my_gain`,
+  // or any base-evaluation field above — see lib/trades/strategy/assess.ts.
+  let manager_strategic_profile: TradeDiscoveryResponse["manager_strategic_profile"] = undefined;
+  if (req.include_strategic) {
+    try {
+      const profile = buildManagerStrategicProfile(ctx, myManagerId, myManagerSlug);
+      manager_strategic_profile = profile;
+      for (const result of results) {
+        result.strategic = assessDiscoveryResult(result, profile, myManagerSlug);
+      }
+    } catch {
+      diagnostics.push({ code: "STRATEGIC_CONTEXT_UNAVAILABLE", message: "Phase 6 strategic context could not be computed for this request — base discovery results are unaffected.", severity: "warning" });
+    }
+  }
+
+  return baseResponse(req, {
+    results,
+    search_metadata: { ...counters, truncated },
+    diagnostics,
+    ...(req.include_strategic ? { manager_strategic_profile, strategy_version: TRADE_STRATEGY_VERSION } : {}),
+  });
 }
 
 function mergeCounters(a: ReturnType<typeof emptyCounters>, b: ReturnType<typeof emptyCounters>): ReturnType<typeof emptyCounters> {
