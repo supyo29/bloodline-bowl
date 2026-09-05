@@ -103,7 +103,13 @@ export interface PartnerFitScore {
   reasons: string[];
 }
 
-export type PackageShape = "ONE_FOR_ONE" | "TWO_FOR_ONE" | "ONE_FOR_TWO";
+/**
+ * Audit fix (§18): a three-team cycle is NOT a bilateral package shape — it
+ * was previously mislabeled `ONE_FOR_ONE` even though it has 3 participants
+ * and 3 transfers. `THREE_TEAM_CYCLE` is used for every `runThreeTeamSearch`
+ * result; the three bilateral shapes are reserved for exactly 2 participants.
+ */
+export type PackageShape = "ONE_FOR_ONE" | "TWO_FOR_ONE" | "ONE_FOR_TWO" | "THREE_TEAM_CYCLE";
 
 export interface CandidatePackage {
   shape: PackageShape;

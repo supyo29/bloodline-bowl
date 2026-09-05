@@ -24,6 +24,7 @@ import { rankPartners } from "./fit";
 import { evaluateCandidate, type DiscoveryEvalContext } from "./candidate-eval";
 import { buildDiscoveryResult, rankResults } from "./rank";
 import { isAllowedPartner, type FunnelCounters } from "./bilateral";
+import { requesterUtilityFloor } from "./config";
 import { weeklyVOR } from "@/lib/weekly/replacement";
 
 function allAssetsFor(profile: TradeSearchProfile, ctx: TradeAnalysisContext): AssetValue[] {
@@ -43,18 +44,25 @@ function allAssetsFor(profile: TradeSearchProfile, ctx: TradeAnalysisContext): A
   return out;
 }
 
-/** Best asset FROM `giver`'s roster AT one of `needPositions`, preferring `giver`'s own declared-surplus positions. */
-function bestLegAsset(giver: TradeSearchProfile, giverAssets: AssetValue[], needPositions: string[], untouchable: Set<string>): AssetValue | null {
+/**
+ * Audit fix (§31, candidate breadth): previously only the SINGLE best asset
+ * per leg was ever tried — a cycle where a manager's second-best asset (not
+ * their best) is the one that actually keeps every participant positive
+ * could never be found. Returns up to `n` candidates FROM `giver`'s roster
+ * AT one of `needPositions`, preferring `giver`'s own declared-surplus
+ * positions, so the caller can try more than one option per leg within a
+ * still-bounded total (`max_three_team_cycles`).
+ */
+function legAssetCandidates(giver: TradeSearchProfile, giverAssets: AssetValue[], needPositions: string[], untouchable: Set<string>, n: number): AssetValue[] {
   const surplusPos = new Set(giver.surpluses.map((s) => s.position));
   const candidates = giverAssets.filter((a) => needPositions.includes(a.position) && !untouchable.has(a.canonical_player_id));
-  if (candidates.length === 0) return null;
   candidates.sort((a, b) => {
     const aSurplus = surplusPos.has(a.position) ? 1 : 0;
     const bSurplus = surplusPos.has(b.position) ? 1 : 0;
     if (aSurplus !== bSurplus) return bSurplus - aSurplus; // prefer their own surplus first
     return (b.starter_vor ?? -Infinity) - (a.starter_vor ?? -Infinity) || a.canonical_player_id.localeCompare(b.canonical_player_id);
   });
-  return candidates[0]!;
+  return candidates.slice(0, n);
 }
 
 export interface ThreeTeamSearchOptions {
@@ -85,62 +93,68 @@ export function runThreeTeamSearch(opts: ThreeTeamSearchOptions, counters: Funne
   }
 
   const fitB = rankPartners(me, [...profileById.values()]).slice(0, limits.max_partner_count);
+  const requesterFloor = constraints?.minimum_my_utility_delta ?? requesterUtilityFloor();
+  const LEG_CANDIDATES = 2; // bounded breadth per leg — see legAssetCandidates doc
 
   const myNeedPositions = me.needs.filter((n) => n.severity === "CRITICAL" || n.severity === "HIGH" || n.severity === "MODERATE").map((n) => n.position);
 
   const results: TradeDiscoveryResult[] = [];
   let cyclesEvaluated = 0;
 
-  for (const bFit of fitB) {
+  outer: for (const bFit of fitB) {
     const bId = bFit.partner_manager_id;
     const bProfile = profileById.get(bId)!;
     const bNeedPositions = bProfile.needs.filter((n) => n.severity === "CRITICAL" || n.severity === "HIGH" || n.severity === "MODERATE").map((n) => n.position);
 
-    // leg 1: A -> B, filling B's need from A's assets
-    const assetAB = bestLegAsset(me, meAssets, bNeedPositions, untouchable);
-    if (!assetAB) continue;
+    // leg 1: A -> B, filling B's need from A's assets (top-N candidates, not just the single best)
+    const candidatesAB = legAssetCandidates(me, meAssets, bNeedPositions, untouchable, LEG_CANDIDATES);
+    if (candidatesAB.length === 0) continue;
 
     for (const cId of otherIds) {
       if (cId === bId) continue;
-      if (cyclesEvaluated >= limits.max_three_team_cycles) break;
       const cProfile = profileById.get(cId)!;
       const cNeedPositions = cProfile.needs.filter((n) => n.severity === "CRITICAL" || n.severity === "HIGH" || n.severity === "MODERATE").map((n) => n.position);
+      const candidatesBC = legAssetCandidates(bProfile, assetsById.get(bId)!, cNeedPositions, untouchable, LEG_CANDIDATES);
+      const candidatesCA = legAssetCandidates(cProfile, assetsById.get(cId)!, myNeedPositions, untouchable, LEG_CANDIDATES);
 
-      // leg 2: B -> C, filling C's need from B's assets
-      const assetBC = bestLegAsset(bProfile, assetsById.get(bId)!, cNeedPositions, untouchable);
-      if (!assetBC || assetBC.canonical_player_id === assetAB.canonical_player_id) continue;
+      for (const assetAB of candidatesAB) {
+        for (const assetBC of candidatesBC) {
+          if (assetBC.canonical_player_id === assetAB.canonical_player_id) continue;
+          for (const assetCA of candidatesCA) {
+            if (assetCA.canonical_player_id === assetAB.canonical_player_id || assetCA.canonical_player_id === assetBC.canonical_player_id) continue;
+            if (cyclesEvaluated >= limits.max_three_team_cycles) break outer;
 
-      // leg 3: C -> A, filling A's need from C's assets
-      const assetCA = bestLegAsset(cProfile, assetsById.get(cId)!, myNeedPositions, untouchable);
-      if (!assetCA || assetCA.canonical_player_id === assetAB.canonical_player_id || assetCA.canonical_player_id === assetBC.canonical_player_id) continue;
-
-      const transfers = [
-        { from_manager_id: myManagerId, to_manager_id: bId, canonical_player_id: assetAB.canonical_player_id },
-        { from_manager_id: bId, to_manager_id: cId, canonical_player_id: assetBC.canonical_player_id },
-        { from_manager_id: cId, to_manager_id: myManagerId, canonical_player_id: assetCA.canonical_player_id },
-      ];
-      const evaluated = evaluateCandidate([myManagerId, bId, cId], transfers, ctx, evalCtx, config);
-      cyclesEvaluated += 1;
-      counters.packages_generated += 1;
-      counters.packages_evaluated += 1;
-      if (!evaluated.ok) {
-        counters.packages_pruned += 1;
-        continue;
+            const transfers = [
+              { from_manager_id: myManagerId, to_manager_id: bId, canonical_player_id: assetAB.canonical_player_id },
+              { from_manager_id: bId, to_manager_id: cId, canonical_player_id: assetBC.canonical_player_id },
+              { from_manager_id: cId, to_manager_id: myManagerId, canonical_player_id: assetCA.canonical_player_id },
+            ];
+            const evaluated = evaluateCandidate([myManagerId, bId, cId], transfers, ctx, evalCtx, config, { requesterManagerId: myManagerId, constraints });
+            cyclesEvaluated += 1;
+            counters.packages_generated += 1;
+            counters.packages_evaluated += 1;
+            if (!evaluated.ok) {
+              counters.packages_pruned += 1;
+              continue;
+            }
+            // Audit fix (§18): a three-team cycle is never a bilateral "ONE_FOR_ONE" package —
+            // it has 3 participants and 3 transfers; label it distinctly.
+            const result = buildDiscoveryResult(myManagerSlug, { shape: "THREE_TEAM_CYCLE", transfers, participant_manager_ids: [myManagerId, bId, cId] }, evaluated, "THREE_TEAM", bFit.score, requesterFloor, constraints?.minimum_partner_utility_delta);
+            if (!result) {
+              counters.packages_pruned += 1;
+              continue;
+            }
+            // hidden-loser surfacing: total positive but a participant materially negative
+            const deltas = result.participants.map((p) => p.utility_delta);
+            const total = deltas.reduce((s, v) => s + v, 0);
+            if (total > 0 && Math.min(...deltas) < -1) {
+              result.rationale.push("THREE_TEAM_HIDDEN_LOSER: total participant value is positive but one participant is materially worse off — verify every participant's acceptance before proposing.");
+            }
+            results.push(result);
+          }
+        }
       }
-      const result = buildDiscoveryResult(myManagerSlug, { shape: "ONE_FOR_ONE", transfers, participant_manager_ids: [myManagerId, bId, cId] }, evaluated, "THREE_TEAM", bFit.score, constraints?.minimum_my_utility_delta, constraints?.minimum_partner_utility_delta);
-      if (!result) {
-        counters.packages_pruned += 1;
-        continue;
-      }
-      // hidden-loser surfacing: total positive but a participant materially negative
-      const deltas = result.participants.map((p) => p.utility_delta);
-      const total = deltas.reduce((s, v) => s + v, 0);
-      if (total > 0 && Math.min(...deltas) < -1) {
-        result.rationale.push("THREE_TEAM_HIDDEN_LOSER: total participant value is positive but one participant is materially worse off — verify every participant's acceptance before proposing.");
-      }
-      results.push(result);
     }
-    if (cyclesEvaluated >= limits.max_three_team_cycles) break;
   }
 
   counters.valid_results += results.length;

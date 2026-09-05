@@ -20,6 +20,63 @@ import { validateTrade, type TradeResolution } from "../validate";
 import { evaluateTrade, type TradeEvaluationOutput } from "../evaluate";
 import type { TradeConfig } from "../config";
 import type { NormalizedProposal, TradeParticipantInput } from "../schema";
+import type { TradeSearchConstraints } from "./types";
+
+/**
+ * Audit fix (§7, §9-13): a SINGLE, durable hard-constraint validator applied
+ * to every candidate before it ever reaches canonical evaluation — untouchables,
+ * required incoming/outgoing assets, allowed/excluded partners, and
+ * max_assets_sent/max_assets_received were previously enforced only
+ * inconsistently inside individual package-shape branches (`packages.ts`),
+ * with no final cross-cutting check and no enforcement AT ALL for
+ * max_assets_sent/max_assets_received. This function is the one place all of
+ * that is checked, for every shape, including three-team cycles and
+ * counteroffers — nothing bypasses it.
+ */
+export function packageSatisfiesSearchConstraints(
+  requesterManagerId: string,
+  transfers: Array<{ from_manager_id: string; to_manager_id: string; canonical_player_id: string }>,
+  constraints: TradeSearchConstraints | undefined,
+): { ok: boolean; reason: string | null } {
+  if (!constraints) return { ok: true, reason: null };
+
+  if (constraints.untouchable_player_ids?.length) {
+    const untouchable = new Set(constraints.untouchable_player_ids);
+    const hit = transfers.find((t) => untouchable.has(t.canonical_player_id));
+    if (hit) return { ok: false, reason: `untouchable player ${hit.canonical_player_id} present in candidate` };
+  }
+
+  const incomingToRequester = transfers.filter((t) => t.to_manager_id === requesterManagerId).map((t) => t.canonical_player_id);
+  const outgoingFromRequester = transfers.filter((t) => t.from_manager_id === requesterManagerId).map((t) => t.canonical_player_id);
+
+  if (constraints.required_incoming_player_ids?.length) {
+    const missing = constraints.required_incoming_player_ids.filter((id) => !incomingToRequester.includes(id));
+    if (missing.length > 0) return { ok: false, reason: `required incoming player(s) missing from candidate: ${missing.join(", ")}` };
+  }
+  if (constraints.required_outgoing_player_ids?.length) {
+    const missing = constraints.required_outgoing_player_ids.filter((id) => !outgoingFromRequester.includes(id));
+    if (missing.length > 0) return { ok: false, reason: `required outgoing player(s) missing from candidate: ${missing.join(", ")}` };
+  }
+
+  const partnerIds = new Set(transfers.flatMap((t) => [t.from_manager_id, t.to_manager_id]).filter((id) => id !== requesterManagerId));
+  if (constraints.allowed_trade_partner_ids?.length) {
+    const allowed = new Set(constraints.allowed_trade_partner_ids);
+    for (const p of partnerIds) if (!allowed.has(p)) return { ok: false, reason: `partner ${p} is not in allowed_trade_partner_ids` };
+  }
+  if (constraints.excluded_trade_partner_ids?.length) {
+    const excluded = new Set(constraints.excluded_trade_partner_ids);
+    for (const p of partnerIds) if (excluded.has(p)) return { ok: false, reason: `partner ${p} is in excluded_trade_partner_ids` };
+  }
+
+  if (constraints.max_assets_sent != null && outgoingFromRequester.length > constraints.max_assets_sent) {
+    return { ok: false, reason: `sends ${outgoingFromRequester.length} assets, exceeds max_assets_sent (${constraints.max_assets_sent})` };
+  }
+  if (constraints.max_assets_received != null && incomingToRequester.length > constraints.max_assets_received) {
+    return { ok: false, reason: `receives ${incomingToRequester.length} assets, exceeds max_assets_received (${constraints.max_assets_received})` };
+  }
+
+  return { ok: true, reason: null };
+}
 
 export interface DiscoveryEvalContext {
   ownership: Map<string, string>; // canonical_player_id -> canonical_team_id
@@ -60,7 +117,14 @@ export function evaluateCandidate(
   ctx: TradeAnalysisContext,
   evalCtx: DiscoveryEvalContext,
   config: TradeConfig,
+  /** when supplied, `packageSatisfiesSearchConstraints` runs FIRST — a hard-constraint violation never reaches `validateTrade`/`evaluateTrade` at all */
+  hardConstraints?: { requesterManagerId: string; constraints: TradeSearchConstraints | undefined },
 ): EvaluatedCandidate {
+  if (hardConstraints) {
+    const check = packageSatisfiesSearchConstraints(hardConstraints.requesterManagerId, transfers, hardConstraints.constraints);
+    if (!check.ok) return { ok: false, rejection_reason: check.reason, evaluation: null };
+  }
+
   const resolution: TradeResolution = {
     league_slug: ctx.league_slug,
     participants: participantManagerIds.map((mid) => {

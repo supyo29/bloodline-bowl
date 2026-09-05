@@ -56,10 +56,15 @@ export interface CounterofferOptions {
 
 /** Generates and evaluates local variants of `originalTransfers`; also includes the ORIGINAL itself (rank 0 candidate) for comparison. */
 export function generateCounteroffers(opts: CounterofferOptions): { original: TradeDiscoveryResult | null; counters: TradeDiscoveryResult[] } {
-  const { ctx, evalCtx, config, myManagerSlug, originalTransfers, constraints } = opts;
+  const { ctx, evalCtx, config, myManagerId, myManagerSlug, originalTransfers, constraints } = opts;
   const participantIds = [...new Set(originalTransfers.flatMap((t) => [t.from_manager_id, t.to_manager_id]))];
   const untouchable = new Set(constraints?.untouchable_player_ids ?? []);
+  const hardConstraints = { requesterManagerId: myManagerId, constraints };
 
+  // The ORIGINAL proposal is evaluated WITHOUT the hard-constraint gate — it's shown for
+  // comparison regardless of whether it happens to satisfy `constraints` (e.g. an untouchable
+  // added to the search request after a trade was already proposed); only the GENERATED
+  // variants below are required to satisfy it.
   const originalEval = evaluateCandidate(participantIds, originalTransfers, ctx, evalCtx, config);
   const original = buildDiscoveryResult(myManagerSlug, { shape: originalTransfers.length <= 2 ? "ONE_FOR_ONE" : "TWO_FOR_ONE", transfers: originalTransfers, participant_manager_ids: participantIds }, originalEval, "BEST_AVAILABLE", null, undefined, undefined);
 
@@ -109,7 +114,7 @@ export function generateCounteroffers(opts: CounterofferOptions): { original: Tr
     const key = variant.map((t) => `${t.from_manager_id}>${t.to_manager_id}:${t.canonical_player_id}`).sort().join("|");
     if (seen.has(key)) continue;
     seen.add(key);
-    const evaluated = evaluateCandidate(participantIds, variant, ctx, evalCtx, config);
+    const evaluated = evaluateCandidate(participantIds, variant, ctx, evalCtx, config, hardConstraints);
     const result = buildDiscoveryResult(myManagerSlug, { shape: variant.length <= 2 ? "ONE_FOR_ONE" : "TWO_FOR_ONE", transfers: variant, participant_manager_ids: participantIds }, evaluated, "BEST_AVAILABLE", null, undefined, undefined);
     if (result) results.push(result);
   }

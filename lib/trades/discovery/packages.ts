@@ -39,6 +39,8 @@ function allAssetsByPosition(profile: TradeSearchProfile, allAssets: AssetValue[
   return byPos;
 }
 
+const BASE_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
+
 export interface PackageGenInput {
   me: TradeSearchProfile;
   partner: TradeSearchProfile;
@@ -49,6 +51,13 @@ export interface PackageGenInput {
   limits: TradeSearchLimits;
   /** restrict need positions considered (e.g. POSITIONAL_NEED mode); undefined = use every need position from `me`'s profile */
   targetPositions?: string[];
+  /**
+   * Public `TradeDiscoveryRequest.max_assets_per_side` (audit fix §11 — this
+   * field was parsed by the API route but never read anywhere; it now
+   * actually bounds package generation: a shape whose larger side would
+   * exceed it is skipped entirely, rather than accepted and silently ignored).
+   */
+  maxAssetsPerSide?: number;
 }
 
 export function generateBilateralPackages(input: PackageGenInput): CandidatePackage[] {
@@ -61,8 +70,20 @@ export function generateBilateralPackages(input: PackageGenInput): CandidatePack
 
   const requiredIncoming = new Set(constraints?.required_incoming_player_ids ?? []);
   const requiredOutgoing = new Set(constraints?.required_outgoing_player_ids ?? []);
+  const maxPerSide = input.maxAssetsPerSide ?? Infinity;
 
-  const needPositions = (input.targetPositions ?? me.needs.filter((n) => n.severity === "CRITICAL" || n.severity === "HIGH" || n.severity === "MODERATE").map((n) => n.position)).slice(0, 3);
+  /**
+   * Audit fix (§4/§5): `BEST_AVAILABLE` (and any mode not given explicit
+   * `targetPositions`) previously searched ONLY positions with a
+   * CRITICAL/HIGH/MODERATE severity — a roster with no severity-flagged need
+   * generated ZERO packages even when a real starter upgrade, consolidation,
+   * or deconsolidation existed. When the severity-filtered list is empty AND
+   * no explicit target was given, fall back to every base position — the
+   * canonical evaluator (not this heuristic) still decides whether any
+   * resulting candidate is actually good.
+   */
+  const severityNeeds = me.needs.filter((n) => n.severity === "CRITICAL" || n.severity === "HIGH" || n.severity === "MODERATE").map((n) => n.position);
+  const needPositions = (input.targetPositions ?? (severityNeeds.length > 0 ? severityNeeds : BASE_POSITIONS)).slice(0, input.targetPositions ? 3 : 6);
 
   const packages: CandidatePackage[] = [];
   const xfer = (from: string, to: string, id: string) => ({ from_manager_id: from, to_manager_id: to, canonical_player_id: id });
@@ -91,7 +112,7 @@ export function generateBilateralPackages(input: PackageGenInput): CandidatePack
   }
 
   // ---- TWO_FOR_ONE: I consolidate — 2 of my expendables for 1 partner premium at my need position ----
-  if (me.consolidation_candidate) {
+  if (me.consolidation_candidate && maxPerSide >= 2) {
     for (const pos of needPositions) {
       const targets = applyUntouchables(partner.premium_assets.filter((a) => a.position === pos), constraints).slice(0, 2);
       const pool = myExpendable.slice(0, Math.min(K, 4));
@@ -115,7 +136,7 @@ export function generateBilateralPackages(input: PackageGenInput): CandidatePack
   }
 
   // ---- ONE_FOR_TWO: I deconsolidate — 1 of my premium (surplus-position) assets for 2 of partner's useful pieces ----
-  if (me.fragility_sensitive) {
+  if (me.fragility_sensitive && maxPerSide >= 2) {
     const mySurplusPositions = new Set(me.surpluses.map((s) => s.position));
     const givable = me.premium_assets.filter((a) => mySurplusPositions.has(a.position));
     for (const give of applyUntouchables(givable, constraints).slice(0, 2)) {

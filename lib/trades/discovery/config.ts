@@ -3,7 +3,37 @@
  * deferral marker.
  */
 
-export const TRADE_DISCOVERY_VERSION = "ri-trade-discovery-2026.1" as const;
+/**
+ * Audit fix (§6, §54): before this pass, a mode intended to improve the
+ * requester (BEST_AVAILABLE, POSITIONAL_NEED, CONSOLIDATE, BUY_PLAYER,
+ * SELL_PLAYER, FAIR_TRADES, EASY_TO_ACCEPT) had NO default requester-utility
+ * floor — a candidate with negative `my_gain` and an accepting partner could
+ * be returned as a "recommendation." `2026.2` adds `requesterUtilityFloor`,
+ * a real, enforced default (strictly positive, `> 0`) for every mode; a
+ * caller may still relax it via `constraints.minimum_my_utility_delta`
+ * (explicit override, never a silent default weakening).
+ */
+export const TRADE_DISCOVERY_VERSION = "ri-trade-discovery-2026.2" as const;
+
+/**
+ * Default minimum requester utility for a mode, before any explicit
+ * `constraints.minimum_my_utility_delta` override. `BLOCKBUSTER` still
+ * requires a genuine improvement — size alone never substitutes for a
+ * positive canonical delta. `buildDiscoveryResult`'s floor check is
+ * inclusive (`myUtility < floor` is rejected, `myUtility === floor` survives)
+ * to keep a single, simple comparison for both the default and any explicit
+ * caller-supplied floor — so the default floor itself is a small epsilon
+ * ABOVE zero (half the 2-decimal rounding precision every utility value
+ * already carries), not exactly zero, so an exact break-even (0.00) trade is
+ * correctly excluded as "not an improvement."
+ *
+ * Takes no `mode` argument today — every mode shares the same floor — but is
+ * kept as a named function (not an inlined constant) so a future per-mode
+ * floor can be added at this one call site without touching every caller.
+ */
+export function requesterUtilityFloor(): number {
+  return 0.005;
+}
 
 /**
  * Trade-level calibration reopen floor. This is a REOPEN GATE, not automatic
