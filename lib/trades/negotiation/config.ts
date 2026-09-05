@@ -4,7 +4,16 @@
  * calibration remains deferred, see `lib/trades/data-readiness.ts`).
  */
 
-export const TRADE_NEGOTIATION_VERSION = "ri-trade-negotiation-2026.1" as const;
+/**
+ * Bumped 2026.1 -> 2026.2 by the Phase 5 audit: materially changed observable
+ * negotiation behavior. OPENING/MAXIMUM_RATIONAL were swapped (see
+ * `../negotiation/pareto.ts`), a bench player's dependency classification no
+ * longer shortcuts to SURPLUS ahead of positional-severity evidence (see
+ * `../negotiation/dependency.ts`), and sweetener cost/efficiency/ranking no
+ * longer clamps negative (win-win) costs or misorders null-efficiency
+ * candidates (see `../negotiation/concessions.ts`). See docs/TRADE_ENGINE_PHASE5_AUDIT.md.
+ */
+export const TRADE_NEGOTIATION_VERSION = "ri-trade-negotiation-2026.2" as const;
 
 /** OPENING offers must clear at least this partner acceptance floor — deliberately low, but never below RELUCTANT (never an insulting lowball by default). */
 export const OPENING_PARTNER_FLOOR = "RELUCTANT" as const;

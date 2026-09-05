@@ -1,5 +1,15 @@
 # Bloodline Bowl Trade Engine — Phase 5: Negotiation Intelligence and Offer Strategy
 
+> **Superseded by audit.** This is the as-built Phase 5 build deliverable. The
+> Phase 5 audit (`docs/TRADE_ENGINE_PHASE5_AUDIT.md`) found and fixed a P1
+> defect in this document's own described behavior: `OPENING` and
+> `MAXIMUM_RATIONAL` were computed exactly backwards (see the audit's Section
+> D/F). In particular, this doc's "§K. Live results" section below shows
+> `OPENING: my_gain=0.28` / `MAXIMUM_RATIONAL: my_gain=0.86` — under the
+> corrected, audit-verified semantics that labeling is reversed. The frozen
+> version is now `ri-trade-negotiation-2026.2`. Read the audit doc for the
+> corrected behavior; this file is kept as the historical build record.
+
 Phase 1 foundation: **`ri-trade-foundation-2026.2`** (frozen)
 Phase 2 contextual layer: **`ri-trade-contextual-2026.2`** (frozen)
 Phase 3 calibration/player-intelligence: **`ri-trade-calibrated-2026.2`** (frozen, shadow-only)

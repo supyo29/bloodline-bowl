@@ -176,6 +176,18 @@ export async function negotiateTrade(req: NegotiationRequest, options: Negotiate
 
   // IMPROVE_OFFER / REDUCE_OVERPAY / COUNTER_PROPOSAL — operate on a supplied proposal
   const proposal = req.proposal!;
+  /**
+   * Audit fix (§56, P2): a 3+ participant (three-team) proposal was NOT
+   * rejected here — `.find()` silently picked the first non-requester
+   * participant as "the partner" and proceeded, discarding the rest of the
+   * proposal's structure without ever telling the caller a leg was ignored.
+   * Phase 5's negotiation modes are explicitly bilateral only (three-team
+   * negotiation is out of scope, unlike Phase 4's discovery); a three-team
+   * proposal must be explicitly rejected, never silently misinterpreted.
+   */
+  if (proposal.participants.length !== 2) {
+    return base(req, { status: "VALIDATION_FAILED", mode, diagnostics: [{ code: "UNSUPPORTED_PARTICIPANT_COUNT", message: `Negotiation modes IMPROVE_OFFER/REDUCE_OVERPAY/COUNTER_PROPOSAL support bilateral (2-participant) proposals only; received ${proposal.participants.length}. Three-team negotiation is not supported.`, severity: "error" }] });
+  }
   const partnerId = proposal.participants.find((p) => p !== myManagerId);
   if (!partnerId) {
     return base(req, { status: "VALIDATION_FAILED", mode, diagnostics: [{ code: "INVALID_PROPOSAL", message: "proposal.participants must include exactly one partner besides the requester.", severity: "error" }] });

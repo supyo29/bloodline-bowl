@@ -16,9 +16,33 @@ import type { TradeDiscoveryResult } from "../discovery/types";
 import type { SweetenerCandidate, SweetenerClass } from "./types";
 import { SWEETENER_THRESHOLDS } from "./config";
 
-function classifySweetener(cost: number, gain: number, efficiency: number | null): SweetenerClass {
+/**
+ * Audit fix (§24/§25): a requester cost of exactly (or near) zero previously
+ * still computed `gain / cost`, which either divides by zero or, for a small
+ * positive cost like 0.001, produces an "exploded" ratio (e.g. 1000) that is
+ * not a stable or meaningful number even though it happens to be finite.
+ * `MIN_MEANINGFUL_COST` treats anything at or below it (INCLUDING a negative
+ * cost — a genuine win-win addition, §25) as a case where a ratio isn't
+ * computed at all; `classifySweetener` checks `cost <= cheap_max_cost` BEFORE
+ * looking at `efficiency`, so these cases are still correctly classified
+ * `CHEAP` regardless of the (now `null`) efficiency value.
+ */
+export const MIN_MEANINGFUL_COST = 0.05;
+
+/**
+ * Given a requester cost, computes the (possibly null) efficiency ratio using
+ * the same near-zero-denominator guard `findSweeteners` applies internally.
+ * Exported so the audit's exact boundary numbers (§24) can be unit-tested
+ * directly, without depending on a full canonical-evaluation fixture hitting
+ * a razor-thin cost value by chance.
+ */
+export function computeSweetenerEfficiency(requester_utility_cost: number, partner_utility_gain: number): number | null {
+  return partner_utility_gain > 0 && requester_utility_cost > MIN_MEANINGFUL_COST ? Math.round((partner_utility_gain / requester_utility_cost) * 100) / 100 : null;
+}
+
+export function classifySweetener(cost: number, gain: number, efficiency: number | null): SweetenerClass {
   if (gain <= 0) return "DO_NOT_ADD";
-  if (cost <= SWEETENER_THRESHOLDS.cheap_max_cost) return "CHEAP";
+  if (cost <= SWEETENER_THRESHOLDS.cheap_max_cost) return "CHEAP"; // covers cost <= 0 (win-win / free) too — checked before efficiency
   if (efficiency != null && efficiency >= SWEETENER_THRESHOLDS.efficient_min_ratio) return "EFFICIENT";
   if (efficiency != null && efficiency >= SWEETENER_THRESHOLDS.meaningful_min_ratio) return "MEANINGFUL";
   return "EXPENSIVE";
@@ -64,20 +88,29 @@ export function findSweeteners(input: SweetenerSearchInput): SweetenerCandidate[
     const partnerR = Object.values(evaluated.evaluation.participants).find((p) => p.manager_slug !== myManagerSlug)!;
     const myUtility = mine.phase2 ? mine.phase2.contextual_utility_delta : mine.roster_utility_delta;
     const partnerUtility = partnerR.phase2 ? partnerR.phase2.contextual_utility_delta : partnerR.roster_utility_delta;
-    const requester_utility_cost = Math.max(0, baseMyUtility - myUtility);
-    const partner_utility_gain = partnerUtility - basePartnerUtility;
-    const efficiency = requester_utility_cost > 0 ? partner_utility_gain / requester_utility_cost : partner_utility_gain > 0 ? Infinity : null;
+    // SIGNED, never clamped — a negative cost means this addition improved the
+    // requester TOO (a genuine win-win), which is real information a Math.max(0, ...)
+    // clamp would have silently destroyed (audit fix §25).
+    const requester_utility_cost = Math.round((baseMyUtility - myUtility) * 100) / 100;
+    const partner_utility_gain = Math.round((partnerUtility - basePartnerUtility) * 100) / 100;
+    const efficiency = computeSweetenerEfficiency(requester_utility_cost, partner_utility_gain);
     const result = buildDiscoveryResult(myManagerSlug, { shape: "TWO_FOR_ONE", transfers: variant, participant_manager_ids: [myManagerId, partnerManagerId] }, evaluated, "BEST_AVAILABLE", null, undefined, undefined);
     out.push({
       canonical_player_id: asset.canonical_player_id,
-      requester_utility_cost: Math.round(requester_utility_cost * 100) / 100,
-      partner_utility_gain: Math.round(partner_utility_gain * 100) / 100,
-      concession_efficiency: efficiency == null ? null : Number.isFinite(efficiency) ? Math.round(efficiency * 100) / 100 : null,
+      requester_utility_cost,
+      partner_utility_gain,
+      concession_efficiency: efficiency,
       sweetener_class: classifySweetener(requester_utility_cost, partner_utility_gain, efficiency),
       resulting_offer: result,
     });
   }
-  return out.sort((a, b) => (b.concession_efficiency ?? -Infinity) - (a.concession_efficiency ?? -Infinity));
+  // Audit fix: sorting purely by `concession_efficiency` sent every `null`-efficiency
+  // sweetener (which includes the BEST case — free or win-win, cost <= MIN_MEANINGFUL_COST)
+  // to the bottom, since `null` was treated as `-Infinity`. Rank by CLASS first
+  // (CHEAP is always at least as good as EFFICIENT is at least as good as
+  // MEANINGFUL...), then by efficiency within a class.
+  const classRank: Record<SweetenerClass, number> = { CHEAP: 0, EFFICIENT: 1, MEANINGFUL: 2, EXPENSIVE: 3, DO_NOT_ADD: 4 };
+  return out.sort((a, b) => classRank[a.sweetener_class] - classRank[b.sweetener_class] || (b.concession_efficiency ?? 0) - (a.concession_efficiency ?? 0));
 }
 
 /**

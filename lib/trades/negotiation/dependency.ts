@@ -18,26 +18,39 @@ import { DEPENDENCY_THRESHOLDS } from "./config";
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
+/**
+ * Audit fix (§9, P1): the previous implementation returned `SURPLUS`
+ * IMMEDIATELY for any non-starter, BEFORE ever checking `severityAfter` —
+ * meaning a bench player who is the roster's ONLY viable backup at a thin
+ * position (whose removal would spike that position's positional-need
+ * severity to `weak`/`critical`, even though the CURRENT-WEEK optimal
+ * lineup total is unaffected, since they weren't starting to begin with)
+ * was always misclassified `SURPLUS`. Severity-after-removal now applies
+ * REGARDLESS of starter status — "bench" and "replaceable" are not the same
+ * claim. The starter-status shortcut to `SURPLUS` now fires only once BOTH
+ * the marginal-impact AND the severity checks have already found nothing.
+ */
 function classify(impact: number | null, severityAfter: string | null, wasStarter: boolean): { dependency: DependencyClass; reasons: string[] } {
   const reasons: string[] = [];
-  if (!wasStarter && (impact == null || impact < DEPENDENCY_THRESHOLDS.replaceable_min_impact)) {
-    reasons.push("player is not a current starter and removing them barely changes the optimal lineup");
-    return { dependency: "SURPLUS", reasons };
-  }
   const abs = impact == null ? 0 : Math.abs(impact);
+
   if (abs >= DEPENDENCY_THRESHOLDS.core_min_impact || severityAfter === "critical") {
     reasons.push(`removing this player costs ${abs.toFixed(1)} projected points this week${severityAfter === "critical" ? " and creates a CRITICAL positional hole" : ""}`);
     return { dependency: "CORE", reasons };
   }
   if (abs >= DEPENDENCY_THRESHOLDS.important_min_impact || severityAfter === "weak") {
-    reasons.push(`removing this player costs ${abs.toFixed(1)} projected points this week${severityAfter === "weak" ? " and leaves the position weak" : ""}`);
+    reasons.push(`removing this player costs ${abs.toFixed(1)} projected points this week${severityAfter === "weak" ? " and leaves the position weak" : " even though they are not a current starter — no other viable backup exists"}`);
     return { dependency: "IMPORTANT", reasons };
+  }
+  if (!wasStarter && abs < DEPENDENCY_THRESHOLDS.replaceable_min_impact) {
+    reasons.push("player is not a current starter, removing them barely changes the optimal lineup, and the position's severity is unaffected — a genuine surplus piece, not merely 'on the bench'");
+    return { dependency: "SURPLUS", reasons };
   }
   if (abs >= DEPENDENCY_THRESHOLDS.replaceable_min_impact) {
     reasons.push(`removing this player costs only ${abs.toFixed(1)} projected points — a comparable replacement exists on the roster`);
     return { dependency: "REPLACEABLE", reasons };
   }
-  reasons.push("removing this player has negligible impact on the optimal lineup — pure roster surplus");
+  reasons.push("removing this player has negligible impact on the optimal lineup and no positional-severity concern — pure roster surplus");
   return { dependency: "SURPLUS", reasons };
 }
 
