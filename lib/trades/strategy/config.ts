@@ -9,7 +9,19 @@
 import type { HorizonWeights, StrategicArchetype, TimeHorizon } from "./types";
 import type { AcceptanceClass } from "../schema";
 
-export const TRADE_STRATEGY_VERSION = "ri-trade-strategy-2026.1" as const;
+/**
+ * Bumped 2026.1 -> 2026.2 by the Phase 6 audit: materially changed
+ * observable behavior. (1) `isClinchSafe` replaces a mathematically unsound
+ * CLINCHED gate that could label a team clinched when the trailing team
+ * could still mathematically catch and pass them. (2) `season.ts` now reads
+ * `ctx.ros` directly instead of re-deriving a second, incompatible
+ * week/playoff-window plan — `championship_week`/`playoff_start_week`/
+ * `weeks_remaining_*` can differ from the pre-audit output for a league
+ * whose `championship_week` setting was unresolved. (3) `ELIMINATED_TEAM_TRADE_CAUTION`
+ * is now actually emitted (previously specified but never implemented).
+ * See docs/TRADE_ENGINE_PHASE6_AUDIT.md.
+ */
+export const TRADE_STRATEGY_VERSION = "ri-trade-strategy-2026.2" as const;
 
 /* -------------------------------------------------------------------------- */
 /* 6A — season stage thresholds, derived from league geometry (fractions of   */
@@ -29,9 +41,24 @@ export const PLAYOFF_PUSH_WEEKS_REMAINING = 3;
 export const BUBBLE_GAMES_BACK_MAX = 1.5;
 /** a team this many games back is mathematically distant but not yet eliminated */
 export const LONG_SHOT_GAMES_BACK_MAX = 3.5;
-/** rank at or inside the playoff line, at least this many games clear of the cutline, is STRONG_POSITION; clear by more is CLINCHED-eligible (still gated by weeks remaining) */
-export const CLINCH_GAMES_CLEAR_MIN = 2.5;
-export const CLINCH_MAX_WEEKS_REMAINING = 3;
+/**
+ * Audit fix (§9, P1): the original CLINCHED gate (`clearance >= 2.5` AND
+ * `weeksRemaining <= 3`, evaluated as two independent conditions) was NOT
+ * mathematically safe. Under this module's games-back metric (symmetric
+ * with the already-correct ELIMINATED check below: `gb > weeksRemaining`),
+ * the trailing team can close at most 1 "game" of clearance per remaining
+ * week — closing a `clearance` lead in the worst case leaves the leader
+ * ahead by `clearance - weeksRemaining`. A clearance of exactly 2.5 with 3
+ * weeks left can therefore swing to -0.5 (the leader is PASSED) — the old
+ * gate would have labeled that team CLINCHED regardless. `isClinchSafe`
+ * requires `clearance > weeksRemaining` (or the season has no games left at
+ * all), the correct symmetric counterpart of the elimination check — no
+ * separate weeks-remaining threshold or minimum-clearance constant needed.
+ */
+export function isClinchSafe(clearance: number, weeksRemainingRegular: number): boolean {
+  if (weeksRemainingRegular <= 0) return clearance >= 0;
+  return clearance > weeksRemainingRegular;
+}
 /**
  * Spec §6/§11: "do not classify based solely on current rank," and "avoid
  * letting one weak metric determine the classification." At 0-1 games
@@ -92,7 +119,9 @@ function capMagnitude(baseUtilityDelta: number): number {
   return Math.max(STRATEGIC_ADJUSTMENT_CAP_FLOOR, Math.abs(baseUtilityDelta) * STRATEGIC_ADJUSTMENT_CAP_FRACTION);
 }
 
+/** A non-finite `raw` or `baseUtilityDelta` (should never happen post-`clampComponent`, but this function is independently exported/testable) never escapes uncapped — treated as zero adjustment, never a propagated NaN. */
 export function capStrategicAdjustment(raw: number, baseUtilityDelta: number): { capped: number; wasCapped: boolean } {
+  if (!Number.isFinite(raw) || !Number.isFinite(baseUtilityDelta)) return { capped: 0, wasCapped: true };
   const cap = capMagnitude(baseUtilityDelta);
   if (raw > cap) return { capped: cap, wasCapped: true };
   if (raw < -cap) return { capped: -cap, wasCapped: true };

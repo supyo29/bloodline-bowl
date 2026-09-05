@@ -39,7 +39,16 @@ import {
   promotionCeiling,
 } from "./config";
 
+/**
+ * Audit hardening (§24): `Math.max(-CAP, Math.min(CAP, x))` does NOT catch
+ * `NaN` — any comparison against `NaN` is `false`, so `Math.min`/`Math.max`
+ * both return `NaN` unchanged, silently poisoning `strategic_adjustment` and
+ * `strategic_trade_score`. A corrupt/undefined upstream signal must
+ * contribute NOTHING (treated as no evidence), never a propagated NaN —
+ * consistent with Phase 5's own audited near-zero-denominator guard.
+ */
 function clampComponent(x: number): number {
+  if (!Number.isFinite(x)) return 0;
   return Math.max(-COMPONENT_CAP, Math.min(COMPONENT_CAP, x));
 }
 
@@ -51,6 +60,24 @@ export function assessStrategicTrade(profile: ManagerStrategicProfile, participa
   // ---- immediate_need_adjustment: current-week starter production, weighted
   // by how much this manager's archetype cares about the current week and by
   // their overall urgency (spec §18/§20/§21).
+  //
+  // Audit finding (§34, documented conceptual overlap — NOT a defect): unlike
+  // `depth_resilience_adjustment`/`bye_urgency_adjustment` below (which reuse
+  // Phase 2 components that carry a DEFAULT WEIGHT OF ZERO in
+  // `contextual_utility_delta`, so there is no double-count there at all),
+  // `starter_points_delta` DOES carry a non-zero default weight (1.0) inside
+  // Phase 1's own `roster_utility_delta` composite — meaning this same raw
+  // number already contributes to `base_utility_delta` above. This is an
+  // intentional, bounded re-weighting rather than a double-counting bug:
+  // `base_utility_delta` answers "is this good for my roster overall,"
+  // while this component specifically answers "does this help THIS WEEK
+  // given my season urgency" — a genuinely different question asked of the
+  // same underlying number. It can never compound unboundedly because (a)
+  // this component is individually capped and (b) the AGGREGATE
+  // `strategic_adjustment` is capped again relative to `|base_utility_delta|`
+  // (see `capStrategicAdjustment`) — so even with the overlap, urgency can
+  // only ever re-weight preference among already-rational trades, never
+  // manufacture value that was not already there.
   const starterDelta = participant.starter_points_delta ?? 0;
   const immediate_need_adjustment = clampComponent(
     IMMEDIATE_NEED_WEIGHT * starterDelta * profile.horizon_weights.CURRENT_WEEK * (0.5 + 0.5 * profile.urgency.score),
@@ -88,7 +115,12 @@ export function assessStrategicTrade(profile: ManagerStrategicProfile, participa
 
   // ---- depth_resilience_adjustment: Phase 2's fragility + usable-depth
   // components, weighted toward longer horizons (a front-runner/contender's
-  // ROS/full-season planning) — spec §36.
+  // ROS/full-season planning) — spec §36. Audit note (§34): both
+  // `roster_fragility` and `usable_depth` carry a DEFAULT WEIGHT OF ZERO in
+  // `contextual_utility_delta` (Phase 2's own weights are all zero pending
+  // calibration) — this component introduces genuinely NEW information into
+  // the strategic layer, not a re-weighting of something already inside
+  // `base_utility_delta`. No double-count here at all.
   const fragility = participant.phase2?.components.roster_fragility ?? 0;
   const usableDepth = participant.phase2?.components.usable_depth ?? 0;
   const longHorizonWeight = profile.horizon_weights.REST_OF_REGULAR_SEASON + profile.horizon_weights.FULL_REMAINING_SEASON;

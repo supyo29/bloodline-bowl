@@ -1,5 +1,16 @@
 # Bloodline Bowl Trade Engine — Phase 6: Strategic Context and Season-State Intelligence
 
+> **Superseded by audit.** This is the as-built Phase 6 build deliverable. The
+> Phase 6 audit (`docs/TRADE_ENGINE_PHASE6_AUDIT.md`) found and fixed two P1
+> defects in this document's own described behavior: the `CLINCHED` gate was
+> mathematically unsound (could label a team clinched when the trailing team
+> could still catch and pass them), and `season.ts` re-derived its own week
+> plan instead of reading Phase 2's own `ctx.ros` — a second, incompatible
+> interpretation of playoff weeks for a league with an unresolved
+> `championship_week`. The frozen version is now `ri-trade-strategy-2026.2`.
+> Read the audit doc for the corrected behavior; this file is kept as the
+> historical build record.
+
 Frozen prior layers (all reconfirmed, untouched in valuation logic):
 Phase 1 `ri-trade-foundation-2026.2` · Phase 2 `ri-trade-contextual-2026.2` · Phase 3
 `ri-trade-calibrated-2026.2` (shadow) · Phase 3.5 `ri-trade-data-2026.2` (calibration

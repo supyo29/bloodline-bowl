@@ -154,7 +154,7 @@ export async function discoverTrades(req: TradeDiscoveryRequest, options: Discov
   const truncated = counters.packages_evaluated >= limits.max_evaluated_candidates;
   if (truncated) diagnostics.push({ code: "SEARCH_TRUNCATED", message: `Search stopped after evaluating ${limits.max_evaluated_candidates} candidates (max_evaluated_candidates) — results may not include every possible package.`, severity: "info" });
 
-  // Phase 6 (`ri-trade-strategy-2026.1`) — ADDITIVE and opt-in only
+  // Phase 6 (`ri-trade-strategy-2026.2`) — ADDITIVE and opt-in only
   // (`include_strategic`). Never changes `results`' order, `rank`, `my_gain`,
   // or any base-evaluation field above — see lib/trades/strategy/assess.ts.
   let manager_strategic_profile: TradeDiscoveryResponse["manager_strategic_profile"] = undefined;
@@ -164,6 +164,15 @@ export async function discoverTrades(req: TradeDiscoveryRequest, options: Discov
       manager_strategic_profile = profile;
       for (const result of results) {
         result.strategic = assessDiscoveryResult(result, profile, myManagerSlug);
+      }
+      // Audit fix (spec §17/§36, P2 — a required diagnostic was specified but
+      // never implemented): a mathematically ELIMINATED redraft team is not
+      // given fabricated "rebuilding" logic (there is none to give — see
+      // archetype.ts), but discovery should not run silently for one either.
+      // Surface an explicit, honest caution rather than pretending season
+      // context is neutral for a team that is out of contention.
+      if (profile.archetype === "ELIMINATED") {
+        diagnostics.push({ code: "ELIMINATED_TEAM_TRADE_CAUTION", message: "This manager is mathematically eliminated from the playoffs. Strategic context does not fabricate a rebuilding or future-value framing (this is a redraft league) — trades are still evaluated purely on roster economics; season-state preference beyond that has limited meaning for an eliminated team.", severity: "info" });
       }
     } catch {
       diagnostics.push({ code: "STRATEGIC_CONTEXT_UNAVAILABLE", message: "Phase 6 strategic context could not be computed for this request — base discovery results are unaffected.", severity: "warning" });

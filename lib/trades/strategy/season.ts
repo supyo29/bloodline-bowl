@@ -1,13 +1,24 @@
 /**
  * Trade Engine — Phase 6A: season-state context.
  *
- * Built ONCE per league snapshot (see `profile.ts`), reusing the SAME week
- * geometry Phase 2 already audited (`resolveRosWeekPlan`) — never a second,
- * incompatible interpretation of playoff weeks.
+ * Built ONCE per league snapshot (see `profile.ts`).
+ *
+ * Audit fix (§3, P1): the original implementation called
+ * `resolveRosWeekPlan` a SECOND time, independently, using
+ * `ps.championship_week ?? null` (no fallback) — while
+ * `buildTradeAnalysisContext` (Phase 2) calls the SAME function with
+ * `ps.championship_week ?? DEFAULT_CHAMPIONSHIP_WEEK` (a real fallback,
+ * `17`). For a league whose `championship_week` setting is unresolved, this
+ * meant Phase 6 reported `championship_week: null` /
+ * `weeks_remaining_total: 0` while `ctx.ros` (Phase 2's OWN already-computed
+ * plan, sitting right there on the same `TradeAnalysisContext`) held a real,
+ * non-null plan — a second, incompatible interpretation of playoff weeks,
+ * exactly what the spec prohibits. Fixed by reading `ctx.ros` DIRECTLY
+ * instead of re-deriving anything — there is now no second call to
+ * `resolveRosWeekPlan` anywhere in this file, and no possible divergence.
  */
 
 import type { TradeAnalysisContext } from "../context";
-import { resolveRosWeekPlan } from "../context";
 import type { LeagueSeasonContext, SeasonStage } from "./types";
 import { MIDSEASON_FRACTION, PLAYOFF_PUSH_WEEKS_REMAINING } from "./config";
 
@@ -36,11 +47,13 @@ function classifySeasonStage(input: {
     if (regularSeasonLength > 0 && elapsed / regularSeasonLength >= MIDSEASON_FRACTION) return "MIDSEASON";
     return "EARLY_SEASON";
   }
-  // No resolvable playoff start — fall back to a coarse elapsed-week heuristic
-  // against a typical ~14-week regular season, clearly diagnostic-only.
+  // No resolvable playoff start at all — fall back to a coarse elapsed-week
+  // heuristic against a typical ~14-week regular season, clearly
+  // diagnostic-only (this branch only fires when `ctx.ros.playoff_start_week`
+  // itself is null, i.e. Phase 2 also could not resolve one).
   const elapsed = week - regularSeasonStartWeek;
   if (elapsed < 0) return "UNKNOWN";
-  return elapsed >= 11 ? "MIDSEASON" : elapsed >= 6 ? "MIDSEASON" : "EARLY_SEASON";
+  return elapsed >= 6 ? "MIDSEASON" : "EARLY_SEASON";
 }
 
 export function buildLeagueSeasonContext(ctx: TradeAnalysisContext): LeagueSeasonContext {
@@ -48,17 +61,17 @@ export function buildLeagueSeasonContext(ctx: TradeAnalysisContext): LeagueSeaso
   const season = ctx.season;
   const ps = ctx.snapshot.league.playoff_settings;
   const regularSeasonStartWeek = DEFAULT_REGULAR_SEASON_START_WEEK;
-  const championshipWeek = ps.championship_week ?? null;
-  const plan =
-    championshipWeek != null
-      ? resolveRosWeekPlan(week, championshipWeek, ps.playoff_start_week)
-      : null;
-  const playoffStartWeek = plan?.playoff_start_week ?? null;
-  const regularSeasonEndWeek = playoffStartWeek != null ? playoffStartWeek - 1 : null;
 
-  const weeksRemainingTotal = championshipWeek != null ? Math.max(0, championshipWeek - week + 1) : 0;
-  const weeksRemainingRegular =
-    regularSeasonEndWeek != null ? Math.max(0, regularSeasonEndWeek - week + 1) : weeksRemainingTotal;
+  // Read Phase 2's OWN already-computed plan directly — no second
+  // `resolveRosWeekPlan` call, no possible divergence (see fix note above).
+  const ros = ctx.ros;
+  const playoffStartWeek = ros.playoff_start_week;
+  const championshipWeek = ros.championship_week;
+  const regularSeasonEndWeek =
+    playoffStartWeek != null ? playoffStartWeek - 1 : ros.regular_season_weeks.length > 0 ? ros.regular_season_weeks[ros.regular_season_weeks.length - 1]! : null;
+
+  const weeksRemainingTotal = ros.weeks.length;
+  const weeksRemainingRegular = ros.regular_season_weeks.length;
 
   const season_stage = classifySeasonStage({ week, regularSeasonStartWeek, playoffStartWeek, championshipWeek });
 

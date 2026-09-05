@@ -12,7 +12,7 @@
 
 import type { TradeAnalysisContext } from "../context";
 import type { LeagueSeasonContext, ManagerStandingsContext, PlayoffContext, PlayoffStatus } from "./types";
-import { BUBBLE_GAMES_BACK_MAX, CLINCH_GAMES_CLEAR_MIN, CLINCH_MAX_WEEKS_REMAINING, LONG_SHOT_GAMES_BACK_MAX, MIN_GAMES_PLAYED_FOR_STATUS } from "./config";
+import { BUBBLE_GAMES_BACK_MAX, isClinchSafe, LONG_SHOT_GAMES_BACK_MAX, MIN_GAMES_PLAYED_FOR_STATUS } from "./config";
 
 export function buildManagerStandings(ctx: TradeAnalysisContext, managerId: string): ManagerStandingsContext {
   const team = ctx.snapshot.teams.find((t) => t.canonical_manager_ids.includes(managerId));
@@ -96,7 +96,7 @@ export function classifyPlayoffStatus(
     diagnostics.push("PLAYOFF_CONTEXT_UNAVAILABLE");
   } else if (gb <= 0) {
     const clearance = -gb;
-    status = clearance >= CLINCH_GAMES_CLEAR_MIN && season.weeks_remaining_regular <= CLINCH_MAX_WEEKS_REMAINING ? "CLINCHED" : "STRONG_POSITION";
+    status = isClinchSafe(clearance, season.weeks_remaining_regular) ? "CLINCHED" : "STRONG_POSITION";
   } else if (gb <= BUBBLE_GAMES_BACK_MAX) {
     status = "BUBBLE";
   } else if (gb <= LONG_SHOT_GAMES_BACK_MAX) {

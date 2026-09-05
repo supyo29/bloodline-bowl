@@ -149,7 +149,7 @@ export interface TradeDiscoveryResult {
     partner_fit: number | null;
   };
   /**
-   * Phase 6 (`ri-trade-strategy-2026.1`), ADDITIVE and OPTIONAL — present only
+   * Phase 6 (`ri-trade-strategy-2026.2`), ADDITIVE and OPTIONAL — present only
    * when the request set `include_strategic: true`. Never read by ranking,
    * `rank`, `my_gain`, or `trade_viability` above — those remain exactly what
    * Phase 4's canonical search/evaluation already produced.

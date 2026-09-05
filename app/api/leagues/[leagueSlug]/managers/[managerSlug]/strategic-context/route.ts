@@ -1,7 +1,7 @@
 /**
  * GET /api/leagues/:leagueSlug/managers/:managerSlug/strategic-context
  *
- * Trade Engine — Phase 6 (`ri-trade-strategy-2026.1`): standalone read of one
+ * Trade Engine — Phase 6 (`ri-trade-strategy-2026.2`): standalone read of one
  * manager's season-state strategic profile (season stage, standings, playoff
  * status/odds, strategic archetype, urgency, preferred time horizons) — the
  * SAME `ManagerStrategicProfile` that `POST /api/trades/{discover,negotiate}`

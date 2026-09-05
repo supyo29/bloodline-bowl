@@ -142,7 +142,7 @@ export async function negotiateTrade(req: NegotiationRequest, options: Negotiate
       }
     }
 
-    // Phase 6 (`ri-trade-strategy-2026.1`) — ADDITIVE and opt-in only
+    // Phase 6 (`ri-trade-strategy-2026.2`) — ADDITIVE and opt-in only
     // (`include_strategic`). `recommendOfferTier` can only ever name a tier
     // already present in `ladder` above — it never redefines the ladder or
     // exceeds MAXIMUM_RATIONAL (see lib/trades/strategy/assess.ts).

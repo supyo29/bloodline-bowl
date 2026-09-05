@@ -9,7 +9,9 @@
 import type { LeagueSeasonContext, PlayoffContext, PlayoffStatus, UrgencyResult } from "./types";
 import { PLAYOFF_STATUS_URGENCY, URGENCY_WEIGHTS } from "./config";
 
+/** `Math.max`/`Math.min` do not catch `NaN` — see the matching hardening note in adjustment.ts's `clampComponent`. */
 function clamp01(x: number): number {
+  if (!Number.isFinite(x)) return 0;
   return Math.max(0, Math.min(1, x));
 }
 
