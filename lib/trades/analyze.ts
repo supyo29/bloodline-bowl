@@ -30,6 +30,7 @@ import {
   type BuildTradeContextOptions,
 } from "./context";
 import { TRADE_CALIBRATED_VERSION } from "./phase3";
+import { TRADE_DATA_LAYER_VERSION } from "./data-readiness";
 import {
   TRADE_ENGINE_VERSION,
   type TradeAnalysis,
@@ -57,7 +58,7 @@ export async function analyzeTrade(
     trade_foundation_version: TRADE_ENGINE_VERSION,
     trade_context_version: null,
     trade_calibrated_version: null,
-    versions: { foundation: TRADE_ENGINE_VERSION, contextual: null, calibrated: null },
+    versions: { foundation: TRADE_ENGINE_VERSION, contextual: null, calibrated: null, data: null },
     league_slug: leagueSlug,
     week: 0,
     config,
@@ -190,7 +191,7 @@ export async function analyzeTrade(
       validation,
       week: snap.week,
       trade_context_version: TRADE_CONTEXT_VERSION,
-      versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: null },
+      versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: null, data: null },
     });
   }
 
@@ -224,7 +225,7 @@ export async function analyzeTrade(
     week: tctx.week,
     trade_context_version: TRADE_CONTEXT_VERSION,
     trade_calibrated_version: TRADE_CALIBRATED_VERSION,
-    versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: TRADE_CALIBRATED_VERSION },
+    versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: TRADE_CALIBRATED_VERSION, data: TRADE_DATA_LAYER_VERSION },
     validation,
     normalized,
     participants: evaluation.participants,

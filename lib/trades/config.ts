@@ -135,7 +135,21 @@ export interface TradeConfig {
   };
 }
 
-export const DEFAULT_TRADE_CONFIG: TradeConfig = {
+/**
+ * Audit D4 fix: recursively `Object.freeze`s an object tree. `resolveTradeConfig`
+ * never needs to write through a frozen object — every override is produced by
+ * spreading into a brand-new plain object — so freezing is pure defense-in-depth
+ * against a future accidental in-place mutation of the shared default.
+ */
+function deepFreeze<T>(obj: T): T {
+  if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
+    for (const v of Object.values(obj as Record<string, unknown>)) deepFreeze(v);
+    Object.freeze(obj);
+  }
+  return obj;
+}
+
+export const DEFAULT_TRADE_CONFIG: TradeConfig = deepFreeze({
   weights: {
     starter_points: 1.0,
     starter_vor: 0.0,
@@ -174,7 +188,7 @@ export const DEFAULT_TRADE_CONFIG: TradeConfig = {
       max_schedule_adjustment: 2,
     },
   },
-};
+});
 
 export type PartialTradeConfig = {
   weights?: Partial<TradeConfig["weights"]>;
@@ -214,6 +228,45 @@ function assertThresholdOrder(t: TradeConfig["thresholds"]): void {
         `(strong_accept > accept > neutral_floor > reluctant_floor > hard_reject); got ${JSON.stringify(t)}`,
     );
   }
+}
+
+/**
+ * Audit D5 fix: allowlists exactly the config surface a PUBLIC, untrusted
+ * request body may influence, and unconditionally DROPS any `phase3` key —
+ * regardless of its shape or values. `resolveTradeConfig` itself still
+ * accepts a `phase3` override (internal/test callers — e.g. this file's own
+ * audit tests proving a hostile weight has no effect — legitimately need to
+ * set one), but `POST /api/trades/analyze` must call this sanitizer on the
+ * request body FIRST, so a client-supplied `config.phase3.weights` (or any
+ * other unrecognized field) is never even seen by `analyzeTrade`.
+ *
+ * Phase 3 weights are server-controlled only, gated behind
+ * `lib/trades/activation.ts`'s `resolvePhase3CalibrationMode` (an
+ * environment-only switch, never read from a request), until a signal clears
+ * the calibration-readiness bar in `lib/trades/data-readiness.ts`.
+ *
+ * Phase 2 weights remain publicly settable, unchanged from the original
+ * Phase 2 design — they were reviewed and accepted as an exploration surface
+ * in that phase; D5 is specifically about Phase 3's not-yet-validated signals.
+ */
+export function sanitizePublicTradeConfig(raw: unknown): PartialTradeConfig | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: PartialTradeConfig = {};
+  if (isNumberRecord(r.weights)) out.weights = r.weights;
+  if (isNumberRecord(r.thresholds)) out.thresholds = r.thresholds;
+  if (typeof r.acceptance_floor === "number") out.acceptance_floor = r.acceptance_floor;
+  if (isNumberRecord(r.viability)) out.viability = r.viability;
+  const phase2 = r.phase2 as Record<string, unknown> | undefined;
+  if (phase2 && typeof phase2 === "object" && isNumberRecord(phase2.weights)) {
+    out.phase2 = { weights: phase2.weights };
+  }
+  // `r.phase3` is INTENTIONALLY never read — see the doc comment above.
+  return out;
+}
+
+function isNumberRecord(v: unknown): v is Record<string, number> {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v) && Object.values(v as object).every((x) => typeof x === "number" && Number.isFinite(x));
 }
 
 /** Map a `roster_utility_delta` (weekly points) to an acceptance class. */

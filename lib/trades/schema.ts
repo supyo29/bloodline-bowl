@@ -244,6 +244,12 @@ export interface ValuationRangeView {
 }
 
 export interface Phase3ParticipantResult {
+  /**
+   * Phase 3.5A activation gate (`lib/trades/activation.ts`), environment-only,
+   * never settable from a request body. `"SHADOW"` for every request in this
+   * repo today.
+   */
+  mode: import("./activation").Phase3CalibrationMode;
   /** unmodified pass-through of phase2.ros.ros_usable_value_delta */
   phase2_ros_value: number;
   /** phase2_ros_value + Σ role/schedule adjustments (== phase2_ros_value today; all adjustments are 0) */
@@ -402,6 +408,14 @@ export interface TradeAnalysis {
     foundation: typeof TRADE_ENGINE_VERSION;
     contextual: string | null;
     calibrated: string | null;
+    /**
+     * Phase 3.5 data-enablement layer version (`ri-trade-data-2026.1`); null
+     * when Phase 3 did not run. Tracks the provider-framework/safety-cleanup
+     * contract separately from `calibrated` — `calibrated`'s VALUE contract
+     * (`shadow_utility_delta`/`shadow_acceptance` formula) did not change in
+     * Phase 3.5, only its player-intelligence data plumbing did.
+     */
+    data: string | null;
   };
   league_slug: string;
   week: number;

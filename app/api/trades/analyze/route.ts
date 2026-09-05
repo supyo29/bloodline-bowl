@@ -25,6 +25,16 @@
  * `shadow_utility_delta === contextual_utility_delta` exactly until a
  * calibration pass promotes a signal out of shadow mode.
  *
+ * Phase 3.5 (`ri-trade-data-2026.1`, data-enablement + safety cleanup):
+ * `usage`/`role`/`trend`/`schedule` are now pluggable (`lib/trades/
+ * providers.ts`) — still `UNAVAILABLE` for every request through this route,
+ * since no real usage-stats or schedule-strength source is registered
+ * anywhere in this repo (see `docs/TRADE_ENGINE_PHASE35_DATA_READINESS.md`).
+ * A client-supplied `config.phase3` is UNCONDITIONALLY DROPPED before it
+ * reaches `analyzeTrade` (`sanitizePublicTradeConfig`) — Phase 3 weights are
+ * server-controlled only, gated by `lib/trades/activation.ts`, and remain
+ * `SHADOW` for every request regardless of environment.
+ *
  * Read-only and stateless. Nothing is persisted.
  *
  * Request body:
@@ -37,11 +47,12 @@
  *     ],
  *     "config": { "phase2": { "weights": { "ros_usable_value": 0 } }, ... }
  *   }
+ *   (a `config.phase3` field, if sent, is silently ignored — see above)
  */
 
 import { analyzeTrade } from "@/lib/trades/analyze";
 import type { TradeProposal, TradeTransfer } from "@/lib/trades/schema";
-import type { PartialTradeConfig } from "@/lib/trades/config";
+import { sanitizePublicTradeConfig } from "@/lib/trades/config";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -132,9 +143,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const proposal: TradeProposal = { league, participants, transfers };
-  const config = (b.config && typeof b.config === "object" && !Array.isArray(b.config)
-    ? (b.config as PartialTradeConfig)
-    : undefined);
+  // Phase 3.5 audit fix (D5): allowlist the public config surface and
+  // unconditionally drop any client-supplied `phase3` key — see
+  // `sanitizePublicTradeConfig`'s doc comment in lib/trades/config.ts.
+  const config = sanitizePublicTradeConfig(b.config);
 
   let analysis;
   try {

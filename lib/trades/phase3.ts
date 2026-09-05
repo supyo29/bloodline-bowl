@@ -22,6 +22,7 @@ import type { TradeConfig } from "./config";
 import { classifyAcceptance } from "./config";
 import { buildPlayerIntelligence, type VolatilityLevel } from "./intelligence";
 import { classifyConfidence, detectModelDisagreement, buildValuationRange } from "./confidence";
+import { resolvePhase3CalibrationMode } from "./activation";
 import type { TradeAnalysisContext } from "./context";
 import type {
   AcceptanceClass,
@@ -103,6 +104,7 @@ export function evaluatePhase3Participant(input: Phase3EvalInput): Phase3Partici
   const attribution: Phase3PlayerAttribution[] = [];
   const seenIntelDiag = new Set<string>();
   let unknownVolatilityCount = 0;
+  let lowRosConfidenceCount = 0;
 
   for (const [ids, direction] of [[incoming_ids, "INCOMING"], [outgoing_ids, "OUTGOING"]] as const) {
     for (const id of ids) {
@@ -115,6 +117,7 @@ export function evaluatePhase3Participant(input: Phase3EvalInput): Phase3Partici
         }
       }
       if (intel.volatility.level === "UNKNOWN") unknownVolatilityCount += 1;
+      if (intel.volatility.ros_confidence === "LOW") lowRosConfidenceCount += 1;
 
       const marginal = marginalById.get(id);
       const roleAdjustment = clamp(0, caps.max_role_adjustment); // always 0 — see module doc
@@ -149,6 +152,7 @@ export function evaluatePhase3Participant(input: Phase3EvalInput): Phase3Partici
     unresolved_player_count: ctx.snapshot.unresolved_players.length,
     ros_schedule_status: ctx.ros.schedule_status,
     intelligence_unknown_count: unknownVolatilityCount,
+    low_ros_confidence_count: lowRosConfidenceCount,
     transferred_player_count: attribution.length,
     model_disagreement: modelDisagreement,
   });
@@ -171,6 +175,7 @@ export function evaluatePhase3Participant(input: Phase3EvalInput): Phase3Partici
   }
 
   return {
+    mode: resolvePhase3CalibrationMode(),
     phase2_ros_value: phase2RosValue,
     phase3_role_adjusted_ros_value: phase3RoleAdjustedRos,
     shadow_utility_delta: shadowUtilityDelta,

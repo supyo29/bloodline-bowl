@@ -80,7 +80,7 @@ describe("audit — player intelligence is source-backed, never fabricated", () 
     assert.equal(intel.volatility.level, "HIGH");
   });
 
-  it("usage / role / trend / schedule are ALWAYS UNAVAILABLE — no fabricated statistic — with a stated reason", () => {
+  it("usage / role / trend / schedule are ALWAYS UNAVAILABLE with the default (NULL) providers — no fabricated statistic — with a stated reason", () => {
     const f = scene([T("X"), T("Y")], []);
     const intel = buildPlayerIntelligence("X_flex", f.context({ rosWeeks: ROS_WEEKS }));
     assert.equal(intel.usage.status, "UNAVAILABLE");
@@ -88,7 +88,10 @@ describe("audit — player intelligence is source-backed, never fabricated", () 
     assert.equal(intel.role.stability, "UNCERTAIN");
     assert.equal(intel.trend.status, "UNAVAILABLE");
     assert.equal(intel.schedule.status, "UNAVAILABLE");
-    for (const s of [intel.usage, intel.role, intel.trend, intel.schedule]) assert.ok(s.reason.length > 10);
+    if (intel.usage.status === "UNAVAILABLE") assert.ok(intel.usage.reason.length > 10);
+    if (intel.role.status === "UNAVAILABLE") assert.ok(intel.role.reason.length > 10);
+    if (intel.trend.status === "UNAVAILABLE") assert.ok(intel.trend.reason.length > 10);
+    if (intel.schedule.status === "UNAVAILABLE") assert.ok(intel.schedule.reason.length > 10);
     const codes = intel.diagnostics.map((d) => d.code);
     assert.ok(codes.includes("USAGE_DATA_STALE"));
     assert.ok(codes.includes("ROLE_TREND_UNCERTAIN"));
@@ -121,7 +124,7 @@ describe("audit — confidence reflects data quality, not the model's opinion", 
   it("full coverage across every input -> HIGH confidence", () => {
     const r = classifyConfidence({
       projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0,
-      ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false,
+      ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false,
     });
     assert.equal(r.level, "HIGH");
   });
@@ -129,27 +132,27 @@ describe("audit — confidence reflects data quality, not the model's opinion", 
   it("PROJECTIONS_UNAVAILABLE forces DEGRADED regardless of everything else", () => {
     const r = classifyConfidence({
       projections_status: "PROJECTIONS_UNAVAILABLE", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0,
-      ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false,
+      ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false,
     });
     assert.equal(r.level, "DEGRADED");
   });
 
   it("partial ROS coverage lowers confidence proportionally", () => {
-    const full = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false });
-    const partial = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 6, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false });
+    const full = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false });
+    const partial = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 6, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false });
     const rank: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, DEGRADED: 0 };
     assert.ok(rank[partial.level]! < rank[full.level]!);
   });
 
   it("stale/unverified schedule lowers confidence", () => {
-    const r = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "UNAVAILABLE", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false });
+    const r = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "UNAVAILABLE", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false });
     assert.notEqual(r.level, "HIGH");
     assert.ok(r.reasons.some((x) => x.includes("schedule")));
   });
 
   it("model disagreement across layers lowers confidence and is named in the reasons", () => {
-    const agree = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false });
-    const disagree = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: true });
+    const agree = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false });
+    const disagree = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: true });
     const rank: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, DEGRADED: 0 };
     assert.ok(rank[disagree.level]! <= rank[agree.level]!);
     assert.ok(disagree.reasons.some((x) => x.toLowerCase().includes("disagree")));
@@ -157,7 +160,7 @@ describe("audit — confidence reflects data quality, not the model's opinion", 
 
   it("confidence is NOT the same axis as magnitude: a near-neutral result can still be HIGH confidence", () => {
     // classifyConfidence never looks at the utility delta at all — verified by signature/behavior:
-    const r = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, transferred_player_count: 2, model_disagreement: false });
+    const r = classifyConfidence({ projections_status: "READY", ros_uncovered_count: 0, roster_size: 15, unresolved_player_count: 0, ros_schedule_status: "READY", intelligence_unknown_count: 0, low_ros_confidence_count: 0, transferred_player_count: 2, model_disagreement: false });
     assert.equal(r.level, "HIGH"); // independent of whatever the trade's actual value turns out to be
   });
 

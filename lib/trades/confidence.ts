@@ -29,6 +29,16 @@ export interface ConfidenceInputs {
   ros_schedule_status: "READY" | "PARTIAL" | "UNAVAILABLE";
   /** transferred players whose player-intelligence volatility/availability is UNKNOWN */
   intelligence_unknown_count: number;
+  /**
+   * Audit D3 fix: transferred players whose `VolatilityIntelligence.ros_confidence`
+   * (the underlying RI-vs-external model's own self-reported confidence) is
+   * `LOW`. This is a real, already-computed signal that was previously captured
+   * on `PlayerIntelligence` but never consulted anywhere — a `LOW`
+   * `ros_confidence` on a small `disagreement_pct` used to read identically to
+   * a `HIGH`-confidence one. Now it degrades confidence the same way an
+   * unresolved/unknown intelligence signal does.
+   */
+  low_ros_confidence_count: number;
   transferred_player_count: number;
   /** true when Phase 1 / Phase 2 / Phase 3-shadow acceptance are not all equal */
   model_disagreement: boolean;
@@ -80,6 +90,12 @@ export function classifyConfidence(inputs: ConfidenceInputs): ConfidenceResult {
   const intelUnknownFrac = inputs.transferred_player_count > 0 ? inputs.intelligence_unknown_count / inputs.transferred_player_count : 0;
   if (intelUnknownFrac > 0.5) {
     reasons.push("volatility/availability signal is unknown for most transferred players");
+    score -= 1;
+  }
+
+  const lowRosConfidenceFrac = inputs.transferred_player_count > 0 ? inputs.low_ros_confidence_count / inputs.transferred_player_count : 0;
+  if (lowRosConfidenceFrac > 0.5) {
+    reasons.push("the underlying rest-of-season model itself reports LOW confidence for most transferred players");
     score -= 1;
   }
 
