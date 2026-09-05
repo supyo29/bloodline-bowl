@@ -11,19 +11,33 @@
  * Per the Phase 3.5 guiding principle: prefer NO SIGNAL over BAD SIGNAL, and
  * WEIGHT = 0 over UNJUSTIFIED CALIBRATION. A signal is `READY_FOR_CALIBRATION`
  * only once ALL of `MinimumSampleRequirements`' dimensions are met AND no
- * `blocking_reason` remains — today NONE of the six signals below clears that
- * bar, because this environment has zero real historical trades and zero
- * real usage/schedule providers registered (see `lib/trades/providers.ts`).
+ * `blocking_reason` remains.
+ *
+ * COMPLETION-PASS UPDATE: real data now exists (see
+ * `docs/TRADE_ENGINE_PHASE35_COMPLETION.md`) — 1 real completed Sleeper trade
+ * (`scripts/ingest-sleeper-historical-trades.ts`), 6,037 real 2025-season
+ * player-weeks of usage (`analysis/phase35_usage_pipeline.R`), and 2,176 real
+ * 2025-season schedule-matchup rows (`analysis/phase35_schedule_pipeline.R`).
+ * NONE of the six signals below clears `MINIMUM_SAMPLE_REQUIREMENTS` even so
+ * — 1 historical trade is nowhere near 50, and the real usage/schedule data
+ * is 2025 BACKTEST data, not live 2026 data (the 2026 season has played zero
+ * games as of this pass) — but the counts below are now REAL, not zero.
  */
 
 /**
  * Phase 3.5 data-enablement layer version. Bump on any change to the
  * provider-framework contract (`lib/trades/providers.ts`), the safety-cleanup
- * surfaces (D2-D5), or this readiness classification. Does NOT track Phase
- * 3's VALUE contract — see `TRADE_CALIBRATED_VERSION` in `lib/trades/phase3.ts`
- * for that; `shadow_utility_delta`'s formula is unchanged by Phase 3.5.
+ * surfaces (D2-D5), the real-data ingestion pipelines, or this readiness
+ * classification. Does NOT track Phase 3's VALUE contract — see
+ * `TRADE_CALIBRATED_VERSION` in `lib/trades/phase3.ts` for that;
+ * `shadow_utility_delta`'s formula is unchanged by Phase 3.5.
+ *   2026.1 — framework-complete pass (NULL providers only, 0 real data).
+ *   2026.2 — completion pass: real Sleeper trade ingestion, real R usage/
+ *            schedule pipelines, real file-backed providers with a
+ *            structural as-of-week look-ahead guard. Still NOT wired as any
+ *            default — the live `POST /api/trades/analyze` path is untouched.
  */
-export const TRADE_DATA_LAYER_VERSION = "ri-trade-data-2026.1" as const;
+export const TRADE_DATA_LAYER_VERSION = "ri-trade-data-2026.2" as const;
 
 export type SignalReadiness = "READY_FOR_CALIBRATION" | "SHADOW_ONLY" | "INSUFFICIENT_DATA" | "REJECTED";
 
@@ -93,46 +107,46 @@ export const SIGNAL_READINESS: SignalReadinessEntry[] = [
   {
     signal: "usage_trend",
     status: "INSUFFICIENT_DATA",
-    sample_size: { player_weeks: 0, players: 0 },
-    coverage_note: "No real usage-stats provider is registered anywhere in this repo (`NULL_USAGE_PROVIDER` everywhere) — `classifyUsageTrend` exists and is unit-tested, but has never run against a single real player-week.",
-    historical_support: "NONE",
+    sample_size: { player_weeks: 6037, players: 6031, seasons: 1 },
+    coverage_note: "REAL as of the completion pass: `analysis/phase35_usage_pipeline.R` pulled 6,037 real 2025-season player-weeks (18 weeks, QB/RB/WR/TE) from nflverse via nflreadr, 6,031 resolved to a sleeper_id via `nflreadr::load_ff_playerids`. `createRUsageProviderAsOf` (lib/trades/r-data-providers.ts) is a real, tested, file-backed `UsageProvider` with a structural as-of-week look-ahead guard — but it is 2025 BACKTEST data (2026 has played 0 games) and is NOT wired as any default provider.",
+    historical_support: "PARTIAL",
     leakage_risk: "LOW",
     redundancy_risk: "LOW",
-    blocking_reason: "No usage-stats source has been integrated (source evaluation not started — see docs/TRADE_ENGINE_PHASE35_DATA_READINESS.md §Data sources).",
-    recommendation: "Do NOT calibrate. First integrate a real, evaluated source; then accumulate enough player-weeks to clear MINIMUM_SAMPLE_REQUIREMENTS before even considering a shadow value adjustment.",
+    blocking_reason: "1 season, 1-2 leagues of real usage data is far below MINIMUM_SAMPLE_REQUIREMENTS' `seasons: 2` / `leagues: 3` floor, and there is no real historical TRADE outcome to validate a usage-trend-based adjustment against (only 1 real trade exists total — see historical_trade_outcome).",
+    recommendation: "Genuinely closer than before, but still do NOT calibrate. Re-run the R pipeline once the 2026 season has played games (real current-season data), pull additional prior seasons, and — critically — wait for a usable historical-outcome sample before any ablation against real trade outcomes is possible.",
   },
   {
     signal: "role_stability",
     status: "INSUFFICIENT_DATA",
-    sample_size: { player_weeks: 0, players: 0 },
-    coverage_note: "Derived from the same (currently null) usage series as usage_trend — inherits the same blocker.",
-    historical_support: "NONE",
+    sample_size: { player_weeks: 6037, players: 6031, seasons: 1 },
+    coverage_note: "Derived from the same real usage series as usage_trend (`classifyUsageTrend` over `getRecentUsageSeries`) — inherits its real sample size and the same blocker.",
+    historical_support: "PARTIAL",
     leakage_risk: "LOW",
     redundancy_risk: "MODERATE",
-    blocking_reason: "Same as usage_trend: no real usage provider registered.",
+    blocking_reason: "Same as usage_trend: real usage data exists now, but no real trade-outcome sample exists to validate a role-stability-based adjustment against.",
     recommendation: "Same as usage_trend.",
   },
   {
     signal: "schedule_strength",
     status: "INSUFFICIENT_DATA",
-    sample_size: { player_weeks: 0, players: 0 },
-    coverage_note: "No opponent-adjusted schedule-strength provider is registered (`NULL_SCHEDULE_PROVIDER` everywhere). `capScheduleAdjustment` exists and is unit-tested as a bounding mechanism, but has never bounded a real matchup score.",
-    historical_support: "NONE",
+    sample_size: { player_weeks: 2176, seasons: 1 },
+    coverage_note: "REAL as of the completion pass: `analysis/phase35_schedule_pipeline.R` produced 2,176 real 2025-season team+opponent+position+week matchup rows (points-allowed-by-position, percentile-normalized to [-1,+1] — a documented, simpler proxy, not an EPA-adjusted metric). `createRScheduleProviderAsOf` is a real, tested, file-backed `ScheduleProvider` with the same structural as-of-week guard. A real cross-signal check (`scripts/phase35-real-correlation-check.ts`) found LOW correlation with actual usage (target_share x matchup_score: n=6037, pearson=0.107, spearman=0.088; rush_share x matchup_score: pearson=0.009) — i.e. real usage does not already track schedule ease, so the signal is not obviously redundant with usage on this evidence.",
+    historical_support: "PARTIAL",
     leakage_risk: "LOW",
     redundancy_risk: "LOW",
-    blocking_reason: "No schedule-strength source has been integrated (source evaluation not started).",
-    recommendation: "Do NOT calibrate. First integrate and evaluate a real source.",
+    blocking_reason: "No real trade-outcome sample exists to test whether a schedule-based adjustment would have predicted anything real; K/DST are not modeled at all (QB/RB/WR/TE only).",
+    recommendation: "Genuinely closer than before. Do NOT calibrate — the low observed usage-correlation is a mild positive signal for non-redundancy, not evidence of predictive value, which still requires real outcomes to test.",
   },
   {
     signal: "historical_trade_outcome",
     status: "INSUFFICIENT_DATA",
-    sample_size: { historical_trades: 0, leagues: 0, seasons: 0 },
-    coverage_note: "The retrospective framework (`lib/trades/historical.ts`) and a counterfactual generator (`lib/trades/historical-counterfactual.ts`) exist and are tested, but hold ZERO real records — no network access to pull real completed Bloodline Bowl (or any other league's) transaction history in this environment.",
-    historical_support: "NONE",
+    sample_size: { historical_trades: 1, leagues: 2, seasons: 2 },
+    coverage_note: "REAL as of the completion pass: `scripts/ingest-sleeper-historical-trades.ts` scanned every registered Sleeper league (bloodline-bowl 2026; devoted-to-the-game 2026 and 2025, walking `previous_league_id`) and found exactly **1 real completed trade** (Devoted to the Game, 2025, week 4, 2 participants, both assets supported PLAYER transfers, pre-trade ownership fully reconstructed via chronological transaction replay from the 2025 draft). `outcome` is `null` for this record — no realized post-trade outcome was computed this pass (future work). The retrospective framework and counterfactual generator both ran successfully against this real record.",
+    historical_support: "PARTIAL",
     leakage_risk: "LOW",
     redundancy_risk: "NONE",
-    blocking_reason: "Zero real historical trades ingested. Real trades alone would also carry selection bias (Phase 3.5 §20) even once ingested — a counterfactual sample is required alongside them, not instead of them.",
-    recommendation: "This is the hard blocker for calibrating ANY Phase 3 signal, not just this one — every other signal's readiness ultimately depends on having real outcomes to validate against.",
+    blocking_reason: "1 real trade (2 leagues scanned, only 1 with any Sleeper history at all) is dramatically below the 50-trade floor, and it has no computed outcome yet regardless. This remains THE hard blocker every other signal's readiness ultimately depends on.",
+    recommendation: "Not a data-pipeline problem anymore — it is a population-size problem. Bloodline Bowl is a brand-new league with no Sleeper history; Devoted to the Game has 2 seasons but managers simply haven't made many trades. Compute real outcomes for this 1 trade, keep re-scanning as both leagues age, and lean on the (real, working) counterfactual generator to build a larger — but explicitly labeled COUNTERFACTUAL, never REAL — sample in parallel.",
   },
 ];
 

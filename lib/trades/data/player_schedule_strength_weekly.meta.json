@@ -1,0 +1,15 @@
+{
+  "data_version": "ri-schedule-weekly-2026.1",
+  "generated_at": "2026-09-04 19:52:15.610057",
+  "season": 2025,
+  "weeks_present": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+  "rows": 2176,
+  "rows_resolved": 2174,
+  "methodology": "points-allowed-by-position, percentile-normalized across the week's 32 teams, rescaled to [-1, +1]",
+  "orientation": "positive = easier/favorable matchup for the offensive position, negative = harder",
+  "limitations": ["raw points-allowed proxy, not an EPA-adjusted or DVOA-equivalent defensive metric", "K/DST not modeled — QB/RB/WR/TE only", "does not account for injuries to the opposing defense"],
+  "league_agnostic": true,
+  "note": "TypeScript combines these raw team+opponent+position+week rows with league-specific playoff windows, bye weeks, and season length — this table intentionally has no league settings baked in (Phase 3.5 completion spec §24).",
+  "source": "nflverse via nflreadr",
+  "refresh_command": "Rscript analysis/phase35_schedule_pipeline.R"
+}

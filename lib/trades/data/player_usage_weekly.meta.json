@@ -1,0 +1,13 @@
+{
+  "data_version": "ri-usage-weekly-2026.1",
+  "generated_at": "2026-09-04 19:52:14.41478",
+  "season": 2025,
+  "weeks_present": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+  "rows": 6037,
+  "players_resolved_to_sleeper": 6031,
+  "players_unresolved": 6,
+  "supported_metrics": ["snaps", "snap_share", "targets", "target_share", "carries", "rush_share", "receptions_via_source"],
+  "unsupported_metrics_left_na": ["routes", "route_participation", "red_zone_targets", "red_zone_carries", "goal_line_carries"],
+  "source": "nflverse via nflreadr",
+  "refresh_command": "Rscript analysis/phase35_usage_pipeline.R"
+}

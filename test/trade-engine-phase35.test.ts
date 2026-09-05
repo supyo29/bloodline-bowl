@@ -199,7 +199,7 @@ describe("Phase 3.5 §42 — versions block exposes the new data-layer version a
   });
 
   it("TRADE_DATA_LAYER_VERSION is a real, stable constant", () => {
-    assert.equal(TRADE_DATA_LAYER_VERSION, "ri-trade-data-2026.1");
+    assert.equal(TRADE_DATA_LAYER_VERSION, "ri-trade-data-2026.2");
   });
 });
 
@@ -391,6 +391,7 @@ describe("Phase 3.5F — calibration readiness report is honest, not aspirationa
   it("historical_trade_outcome is explicitly the hard blocker every other signal's readiness ultimately depends on", () => {
     const hist = SIGNAL_READINESS.find((s) => s.signal === "historical_trade_outcome")!;
     assert.equal(hist.status, "INSUFFICIENT_DATA");
-    assert.ok(hist.sample_size.historical_trades === 0);
+    // Completion pass: real ingestion found exactly 1 real trade — dramatically below the 50-trade floor, still the hard blocker.
+    assert.ok((hist.sample_size.historical_trades ?? 0) < 10);
   });
 });
