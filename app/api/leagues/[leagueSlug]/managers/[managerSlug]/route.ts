@@ -5,15 +5,19 @@
  * keyed off the verified `roster_id` / `sleeper_user_id` — never the first
  * roster, never a default. An unresolved or non-member manager is an explicit
  * non-200 (see lib/leagues/resolve.ts).
+ *
+ * Phase 1C: the roster SPLIT (starters / bench / IR / taxi) + roster settings
+ * come from the ONE canonical live read — canonical owns "which player is in
+ * which slot", so this surface can never disagree with weekly / trade / state.
+ * `getPlayerIndex` remains ONLY as provider ENRICHMENT: it adds the Sleeper
+ * per-player bio (`age`, `years_exp`, `search_rank`, `depth_chart_*`) that the
+ * canonical model does not carry. It does not re-derive any canonical fact.
  */
 
-import {
-  SleeperError,
-  getLeague,
-  getLeagueRosters,
-  getPlayerIndex,
-  slimPlayer,
-} from "@/lib/sleeper/client";
+import { SleeperError, getPlayerIndex, slimPlayer } from "@/lib/sleeper/client";
+import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
+import { reconstructRosterPositions } from "@/lib/canonical/compat/scoring-inputs";
 import {
   buildRosterComposition,
   buildSlotCoverage,
@@ -37,33 +41,51 @@ export async function GET(
   const { league, manager } = resolved;
 
   try {
-    const [leagueRaw, rosters, playerIndex] = await Promise.all([
-      getLeague(league.league_id),
-      getLeagueRosters(league.league_id),
+    return await runInLeagueStateScope(async () => {
+    const [state, playerIndex] = await Promise.all([
+      buildCanonicalLeagueState(league.league_slug),
       getPlayerIndex(),
     ]);
+    const snapshot = state.snapshot;
+    if (
+      !snapshot ||
+      snapshot.live_provider_status === "PROVIDER_ERROR" ||
+      snapshot.league.team_count === 0
+    ) {
+      return errorResponse(
+        502,
+        "sleeper_upstream_error",
+        state.detail ?? "Canonical league state is unavailable.",
+      );
+    }
 
-    const rosterPositions = leagueRaw.roster_positions ?? [];
-    const roster = rosters.find((r) => r.roster_id === manager.roster_id);
-
-    const resolveIds = (ids: string[] | null | undefined): NormalizedPlayer[] =>
-      (ids ?? [])
-        .filter((id): id is string => typeof id === "string" && id !== "0")
-        .map((id) => playerIndex.get(id) ?? slimPlayer(id, undefined));
-
-    const allPlayers = resolveIds(roster?.players);
-    const starterIds = new Set((roster?.starters ?? []).filter((id) => id !== "0"));
-    const taxiIds = new Set(roster?.taxi ?? []);
-    const reserveIds = new Set(roster?.reserve ?? []);
-    const starters = allPlayers.filter((p) => starterIds.has(p.player_id));
-    const taxi = allPlayers.filter((p) => taxiIds.has(p.player_id));
-    const reserve = allPlayers.filter((p) => reserveIds.has(p.player_id));
-    const bench = allPlayers.filter(
-      (p) =>
-        !starterIds.has(p.player_id) &&
-        !taxiIds.has(p.player_id) &&
-        !reserveIds.has(p.player_id),
+    const rosterPositions = reconstructRosterPositions(snapshot.league.roster_settings);
+    const canonicalTeam = snapshot.teams.find(
+      (t) => Number(t.provider_team_id) === manager.roster_id,
     );
+    const roster = canonicalTeam
+      ? snapshot.rosters.find((r) => r.canonical_team_id === canonicalTeam.canonical_team_id)
+      : undefined;
+    const playerById = new Map(snapshot.players.map((p) => [p.canonical_player_id, p]));
+
+    // Canonical owns the SPLIT. `getPlayerIndex` only enriches each id with the
+    // provider bio (slimPlayer is the honest stub when Sleeper lacks the id).
+    const toNormalized = (cids: string[]): NormalizedPlayer[] =>
+      cids
+        .map((cid) => {
+          const p = playerById.get(cid);
+          const sid =
+            p?.identifiers.sleeper_id ??
+            (cid.startsWith("player:sleeper:") ? cid.slice("player:sleeper:".length) : null);
+          return sid ? (playerIndex.get(sid) ?? slimPlayer(sid, undefined)) : null;
+        })
+        .filter((p): p is NormalizedPlayer => p !== null);
+
+    const allPlayers = toNormalized(roster?.all_players ?? []);
+    const starters = toNormalized(roster?.starters ?? []);
+    const bench = toNormalized(roster?.bench ?? []);
+    const taxi = toNormalized(roster?.taxi ?? []);
+    const reserve = toNormalized(roster?.ir ?? []);
 
     return jsonResponse(
       {
@@ -123,6 +145,7 @@ export async function GET(
         },
       },
     );
+    });
   } catch (error) {
     if (error instanceof SleeperError) {
       return errorResponse(502, "sleeper_upstream_error", error.message);

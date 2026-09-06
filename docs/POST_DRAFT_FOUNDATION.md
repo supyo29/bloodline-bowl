@@ -265,3 +265,21 @@ The canonical snapshot is now **traceable, deterministic, and versioned**. See
   caching, fresh across independent operations.
 - Weekly + trade contexts and their results carry a shared `RecommendationLineage`
   (`lib/canonical/lineage.ts`) naming the snapshot + projection model versions.
+
+---
+
+## Phase 1B.2 + 1C — legacy migration & certification (freeze)
+
+- **1B.2** (`docs/TEAM_MANAGEMENT_PHASE_1B2.md`): the scoring family + the
+  manager-snapshot league/standings block are canonical-backed via
+  `lib/canonical/compat/*` adapters; schema v2→v3 (`roster_positions_raw`,
+  `provider_owner_id`); fixed the canonical `team_name` P1 (was null for every
+  production team).
+- **1C** (`docs/TEAM_MANAGEMENT_PHASE_1C.md`): cross-surface certification
+  harness (`lib/canonical/certification/*`, `scripts/phase1c-certify.ts`) —
+  **0 discrepancies** across 7 live surfaces × 2 real leagues. `/api/league` is
+  a documented **Option C** provider-native surface (no engine consumes it as
+  state). The last category-7 duplicate normaliser (`/api/leagues/:slug/managers/:slug`)
+  is fixed. **Phase 1 freeze contract §17.**
+
+**VERDICT: PHASE 1 CERTIFIED — canonical-state contract FROZEN.**
