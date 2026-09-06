@@ -9,9 +9,8 @@
  * can never be used to smuggle an arbitrarily large body through the API.
  */
 
-import { getLeague } from "@/lib/sleeper/client";
 import { SleeperError } from "@/lib/sleeper/client";
-import { resolveLeagueId } from "@/lib/sleeper/service";
+import { resolveScoringInputs } from "@/lib/scoring/scoring-service";
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
 import { parseLeagueSelector } from "@/lib/analytics/query";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
@@ -95,12 +94,15 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const leagueId = resolveLeagueId(leagueSelectorResult.value);
+  let leagueId: string;
   let scoringSettings: Record<string, number>;
   try {
-    const league = await getLeague(leagueId);
-    scoringSettings = league.scoring_settings ?? {};
+    const facts = await resolveScoringInputs(leagueSelectorResult.value ?? undefined);
+    leagueId = facts.league_id;
+    scoringSettings = facts.scoring_settings ?? {};
   } catch (error) {
+    // Unchanged from the pre-1B.2 handler: any upstream failure resolving the
+    // league's scoring config is a 502 here.
     if (error instanceof SleeperError) {
       return errorResponse(502, "sleeper_upstream_error", error.message);
     }

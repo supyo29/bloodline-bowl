@@ -287,7 +287,7 @@ describe("Yahoo fixture -> the same canonical schema", () => {
 });
 
 describe("schema version is pinned", () => {
-  it("is 2 (Phase 1B.1: additive scoring_fingerprint / roster_fingerprint / snapshot lineage)", () => {
-    assert.equal(CANONICAL_SCHEMA_VERSION, 2);
+  it("is 3 (Phase 1B.2: additive roster_positions_raw on top of the 1B.1 lineage fields)", () => {
+    assert.equal(CANONICAL_SCHEMA_VERSION, 3);
   });
 });

@@ -5,7 +5,6 @@
  */
 
 import { SleeperError } from "@/lib/sleeper/client";
-import { resolveLeagueId } from "@/lib/sleeper/service";
 import { buildScoringBundle } from "@/lib/scoring/scoring-service";
 import { parseLeagueSelector } from "@/lib/analytics/query";
 import {
@@ -37,7 +36,7 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const response = await buildScoringBundle(
-      resolveLeagueId(leagueSelectorResult.value),
+      leagueSelectorResult.value ?? undefined,
     );
 
     return jsonResponse(response, {

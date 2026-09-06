@@ -85,7 +85,7 @@ describe("smoke: GET /api/league/{league}/state", () => {
     assert.equal(status, 200);
     assert.equal(body.state.league.league_slug, "bloodline-bowl");
     assert.equal(body.state.league.provenance.provider, "sleeper");
-    assert.equal(body.state.schema_version, 2);
+    assert.equal(body.state.schema_version, 3);
     assert.ok(body.state.lineage?.league_snapshot_id?.startsWith("snap:bloodline-bowl:"));
     assert.ok(Array.isArray(body.state.teams));
     assert.ok(["READY", "PARTIAL"].includes(body.live_provider_status));

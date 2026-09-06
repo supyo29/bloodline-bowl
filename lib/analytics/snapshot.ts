@@ -4,6 +4,18 @@
  * layer — never re-implementing their logic, and never simply concatenating
  * their full payloads (`/api/league`'s player-level detail and `/api/draft`'s
  * available-player pool are both intentionally left out here).
+ *
+ * Phase 1B.2 (PARTIAL migration — Class B): the `league` metadata block and the
+ * `standings` array now come from the ONE canonical live read
+ * (`buildCanonicalLeagueState` -> `canonicalToStandingsFacts`), so `/api/snapshot`
+ * and `/api/league/:slug/state` can never disagree about league status, team
+ * count, or standings. `buildScoringBundle` is threaded the SAME canonical
+ * snapshot (no extra read). The `teams[]` block (which carries
+ * `draft_pick_count`, a count of FUTURE draft-pick ASSETS that the canonical
+ * model does not represent), the auction `budget`, the weekly `current_matchups`
+ * facts and the FAAB-aware `recent_transactions` facts retain their specialised
+ * reads — those are distinct analytics contracts, not duplicated current-state
+ * interpretation. The whole build runs in one `runInLeagueStateScope`.
  */
 
 import {
@@ -11,12 +23,15 @@ import {
   getLeagueTransactions,
   getLeagueUsers,
   getMatchups,
-  getNflState,
   getPlayerIndex,
 } from "@/lib/sleeper/client";
 import { buildDraftBundle } from "@/lib/sleeper/draft-service";
 import { buildLeagueBundle, resolveLeagueId } from "@/lib/sleeper/service";
 import { buildScoringBundle } from "@/lib/scoring/scoring-service";
+import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
+import { resolveLeagueForQuery } from "@/lib/leagues/resolve";
+import { canonicalToStandingsFacts } from "@/lib/canonical/compat/standings";
 import { buildWeekMatchupFacts, type MatchupFact } from "./matchups";
 import { computeStandings, type RosterStandingFacts } from "./standings";
 import { normalizeTransaction, type TransactionFact } from "./transactions";
@@ -82,14 +97,21 @@ export async function buildSnapshot(
   snapshot: LeagueSnapshot;
   warnings: string[];
 }> {
-  const warnings: string[] = [];
+  return runInLeagueStateScope(() => buildSnapshotInner(leagueId));
+}
 
-  const [leagueBundle, draftBundle, scoring, nflState, rosters, users] =
+async function buildSnapshotInner(leagueId: string): Promise<{
+  snapshot: LeagueSnapshot;
+  warnings: string[];
+}> {
+  const warnings: string[] = [];
+  const canonicalSlug = resolveLeagueForQuery(leagueId).league_slug;
+
+  const [leagueBundle, draftBundle, canonicalState, rosters, users] =
     await Promise.all([
       buildLeagueBundle(leagueId),
       buildDraftBundle(leagueId, { availableLimit: 1, position: null }),
-      buildScoringBundle(leagueId),
-      getNflState().catch(() => null),
+      buildCanonicalLeagueState(canonicalSlug),
       getLeagueRosters(leagueId).catch(() => []),
       getLeagueUsers(leagueId).catch(() => []),
     ]);
@@ -100,10 +122,34 @@ export async function buildSnapshot(
     rosters.map((roster) => [roster.roster_id, roster]),
   );
 
-  const standingsRaw = computeStandings(rosters, users, new Map(), []);
-  const standings = standingsRaw;
+  const canonicalUsable =
+    canonicalState.snapshot != null &&
+    canonicalState.snapshot.live_provider_status !== "PROVIDER_ERROR" &&
+    canonicalState.snapshot.league.team_count > 0;
+  const canonicalSnapshot = canonicalUsable ? canonicalState.snapshot! : null;
+  if (!canonicalSnapshot) {
+    warnings.push(
+      `Canonical league state unavailable (${canonicalState.code ?? "unknown"}); ` +
+        `standings fall back to the legacy computeStandings path.`,
+    );
+  }
 
-  const currentWeek = nflState?.week && nflState.week > 0 ? nflState.week : 1;
+  const scoring = canonicalSnapshot
+    ? await buildScoringBundle({ snapshot: canonicalSnapshot })
+    : await buildScoringBundle(leagueId);
+
+  // Standings: the canonical `standings` array, reshaped to the legacy
+  // `RosterStandingFacts` (weekly-derived + bracket fields null, exactly as the
+  // old `computeStandings(rosters, users, new Map(), [])` call produced them).
+  // Falls back to that call verbatim if the canonical read failed.
+  const standings: RosterStandingFacts[] = canonicalSnapshot
+    ? canonicalToStandingsFacts(canonicalSnapshot)
+    : computeStandings(rosters, users, new Map(), []);
+
+  const currentWeek =
+    canonicalSnapshot && canonicalSnapshot.week > 0
+      ? canonicalSnapshot.week
+      : 1;
   let currentMatchups: MatchupFact[] = [];
   try {
     const rawMatchups = await getMatchups(leagueId, currentWeek);

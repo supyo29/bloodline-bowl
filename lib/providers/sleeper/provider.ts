@@ -167,7 +167,7 @@ export class SleeperProvider implements FantasyProvider {
     const bundle: CanonicalLeagueStateBundle = {
       league: canonLeague,
       managers: toCanonicalManagers(ctx.league_slug, users, rosters, syncedAt),
-      teams: toCanonicalTeams(ctx.league_slug, rosters, faab, syncedAt),
+      teams: toCanonicalTeams(ctx.league_slug, rosters, users, faab, syncedAt),
       rosters: rosterRes.rosters,
       standings: toCanonicalStandings(ctx.league_slug, rosters),
       draft_picks: draftPicks,

@@ -23,11 +23,16 @@
  * v2 — Phase 1B.1: `CanonicalLeague.scoring_fingerprint` +
  *      `CanonicalLeague.roster_fingerprint`, and
  *      `CanonicalLeagueSnapshot.lineage` (a {@link SnapshotLineage}).
- *      All three are ADDITIVE. A persisted v1 snapshot lacks them; readers must
- *      tolerate their absence (`hydratePersistedSnapshot` in
- *      `lib/persistence/serialize.ts` backfills deterministic values on read).
+ * v3 — Phase 1B.2: `CanonicalRosterSettings.roster_positions_raw` — the
+ *      provider's verbatim ordered slot array (starters + BN/IR/TAXI), needed by
+ *      the legacy scoring / snapshot compatibility adapters that expose it.
+ *      All additions are ADDITIVE and OPTIONAL in the type. A persisted
+ *      pre-v3 snapshot lacks them; readers tolerate their absence
+ *      (`hydratePersistedSnapshot` in `lib/canonical/snapshot-lineage.ts`
+ *      backfills v1→v2 deterministically; the v3 field simply stays undefined
+ *      for an older row and adapters fall back to reconstructing it).
  */
-export const CANONICAL_SCHEMA_VERSION = 2 as const;
+export const CANONICAL_SCHEMA_VERSION = 3 as const;
 
 /** Every provider this architecture is designed to accept. */
 export type ProviderName = "sleeper" | "yahoo" | "espn";
@@ -144,6 +149,14 @@ export interface CanonicalRosterSettings {
   taxi_slots: number;
   /** How many of each starting slot are required, e.g. `{ RB: 2, FLEX: 1 }`. */
   slot_requirements: Record<string, number>;
+  /**
+   * The provider's verbatim ordered slot array — starters followed by
+   * `BN`/`IR`/`TAXI` — exactly as returned (Sleeper `roster_positions`, Yahoo
+   * expanded `roster_positions`). Schema v3+; optional for reader tolerance.
+   * Only the legacy scoring / snapshot compatibility adapters need it; internal
+   * analytics use `starting_slots` + the `*_slots` counts.
+   */
+  roster_positions_raw?: string[];
 }
 
 export interface CanonicalPlayoffSettings {
@@ -243,6 +256,14 @@ export interface CanonicalFantasyTeam {
   provider_team_id: string | null;
   team_name: string | null;
   canonical_manager_ids: string[];
+  /**
+   * The provider's raw primary-owner id (Sleeper `roster.owner_id`, Yahoo team
+   * manager guid), verbatim — even when that owner has left the league and has
+   * no entry in `managers`. Schema v3+; optional for reader tolerance. Legacy
+   * compatibility adapters use it for the `ManagerRef.user_id` of a departed
+   * owner; internal analytics use `canonical_manager_ids`.
+   */
+  provider_owner_id?: string | null;
   record: CanonicalRecord;
   faab_remaining: number | null;
   waiver_priority: number | null;

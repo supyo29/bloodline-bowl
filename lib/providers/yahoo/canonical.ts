@@ -121,9 +121,12 @@ export function yahooBundleToCanonical(
 ): YahooCanonicalResult {
   const L = bundle.league;
   const startingSlots: string[] = [];
+  const rosterPositionsRaw: string[] = [];
   for (const rp of L.roster_positions) {
-    if (NON_STARTING.has(rp.position)) continue;
-    for (let i = 0; i < rp.count; i += 1) startingSlots.push(rp.position);
+    for (let i = 0; i < rp.count; i += 1) {
+      rosterPositionsRaw.push(rp.position);
+      if (!NON_STARTING.has(rp.position)) startingSlots.push(rp.position);
+    }
   }
   const slotRequirements: Record<string, number> = {};
   for (const s of startingSlots) slotRequirements[s] = (slotRequirements[s] ?? 0) + 1;
@@ -149,6 +152,7 @@ export function yahooBundleToCanonical(
       ir_slots: L.roster_positions.find((p) => p.position === "IR" || p.position === "IL")?.count ?? 0,
       taxi_slots: 0,
       slot_requirements: slotRequirements,
+      roster_positions_raw: rosterPositionsRaw,
     },
     playoff_settings: {
       playoff_team_count: L.num_playoff_teams,

@@ -1,8 +1,9 @@
 /**
  * GET /api/leagues/:leagueSlug/scoring
  *
- * Canonical path form of `/api/scoring?league=...`. Same `buildScoringBundle`.
- * League-wide scoring rules — shared, safe to reuse across managers.
+ * Canonical path form of `/api/scoring?league=...`. Same `buildScoringBundle`,
+ * which as of Phase 1B.2 sources the league's scoring config from the ONE
+ * canonical live read (`buildCanonicalLeagueState`). League-wide scoring rules.
  */
 
 import { SleeperError } from "@/lib/sleeper/client";
@@ -24,7 +25,7 @@ export async function GET(
   const { league } = resolved;
 
   try {
-    const response = await buildScoringBundle(league.league_id);
+    const response = await buildScoringBundle(league.league_slug);
     return jsonResponse(
       { context: leagueContext(league), ...response },
       {

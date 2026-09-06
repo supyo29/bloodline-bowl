@@ -1,13 +1,21 @@
 /**
- * Orchestration for `GET /api/scoring`.
+ * Orchestration for the scoring surface.
  *
- * Reuses the existing Sleeper client's cached `getLeague` call — scoring
- * settings change rarely, so there is no need for a dedicated fetch path or a
- * shorter TTL the way `/api/draft` needs for live picks.
+ * Phase 1B.2: the league scoring facts now come from the ONE canonical live
+ * read (`buildCanonicalLeagueState` -> `canonicalScoringInputs`) instead of a
+ * separate `getLeague()`, so `/api/scoring` and `/api/league/:slug/state` can
+ * never disagree about a league's scoring settings or roster configuration. The
+ * scoring ANALYSIS below is unchanged.
  */
 
-import { getLeague } from "@/lib/sleeper/client";
-import { resolveLeagueId } from "@/lib/sleeper/service";
+import { SleeperError } from "@/lib/sleeper/client";
+import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { resolveLeagueForQuery } from "@/lib/leagues/resolve";
+import {
+  canonicalScoringInputs,
+  type LegacyScoringInputs,
+} from "@/lib/canonical/compat/scoring-inputs";
+import type { CanonicalLeagueSnapshot } from "@/lib/canonical/schema";
 import { buildArchetypeExamples } from "./archetypes";
 import { buildDiagnostics } from "./diagnostics";
 import {
@@ -26,18 +34,48 @@ import { buildSensitivity } from "./sensitivity";
 import type { ScoringResponse } from "./types";
 
 /**
- * @param leagueId Resolved league id to build scoring facts for. Callers
- *   should resolve `?league=` via `resolveLeagueId` themselves; this defaults
- *   to the bridge's default league only when omitted, preserving the original
- *   zero-argument call sites.
+ * Resolve the scoring inputs from ONE canonical live read.
+ *
+ * @param input `undefined` -> the default league; a `?league=` selector
+ *   (registry slug or raw numeric Sleeper id); or an already-built
+ *   `CanonicalLeagueSnapshot` (so `buildSnapshot` can thread its single read).
+ *   An empty/absent selector falls back to the default league exactly as the
+ *   old `resolveLeagueId()` did.
  */
-export async function buildScoringBundle(
-  leagueId: string = resolveLeagueId(),
-): Promise<ScoringResponse> {
-  const league = await getLeague(leagueId);
+export async function resolveScoringInputs(
+  input?: string | { snapshot: CanonicalLeagueSnapshot },
+): Promise<LegacyScoringInputs> {
+  if (input && typeof input === "object") return canonicalScoringInputs(input.snapshot);
+  const slug = resolveLeagueForQuery(input ?? null).league_slug;
+  const state = await buildCanonicalLeagueState(slug);
+  const snapshot = state.snapshot;
+  // A usable snapshot (READY / PARTIAL, real league data) is required. A
+  // not-found or provider failure is surfaced as a SleeperError so the route
+  // handlers map the status exactly as they did before the migration
+  // (404 for an unknown league, 502 for an upstream failure).
+  const usable =
+    snapshot != null &&
+    snapshot.live_provider_status !== "PROVIDER_ERROR" &&
+    (state.ok || state.status < 400) &&
+    snapshot.league.team_count > 0;
+  if (!usable) {
+    const notFound = state.code === "league_not_found" || state.status === 404;
+    throw new SleeperError(
+      state.detail ?? `Could not load canonical state for "${slug}".`,
+      `/canonical/state/${slug}`,
+      notFound ? 404 : state.status && state.status >= 400 ? state.status : 502,
+    );
+  }
+  return canonicalScoringInputs(snapshot);
+}
 
-  const raw = league.scoring_settings ?? {};
-  const rosterPositions = league.roster_positions ?? [];
+export async function buildScoringBundle(
+  input?: string | { snapshot: CanonicalLeagueSnapshot },
+): Promise<ScoringResponse> {
+  const facts = await resolveScoringInputs(input);
+
+  const raw = facts.scoring_settings ?? {};
+  const rosterPositions = facts.roster_positions;
 
   const { rules: normalized, warnings } = buildNormalizedRules(raw);
   const archetypeExamples = buildArchetypeExamples(raw);
@@ -45,10 +83,10 @@ export async function buildScoringBundle(
   return {
     generated_at: new Date().toISOString(),
     source: "Sleeper",
-    league_id: leagueId,
+    league_id: facts.league_id,
     league: {
-      name: league.name,
-      season: league.season,
+      name: facts.name,
+      season: facts.season,
       roster_positions: rosterPositions,
     },
     scoring: { raw, normalized },

@@ -161,6 +161,7 @@ export function toCanonicalLeague(
       ir_slots: settings.reserve_slots ?? positions.filter((p) => p === "IR").length,
       taxi_slots: settings.taxi_slots ?? positions.filter((p) => p === "TAXI").length,
       slot_requirements: slotRequirements,
+      roster_positions_raw: [...positions],
     },
     playoff_settings: {
       playoff_team_count: settings.playoff_teams ?? null,
@@ -208,9 +209,16 @@ export function toCanonicalManagers(
 export function toCanonicalTeams(
   leagueSlug: string,
   rosters: RawRoster[],
+  users: RawLeagueUser[],
   faabBudget: number | null,
   syncedAt: string | null,
 ): CanonicalFantasyTeam[] {
+  // Sleeper stores a team's custom name on the OWNING USER's metadata, not on
+  // the roster (verified: every production roster has `roster.metadata.team_name
+  // === null` while `user.metadata.team_name` carries the real name). Every
+  // legacy surface reads the user's, so canonical must too — the roster value is
+  // only a fallback for the rare league that sets it there.
+  const usersById = new Map(users.map((u) => [u.user_id, u]));
   return rosters
     .map((r): CanonicalFantasyTeam => {
       const s = r.settings ?? {};
@@ -219,13 +227,17 @@ export function toCanonicalTeams(
       for (const co of r.co_owners ?? []) managerIds.push(managerId(leagueSlug, co, co));
       const pf = round2((s.fpts ?? 0) + (s.fpts_decimal ?? 0) / 100);
       const pa = round2((s.fpts_against ?? 0) + (s.fpts_against_decimal ?? 0) / 100);
+      const ownerUser = r.owner_id ? usersById.get(r.owner_id) : undefined;
       return {
         canonical_team_id: teamId(leagueSlug, String(r.roster_id)),
         canonical_league_id: leagueId(leagueSlug),
         provider_team_id: String(r.roster_id),
         team_name:
-          (r.metadata?.team_name as string | undefined) ?? null,
+          (ownerUser?.metadata?.team_name as string | undefined) ??
+          (r.metadata?.team_name as string | undefined) ??
+          null,
         canonical_manager_ids: managerIds,
+        provider_owner_id: r.owner_id ?? null,
         record: {
           wins: s.wins ?? 0,
           losses: s.losses ?? 0,
