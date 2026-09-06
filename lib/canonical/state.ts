@@ -21,6 +21,12 @@ import {
   type CanonicalWarning,
   type DegradedStatus,
 } from "./schema";
+import { deriveSnapshotLineage } from "./snapshot-lineage";
+import {
+  activeLeagueStateScope,
+  leagueStateScopeKey,
+} from "./request-scope";
+import { attachLeagueFingerprints } from "./league-fingerprints";
 import { getProvider } from "@/lib/providers/registry";
 import type { FantasyProvider, ProviderLeagueContext } from "@/lib/providers/types";
 import { resolveLeagueStrict, type ResolvedLeague } from "@/lib/leagues/resolve";
@@ -45,9 +51,46 @@ export interface BuildStateOptions {
   crosswalkOverride?: PlayerCrosswalk;
   /** Report persistence status in the snapshot (default true). */
   reportPersistence?: boolean;
+  /**
+   * Ignore any active `runInLeagueStateScope` memo and always perform a fresh
+   * read. Use when injecting a DIFFERENT provider/crosswalk override for the
+   * same slug within one scope (e.g. some multi-provider tests).
+   */
+  bypassScope?: boolean;
 }
 
+/**
+ * Build the canonical current-league-state snapshot for `leagueSlug`.
+ *
+ * When called inside a `runInLeagueStateScope(...)` the result is memoized for
+ * the scope's lifetime, so one logical operation that touches this league
+ * several times performs ONE provider read. Outside a scope (or with
+ * `bypassScope`, or with a provider/crosswalk override) every call reads fresh.
+ */
 export async function buildCanonicalLeagueState(
+  leagueSlug: string,
+  options: BuildStateOptions = {},
+): Promise<CanonicalStateResult> {
+  const scope = options.bypassScope ? undefined : activeLeagueStateScope();
+  if (scope) {
+    // A scope represents ONE logical operation with ONE provider/crosswalk
+    // environment. If a caller genuinely needs different injected provider
+    // behaviour for the same slug inside one scope, it passes `bypassScope`.
+    const key = leagueStateScopeKey(leagueSlug, {
+      includeMatchups: options.includeMatchups ?? true,
+      includeRecentTransactions: options.includeRecentTransactions ?? true,
+      reportPersistence: options.reportPersistence ?? true,
+    });
+    const cached = scope.get(key);
+    if (cached) return cached;
+    const pending = buildCanonicalLeagueStateUncached(leagueSlug, options);
+    scope.set(key, pending);
+    return pending;
+  }
+  return buildCanonicalLeagueStateUncached(leagueSlug, options);
+}
+
+async function buildCanonicalLeagueStateUncached(
   leagueSlug: string,
   options: BuildStateOptions = {},
 ): Promise<CanonicalStateResult> {
@@ -135,9 +178,10 @@ export async function buildCanonicalLeagueState(
 
   const snapshot: CanonicalLeagueSnapshot = {
     schema_version: CANONICAL_SCHEMA_VERSION,
+    lineage: undefined,
     captured_at: new Date().toISOString(),
     provider_synced_at: stateResult.provider_synced_at,
-    league: bundle.league,
+    league: bundle.league.scoring_fingerprint ? bundle.league : attachLeagueFingerprints(bundle.league),
     season: league.season,
     week,
     managers: bundle.managers,
@@ -154,6 +198,8 @@ export async function buildCanonicalLeagueState(
     history_persistence_status: historyStatus,
     warnings,
   };
+  // Lineage is DERIVED from the finished body (content hash) — assign last.
+  snapshot.lineage = deriveSnapshotLineage(snapshot, { crosswalkVersion: crosswalk.version });
 
   return { ok: true, status: 200, snapshot };
 }
@@ -185,11 +231,12 @@ function degradedShell(
   warnings: CanonicalWarning[],
   historyStatus: DegradedStatus,
 ): CanonicalLeagueSnapshot {
-  return {
+  const shell: CanonicalLeagueSnapshot = {
     schema_version: CANONICAL_SCHEMA_VERSION,
+    lineage: undefined,
     captured_at: new Date().toISOString(),
     provider_synced_at: null,
-    league: {
+    league: attachLeagueFingerprints({
       canonical_league_id: `league:${league.league_slug}`,
       league_slug: league.league_slug,
       name: league.display_name,
@@ -204,7 +251,7 @@ function degradedShell(
       playoff_settings: { playoff_team_count: null, playoff_start_week: null, championship_week: null },
       waiver_settings: { type: "unknown", faab_budget: null, waiver_day: null },
       provenance: { provider: league.provider, provider_id: league.external_league_id, provider_synced_at: null },
-    },
+    }),
     season: league.season,
     week: 0,
     managers: [],
@@ -221,4 +268,6 @@ function degradedShell(
     history_persistence_status: historyStatus,
     warnings,
   };
+  shell.lineage = deriveSnapshotLineage(shell, { crosswalkVersion: null });
+  return shell;
 }

@@ -1,13 +1,13 @@
 /**
  * P0 — LIVE DRAFT-ROOM CACHE / TRANSPORT.
  *
- * The real Bloodline recommendation endpoint stays `DEGRADED` all draft (Layer 1
- * has no K/DEF projections). Cache policy must NOT be keyed to engine readiness:
- * every successful draft-room response is `Cache-Control: no-store` so a stale
- * edge object can never surface a drafted player, the wrong pick count, or the
- * wrong turn under a 120-second pick clock.
+ * Cache policy must NOT be keyed to engine readiness: every successful
+ * draft-room response is `Cache-Control: no-store` so a stale edge object can
+ * never surface a drafted player, the wrong pick count, or the wrong turn under
+ * a 120-second pick clock. That invariant holds in every draft state.
  *
- * Deterministic source-guards + live behaviour against the real pre-draft league.
+ * Deterministic source-guards + live behaviour against the real league (the
+ * live assertions are durable — they do not assume a pre-draft league).
  * Requires network access (same as the other `*-live` suites).
  */
 
@@ -111,9 +111,14 @@ describe("LIVE — real recommendation endpoint (DEGRADED) is uncached + identit
 
     const readiness = body.readiness as Record<string, unknown>;
     assert.equal(readiness.draft_engine_mode, "SNAKE_ONLY");
-    // DEGRADED for the documented K/DEF gap, or READY — never keyed to caching.
-    assert.ok(["READY", "DEGRADED"].includes(readiness.snake_engine_status as string));
-    assert.deepEqual(readiness.blocked_reasons, []);
+    // Whatever the readiness (READY / DEGRADED for the K-DEF gap / BLOCKED once
+    // the draft is over), it is a known enum value and NEVER keyed to caching —
+    // the `no-store` header above and the source-guard suite prove that.
+    assert.ok(
+      ["READY", "DEGRADED", "BLOCKED"].includes(readiness.snake_engine_status as string),
+      `unexpected snake_engine_status ${String(readiness.snake_engine_status)}`,
+    );
+    assert.ok(Array.isArray(readiness.blocked_reasons));
 
     assert.equal(Object.prototype.hasOwnProperty.call(body, "mock_draft_diagnostics"), false);
     assert.equal(res.headers.get("x-mock-draft-override"), null);
@@ -156,7 +161,7 @@ describe("LIVE — real recommendation endpoint (DEGRADED) is uncached + identit
 });
 
 describe("LIVE — real raw K/DEF fallback board is uncached + complete", () => {
-  it("pre_draft manager draft board: Cache-Control: no-store, full K & DEF pools", async () => {
+  it("manager draft board: Cache-Control: no-store, K & DEF pools present and bounded", async () => {
     const res = await callMgrDraft(
       `https://x/api/leagues/${LEAGUE}/managers/${MANAGER}/draft?available_limit=1000`,
     );
@@ -172,8 +177,15 @@ describe("LIVE — real raw K/DEF fallback board is uncached + complete", () => 
     const avail = body.available_players as Array<{ position: string }>;
     const def = avail.filter((p) => p.position === "DEF");
     const k = avail.filter((p) => p.position === "K");
-    assert.equal(def.length, 32, "all 32 team defenses visible");
-    assert.ok(k.length >= 30, `K pool visible (${k.length})`);
+    // Durable: the board always surfaces AVAILABLE K/DEF candidates and never
+    // more than the 32 NFL teams. Pre-draft that is all 32; once teams have
+    // drafted a K/DEF those are correctly excluded from the available pool.
+    assert.ok(def.length >= 1 && def.length <= 32, `DEF pool size ${def.length}`);
+    assert.ok(k.length >= 1 && k.length <= 32, `K pool size ${k.length}`);
+    if (draft.status === "pre_draft") {
+      assert.equal(def.length, 32, "all 32 team defenses visible pre-draft");
+      assert.ok(k.length >= 30, `K pool visible pre-draft (${k.length})`);
+    }
   });
 
   it("unknown manager on the draft board -> 404", async () => {

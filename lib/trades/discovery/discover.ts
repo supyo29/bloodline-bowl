@@ -13,6 +13,7 @@
  */
 
 import { resolveManager } from "@/lib/canonical/manager-context";
+import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { buildTradeAnalysisContext, TRADE_CONTEXT_VERSION, type BuildTradeContextOptions } from "../context";
 import { resolveTradeConfig, type PartialTradeConfig } from "../config";
 import { TRADE_ENGINE_VERSION } from "../schema";
@@ -67,6 +68,10 @@ function validateModeFields(req: TradeDiscoveryRequest): { code: string; message
 }
 
 export async function discoverTrades(req: TradeDiscoveryRequest, options: DiscoverTradesOptions = {}): Promise<TradeDiscoveryResponse> {
+  return runInLeagueStateScope(() => discoverTradesInner(req, options));
+}
+
+async function discoverTradesInner(req: TradeDiscoveryRequest, options: DiscoverTradesOptions = {}): Promise<TradeDiscoveryResponse> {
   const fieldError = validateModeFields(req);
   if (fieldError) {
     return baseResponse(req, { status: "VALIDATION_FAILED", diagnostics: [{ code: fieldError.code, message: fieldError.message, severity: "error" }] });

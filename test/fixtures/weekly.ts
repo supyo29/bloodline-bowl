@@ -3,6 +3,8 @@
  */
 
 import { CANONICAL_SCHEMA_VERSION } from "../../lib/canonical/schema";
+import { snapshotLineage } from "../../lib/canonical/snapshot-lineage";
+import { buildRecommendationLineage } from "../../lib/canonical/lineage";
 import type {
   CanonicalPlayer,
   CanonicalPosition,
@@ -301,6 +303,11 @@ export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
   return {
     engine_version: WEEKLY_ENGINE_VERSION,
     generated_at: new Date().toISOString(),
+    lineage: buildRecommendationLineage(
+      snapshotLineage(snapshot),
+      { weekly_engine: WEEKLY_ENGINE_VERSION },
+      [],
+    ),
     league: {
       slug: leagueSlug,
       name: leagueSlug,

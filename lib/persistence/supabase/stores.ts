@@ -16,6 +16,7 @@
  */
 
 import { snapshotContentHash } from "../serialize";
+import { hydratePersistedSnapshot } from "@/lib/canonical/snapshot-lineage";
 import type {
   CanonicalLeagueSnapshot,
   CanonicalTransaction,
@@ -145,7 +146,9 @@ export class SupabaseSnapshotStore implements SnapshotStore {
       order: "captured_at.desc",
       limit: 1,
     });
-    return rows[0] ? { ...toMeta(rows[0]), payload: rows[0].payload } : null;
+    return rows[0]
+      ? { ...toMeta(rows[0]), payload: hydratePersistedSnapshot(rows[0].payload) }
+      : null;
   }
 
   async listVersions(key: SnapshotKey): Promise<StoredSnapshotMeta[]> {

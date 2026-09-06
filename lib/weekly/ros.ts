@@ -40,10 +40,19 @@ export function assembleRosSignals(
   const warnings: string[] = [];
   if (ri.warning) warnings.push(ri.warning);
 
+  let joinedByCanonical = 0;
+  let joinedBySleeper = 0;
   for (const wp of batch.by_player.values()) {
     const meta = batch.resolved_players.get(wp.canonical_player_id);
     const sleeperId = meta?.identifiers?.sleeper_id ?? null;
-    const riEntry = sleeperId ? ri.by_sleeper_id.get(sleeperId) ?? null : null;
+    // Prefer the canonical-id join (works for any provider); fall back to the
+    // sleeper-id join, which is what the RI season model is keyed on today.
+    let riEntry = ri.by_canonical_id?.get(wp.canonical_player_id) ?? null;
+    if (riEntry) joinedByCanonical += 1;
+    if (!riEntry && sleeperId) {
+      riEntry = ri.by_sleeper_id.get(sleeperId) ?? null;
+      if (riEntry) joinedBySleeper += 1;
+    }
 
     // External absolute ROS: prefer RI's benchmark field (already league-scored),
     // else the provider's own prorated figure.
@@ -101,6 +110,12 @@ export function assembleRosSignals(
 
   if (ri.status === "READY" && withRi === 0) {
     warnings.push("Roster Intel season model loaded but no players crosswalked to it (sleeper_id gap).");
+  }
+  if (withRi > 0 && joinedByCanonical + joinedBySleeper > 0) {
+    warnings.push(
+      `RI season signal join: ${joinedByCanonical} by canonical id, ${joinedBySleeper} by sleeper-id fallback` +
+        (ri.unresolved_count ? `, ${ri.unresolved_count} RI entr${ri.unresolved_count === 1 ? "y" : "ies"} had no canonical id` : ""),
+    );
   }
 
   return {

@@ -18,13 +18,24 @@
 
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
 import { hashScoringSettings } from "@/lib/analytics/historical-scoring";
+import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import type { PlayerProjection, ProjectedFootballStats, LeagueProjection } from "./schema";
 
 export interface LeagueScoringContext {
   league_slug: string;
   league_id: string;
   scoring_settings: Record<string, number>;
+  /**
+   * LEGACY 32-bit hash. Still the cache key + the surfaced `scoring_hash` on
+   * projection responses until Phase 1B.2 — do not remove.
+   */
   scoring_hash: string;
+  /**
+   * Canonical scoring identity (`lib/canonical/scoring-fingerprint.ts`). The
+   * authoritative fingerprint; matches `CanonicalLeague.scoring_fingerprint` and
+   * flows into projection lineage. Additive — legacy readers ignore it.
+   */
+  scoring_fingerprint: string;
 }
 
 export function leagueScoringContext(
@@ -37,6 +48,7 @@ export function leagueScoringContext(
     league_id,
     scoring_settings,
     scoring_hash: hashScoringSettings(scoring_settings),
+    scoring_fingerprint: scoringFingerprint(scoring_settings),
   };
 }
 

@@ -8,6 +8,7 @@
  */
 
 import { resolveManager } from "@/lib/canonical/manager-context";
+import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { buildTradeAnalysisContext, TRADE_CONTEXT_VERSION, type BuildTradeContextOptions } from "../context";
 import { resolveTradeConfig, type PartialTradeConfig } from "../config";
 import { TRADE_ENGINE_VERSION } from "../schema";
@@ -73,6 +74,10 @@ function inferMode(req: NegotiationRequest): NegotiationMode | null {
 }
 
 export async function negotiateTrade(req: NegotiationRequest, options: NegotiateTradesOptions = {}): Promise<NegotiationResponse> {
+  return runInLeagueStateScope(() => negotiateTradeInner(req, options));
+}
+
+async function negotiateTradeInner(req: NegotiationRequest, options: NegotiateTradesOptions = {}): Promise<NegotiationResponse> {
   const mode = inferMode(req);
   if (!mode) {
     return base(req, { status: "VALIDATION_FAILED", diagnostics: [{ code: "MODE_UNDETERMINED", message: "Provide target_player_id, sell_player_id, or proposal (or an explicit mode).", severity: "error" }] });

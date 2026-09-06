@@ -23,6 +23,12 @@ import { buildLeagueResponse, loadLeagueConfig } from "@/lib/projections/service
 
 export interface RiSeasonEntry {
   sleeper_player_id: string;
+  /**
+   * Bridge canonical id for this player, when the season model's Sleeper id
+   * lines up to one. `null`/absent when the crosswalk could not resolve it — the
+   * consumer then falls back to the sleeper-id join, explicitly.
+   */
+  canonical_player_id?: string | null;
   /** RI's own full-season projection in this league's scoring (absolute — caveated). */
   ri_season_points: number | null;
   ri_vor: number | null;
@@ -41,6 +47,14 @@ export interface RiSeasonSignalResult {
   status: "READY" | "UNAVAILABLE";
   model_version: string | null;
   by_sleeper_id: Map<string, RiSeasonEntry>;
+  /**
+   * Canonical-id-keyed view of the same entries (resolved ids only). Optional
+   * for progressive adoption — `assembleRosSignals` falls back to the
+   * sleeper-id join when it is absent.
+   */
+  by_canonical_id?: Map<string, RiSeasonEntry>;
+  /** Entries whose Sleeper id could not be crosswalked to a canonical identity. */
+  unresolved_count?: number;
   warning: string | null;
 }
 
@@ -57,15 +71,22 @@ export class RosterIntelSeasonSignalProvider implements RiSeasonSignalProvider {
       status: "UNAVAILABLE",
       model_version: null,
       by_sleeper_id: new Map(),
+      by_canonical_id: new Map(),
+      unresolved_count: 0,
       warning: null,
     };
     try {
       const cfg = await loadLeagueConfig(input.league_slug, input.league_id);
       const res = await buildLeagueResponse(cfg, { limit: 2000 });
       const map = new Map<string, RiSeasonEntry>();
+      const byCanonical = new Map<string, RiSeasonEntry>();
+      let unresolved = 0;
       for (const p of res.players) {
-        map.set(p.player_id, {
+        const canonicalId = p.canonical_identity.canonical_player_id;
+        if (!canonicalId) unresolved += 1;
+        const entry: RiSeasonEntry = {
           sleeper_player_id: p.player_id,
+          canonical_player_id: canonicalId,
           ri_season_points: num(p.league_points),
           ri_vor: num(p.value_over_replacement),
           ri_vor_rank: num(p.vor_rank),
@@ -76,9 +97,21 @@ export class RosterIntelSeasonSignalProvider implements RiSeasonSignalProvider {
           disagreement_pct:
             p.vs_sleeper?.delta_pct != null ? Math.round((p.vs_sleeper.delta_pct / 100) * 1000) / 1000 : null,
           primary_driver: p.vs_sleeper?.primary_driver ?? null,
-        });
+        };
+        map.set(p.player_id, entry);
+        if (canonicalId) byCanonical.set(canonicalId, entry);
       }
-      return { status: "READY", model_version: PROJECTION_MODEL_VERSION, by_sleeper_id: map, warning: null };
+      return {
+        status: "READY",
+        model_version: PROJECTION_MODEL_VERSION,
+        by_sleeper_id: map,
+        by_canonical_id: byCanonical,
+        unresolved_count: unresolved,
+        warning:
+          unresolved > 0
+            ? `${unresolved} Roster Intel season player(s) had no canonical crosswalk id; those join by sleeper_id only.`
+            : null,
+      };
     } catch (error) {
       return {
         ...empty,

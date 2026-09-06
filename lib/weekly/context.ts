@@ -15,6 +15,8 @@
  */
 
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { snapshotLineage } from "@/lib/canonical/snapshot-lineage";
+import { buildRecommendationLineage, type ProjectionLineageEntry } from "@/lib/canonical/lineage";
 import { resolveManager } from "@/lib/canonical/manager-context";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
 import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-source";
@@ -397,9 +399,41 @@ export async function buildWeeklyTeamContext(
   }
   if (!oppTeam) warnings.push({ code: "no_opponent", message: `No week ${week} opponent found for this team.`, severity: "info" });
 
+  const snapLineage = snapshotLineage(snap);
+  const projectionLineage: ProjectionLineageEntry[] = [
+    {
+      role: "weekly_absolute",
+      source: projections.source,
+      model_version: projections.model_version,
+      generated_at: null,
+      scoring_fingerprint: snapLineage.scoring_fingerprint,
+      status:
+        projections.status === "READY"
+          ? "READY"
+          : projections.status === "PROJECTIONS_UNAVAILABLE"
+            ? "UNAVAILABLE"
+            : "PARTIAL",
+    },
+  ];
+  if (ros_meta) {
+    projectionLineage.push({
+      role: "season_ordinal",
+      source: "roster_intel_season",
+      model_version: ros_meta.ri_model_version ?? "unknown",
+      generated_at: null,
+      scoring_fingerprint: snapLineage.scoring_fingerprint,
+      status: ros_meta.ri_status === "READY" ? "READY" : "UNAVAILABLE",
+    });
+  }
+
   const context: WeeklyTeamContext = {
     engine_version: WEEKLY_ENGINE_VERSION,
     generated_at: new Date().toISOString(),
+    lineage: buildRecommendationLineage(
+      snapLineage,
+      { weekly_engine: WEEKLY_ENGINE_VERSION },
+      projectionLineage,
+    ),
     league: {
       slug: league.league_slug,
       name: snap.league.name,

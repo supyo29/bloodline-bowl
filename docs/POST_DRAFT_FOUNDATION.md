@@ -243,3 +243,25 @@ per season. The canonical slug never changes and is the only analytical identity
 
 Initial registry: **4 leagues · 2 providers · 3 known manager contexts
 (`supyo29`, `BijiMac`, `DarthMarker`) · 1 shared canonical architecture.**
+
+---
+
+## Phase 1B.1 — canonical-path hardening (additive)
+
+The canonical snapshot is now **traceable, deterministic, and versioned**. See
+`docs/TEAM_MANAGEMENT_PHASE_1B1.md` for the full contract. In brief:
+
+- Every `CanonicalLeagueSnapshot` carries `lineage` — a deterministic
+  `league_snapshot_id` (`snap:<slug>:<season>:w<week>:<contentHash16>`),
+  `content_hash`, `scoring_fingerprint`, `roster_fingerprint`,
+  `player_data_version`, `crosswalk_version`. Same league state ⇒ same id.
+- `schema_version` is now **2** (additive; v1 rows are backfilled on read by
+  `hydratePersistedSnapshot`).
+- `lib/canonical/scoring-fingerprint.ts#scoringFingerprint` is the ONE canonical
+  scoring identity (order- and zero-rule-insensitive). The season model's
+  `hashScoringSettings` / `scoring_hash` is unchanged and still surfaced (legacy).
+- `runInLeagueStateScope(fn)` (`lib/canonical/request-scope.ts`) memoizes
+  `buildCanonicalLeagueState` for one logical operation — no process-lifetime
+  caching, fresh across independent operations.
+- Weekly + trade contexts and their results carry a shared `RecommendationLineage`
+  (`lib/canonical/lineage.ts`) naming the snapshot + projection model versions.

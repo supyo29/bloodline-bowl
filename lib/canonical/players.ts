@@ -109,6 +109,7 @@ export interface ResolvedIdentity {
 interface CrosswalkIndex {
   bySleeper: Map<string, CrosswalkRow>;
   byYahoo: Map<string, CrosswalkRow>;
+  byGsis: Map<string, CrosswalkRow>;
   /** name|position|team  -> rows */
   byNameKey: Map<string, CrosswalkRow[]>;
   /** name|position       -> rows */
@@ -119,12 +120,25 @@ export class PlayerCrosswalk {
   private index: CrosswalkIndex = {
     bySleeper: new Map(),
     byYahoo: new Map(),
+    byGsis: new Map(),
     byNameKey: new Map(),
     byNamePos: new Map(),
   };
   private loaded = false;
+  private rowCount = 0;
 
   constructor(private readonly source: CrosswalkSource = NoCrosswalk) {}
+
+  /**
+   * Identity-crosswalk generation stamp: `<source name>:<row count>`, or `null`
+   * when no real crosswalk backs this instance (`NoCrosswalk`). Lets a snapshot
+   * record which identity data resolved its `identifiers`. Call after
+   * `ensureLoaded()`.
+   */
+  get version(): string | null {
+    if (this.source.name === "none") return null;
+    return `${this.source.name}:${this.rowCount}`;
+  }
 
   static async create(source: CrosswalkSource = NoCrosswalk): Promise<PlayerCrosswalk> {
     const cw = new PlayerCrosswalk(source);
@@ -135,10 +149,12 @@ export class PlayerCrosswalk {
   async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     const rows = await this.source.load().catch(() => [] as CrosswalkRow[]);
+    this.rowCount = rows.length;
     for (const row of rows) {
       if (row.sleeper_id) this.index.bySleeper.set(row.sleeper_id, row);
       if (row.yahoo_id) this.index.byYahoo.set(row.yahoo_id, row);
       if (row.yahoo_player_key) this.index.byYahoo.set(row.yahoo_player_key, row);
+      if (row.gsis_id) this.index.byGsis.set(row.gsis_id, row);
       const key = playerNameKey(row.full_name, row.position, row.nfl_team);
       const bucket = this.index.byNameKey.get(key) ?? [];
       bucket.push(row);
@@ -171,9 +187,12 @@ export class PlayerCrosswalk {
       identifiers.yahoo_player_key = observed.provider_player_id;
     }
 
-    // 1. Cross-provider row via a stable provider id.
+    // 1. Cross-provider row via a stable provider id. GSIS is the strongest key
+    //    (it is THE cross-provider nfl identity), so it is tried first when the
+    //    caller already has one.
     let row: CrosswalkRow | undefined;
-    if (identifiers.sleeper_id) row = this.index.bySleeper.get(identifiers.sleeper_id);
+    if (identifiers.gsis_id) row = this.index.byGsis.get(identifiers.gsis_id);
+    if (!row && identifiers.sleeper_id) row = this.index.bySleeper.get(identifiers.sleeper_id);
     if (!row && identifiers.yahoo_id) row = this.index.byYahoo.get(identifiers.yahoo_id);
     if (!row && identifiers.yahoo_player_key) row = this.index.byYahoo.get(identifiers.yahoo_player_key);
 

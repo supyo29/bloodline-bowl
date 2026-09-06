@@ -9,12 +9,14 @@
  */
 
 import { buildWeeklyTeamContext, type BuildWeeklyContextOptions } from "./context";
+import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { buildOptimalLineup } from "./lineup";
 import { buildMatchup, buildLeverage } from "./matchup";
 import { buildWaiverRecommendations } from "./waivers";
 import { compareStartSit, type StartSitComparison } from "./start-sit";
 import { buildWeeklySummary, type WeeklySummary } from "./summary";
 import { WEEKLY_ENGINE_VERSION, type DataQualityStatus, type Priority, type WeeklyTeamContext, type WeeklyWarning } from "./schema";
+import type { RecommendationLineage } from "@/lib/canonical/lineage";
 import type { LineupResult } from "./lineup";
 import type { MatchupResult, LeverageItem } from "./matchup";
 import type { WaiverResult } from "./waivers";
@@ -37,6 +39,8 @@ export interface WeeklyIntelligence {
   status: DataQualityStatus;
   data_quality: WeeklyTeamContext["data_quality"];
   persistence_status: string;
+  /** Traceable lineage: the canonical snapshot + projection models behind this result. */
+  lineage: RecommendationLineage;
 
   top_actions: TopAction[];
   summary: WeeklySummary;
@@ -75,6 +79,7 @@ export interface ContextView<T> {
     status: DataQualityStatus;
     data_quality: WeeklyTeamContext["data_quality"];
     persistence_status: string;
+    lineage: RecommendationLineage;
     warnings: WeeklyWarning[];
   };
 }
@@ -84,6 +89,15 @@ export interface ContextView<T> {
  * this so context assembly + degraded-state handling live in exactly one place.
  */
 export async function runWithWeeklyContext<T>(
+  leagueSlug: string,
+  managerSlug: string,
+  options: BuildWeeklyContextOptions,
+  fn: (ctx: WeeklyTeamContext) => T,
+): Promise<ContextView<T>> {
+  return runInLeagueStateScope(() => runWithWeeklyContextInner(leagueSlug, managerSlug, options, fn));
+}
+
+async function runWithWeeklyContextInner<T>(
   leagueSlug: string,
   managerSlug: string,
   options: BuildWeeklyContextOptions,
@@ -106,12 +120,21 @@ export async function runWithWeeklyContext<T>(
       status: ctx.status,
       data_quality: ctx.data_quality,
       persistence_status: ctx.persistence_status,
+      lineage: ctx.lineage,
       warnings: ctx.warnings,
     },
   };
 }
 
 export async function buildWeeklyIntelligence(
+  leagueSlug: string,
+  managerSlug: string,
+  options: BuildWeeklyContextOptions = {},
+): Promise<IntelligenceResult> {
+  return runInLeagueStateScope(() => buildWeeklyIntelligenceInner(leagueSlug, managerSlug, options));
+}
+
+async function buildWeeklyIntelligenceInner(
   leagueSlug: string,
   managerSlug: string,
   options: BuildWeeklyContextOptions = {},
@@ -154,6 +177,7 @@ export async function buildWeeklyIntelligence(
       status: ctx.status,
       data_quality: ctx.data_quality,
       persistence_status: ctx.persistence_status,
+      lineage: ctx.lineage,
       top_actions,
       summary,
       lineup,

@@ -18,7 +18,16 @@
  * snapshots record the version they were written under.
  */
 
-export const CANONICAL_SCHEMA_VERSION = 1 as const;
+/**
+ * v1 — initial canonical schema.
+ * v2 — Phase 1B.1: `CanonicalLeague.scoring_fingerprint` +
+ *      `CanonicalLeague.roster_fingerprint`, and
+ *      `CanonicalLeagueSnapshot.lineage` (a {@link SnapshotLineage}).
+ *      All three are ADDITIVE. A persisted v1 snapshot lacks them; readers must
+ *      tolerate their absence (`hydratePersistedSnapshot` in
+ *      `lib/persistence/serialize.ts` backfills deterministic values on read).
+ */
+export const CANONICAL_SCHEMA_VERSION = 2 as const;
 
 /** Every provider this architecture is designed to accept. */
 export type ProviderName = "sleeper" | "yahoo" | "espn";
@@ -163,7 +172,20 @@ export interface CanonicalLeague {
   scoring_rules: CanonicalScoringRule[];
   /** Verbatim provider scoring map, kept for the scoring engine + audit. */
   raw_scoring: Record<string, number>;
+  /**
+   * Canonical scoring identity — `scoringFingerprint(raw_scoring)`. Order- and
+   * zero-rule-insensitive; the ONE authoritative fingerprint on the canonical
+   * path (the season model's `scoring_hash` is legacy, kept until Phase 1B.2).
+   *
+   * Optional in the TYPE for backward compatibility with v1 fixtures / persisted
+   * rows, but ALWAYS populated by every provider adapter and by
+   * `buildCanonicalLeagueState`. Use `snapshotLineage()` / `attachLeagueFingerprints()`
+   * rather than reading this directly if you need a guaranteed value.
+   */
+  scoring_fingerprint?: string;
   roster_settings: CanonicalRosterSettings;
+  /** sha256 of the stable-stringified `roster_settings`. Same optionality contract as `scoring_fingerprint`. */
+  roster_fingerprint?: string;
   playoff_settings: CanonicalPlayoffSettings;
   waiver_settings: CanonicalWaiverSettings;
   provenance: Provenance;
@@ -359,6 +381,19 @@ export interface CanonicalAvailablePlayer {
 
 export interface CanonicalLeagueSnapshot {
   schema_version: typeof CANONICAL_SCHEMA_VERSION;
+  /**
+   * Traceable, deterministic identity of this league state — every downstream
+   * engine result echoes `lineage.league_snapshot_id`. Produced once, by
+   * `buildCanonicalLeagueState` (and its degraded shell). See
+   * `lib/canonical/lineage.ts`.
+   *
+   * Optional in the TYPE only for backward compatibility with v1 persisted rows
+   * and pre-existing test fixtures; ALWAYS present on anything
+   * `buildCanonicalLeagueState` returns. Read it via `snapshotLineage(snap)`
+   * (`lib/canonical/snapshot-lineage.ts`), which backfills a deterministic value
+   * for a v1 snapshot rather than returning `undefined`.
+   */
+  lineage?: import("./lineage").SnapshotLineage;
   captured_at: string;
   /** The provider's own freshness stamp for the underlying data. */
   provider_synced_at: string | null;

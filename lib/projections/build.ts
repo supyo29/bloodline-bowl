@@ -79,7 +79,36 @@ export interface BaseProjectionResult {
   warnings: string[];
 }
 
-let baseCache: { key: string; value: BaseProjectionResult } | null = null;
+/**
+ * Layer-1 base-projection cache.
+ *
+ * Invalidation semantics (Phase 1B.1):
+ *   - KEY: `(season, projection_version, model_version, calibration_id)`. A code
+ *     change to the model bumps `PROJECTION_MODEL_VERSION` and the old entry is
+ *     never served again.
+ *   - The historical actuals inputs (`HISTORY_SEASONS`, all prior/complete
+ *     seasons) are immutable. The one MUTABLE input is Sleeper's `/players/nfl`
+ *     index (a player changing NFL team, a rookie signing, a status flip that
+ *     moves someone through the `isCurrentlyDraftable` gate). To stop a
+ *     long-lived serverless instance from serving a stale roster/team view for
+ *     its whole lifetime, the entry EXPIRES after `BASE_PROJECTION_CACHE_TTL_MS`
+ *     and is rebuilt on the next call. The TTL (default 6h) is far longer than
+ *     any single analysis operation, so one operation never rebuilds mid-flight;
+ *     it is far shorter than a process lifetime, so new player data becomes
+ *     observable without a restart.
+ *   - `opts.force` and `clearProjectionCaches()` bypass/clear it (tests, admin).
+ */
+const BASE_PROJECTION_CACHE_TTL_MS = (() => {
+  const raw = Number(process.env.RI_BASE_PROJECTION_TTL_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 6 * 60 * 60 * 1000;
+})();
+
+let baseCache: { key: string; value: BaseProjectionResult; builtAt: number } | null = null;
+
+/** Exposed for tests / diagnostics: is the base cache entry within its TTL? */
+export function baseCacheFresh(now: number = Date.now()): boolean {
+  return baseCache != null && now - baseCache.builtAt < BASE_PROJECTION_CACHE_TTL_MS;
+}
 
 export function baseCacheKey(season: number, calibrationId: string = CALIBRATION_V3.id): string {
   return `base:${season}:${PROJECTION_VERSION}:${PROJECTION_MODEL_VERSION}:${calibrationId}`;
@@ -118,7 +147,9 @@ export async function buildBaseProjections(opts: BuildOptions = {}): Promise<Bas
   const season = opts.season ?? 2026;
   const calibration = opts.calibration ?? CALIBRATION_V3;
   const key = baseCacheKey(season, calibration.id);
-  if (!opts.force && !opts.fixtures && baseCache?.key === key) return baseCache.value;
+  if (!opts.force && !opts.fixtures && baseCache?.key === key && baseCacheFresh()) {
+    return baseCache.value;
+  }
 
   const warnings: string[] = [];
   const generatedAt = new Date().toISOString();
@@ -317,7 +348,7 @@ export async function buildBaseProjections(opts: BuildOptions = {}): Promise<Bas
     warnings,
   };
 
-  if (!opts.fixtures) baseCache = { key, value: result };
+  if (!opts.fixtures) baseCache = { key, value: result, builtAt: Date.now() };
   return result;
 }
 

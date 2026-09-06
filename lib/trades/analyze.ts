@@ -19,6 +19,7 @@
  */
 
 import { resolveManager } from "@/lib/canonical/manager-context";
+import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 
 import { resolveTradeConfig, type PartialTradeConfig } from "./config";
@@ -47,6 +48,13 @@ export async function analyzeTrade(
   proposal: TradeProposal,
   options: AnalyzeTradeOptions = {},
 ): Promise<TradeAnalysis> {
+  return runInLeagueStateScope(() => analyzeTradeInner(proposal, options));
+}
+
+async function analyzeTradeInner(
+  proposal: TradeProposal,
+  options: AnalyzeTradeOptions = {},
+): Promise<TradeAnalysis> {
   const config = resolveTradeConfig(options.config);
   const now = new Date().toISOString();
   const leagueSlug = (proposal.league ?? "").trim();
@@ -62,6 +70,7 @@ export async function analyzeTrade(
     league_slug: leagueSlug,
     week: 0,
     config,
+    lineage: null,
     validation: { ok: false, failures: [] },
     normalized: null,
     participants: {},
@@ -95,18 +104,26 @@ export async function analyzeTrade(
   for (const d of tctx.diagnostics) diagnostics.push(d);
 
   // ---- identity resolution -------------------------------------------------
+  // Index every player already resolved into the snapshot by each of its
+  // canonical identifiers (the crosswalk populates `identifiers.gsis_id` for any
+  // player it could line up cross-provider). This is not one-off GSIS matching —
+  // it is "look the input id up against the canonical identity that the shared
+  // crosswalk layer already established", symmetric with sleeper_id / name_key.
   const playerById = tctx.players_by_id;
   const bySleeper = new Map<string, CanonicalPlayer>();
+  const byGsis = new Map<string, CanonicalPlayer>();
   const byNameKey = new Map<string, CanonicalPlayer>();
   for (const p of snap.players) {
     if (p.identifiers.sleeper_id) bySleeper.set(p.identifiers.sleeper_id, p);
     if (p.identifiers.yahoo_id) bySleeper.set(`yahoo:${p.identifiers.yahoo_id}`, p);
+    if (p.identifiers.gsis_id) byGsis.set(p.identifiers.gsis_id, p);
     if (p.identifiers.name_key) byNameKey.set(p.identifiers.name_key.toLowerCase(), p);
   }
   const resolvePlayer = (raw: string): CanonicalPlayer | null =>
     playerById.get(raw) ??
     bySleeper.get(raw) ??
     bySleeper.get(`yahoo:${raw}`) ??
+    byGsis.get(raw) ??
     byNameKey.get(raw.toLowerCase()) ??
     null;
 
@@ -151,36 +168,18 @@ export async function analyzeTrade(
     };
   });
 
-  // Constraints for VALIDATION ONLY (roster size + structural fieldability via
-  // `maxSlotMatching`, which derives FLEX eligibility from the slot label). The
-  // EVALUATION path uses the fully-resolved `tctx.constraints`.
-  const constraintsFromSnap = {
-    starting_slots: snap.league.roster_settings.starting_slots,
-    slot_requirements: snap.league.roster_settings.slot_requirements,
-    bench_slots: snap.league.roster_settings.bench_slots,
-    ir_slots: snap.league.roster_settings.ir_slots,
-    taxi_slots: snap.league.roster_settings.taxi_slots,
-    roster_size_limit:
-      snap.league.roster_settings.starting_slots.length +
-        snap.league.roster_settings.bench_slots +
-        snap.league.roster_settings.ir_slots +
-        snap.league.roster_settings.taxi_slots || null,
-    active_roster_capacity: snap.league.roster_settings.starting_slots.length + snap.league.roster_settings.bench_slots,
-    reserve_ir_capacity: snap.league.roster_settings.ir_slots,
-    taxi_capacity: snap.league.roster_settings.taxi_slots,
-    flex_positions: ["RB", "WR", "TE"],
-    flex_slots: snap.league.roster_settings.starting_slots.filter(
-      (s) => !["QB", "RB", "WR", "TE", "K", "DEF", "BN", "IR"].includes(s),
-    ).length,
-  };
-
+  // Validation (roster size + structural fieldability via `maxSlotMatching`) and
+  // evaluation use the SAME fully-resolved constraints — `tctx.constraints` is
+  // built by `buildWeeklyTeamContext` from the canonical roster settings via the
+  // shared `lib/weekly/slots.ts` machinery (FLEX / SUPER_FLEX / Yahoo `W/R/T`
+  // eligibility all derived from the actual slot labels, never hard-coded).
   const resolution: TradeResolution = {
     league_slug: leagueSlug,
     participants: resolvedParticipants,
     transfers: resolvedTransfers,
     ownership,
     roster_by_manager,
-    constraints: constraintsFromSnap,
+    constraints: tctx.constraints,
     player_positions,
   };
 
@@ -190,6 +189,7 @@ export async function analyzeTrade(
       status: "VALIDATION_FAILED",
       validation,
       week: snap.week,
+      lineage: tctx.lineage,
       trade_context_version: TRADE_CONTEXT_VERSION,
       versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: null, data: null },
     });
@@ -223,6 +223,7 @@ export async function analyzeTrade(
   return base({
     status: "OK",
     week: tctx.week,
+    lineage: tctx.lineage,
     trade_context_version: TRADE_CONTEXT_VERSION,
     trade_calibrated_version: TRADE_CALIBRATED_VERSION,
     versions: { foundation: TRADE_ENGINE_VERSION, contextual: TRADE_CONTEXT_VERSION, calibrated: TRADE_CALIBRATED_VERSION, data: TRADE_DATA_LAYER_VERSION },

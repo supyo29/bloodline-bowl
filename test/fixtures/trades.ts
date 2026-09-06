@@ -11,6 +11,8 @@ import { batch, player, proj, roster, STD_CONSTRAINTS } from "./weekly";
 import { buildLeagueAvailability } from "../../lib/weekly/availability";
 import { computeWeeklyReplacement } from "../../lib/weekly/replacement";
 import { CANONICAL_SCHEMA_VERSION } from "../../lib/canonical/schema";
+import { snapshotLineage } from "../../lib/canonical/snapshot-lineage";
+import { buildRecommendationLineage } from "../../lib/canonical/lineage";
 import type {
   CanonicalLeagueSnapshot,
   CanonicalPlayer,
@@ -318,6 +320,11 @@ export function tradeFixture(spec: TradeFixtureSpec): TradeFixture {
       },
       rosters_by_manager: rosters,
       snapshot,
+      lineage: buildRecommendationLineage(
+        snapshotLineage(snapshot),
+        { weekly_engine: "post-draft-intel-2026.1", trade_foundation: "ri-trade-foundation-2026.2" },
+        [],
+      ),
       versions: {
         trade_foundation_version: "ri-trade-foundation-2026.2",
         trade_context_version: "ri-trade-contextual-2026.2",

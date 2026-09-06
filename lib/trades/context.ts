@@ -95,6 +95,11 @@ export interface TradeAnalysisContext {
   rosters_by_manager: Map<string, CanonicalRoster>;
   /** the single immutable snapshot everything is derived from */
   snapshot: CanonicalLeagueSnapshot;
+  /**
+   * Traceable lineage — the `league_snapshot_id`, fingerprints and projection
+   * model versions this trade context (and every result derived from it) used.
+   */
+  lineage: import("@/lib/canonical/lineage").RecommendationLineage;
   versions: {
     trade_foundation_version: string;
     trade_context_version: string;
@@ -299,6 +304,14 @@ export async function buildTradeAnalysisContext(
     league_slug: wctx.league.slug,
     season,
     week,
+    lineage: {
+      ...wctx.lineage,
+      engine_versions: {
+        ...wctx.lineage.engine_versions,
+        trade_foundation: TRADE_ENGINE_VERSION,
+        trade_contextual: TRADE_CONTEXT_VERSION,
+      },
+    },
     team_count: snapshot.league.team_count,
     scoring: { raw_scoring: wctx.league.raw_scoring, scoring_rules: wctx.league.scoring_rules },
     constraints: wctx.league.roster_constraints,

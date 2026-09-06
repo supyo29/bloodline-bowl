@@ -15,6 +15,14 @@ import {
 } from "./build";
 import { PROJECTION_MODEL_VERSION, PROJECTION_SCHEMA_VERSION, type FantasyPosition, type PlayerProjection } from "./schema";
 import type { ManagerRosterState } from "./manager-value";
+import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
+import type { ProjectionLineageEntry } from "@/lib/canonical/lineage";
+import { seasonProjectionLineage } from "./lineage";
+import {
+  loadProjectionCrosswalk,
+  resolveCanonicalIdentities,
+  type CanonicalIdentity,
+} from "./canonical-identity";
 
 const PROJECTION_SEASON = 2026;
 
@@ -130,12 +138,25 @@ export async function buildLeagueResponse(
   opts: { position?: string | null; limit?: number } = {},
 ): Promise<{
   meta: ProjectionMeta;
-  league: { league_slug: string; league_id: string; scoring_hash: string; num_teams: number; roster_positions: string[] };
+  league: {
+    league_slug: string;
+    league_id: string;
+    scoring_hash: string;
+    /** Canonical scoring identity — matches `CanonicalLeague.scoring_fingerprint`. */
+    scoring_fingerprint: string;
+    num_teams: number;
+    roster_positions: string[];
+  };
+  /** Which projection model(s) produced these values. */
+  projection_lineage: ProjectionLineageEntry[];
   replacement_levels: LeagueProjectionResult["replacement_levels"];
   positional_scarcity: LeagueProjectionResult["positional_scarcity"];
   cache_key: string;
   count: number;
-  players: LeagueProjectionResult["projections"];
+  players: Array<LeagueProjectionResult["projections"][number] & {
+    /** Bridge canonical identity for this projected player (see `canonical-identity.ts`). */
+    canonical_identity: CanonicalIdentity;
+  }>;
 }> {
   const base = await getBaseProjections();
   const league = buildLeagueProjections(base, cfg);
@@ -143,20 +164,36 @@ export async function buildLeagueResponse(
   let players = league.projections;
   if (pos) players = players.filter((p) => p.position === pos);
   const limit = Math.max(1, Math.min(opts.limit ?? 400, 2000));
+  const sliced = players.slice(0, limit);
+
+  const fingerprint = scoringFingerprint(cfg.scoring_settings);
+  const crosswalk = await loadProjectionCrosswalk();
+  const identities = resolveCanonicalIdentities(crosswalk, sliced);
+
   return {
     meta: meta(base),
     league: {
       league_slug: cfg.league_slug,
       league_id: cfg.league_id,
       scoring_hash: league.scoring_hash,
+      scoring_fingerprint: fingerprint,
       num_teams: cfg.num_teams,
       roster_positions: cfg.roster_positions,
     },
+    projection_lineage: seasonProjectionLineage(base.generated_at, fingerprint),
     replacement_levels: league.replacement_levels,
     positional_scarcity: league.positional_scarcity,
     cache_key: league.cache_key,
     count: players.length,
-    players: players.slice(0, limit),
+    players: sliced.map((p) => ({
+      ...p,
+      canonical_identity: identities.get(p.player_id) ?? {
+        canonical_player_id: null,
+        method: "unresolved",
+        confidence: "none",
+        cross_provider_verified: false,
+      },
+    })),
   };
 }
 

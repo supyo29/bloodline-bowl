@@ -2,8 +2,10 @@
  * End-to-end tests for `GET /api/draft` against the real Bloodline Bowl league.
  * Requires network access.
  *
- * The league is pre-draft, so these assert the invariants that must hold in any
- * draft state plus the specific guarantees of the pre-draft response.
+ * These assert the invariants that must hold in ANY draft state. The
+ * pre-draft-only guarantees are in their own describe block and skip themselves
+ * once the real league has drafted, rather than being pinned to a stale
+ * pre-draft fixture.
  */
 
 import assert from "node:assert/strict";
@@ -208,23 +210,32 @@ describe("live draft snapshot", () => {
     assert.ok(response.market.top_bidders.length > 0);
   });
 
-  it("is fresh enough to poll during a live draft", () => {
-    assert.equal(response.metadata.polling_safe, true);
+  it("exposes a structurally valid, self-consistent polling/cache policy", () => {
+    assert.equal(typeof response.metadata.polling_safe, "boolean");
     assert.equal(response.metadata.cache_seconds, cacheSeconds);
-    assert.ok(cacheSeconds <= 30, `cache too long: ${cacheSeconds}s`);
+    assert.ok(cacheSeconds >= 0 && Number.isFinite(cacheSeconds));
     assert.ok(!Number.isNaN(Date.parse(response.generated_at)));
+    // While a draft is actually running the response must be poll-fresh.
+    if (response.draft?.status === "drafting") {
+      assert.equal(response.metadata.polling_safe, true);
+      assert.ok(cacheSeconds <= 30, `cache too long during draft: ${cacheSeconds}s`);
+    }
   });
 });
 
-describe("live draft: pre-draft state", () => {
-  it("reports the pre-draft status without treating it as an error", () => {
+describe("live draft: pre-draft-only guarantees (skip once drafted)", () => {
+  const isPreDraft = () => response.draft?.status === "pre_draft";
+
+  it("reports the pre-draft status without treating it as an error", (t) => {
+    if (!isPreDraft()) return t.skip(`draft status is ${response.draft?.status}`);
     assert.equal(response.draft?.status, "pre_draft");
     assert.equal(response.draft?.completed_picks, 0);
     assert.equal(response.picks.length, 0);
     assert.equal(response.last_pick, null);
   });
 
-  it("gives every team an empty roster (and a full budget in an auction)", () => {
+  it("gives every team an empty roster (and a full budget in an auction)", (t) => {
+    if (!isPreDraft()) return t.skip(`draft status is ${response.draft?.status}`);
     for (const team of response.teams) {
       assert.equal(team.roster.players_acquired, 0);
       assert.equal(team.roster.slots_remaining, team.roster.slots_required);
@@ -241,7 +252,8 @@ describe("live draft: pre-draft state", () => {
     }
   });
 
-  it("reports the full starting lineup as still needed", () => {
+  it("reports the full starting lineup as still needed", (t) => {
+    if (!isPreDraft()) return t.skip(`draft status is ${response.draft?.status}`);
     for (const team of response.teams) {
       const required = Object.fromEntries(
         team.needs.required.map((n) => [n.position, n.minimum_needed]),
@@ -251,7 +263,8 @@ describe("live draft: pre-draft state", () => {
     }
   });
 
-  it("leaves prices_available null when there is nothing to judge", () => {
+  it("leaves prices_available null when there is nothing to judge", (t) => {
+    if (!isPreDraft()) return t.skip(`draft status is ${response.draft?.status}`);
     assert.equal(response.budget.prices_available, null);
     assert.equal(response.budget.picks_missing_price, 0);
   });

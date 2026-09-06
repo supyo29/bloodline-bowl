@@ -14,6 +14,7 @@
  */
 
 import { buildCanonicalLeagueState, type BuildStateOptions } from "./state";
+import { runInLeagueStateScope } from "./request-scope";
 import { findRegisteredManager } from "@/lib/leagues/managers";
 import type {
   CanonicalFantasyTeam,
@@ -81,6 +82,14 @@ export interface ManagerContext {
 }
 
 export async function buildManagerContext(
+  leagueSlug: string,
+  managerSlug: string,
+  options: BuildStateOptions = {},
+): Promise<ManagerContextResult> {
+  return runInLeagueStateScope(() => buildManagerContextInner(leagueSlug, managerSlug, options));
+}
+
+async function buildManagerContextInner(
   leagueSlug: string,
   managerSlug: string,
   options: BuildStateOptions = {},
@@ -239,9 +248,19 @@ function buildUpcomingMatchup(
   };
 }
 
-/** NFL 2026 bye weeks are not modeled in the foundation phase — flag, don't guess. */
+/**
+ * `/api/context` bye notes are an INFORMATIONAL placeholder for future
+ * roster-planning surfaces. Phase 1B.1 investigation: nothing consumes
+ * `bye_week_notes` for active-week analysis — the weekly engine
+ * (`buildWeeklyTeamContext`) does its OWN schedule-verified current-week bye
+ * detection via `getScheduleProvider()` and never reads this field. So the stub
+ * is not a correctness bug; a real multi-week schedule model is deferred to the
+ * Schedule / ROS phase as originally planned.
+ */
 function buildByeNotes(_players: CanonicalPlayer[]): string[] {
   return [
-    "Bye-week detection requires an NFL schedule source, which is deferred to the schedule-analysis phase.",
+    "Bye-week detection for weekly decisions is handled by the weekly engine " +
+      "(schedule-verified, current week only). Multi-week / roster-planning bye " +
+      "modeling is deferred to the Schedule/ROS phase.",
   ];
 }

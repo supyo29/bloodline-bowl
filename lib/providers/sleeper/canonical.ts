@@ -17,6 +17,7 @@ import {
   transactionId,
 } from "@/lib/canonical/ids";
 import type { PlayerCrosswalk } from "@/lib/canonical/players";
+import { attachLeagueFingerprints } from "@/lib/canonical/league-fingerprints";
 import type {
   CanonicalDraftPick,
   CanonicalFantasyTeam,
@@ -143,7 +144,7 @@ export function toCanonicalLeague(
           ? "reverse_standings"
           : "unknown";
 
-  return {
+  return attachLeagueFingerprints({
     canonical_league_id: leagueId(leagueSlug),
     league_slug: leagueSlug,
     name: league.name,
@@ -174,7 +175,7 @@ export function toCanonicalLeague(
       waiver_day: null,
     },
     provenance: prov(league.league_id, syncedAt),
-  };
+  });
 }
 
 export function toCanonicalManagers(

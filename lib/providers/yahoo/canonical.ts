@@ -10,6 +10,7 @@
  */
 
 import { leagueId, managerId, teamId, transactionId } from "@/lib/canonical/ids";
+import { attachLeagueFingerprints } from "@/lib/canonical/league-fingerprints";
 import type { PlayerCrosswalk } from "@/lib/canonical/players";
 import type {
   CanonicalFantasyTeam,
@@ -127,7 +128,7 @@ export function yahooBundleToCanonical(
   const slotRequirements: Record<string, number> = {};
   for (const s of startingSlots) slotRequirements[s] = (slotRequirements[s] ?? 0) + 1;
 
-  const league: CanonicalLeague = {
+  const league: CanonicalLeague = attachLeagueFingerprints({
     canonical_league_id: leagueId(leagueSlug),
     league_slug: leagueSlug,
     name: L.name,
@@ -160,7 +161,7 @@ export function yahooBundleToCanonical(
       waiver_day: null,
     },
     provenance: prov(L.league_key, syncedAt),
-  };
+  });
 
   const players = new Map<string, CanonicalPlayer>();
   const unresolved: UnresolvedPlayer[] = [];

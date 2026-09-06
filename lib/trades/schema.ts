@@ -420,6 +420,12 @@ export interface TradeAnalysis {
   league_slug: string;
   week: number;
   config: import("./config").TradeConfig;
+  /**
+   * Traceable lineage — the canonical `league_snapshot_id`, fingerprints and
+   * projection model versions this analysis was computed from. `null` only when
+   * the context could not be built (status `CONTEXT_UNAVAILABLE`).
+   */
+  lineage: import("@/lib/canonical/lineage").RecommendationLineage | null;
 
   validation: TradeValidationResult;
   /** the resolved, canonical form of the proposal (present when validation passed) */

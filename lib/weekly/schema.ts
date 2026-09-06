@@ -256,6 +256,13 @@ export interface WeeklyTeamContext {
   engine_version: typeof WEEKLY_ENGINE_VERSION;
   generated_at: string;
 
+  /**
+   * Traceable lineage: the canonical `league_snapshot_id` this context was built
+   * from, its fingerprints, and the projection model(s) it consumed. Every
+   * engine result derived from this context echoes `lineage.snapshot.league_snapshot_id`.
+   */
+  lineage: import("@/lib/canonical/lineage").RecommendationLineage;
+
   league: {
     slug: string;
     name: string;
