@@ -17,6 +17,7 @@ import { buildTradeAnalysisContext } from "../lib/trades/context";
 import { buildSnapshot } from "../lib/analytics/snapshot";
 import { buildScoringBundle } from "../lib/scoring/scoring-service";
 import { buildLeagueBundle } from "../lib/sleeper/service";
+import { buildLeagueManagementContext } from "../lib/team-state";
 import { getNflState } from "../lib/sleeper/client";
 import { listLeagueTargets } from "../lib/leagues/registry";
 
@@ -29,6 +30,7 @@ import {
   factsFromManagerIdentity,
   factsFromLeaguesManagers,
   factsFromWeeklyContext,
+  factsFromLeagueManagementContext,
 } from "../lib/canonical/certification/extractors";
 
 // Route handlers (invoked directly — no server).
@@ -69,7 +71,7 @@ for (const target of SLEEPER_LEAGUES) {
           snap.managers.find((m) => m.provider_user_id)?.manager_slug;
         assert.ok(managerSlug, "a resolvable manager");
 
-        const [scoring, legacyBundle, snapshot, mgrSnapRes, mgrIdRes, leaguesMgrsRes, weekly] =
+        const [scoring, legacyBundle, snapshot, mgrSnapRes, mgrIdRes, leaguesMgrsRes, weekly, manage] =
           await Promise.all([
             buildScoringBundle(slug),
             buildLeagueBundle(target.league_id),
@@ -84,6 +86,7 @@ for (const target of SLEEPER_LEAGUES) {
               params: Promise.resolve({ leagueSlug: slug }),
             }),
             buildWeeklyTeamContext(slug, managerSlug!).catch(() => null),
+            buildLeagueManagementContext(slug),
           ]);
 
         const results: { name: string; facts: ReturnType<typeof factsFromCanonical>; only?: string[]; allow?: string[] }[] = [
@@ -105,6 +108,9 @@ for (const target of SLEEPER_LEAGUES) {
         ];
         if (weekly?.context) {
           results.push({ name: "weekly-context", facts: factsFromWeeklyContext(weekly.context) });
+        }
+        if (manage.context) {
+          results.push({ name: "team-state", facts: factsFromLeagueManagementContext(manage.context) });
         }
         return { canonical, results };
       });

@@ -13,6 +13,7 @@ import type { LeagueResponse, NormalizedTeam, NormalizedPlayer } from "@/lib/sle
 import type { LeagueSnapshot } from "@/lib/analytics/snapshot";
 import type { RosterStandingFacts } from "@/lib/analytics/standings";
 import type { WeeklyTeamContext } from "@/lib/weekly/schema";
+import type { LeagueManagementContext } from "@/lib/team-state/schema";
 
 const sorted = (xs: (string | null | undefined)[]) =>
   xs.filter((x): x is string => Boolean(x)).sort();
@@ -197,6 +198,71 @@ export function factsFromManagerIdentity(p: ManagerIdentityPayload): LeagueFacts
     ],
   ]);
   return { source: "api/leagues/:slug/managers/:slug", partial: true, teams };
+}
+
+/* -------------------------------------- Phase 2 Team-State (full-league) */
+
+export function factsFromLeagueManagementContext(ctx: LeagueManagementContext): LeagueFacts {
+  const teams = new Map<number, TeamFacts>();
+  const players = new Map<string, PlayerFacts>();
+  const sid = (ids: { sleeper_id?: string }, cid: string) =>
+    ids.sleeper_id ?? (cid.startsWith("player:sleeper:") ? cid.slice("player:sleeper:".length) : null);
+
+  for (const t of ctx.teams) {
+    const rid = t.identity.roster_id;
+    const idsOf = (loc: "starter" | "bench" | "ir") =>
+      sorted(
+        t.roster.players
+          .filter((p) => p.roster_slot === loc)
+          .map((p) => sid(p.ids, p.canonical_player_id)),
+      );
+    teams.set(rid, {
+      roster_id: rid,
+      owner_user_id: t.identity.provider_owner_id,
+      manager_display_name: t.identity.manager_display_name,
+      team_name: t.identity.team_name,
+      wins: t.standing?.wins ?? null,
+      losses: t.standing?.losses ?? null,
+      ties: t.standing?.ties ?? null,
+      points_for: t.standing?.points_for ?? null,
+      points_against: t.standing?.points_against ?? null,
+      starter_ids: idsOf("starter"),
+      bench_ids: idsOf("bench"),
+      ir_ids: idsOf("ir"),
+      all_player_ids: sorted(t.roster.players.map((p) => sid(p.ids, p.canonical_player_id))),
+      opponent_roster_id: t.matchup?.opponent_roster_id ?? (t.matchup ? null : undefined),
+    });
+    for (const p of t.roster.players) {
+      const s = sid(p.ids, p.canonical_player_id);
+      if (s) {
+        players.set(s, {
+          provider_id: s,
+          canonical_player_id: p.canonical_player_id,
+          position: p.position,
+          nfl_team: p.nfl_team,
+          is_team_defense: p.is_team_defense,
+        });
+      }
+    }
+  }
+
+  return {
+    source: "team-state",
+    provider_league_id: null, // Team-State carries slug, not provider id — leave unset
+    season: ctx.league.season,
+    week: ctx.league.week,
+    status: ctx.league.status,
+    scoring_fingerprint: ctx.lineage.snapshot.scoring_fingerprint,
+    roster_positions_raw: null,
+    starting_slots: ctx.league.starting_slots,
+    bench_slots: ctx.league.bench_slots,
+    ir_slots: ctx.league.ir_slots,
+    taxi_slots: ctx.league.taxi_slots,
+    team_count: ctx.league.team_count,
+    snapshot_id: ctx.lineage.snapshot.league_snapshot_id,
+    teams,
+    players,
+  };
 }
 
 /* ----------------------------------------------- weekly context (one manager) */

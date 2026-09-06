@@ -15,6 +15,7 @@ import { buildWeeklyTeamContext } from "@/lib/weekly/context";
 import { buildSnapshot } from "@/lib/analytics/snapshot";
 import { buildScoringBundle } from "@/lib/scoring/scoring-service";
 import { buildLeagueBundle } from "@/lib/sleeper/service";
+import { buildLeagueManagementContext } from "@/lib/team-state";
 import { listLeagueTargets } from "@/lib/leagues/registry";
 import { getLeagueRosters } from "@/lib/sleeper/client";
 
@@ -27,6 +28,7 @@ import {
   factsFromManagerIdentity,
   factsFromLeaguesManagers,
   factsFromWeeklyContext,
+  factsFromLeagueManagementContext,
 } from "@/lib/canonical/certification/extractors";
 
 import { GET as mgrSnapshotGET } from "@/app/api/leagues/[leagueSlug]/managers/[managerSlug]/snapshot/route";
@@ -54,7 +56,7 @@ async function main() {
         target.known_managers[0] ??
         snap.managers.find((m) => m.provider_user_id)!.manager_slug;
 
-      const [scoring, bundle, snapshot, mgrSnapRes, mgrIdRes, leaguesMgrsRes, weekly] =
+      const [scoring, bundle, snapshot, mgrSnapRes, mgrIdRes, leaguesMgrsRes, weekly, manage] =
         await Promise.all([
           buildScoringBundle(slug),
           buildLeagueBundle(target.league_id),
@@ -69,6 +71,7 @@ async function main() {
             params: Promise.resolve({ leagueSlug: slug }),
           }),
           buildWeeklyTeamContext(slug, managerSlug),
+          buildLeagueManagementContext(slug),
         ]);
 
       const surfaces = [
@@ -79,6 +82,7 @@ async function main() {
         ["manager-identity", factsFromManagerIdentity(await mgrIdRes.json())],
         ["leagues/:slug/managers", factsFromLeaguesManagers(await leaguesMgrsRes.json())],
         weekly.context ? ["weekly-context", factsFromWeeklyContext(weekly.context)] : null,
+        manage.context ? ["team-state", factsFromLeagueManagementContext(manage.context)] : null,
       ].filter(Boolean) as [string, ReturnType<typeof factsFromCanonical>][];
 
       let discrepancies = 0;
