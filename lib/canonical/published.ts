@@ -27,6 +27,7 @@
 
 import { buildCanonicalLeagueState, type CanonicalStateResult } from "./state";
 import { reconcilePublishCandidate, formatReconcileFailure, type ReconcileResult } from "./reconcile";
+import { assessCapabilities, type CapabilityReport } from "./capabilities";
 import { snapshotContentHash, leagueSnapshotId } from "@/lib/persistence/serialize";
 import {
   deriveFreshness,
@@ -49,6 +50,7 @@ export type PublishOutcome =
   | "raced" // another instance advanced the pointer first; served the winner
   | "rejected" // candidate failed the gate; served the prior published snapshot
   | "uncertified" // candidate failed the gate and there is NO prior snapshot
+  | "dry_run" // built + reconciled a candidate but published nothing (shadow mode)
   | "source_unavailable"; // provider read failed; served the prior published snapshot (if any)
 
 export interface PublishedSnapshotResult {
@@ -59,8 +61,12 @@ export interface PublishedSnapshotResult {
   outcome: PublishOutcome;
   snapshot: CanonicalLeagueSnapshot | null;
   freshness: Freshness;
+  /** Capability + materiality report for `snapshot` (integrity verdict inside). */
+  capabilities: CapabilityReport | null;
   pointer: PublishedPointer | null;
   policy: RefreshPolicy;
+  /** True when no persistence write / pointer advance was attempted. */
+  dry_run: boolean;
   reconcile?: ReconcileResult;
 }
 
@@ -73,6 +79,12 @@ export interface PublishedSnapshotOptions {
   persistence?: PersistenceBundle;
   /** Test seam: supply the candidate build instead of hitting a provider. */
   buildOverride?: () => Promise<CanonicalStateResult>;
+  /**
+   * Shadow mode: build the candidate and run the reconcile gate, but perform NO
+   * `SnapshotStore.put` and NO pointer advance. The authoritative
+   * `bridge_published_snapshot` row is never touched. Used by Stage C.
+   */
+  dryRun?: boolean;
   /** Clock injection for tests. */
   now?: number;
 }
@@ -83,10 +95,28 @@ function ageOf(basis: string | null | undefined, now: number): number | null {
   return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 1000));
 }
 
+type InnerResult = Omit<PublishedSnapshotResult, "capabilities" | "dry_run">;
+
+/**
+ * Public accessor. Wraps the pipeline and attaches the capability report for the
+ * snapshot actually returned (from the reconcile gate when a candidate was
+ * built, otherwise assessed fresh from the served snapshot).
+ */
 export async function getPublishedLeagueSnapshot(
   leagueSlug: string,
   options: PublishedSnapshotOptions = {},
 ): Promise<PublishedSnapshotResult> {
+  const inner = await publishInner(leagueSlug, options);
+  const capabilities =
+    inner.reconcile?.capabilities ??
+    (inner.snapshot ? assessCapabilities(inner.snapshot) : null);
+  return { ...inner, capabilities, dry_run: !!options.dryRun };
+}
+
+async function publishInner(
+  leagueSlug: string,
+  options: PublishedSnapshotOptions = {},
+): Promise<InnerResult> {
   const now = options.now ?? Date.now();
   const policy = options.mode
     ? { ...resolveRefreshPolicy({ ...options.signals, forced: options.forced }), mode: options.mode }
@@ -177,6 +207,30 @@ export async function getPublishedLeagueSnapshot(
 
   const candidate = built.snapshot;
   const reconcile = reconcilePublishCandidate(candidate);
+
+  // --- shadow mode: never touch persistence or the pointer -----------------
+  if (options.dryRun) {
+    return {
+      ok: reconcile.ok,
+      status: 200,
+      outcome: "dry_run",
+      snapshot: candidate,
+      pointer,
+      policy,
+      reconcile,
+      freshness: deriveFreshness({
+        mode: policy.mode,
+        source_synced_at: candidate.provider_synced_at,
+        published_at: candidate.captured_at,
+        snapshot_id: leagueSnapshotId(candidate),
+        content_hash: snapshotContentHash(candidate),
+        certified: reconcile.ok,
+        source_status: "AVAILABLE",
+        degraded_reason: reconcile.ok ? null : "CERTIFICATION_FAILED",
+        now,
+      }),
+    };
+  }
 
   if (!reconcile.ok) {
     const reason: DegradedReason =
@@ -354,7 +408,7 @@ async function servePrior(
   detail: string,
   now: number,
   fallbackSnapshot: CanonicalLeagueSnapshot | null,
-): Promise<PublishedSnapshotResult> {
+): Promise<InnerResult> {
   const prior = pointer
     ? await persistence.snapshots.getById(pointer.snapshot_id).catch(() => null)
     : null;

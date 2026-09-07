@@ -45,7 +45,6 @@ export function emitBridgeEvent(
   fields: Record<string, EventField> = {},
 ): void {
   try {
-    // eslint-disable-next-line no-console
     console.log(
       JSON.stringify({
         evt: `bridge.${event}`,
