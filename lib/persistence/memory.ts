@@ -22,6 +22,8 @@ import type {
   LedgerStore,
   PersistenceBundle,
   PersistenceStatus,
+  PublicationAudit,
+  PublicationAuditStore,
   PublishedPointer,
   PublishedPointerStore,
   PutSnapshotResult,
@@ -268,16 +270,44 @@ export class MemoryPublishedPointerStore implements PublishedPointerStore {
   }
 }
 
+export class MemoryPublicationAuditStore implements PublicationAuditStore {
+  readonly backend = "memory";
+  rows: PublicationAudit[] = [];
+
+  async status(): Promise<PersistenceStatus> {
+    return "READY";
+  }
+  async record(audit: PublicationAudit) {
+    const id = uid();
+    this.rows.push({ ...audit, id });
+    return { status: "READY" as PersistenceStatus, id };
+  }
+  async latest(league_slug: string, season: number): Promise<PublicationAudit | null> {
+    const rows = this.rows
+      .filter((r) => r.league_slug === league_slug && r.season === season)
+      .sort((a, b) => b.attempted_at.localeCompare(a.attempted_at));
+    return rows[0] ?? null;
+  }
+  async recent(league_slug: string, season: number, limit = 20): Promise<PublicationAudit[]> {
+    return this.rows
+      .filter((r) => r.league_slug === league_slug && r.season === season)
+      .sort((a, b) => b.attempted_at.localeCompare(a.attempted_at))
+      .slice(0, limit);
+  }
+}
+
 export function memoryPersistence(): PersistenceBundle {
   const snapshots = new MemorySnapshotStore();
   const ledger = new MemoryLedgerStore();
   const runs = new MemoryCaptureRunStore();
   const published = new MemoryPublishedPointerStore();
+  const publication_audit = new MemoryPublicationAuditStore();
   return {
     snapshots,
     ledger,
     runs,
     published,
+    publication_audit,
     status: async () => "READY",
   };
 }

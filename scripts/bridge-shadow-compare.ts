@@ -37,6 +37,7 @@ import {
   getLeagueTransactions,
 } from "@/lib/sleeper/client";
 import { listLeagueTargets, leagueConfigStatus } from "@/lib/leagues/registry";
+import { getPersistence } from "@/lib/persistence";
 import type { CanonicalLeagueSnapshot } from "@/lib/canonical/schema";
 
 const argv = process.argv.slice(2);
@@ -65,6 +66,17 @@ interface LeagueReport {
   p0: Record<string, { timing: number; semantic: number; semantic_detail: string[] }>;
   capability_summary: string;
   model_equivalence: { teams_compared: number; divergent_teams: string[] };
+  /** §16 — legacy live vs the ACTUAL published pointer snapshot, when one exists. */
+  published_comparison:
+    | { pointer_present: false; note: string }
+    | {
+        pointer_present: true;
+        published_snapshot_id: string;
+        published_seq: number;
+        verdict: string;
+        unexplained: number;
+        source_stable: boolean;
+      };
 }
 
 function directFactsFromRaw(
@@ -121,6 +133,7 @@ async function runLeague(slug: string): Promise<LeagueReport> {
     p0: {},
     capability_summary: "-",
     model_equivalence: { teams_compared: 0, divergent_teams: [] },
+    published_comparison: { pointer_present: false, note: "not evaluated" },
   };
 
   let oldStart: CanonicalLeagueSnapshot;
@@ -172,6 +185,51 @@ async function runLeague(slug: string): Promise<LeagueReport> {
     sourceEndHash: endHash,
     reconcileOk: newRes.reconcile!.ok,
   });
+
+  // §16 — legacy live vs the ACTUAL published pointer snapshot (real persistence).
+  try {
+    const realPersistence = getPersistence();
+    if ((await realPersistence.published.status()) !== "READY") {
+      report.published_comparison = {
+        pointer_present: false,
+        note: "published-pointer store not configured in this environment",
+      };
+    } else {
+      const league = listLeagueTargets().find((t) => t.key === slug)!;
+      const ptr = await realPersistence.published.get(slug, league.season ?? oldStart.season);
+      if (!ptr) {
+        report.published_comparison = {
+          pointer_present: false,
+          note: "no published pointer for this league yet — run POST /api/refresh or /api/cron/publish",
+        };
+      } else {
+        const stored = await realPersistence.snapshots.getById(ptr.snapshot_id);
+        if (!stored) {
+          report.published_comparison = {
+            pointer_present: false,
+            note: `pointer names snapshot ${ptr.snapshot_id} but it is missing from the store`,
+          };
+        } else {
+          const cmp = compareCanonicalPaths(oldStart, stored.payload, {
+            mode: "LIVE_SHADOW",
+            sourceStartHash: startHash,
+            sourceEndHash: endHash,
+            reconcileOk: true,
+          });
+          report.published_comparison = {
+            pointer_present: true,
+            published_snapshot_id: ptr.league_snapshot_id,
+            published_seq: ptr.published_seq,
+            verdict: cmp.verdict,
+            unexplained: cmp.totals.UNEXPLAINED,
+            source_stable: startHash === endHash,
+          };
+        }
+      }
+    }
+  } catch (e) {
+    report.published_comparison = { pointer_present: false, note: `error: ${String(e)}` };
+  }
 
   // P0 direct-surface comparison.
   try {
@@ -300,6 +358,18 @@ function md(reports: LeagueReport[]): string {
     L.push("");
     L.push(`- teams compared: ${r.model_equivalence.teams_compared}`);
     L.push(`- divergent teams: ${r.model_equivalence.divergent_teams.length === 0 ? "**none**" : r.model_equivalence.divergent_teams.join(", ")}`);
+    L.push("");
+
+    L.push(`### Legacy live vs published pointer (§16)`);
+    L.push("");
+    if (r.published_comparison.pointer_present) {
+      const pc = r.published_comparison;
+      L.push(`- published snapshot: \`${pc.published_snapshot_id}\` (seq ${pc.published_seq})`);
+      L.push(`- verdict: **${pc.verdict}** · unexplained ${pc.unexplained} · source stable ${pc.source_stable}`);
+      if (pc.unexplained > 0 && pc.source_stable) anyUnexplainedStable = true;
+    } else {
+      L.push(`- ${r.published_comparison.note}`);
+    }
     L.push("");
   }
 

@@ -234,12 +234,56 @@ export interface CaptureRunStore {
   ): Promise<void>;
 }
 
+/* ------------------------------------------------------ publication audit */
+
+/**
+ * One row per publication ATTEMPT (Stage E). Not on any read path — it is the
+ * operational audit trail: what was tried, what was certified, whether the
+ * pointer moved, and why not when it didn't.
+ */
+export interface PublicationAudit {
+  id?: string | null;
+  league_slug: string;
+  season: number;
+  trigger: "API" | "CRON" | "CLI" | "TEST";
+  attempted_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  /** The `PublishOutcome` from `getPublishedLeagueSnapshot`. */
+  outcome: string;
+  ok: boolean;
+  candidate_snapshot_id: string | null;
+  candidate_content_hash: string | null;
+  prior_pointer_seq: number | null;
+  resulting_pointer_seq: number | null;
+  pointer_advanced: boolean;
+  snapshot_persisted: "created" | "duplicate" | "error" | "skipped" | "not_attempted";
+  integrity: "CERTIFIED" | "REJECTED" | null;
+  validation_detail: string | null;
+  source_status: string | null;
+  error_category: string | null;
+  error: string | null;
+}
+
+export interface PublicationAuditStore {
+  readonly backend: string;
+  status(): Promise<PersistenceStatus>;
+  /** Append one audit row. Best-effort: a failure here never fails a publish. */
+  record(audit: PublicationAudit): Promise<{ status: PersistenceStatus; id: string | null; error?: string }>;
+  /** Most recent attempt for a league+season. */
+  latest(league_slug: string, season: number): Promise<PublicationAudit | null>;
+  /** Recent attempts, newest first. */
+  recent(league_slug: string, season: number, limit?: number): Promise<PublicationAudit[]>;
+}
+
 export interface PersistenceBundle {
   snapshots: SnapshotStore;
   ledger: LedgerStore;
   runs: CaptureRunStore;
   /** Authoritative pointer to the currently published certified snapshot. */
   published: PublishedPointerStore;
+  /** Publication-attempt audit trail (Stage E). */
+  publication_audit: PublicationAuditStore;
   /** Aggregate status: READY only if every store is READY. */
   status(): Promise<PersistenceStatus>;
 }

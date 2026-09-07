@@ -98,7 +98,7 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
   const now = Date.now();
   const persistence = getPersistence();
 
-  const [sleeperHealth, historyStatus, pointerStatus] = await Promise.all([
+  const [sleeperHealth, historyStatus, pointerStatus, auditStatus] = await Promise.all([
     getProvider("sleeper").healthCheck().catch((e) => ({
       provider: "sleeper" as const,
       status: "PROVIDER_ERROR" as const,
@@ -106,6 +106,7 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
     })),
     persistence.status().catch(() => "PERSISTENCE_ERROR" as const),
     persistence.published.status().catch(() => "PERSISTENCE_ERROR" as const),
+    persistence.publication_audit.status().catch(() => "PERSISTENCE_ERROR" as const),
   ]);
 
   const targets = listLeagueTargets().filter(
@@ -140,6 +141,12 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
           now,
         });
 
+        const recent = await persistence.publication_audit
+          .recent(t.key, t.season ?? snap.season, 5)
+          .catch(() => []);
+        const last = recent[0] ?? null;
+        const lastOk = recent.find((a) => a.ok) ?? null;
+
         return {
           league_slug: t.key,
           reachable: true,
@@ -148,6 +155,7 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
           response_state_lineage: env.response_state_lineage,
           freshness: env.freshness,
           published_snapshot: env.published_snapshot,
+          publication_generation: pointer?.published_seq ?? null,
           snapshot_integrity: rec.capabilities.snapshot_integrity,
           integrity_failures: rec.capabilities.integrity_failures,
           cross_surface_discrepancy_count: rec.discrepancies.length,
@@ -156,8 +164,19 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
           benign_unresolved_count: rec.capabilities.benign_unresolved_count,
           unresolved_categories: rec.capabilities.unresolved_categories,
           capabilities: compactCapabilities(rec.capabilities.capabilities),
-          last_successful_publication: pointer?.published_at ?? null,
-          last_failed_publication: null, // not persisted yet — Stage E
+          last_refresh: last
+            ? {
+                outcome: last.outcome,
+                ok: last.ok,
+                attempted_at: last.attempted_at,
+                pointer_advanced: last.pointer_advanced,
+                integrity: last.integrity,
+                error_category: last.error_category,
+                trigger: last.trigger,
+              }
+            : null,
+          last_successful_refresh_at: lastOk?.attempted_at ?? pointer?.published_at ?? null,
+          recent_refresh_outcomes: recent.map((a) => a.outcome),
           warnings: snap.warnings.map((w) => w.code),
         };
       } catch (e) {
@@ -193,7 +212,11 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
       note: "OFF ⇒ every route serves state from the legacy live path; the published pointer is inspection-only",
     },
     source_connectivity: sleeperHealth,
-    persistence: { history_stores: historyStatus, published_pointer_store: pointerStatus },
+    persistence: {
+      history_stores: historyStatus,
+      published_pointer_store: pointerStatus,
+      publication_audit_store: auditStatus,
+    },
     leagues,
     can_i_trust_the_bridge: anyDegraded
       ? "PARTIAL — see per-league integrity / source_connectivity"

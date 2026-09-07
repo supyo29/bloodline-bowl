@@ -67,6 +67,10 @@ export interface PublishedSnapshotResult {
   policy: RefreshPolicy;
   /** True when no persistence write / pointer advance was attempted. */
   dry_run: boolean;
+  /** Outcome of the immutable `SnapshotStore.put`, when one was attempted. */
+  snapshot_put_outcome?: "created" | "duplicate" | "error";
+  /** On a non-success outcome, which subsystem failed. */
+  failure_kind?: "PROVIDER" | "CERTIFICATION" | "PERSISTENCE" | "POINTER";
   reconcile?: ReconcileResult;
 }
 
@@ -258,6 +262,7 @@ async function publishInner(
       formatReconcileFailure(reconcile),
       now,
       pointer ? null : candidate,
+      "CERTIFICATION",
     );
     return { ...served, reconcile };
   }
@@ -276,6 +281,7 @@ async function publishInner(
       `snapshot store rejected the candidate: ${put.error ?? "unknown"}`,
       now,
       pointer ? null : candidate,
+      "PERSISTENCE",
     );
     return { ...served, reconcile };
   }
@@ -310,6 +316,7 @@ async function publishInner(
       `published pointer advance failed: ${advance.error ?? "unknown"}`,
       now,
       pointer ? null : candidate,
+      "POINTER",
     );
     return { ...served, reconcile };
   }
@@ -327,6 +334,7 @@ async function publishInner(
       pointer: advance.pointer,
       policy,
       reconcile,
+      snapshot_put_outcome: put.outcome,
       freshness: advance.pointer
         ? freshnessFor(advance.pointer, policy.mode, "AVAILABLE", null, now)
         : freshnessFor(null, policy.mode, "AVAILABLE", "REFRESH_FAILED", now),
@@ -355,6 +363,7 @@ async function publishInner(
     pointer: advance.pointer,
     policy,
     reconcile,
+    snapshot_put_outcome: put.outcome,
     freshness: advance.pointer
       ? freshnessFor(advance.pointer, policy.mode, "AVAILABLE", null, now)
       : deriveFreshness({
@@ -408,6 +417,7 @@ async function servePrior(
   detail: string,
   now: number,
   fallbackSnapshot: CanonicalLeagueSnapshot | null,
+  failureKind: NonNullable<InnerResult["failure_kind"]> = "PROVIDER",
 ): Promise<InnerResult> {
   const prior = pointer
     ? await persistence.snapshots.getById(pointer.snapshot_id).catch(() => null)
@@ -430,6 +440,7 @@ async function servePrior(
     snapshot: prior?.payload ?? fallbackSnapshot,
     pointer,
     policy,
+    failure_kind: failureKind,
     // A failed candidate with no prior pointer is DEGRADED (something went
     // wrong), not UNKNOWN (which means "no snapshot, nothing wrong").
     freshness: freshnessFor(pointer, policy.mode, sourceStatus, degradedReason, now),
