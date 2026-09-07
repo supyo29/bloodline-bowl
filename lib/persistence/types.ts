@@ -74,6 +74,8 @@ export interface SnapshotStore {
   ): Promise<PutSnapshotResult>;
   /** Latest capture for a week (optionally of a specific capture_type). */
   getLatest(key: SnapshotKey): Promise<StoredSnapshot | null>;
+  /** One stored snapshot by its store row id (used by the published pointer). */
+  getById(id: string): Promise<StoredSnapshot | null>;
   /** Every retained capture for a week, newest first. */
   listVersions(key: SnapshotKey): Promise<StoredSnapshotMeta[]>;
   /** Metadata for all snapshots of a league+season, newest first. */
@@ -131,6 +133,82 @@ export interface LedgerStore {
   count(league_slug: string, season: number): Promise<number>;
 }
 
+/* ------------------------------------------------ published-snapshot pointer */
+
+/**
+ * The authoritative "which already-certified snapshot IS the current league
+ * reality" pointer. ONE row per (league_slug, season).
+ *
+ * This is NOT a copy of the snapshot — the immutable {@link SnapshotStore} row
+ * `snapshot_id` points to remains the source of truth for the payload. This
+ * pointer only records *which* stored snapshot has been certified and published
+ * as current, and carries just enough denormalized metadata to answer freshness
+ * questions without a second read.
+ *
+ * Publication is atomic and monotonic: `advance()` moves the pointer only when
+ * the caller's `expected_seq` still matches the stored `published_seq` (or the
+ * row is absent and `expected_seq === 0`). A failed candidate never advances the
+ * pointer; a lost race is reported as `raced`, never as a silent overwrite.
+ */
+export interface PublishedPointer {
+  league_slug: string;
+  season: number;
+  /** `SnapshotStore` row id (immutable snapshot) this pointer certifies. */
+  snapshot_id: string;
+  /** Deterministic `snap:<slug>:<season>:wNN:<hash16>` id of that snapshot. */
+  league_snapshot_id: string;
+  /** Content hash of the published snapshot (change detection). */
+  content_hash: string;
+  week: number;
+  /** Monotonic counter — bumped on every successful advance. Concurrency guard. */
+  published_seq: number;
+  /** Always true here: the pointer is only ever advanced past certification. */
+  certified: boolean;
+  source_provider_synced_at: string | null;
+  published_at: string;
+  updated_at: string;
+  schema_version: number;
+}
+
+export interface AdvancePointerInput {
+  league_slug: string;
+  season: number;
+  snapshot_id: string;
+  league_snapshot_id: string;
+  content_hash: string;
+  week: number;
+  source_provider_synced_at: string | null;
+  schema_version: number;
+}
+
+export interface AdvancePointerResult {
+  status: PersistenceStatus;
+  /**
+   * `advanced`  — the pointer now names this snapshot.
+   * `unchanged` — the current pointer already names this exact content hash (no-op).
+   * `raced`     — another writer advanced the pointer first; `pointer` is the winner.
+   * `error`     — the store failed; the previous pointer (if any) is unchanged.
+   */
+  outcome: "advanced" | "unchanged" | "raced" | "error";
+  pointer: PublishedPointer | null;
+  error?: string;
+}
+
+export interface PublishedPointerStore {
+  readonly backend: string;
+  status(): Promise<PersistenceStatus>;
+  get(league_slug: string, season: number): Promise<PublishedPointer | null>;
+  /**
+   * Atomically advance the pointer. `expected_seq` is the `published_seq` the
+   * caller last observed (0 when it observed no row). Concurrency-safe: a
+   * mismatched `expected_seq` yields `raced`, never an overwrite.
+   */
+  advance(
+    input: AdvancePointerInput,
+    expected_seq: number,
+  ): Promise<AdvancePointerResult>;
+}
+
 /* -------------------------------------------------------------- capture runs */
 
 export interface CaptureRunInput {
@@ -160,6 +238,8 @@ export interface PersistenceBundle {
   snapshots: SnapshotStore;
   ledger: LedgerStore;
   runs: CaptureRunStore;
+  /** Authoritative pointer to the currently published certified snapshot. */
+  published: PublishedPointerStore;
   /** Aggregate status: READY only if every store is READY. */
   status(): Promise<PersistenceStatus>;
 }

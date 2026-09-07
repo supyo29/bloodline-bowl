@@ -151,6 +151,16 @@ export class SupabaseSnapshotStore implements SnapshotStore {
       : null;
   }
 
+  async getById(id: string): Promise<StoredSnapshot | null> {
+    const rows = await this.rest.select<SnapshotRow>(SNAP_TABLE, {
+      filter: { id: `eq.${id}` },
+      limit: 1,
+    });
+    return rows[0]
+      ? { ...toMeta(rows[0]), payload: hydratePersistedSnapshot(rows[0].payload) }
+      : null;
+  }
+
   async listVersions(key: SnapshotKey): Promise<StoredSnapshotMeta[]> {
     const filter: Record<string, string> = {
       league_slug: `eq.${key.league_slug}`,
