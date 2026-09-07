@@ -8,6 +8,7 @@
  */
 
 import { buildManagerContext } from "@/lib/canonical/manager-context";
+import { resolveFreshnessEnvelope } from "@/lib/canonical/freshness-envelope";
 import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,17 @@ export async function GET(
     return errorResponse(result.status, result.code ?? "manager_context_unavailable", result.detail);
   }
 
+  // ADDITIVE (Stage D, observational). `manager_context` is unchanged and still
+  // legacy-live-path derived; `freshness.state_source` says so.
+  const freshness = result.snapshot
+    ? await resolveFreshnessEnvelope({
+        leagueSlug: result.context.league.league_slug,
+        season: result.context.league.season,
+        servedSnapshot: result.snapshot,
+        stateSource: "LEGACY_LIVE_PATH",
+      }).catch(() => null)
+    : null;
+
   return jsonResponse(
     {
       context: {
@@ -37,6 +49,7 @@ export async function GET(
         canonical_url: `/api/context/${result.context.league.league_slug}/${result.context.manager.manager_slug}`,
       },
       manager_context: result.context,
+      ...(freshness ? { freshness } : {}),
     },
     {
       headers: {

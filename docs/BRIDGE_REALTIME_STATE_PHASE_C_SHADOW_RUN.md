@@ -1,6 +1,6 @@
 # Bridge Real-Time State — Stage C: Shadow Comparison Report
 
-Generated: 2026-09-07T17:27:18.255Z
+Generated: 2026-09-07T17:44:46.879Z
 
 **Operationally read-only.** In-memory persistence; `dryRun: true`; only Sleeper GETs.
 Pointer rows written to production: **0** (by construction — the harness never

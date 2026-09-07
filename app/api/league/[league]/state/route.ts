@@ -13,6 +13,7 @@
  */
 
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { resolveFreshnessEnvelope } from "@/lib/canonical/freshness-envelope";
 import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,17 @@ export async function GET(
   const healthy =
     snap.live_provider_status === "READY" && snap.history_persistence_status === "READY";
 
+  // ADDITIVE (Stage D, observational): freshness + capability envelope. The
+  // `state` field above is unchanged and still served by the legacy live path;
+  // `freshness.state_source` says exactly that.
+  const freshness = await resolveFreshnessEnvelope({
+    leagueSlug: snap.league.league_slug,
+    season: snap.season,
+    servedSnapshot: snap,
+    stateSource: "LEGACY_LIVE_PATH",
+    sourceUnavailable: snap.live_provider_status !== "READY",
+  }).catch(() => null);
+
   return jsonResponse(
     {
       status: healthy ? "READY" : "DEGRADED",
@@ -41,6 +53,7 @@ export async function GET(
       history_persistence_status: snap.history_persistence_status,
       warnings: snap.warnings,
       state: snap,
+      ...(freshness ? { freshness } : {}),
     },
     {
       status: result.status,

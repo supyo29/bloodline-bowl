@@ -430,12 +430,8 @@ async function servePrior(
     snapshot: prior?.payload ?? fallbackSnapshot,
     pointer,
     policy,
-    freshness: freshnessFor(
-      pointer,
-      policy.mode,
-      sourceStatus,
-      pointer ? degradedReason : "NO_PUBLISHED_SNAPSHOT",
-      now,
-    ),
+    // A failed candidate with no prior pointer is DEGRADED (something went
+    // wrong), not UNKNOWN (which means "no snapshot, nothing wrong").
+    freshness: freshnessFor(pointer, policy.mode, sourceStatus, degradedReason, now),
   };
 }

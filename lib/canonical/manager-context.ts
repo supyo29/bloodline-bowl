@@ -34,6 +34,12 @@ export interface ManagerContextResult {
   code?: string;
   detail?: string;
   context: ManagerContext | null;
+  /**
+   * The canonical snapshot this context was built from. Exposed so a route can
+   * attach an observational freshness/capability envelope without a second
+   * provider read. Present whenever `context` is.
+   */
+  snapshot?: CanonicalLeagueSnapshot | null;
 }
 
 export interface ManagerContext {
@@ -209,7 +215,7 @@ async function buildManagerContextInner(
     warnings: snap.warnings,
   };
 
-  return { ok: true, status: 200, context };
+  return { ok: true, status: 200, context, snapshot: snap };
 }
 
 export function resolveManager(managers: CanonicalManager[], slug: string): CanonicalManager | null {

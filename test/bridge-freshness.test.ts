@@ -64,9 +64,10 @@ describe("deriveFreshness", () => {
     assert.equal(f.degraded_reason, "CERTIFICATION_FAILED");
   });
 
-  it("no published snapshot -> DEGRADED / NO_PUBLISHED_SNAPSHOT", () => {
+  it("no published snapshot -> UNKNOWN (distinct from STALE and DEGRADED)", () => {
     const f = deriveFreshness({ mode: "NORMAL", now: T0, degraded_reason: "NO_PUBLISHED_SNAPSHOT" });
-    assert.equal(f.status, "DEGRADED");
+    assert.equal(f.status, "UNKNOWN");
     assert.equal(f.age_seconds, null);
+    assert.equal(f.degraded_reason, "NO_PUBLISHED_SNAPSHOT");
   });
 });

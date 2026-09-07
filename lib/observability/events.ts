@@ -24,7 +24,13 @@ export type BridgeEvent =
   | "transaction_detected"
   | "source_unavailable"
   | "stale_snapshot_served"
-  | "pointer_race_lost";
+  | "pointer_race_lost"
+  | "freshness_evaluated"
+  | "snapshot_missing"
+  | "snapshot_stale"
+  | "capability_degraded"
+  | "capability_unavailable"
+  | "deep_health_checked";
 
 export type EventField = string | number | boolean | null;
 

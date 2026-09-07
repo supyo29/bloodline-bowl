@@ -26,7 +26,9 @@ export type FreshnessStatus =
   | "STALE"
   | "REFRESHING"
   | "DEGRADED"
-  | "SOURCE_UNAVAILABLE";
+  | "SOURCE_UNAVAILABLE"
+  /** No published snapshot exists yet — age is genuinely unknown, NOT stale. */
+  | "UNKNOWN";
 
 export type SourceStatus = "AVAILABLE" | "DEGRADED" | "SOURCE_UNAVAILABLE";
 
@@ -106,6 +108,10 @@ export function deriveFreshness(input: DeriveFreshnessInput): Freshness {
     // The provider is unreachable — that is the most useful thing to report,
     // whether or not a prior snapshot exists to fall back to.
     status = "SOURCE_UNAVAILABLE";
+  } else if (input.degraded_reason === "NO_PUBLISHED_SNAPSHOT") {
+    // Distinct from STALE and from DEGRADED: nothing is wrong, there is simply
+    // no published generation to measure the age of.
+    status = "UNKNOWN";
   } else if (input.degraded_reason) {
     status = "DEGRADED";
   } else if (input.refreshing) {
@@ -132,7 +138,11 @@ export function deriveFreshness(input: DeriveFreshnessInput): Freshness {
     content_hash: input.content_hash ?? null,
     certified: input.certified ?? false,
     degraded_reason:
-      status === "DEGRADED" ? (input.degraded_reason ?? "REFRESH_FAILED") : null,
+      status === "DEGRADED"
+        ? (input.degraded_reason ?? "REFRESH_FAILED")
+        : status === "UNKNOWN"
+          ? "NO_PUBLISHED_SNAPSHOT"
+          : null,
     thresholds,
     notes,
   };
