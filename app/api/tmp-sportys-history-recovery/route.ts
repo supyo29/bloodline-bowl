@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const revalidate = false;
 
 const USERS = [
   { user_id: "469961070534979584", display_name: "rspata2" },
@@ -11,15 +11,25 @@ const USERS = [
 
 const SEASONS = ["2024", "2023", "2022", "2021", "2020"] as const;
 
+type LeagueSummary = {
+  league_id?: unknown;
+  name?: unknown;
+  season?: unknown;
+  total_rosters?: unknown;
+  status?: unknown;
+  previous_league_id?: unknown;
+  draft_id?: unknown;
+};
+
 export async function GET(): Promise<Response> {
   const rows = await Promise.all(
     USERS.flatMap((user) =>
       SEASONS.map(async (season) => {
         const url = `https://api.sleeper.app/v1/user/${user.user_id}/leagues/nfl/${season}`;
         try {
-          const response = await fetch(url, { cache: "no-store" });
+          const response = await fetch(url, { cache: "force-cache" });
           if (!response.ok) {
-            return {
+            const row = {
               user_id: user.user_id,
               display_name: user.display_name,
               season,
@@ -27,9 +37,11 @@ export async function GET(): Promise<Response> {
               status: response.status,
               leagues: [],
             };
+            console.log("SPORTYS_HISTORY_RECOVERY", JSON.stringify(row));
+            return row;
           }
-          const leagues = (await response.json()) as Array<Record<string, unknown>>;
-          return {
+          const leagues = (await response.json()) as LeagueSummary[];
+          const row = {
             user_id: user.user_id,
             display_name: user.display_name,
             season,
@@ -43,11 +55,12 @@ export async function GET(): Promise<Response> {
               status: league.status,
               previous_league_id: league.previous_league_id,
               draft_id: league.draft_id,
-              avatar: league.avatar,
             })),
           };
+          console.log("SPORTYS_HISTORY_RECOVERY", JSON.stringify(row));
+          return row;
         } catch (error) {
-          return {
+          const row = {
             user_id: user.user_id,
             display_name: user.display_name,
             season,
@@ -56,12 +69,12 @@ export async function GET(): Promise<Response> {
             error: error instanceof Error ? error.message : "Unknown error",
             leagues: [],
           };
+          console.log("SPORTYS_HISTORY_RECOVERY", JSON.stringify(row));
+          return row;
         }
       }),
     ),
   );
 
-  return Response.json({ users: USERS, seasons: SEASONS, rows }, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  return Response.json({ users: USERS, seasons: SEASONS, rows });
 }
