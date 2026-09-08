@@ -48,9 +48,9 @@ publish cron does not meet the NORMAL freshness ceiling without a Vercel plan up
 | PR preview | `bloodline-bowl-sleeper-bridge-3s1tgbcpp-…` @ `05fabd6` (Vercel check PASS) |
 | `BRIDGE_PUBLISHED_SNAPSHOT` (prod) | **OFF** (`feature_flags.BRIDGE_PUBLISHED_SNAPSHOT: "OFF"`, all waves false) |
 | `REFRESH_SECRET` (prod) | **set** (operator, 2026-09-08 ~03:15 UTC) — `POST /api/refresh` no auth → `401 unauthorized`, bad bearer → `401 unauthorized` "Invalid credentials", value never echoed |
-| `REFRESH_SECRET` (preview) | not set — `POST /api/refresh` → `401 endpoint_disabled` |
+| `REFRESH_SECRET` (preview) | **set** (operator, 2026-09-08 ~03:20 UTC) — auth gate active (`401 unauthorized` on no/bad auth); an authed publish returns `503` (see next row) — deliberately left there |
 | Supabase env (prod) | **set** — deep health `persistence.{history_stores, published_pointer_store, publication_audit_store} = READY` |
-| Supabase env (preview) | **not set** — deep health persistence `PERSISTENCE_NOT_CONFIGURED` |
+| Supabase env (preview) | **not set, by choice** — deep health persistence `PERSISTENCE_NOT_CONFIGURED`; an authed `POST /api/refresh` on preview authenticates then returns `503 PERSISTENCE_UNAVAILABLE` (the documented fail-safe). Preview can verify the auth gate only, not a real publish. |
 | `bridge_published_snapshot` rows (prod DB) | **2** — `bloodline-bowl` seq 1, `devoted-to-the-game` seq 1 (written by the Gate 1 authenticated refresh, 2026-09-08 03:17 UTC) |
 | `bridge_publication_audit` rows (prod DB) | **16** — 2 `published` (Gate 1) + 2 `skipped` (`sportys-alumni`) + 12 `unchanged` (Gate 2 bursts); all `ok:true` `integrity:CERTIFIED` `error:null` |
 | `/api/cron/publish` schedule | `0 13 * * *` (daily — Vercel Hobby plan constraint, see "Code changes") |
