@@ -432,12 +432,99 @@ components, or blend horizons.
 
 ---
 
-## Deployment
+## Deployment (§24–§25)
 
-(filled in after push + deploy — see below.)
+- **Integrated `main` SHA:** `f152545` (merge FF `48a97cb → 3ce66eb` + this certification doc `f152545`).
+- **Tag:** `team-management-phases-1-7-2026.1` → `f152545` (pushed to `origin`).
+- **Push:** `git push origin main` → `48a97cb..f152545`, plus the tag.
+- **Vercel:** deployment `dpl_CAEtSP3FiSRd1iQEWNvoSNTGSHZh`, target `production`, commit `f152545`,
+  **state `READY`**, region `iad1`, alias `bloodline-bowl-sleeper-bridge.vercel.app`, `aliasError: null`.
+
+## Production certification (§26–§31)
+
+**Phase 1 — canonical (prod).** `GET /api/league/bloodline-bowl/state`:
+`schema_version: 3`, `lineage.league_snapshot_id: snap:bloodline-bowl:2026:w1:44ba3cfb957dad7d`,
+`scoring_fingerprint: scoring:v1:29acc6bcd911df090b5b9b9c` (**identical to local**),
+`roster_fingerprint: roster:v1:58bde6f903a48abe18246dcd` (**identical to local**),
+`state_source: LEGACY_LIVE_PATH`, `fallback.occurred: false`, `snapshot_integrity: CERTIFIED`,
+12 rosters / 184 players, `playoff_settings {15, 6, 17}`. All capabilities `HEALTHY` except
+`free_agent_pool: UNAVAILABLE` (documented Phase 2 limitation — not a regression).
+
+> **Environment-specific difference (expected, documented).** The production snapshot
+> *content hash* (`…44ba3cfb…`) differs from local (`…1af36589…`) because production resolves
+> player identity through the Supabase GSIS crosswalk (`crosswalk_version:
+> supabase:nfl_players:266`, `player_data_version: players:v1:7c01c938bfadf3a3` vs local
+> `…5f49935c…`). Both environments are internally deterministic. **Logical facts agree**:
+> identical scoring + roster fingerprints, identical week / status / team count / playoff config.
+
+**Phase 2 — Team-State (prod).** `/api/leagues/{slug}/manage` and
+`/api/leagues/{slug}/managers/{mgr}/manage` → 200, `league_snapshot_id` coherent with Phase 1.
+
+**Phases 3–7 (prod).**
+
+| endpoint | bloodline-bowl | devoted-to-the-game |
+| --- | --- | --- |
+| `/api/leagues/{l}/roster-health` | 200 · `roster-health-2026.1` · `SHARED_CONTEXT` · 12 teams | 200 |
+| `/api/leagues/{l}/schedule-planning` | 200 · `schedule-planning-2026.1` · `SHARED_CONTEXT` · `fi=not_used` · playoff `{15,6,17}` from canonical · 12 teams · 17-week timelines | 200 |
+| `/api/leagues/{l}/managers/{m}/roster-health` | 200 | 200 |
+| `/api/leagues/{l}/managers/{m}/schedule-planning` | 200 | 200 |
+| `/api/intelligence/{l}/{m}/week/1` `start_sit_shadow` | present · `SHADOW_ONLY` · `ri-startsit-2026.1` | present · `SHADOW_ONLY` |
+| `/api/intelligence/{l}/{m}/week/1` `matchup_intelligence` | present · `SHADOW_ONLY` · `ri-matchup-2026.1` · `fi=not_used` | present · `SHADOW_ONLY` |
+
+Snapshot coherence in production: `roster-health`, `schedule-planning`, `manage` and
+`intelligence` all report the same `league_snapshot_id` per league
+(`…44ba3cfb…` / `…f0e05074…`).
+
+**Existing production engines (prod smoke).** `/api/league/{l}/state`, `/manage`, `/standings`,
+`/scoring`, `/api/intelligence/{l}/{m}/week/1`, `/api/lineup/…`, `/api/matchup/…`,
+`/api/waivers/…`, `/api/leagues/{l}/projections` — **all 200**. Error paths fail closed:
+`GET /api/trades/analyze` → 405, unknown league / manager → 404, no 5xx.
+
+**Production recommendation isolation (§30).** Production values are byte-identical to the
+local pre-deploy checks:
+
+| | local | production |
+| --- | ---: | ---: |
+| bloodline `supyo29` `lineup.optimal_total` | 113.36 | **113.36** |
+| bloodline `supyo29` production `matchup.win_probability` | 0.482 | **0.482** |
+| devoted `darthmarker` production `matchup.win_probability` | 0.38 | **0.38** |
+
+The shadow `matchup_intelligence.win_probability` shows sub-1-percentage-point environment
+variance (bloodline 0.4909 → 0.4901; devoted 0.4294 → 0.4225) because the shadow Monte-Carlo
+joins on crosswalk-resolved player identity, which differs local↔prod. This is a **shadow
+diagnostic** with `deployment = SHADOW_ONLY`; the production `matchup.win_probability` field is
+unaffected and identical. No production recommendation value changed.
+
+**Runtime / health (prod).** Per-manager weekly endpoint and the league-wide
+roster-health / schedule-planning endpoints all respond well within the `maxDuration = 60`
+lambda budget; `Cache-Control: 30/120`. The bridge published-snapshot flag remains **OFF**
+(`state_source: LEGACY_LIVE_PATH`) — the Phase 3–7 merge did not touch the bridge read path.
 
 ---
 
 ## VERDICT
 
-(filled in below.)
+The complete Phase 1–7 Team Management intelligence stack is merged to `main` (`f152545`,
+tag `team-management-phases-1-7-2026.1`), deployed to Vercel production (`dpl_CAEtSP3F…`,
+`READY`), and certified:
+
+- Fast-forward merge, zero conflicts, all additive; every frozen recommendation surface
+  (`lib/trades/{ros,depth}.ts`, `lib/weekly/{lineup,slots,start-sit,waivers,matchup}.ts`,
+  `lib/team-state/**`, `lib/canonical/**`) byte-identical `48a97cb..HEAD`.
+- Deployment states intact and machine-verified: Start/Sit FI + Matchup Intelligence
+  `SHADOW_ONLY` (`fiMayInfluenceProduction` / `matchupMayInfluenceProduction` = `false`);
+  Roster Health + Schedule Planning `SHARED_CONTEXT`; Football Intelligence descriptive/
+  research-routed with `NOT_PREDICTIVE` fields barred from numeric influence.
+- `npm test` 1558 / 1554 pass / 0 fail / 4 skip (0 existing tests changed); `tsc` clean;
+  `eslint` 0 errors / 0 new warnings; R 24 + 15 + 12 checks pass + Phase 5 null findings
+  reproduced; Phase 1C live `cross_surface_discrepancies = 0` on all 3 leagues (local + prod).
+- All layers coexist around one `league_snapshot_id` + scoring fingerprint per logical
+  request (both leagues, 24/24 teams), local and in production.
+- Production recommendation behaviour change = 0 (lineup totals + matchup WP byte-identical
+  local↔prod↔pre-merge).
+- 0 P0, 0 P1. P2: one deferred input-reassembly optimisation (→ Orchestrator). P3: naming nit,
+  benign preseason degradation labels, registry note.
+
+# TEAM MANAGEMENT PHASES 1–7 CERTIFIED — MERGED, DEPLOYED & FROZEN
+
+The Team Management Orchestrator is **not** started. Stopping here.
