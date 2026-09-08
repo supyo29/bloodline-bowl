@@ -1,6 +1,6 @@
 # Bridge Real-Time State — Stage C: Shadow Comparison Report
 
-Generated: 2026-09-07T17:44:46.879Z
+Generated: 2026-09-08T02:43:12.013Z
 
 **Operationally read-only.** In-memory persistence; `dryRun: true`; only Sleeper GETs.
 Pointer rows written to production: **0** (by construction — the harness never
@@ -46,6 +46,10 @@ receives the real persistence bundle).
 - teams compared: 12
 - divergent teams: **none**
 
+### Legacy live vs published pointer (§16)
+
+- published-pointer store not configured in this environment
+
 ## devoted-to-the-game
 
 | field | value |
@@ -85,6 +89,16 @@ receives the real persistence bundle).
 
 - teams compared: 12
 - divergent teams: **none**
+
+### Legacy live vs published pointer (§16)
+
+- published-pointer store not configured in this environment
+
+## sportys-alumni
+
+- comparison mode: **NOT APPLICABLE** — publication path skips this league
+- reason: `league status is "pre_draft" — no management state to publish`
+- capability health: `integrity=CERTIFIED degraded[matchups=DEGRADED,free_agent_pool=UNAVAILABLE,draft_availability=DEGRADED]`
 
 ## Aggregate
 

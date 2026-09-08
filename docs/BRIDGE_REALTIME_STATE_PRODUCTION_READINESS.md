@@ -1,8 +1,14 @@
 # Bridge Real-Time State — Production Readiness / Deployed-Verification Report
 
-Generated: 2026-09-08 (local). Branch: `bridge-realtime-state-phase-f` @ `379f062`.
-Scope: close or precisely document the four remaining operator gates. Evidence-driven.
-A local test pass is **not** accepted as evidence for a deployed/runtime gate.
+Generated: 2026-09-08 (local). Supersedes the earlier `379f062` revision of this file.
+Branch `bridge-realtime-state-phase-f` (`fd376a8 → 05fabd6`) **merged to `main`** as
+merge commit `8378255` (PR #17) and **deployed to production** with
+`BRIDGE_PUBLISHED_SNAPSHOT` OFF.
+
+Scope of this phase: push the completed bridge work, merge it safely, deploy it to
+production with the flag OFF, verify deployed code identity, and exercise / precisely
+document the four remaining operator gates. A local test pass is **not** accepted as
+evidence for a deployed/runtime gate.
 
 ---
 
@@ -10,103 +16,153 @@ A local test pass is **not** accepted as evidence for a deployed/runtime gate.
 
 ### `CONDITIONAL — PRODUCTION FLAG FLIP BLOCKED`
 
-**Root blocker (upstream of all four gates): none of the Stage A–F work — nor the
-Sporty's Alumni Bridge profile — is deployed, or even pushed to a remote branch.**
+The Stage A–F remodel and the Sporty's Alumni Bridge profile are now **merged and live
+in production behind an OFF flag**. Deployed code identity is verified on both the PR
+preview and production: the legacy live path is byte-for-byte the serving path, and the
+new machinery (refresh route, deep health, freshness envelope, published-pointer store,
+Sporty's manager-neutral profile) is present and inert.
 
-Verified against production `https://bloodline-bowl-sleeper-bridge.vercel.app`
-(deploys from `origin/main`):
-
-| production probe | result | meaning |
-| --- | --- | --- |
-| `GET /api/refresh` | **404** | Stage E refresh route not deployed |
-| `POST /api/refresh` (no auth) | **404** | " |
-| `GET /api/health?deep=1` | `deep: undefined`, no `feature_flags`, no `leagues[]` | Stage D deep health not deployed |
-| `GET /api/league/bloodline-bowl/state` | no `freshness` key | Stage D envelope not deployed |
-| `GET /api/bridge/board?league=sportys-alumni` | **400** ("must resolve to a Bridge profile") | Sporty's Bridge profile not deployed |
-| `origin/main` HEAD | `6007d5f "Add Sporty's Alumni Sleeper league"` (parent `c6edde6`) | production commit |
-| remote branches | no `bridge-realtime-state-*` | the entire remodel is **local only** |
-| `bridge_published_snapshot` rows (prod DB) | **0** | pointer path inert — no deployed writer |
-| `bridge_publication_audit` rows (prod DB) | **0** | " |
-
-The production `BRIDGE_PUBLISHED_SNAPSHOT` flag cannot be "flipped" because the code
-that reads it is not deployed. **Prerequisite for every gate below: push
-`bridge-realtime-state-phase-f`, review/merge per the repo's release process, deploy a
-preview with `REFRESH_SECRET` + the existing Supabase env, then deploy to production
-with the flag OFF.**
-
-What *is* already live and verified in production (from `6007d5f`): the `sportys-alumni`
-registry entry and the generic Draft-Live API path — see Gate 4.
+The flag **cannot** be enabled yet. Two of the four hard gates require an operator to
+set `REFRESH_SECRET` on a deployment (I cannot set Vercel env vars); one requires a real
+NFL scoring window; one requires the Sporty's Alumni draft (2026-09-08 22:00 UTC). None
+of these can be closed from this session.
 
 ---
 
-## Code changes (this phase)
+## Deployment state
 
-| file | change | model/semantics touched? |
-| --- | --- | --- |
-| `scripts/bridge-shadow-compare.ts` | records a publication-`skipped` league (pre_draft/drafting) as "NOT APPLICABLE" instead of crashing on the absent `reconcile`. Aggregate gate unaffected. | **no** — pure harness robustness; the skip semantics in `getPublishedLeagueSnapshot` are unchanged |
-| `test/draft-sportys-alumni.test.ts` | +1 deterministic test: a `skipped` result carries no `reconcile` | test only |
+| item | value |
+| --- | --- |
+| `origin/main` HEAD | `8378255` (merge commit, PR #17) — parents `6007d5f` + `05fabd6` |
+| production URL | `https://bloodline-bowl-sleeper-bridge.vercel.app` |
+| production deploy | auto-deployed from `origin/main` after merge; code identity verified below |
+| PR preview | `bloodline-bowl-sleeper-bridge-3s1tgbcpp-…` @ `05fabd6` (Vercel check PASS) |
+| `BRIDGE_PUBLISHED_SNAPSHOT` (prod) | **OFF** (`feature_flags.BRIDGE_PUBLISHED_SNAPSHOT: "OFF"`, all waves false) |
+| `REFRESH_SECRET` (prod) | **not set** — `POST /api/refresh` → `401 endpoint_disabled` (fail-closed) |
+| `REFRESH_SECRET` (preview) | **not set** — same |
+| Supabase env (prod) | **set** — deep health `persistence.{history_stores, published_pointer_store, publication_audit_store} = READY` |
+| Supabase env (preview) | **not set** — deep health persistence `PERSISTENCE_NOT_CONFIGURED` |
+| `bridge_published_snapshot` rows (prod DB) | **0** (baseline; first writer will be the daily publish cron) |
+| `bridge_publication_audit` rows (prod DB) | **0** (baseline) |
+| `/api/cron/publish` schedule | `0 13 * * *` (daily — Vercel Hobby plan constraint, see "Code changes") |
+| `/api/cron/capture` schedule | `0 12 * * *` (unchanged) |
 
-**No change to** `ri-snake-decision-2026.2` · projection / trade / waiver models ·
-canonical data model · published-snapshot schema · pointer semantics · feature-flag
-semantics · league-profile architecture · manager-neutral architecture · DraftPoller
-behavior · Bloodline Bowl behavior · Devoted to the Game behavior.
+### Rebase note (branch history)
 
-Commit: `379f062`.
+The branch as originally built contained one unrelated commit — `62fc1c2`
+(`docs/TEAM_MANAGEMENT_PHASE_3.md`, a 423-line audit doc for a different workstream).
+Per "do not merge unrelated local changes" it was excluded via
+`git rebase --onto origin/main 62fc1c2 …`. The one rebase conflict
+(`lib/leagues/registry.ts`, both sides adding the `sportys-alumni` entry) was resolved
+by keeping the entry already on `origin/main` (`6007d5f`) — functionally identical.
+`62fc1c2` is preserved on branch `team-management-phase3-football-intelligence`.
+Pre-rebase backup: branch `backup/phase-f-pre-rebase-f9c73dd`.
+
+The 14 bridge commits (A–F, Sporty's registry, Stage F addendum, DraftPoller, Sporty's
+profile, shadow-harness fix, prior readiness report) plus the cron fix (`05fabd6`) are
+all present under merge commit `8378255`.
 
 ---
 
-## Gate 1 — Preview publication
+## Code identity checks
 
-### `INCONCLUSIVE` (cannot run — prerequisite not met)
+`web_fetch_vercel_url` / share-cookie fetch (preview) and direct fetch (production).
 
-- `/api/refresh` returns **404 on production** — the route does not exist on any
-  deployment. There is no preview deployment of `bridge-realtime-state-phase-f`
-  (branch not pushed; Vercel cannot build it).
-- I have no Vercel deploy access and do not push/merge without an explicit request.
+| probe | production (`8378255`) | preview (`05fabd6`) | expected | verdict |
+| --- | --- | --- | --- | --- |
+| `GET /api/refresh` | **405** `method_not_allowed` | **405** | 405 (route exists, GET disallowed) | ✅ |
+| `POST /api/refresh` (no auth) | **401** `endpoint_disabled` | **401** | 401 (fail-closed, secret unset) | ✅ |
+| `POST /api/refresh` (bad bearer) | **401** `endpoint_disabled` | **401** | 401, secret value never echoed | ✅ |
+| `GET /api/health?deep=1` | **200** `deep:true`, `feature_flags` block, `waves_enabled` all false, `draft_live_independent:true`, `persistence` triad `READY`, `leagues[]` with `response_state_lineage` + `freshness` | **200** same shape, `persistence` triad `PERSISTENCE_NOT_CONFIGURED` | deep fields present | ✅ |
+| `GET /api/league/bloodline-bowl/state` | **200**, `freshness` envelope present: `state_source:"LEGACY_LIVE_PATH"`, `fallback.occurred:false`, `published_snapshot.present:false`, `freshness.status:"UNKNOWN"` / `degraded_reason:"NO_PUBLISHED_SNAPSHOT"`, `integrity.snapshot_integrity:"CERTIFIED"`, `capabilities` (free_agent_pool `UNAVAILABLE`, history_persistence `DEGRADED` on preview / `HEALTHY`-capable on prod) | **200** same | additive `freshness`, legacy serving path | ✅ |
+| `GET /api/bridge/board?league=sportys-alumni` | **200**, `manager_neutral:true`, `manager_key:null`, `draft_slot:null`, `draft_slot_source:"unconfirmed"`, `draft_feed.status:"pre_draft"`, 14 slots | **200** same | 200 (was **400** pre-merge), no default manager | ✅ |
+| `GET /api/bridge/board?league=sportys-alumni&slot=1` | — | **200**, `draft_slot:1`, `draft_slot_source:"user_override"`, still `manager_neutral:true` / `manager_key:null` | seat resolves without inventing an owner | ✅ |
+| `GET /api/bridge/board?league=bloodline-bowl` | **200**, `manager_key:"supyo29"`, `draft_slot:7` (`sleeper_draft_order`) | **200** same | unchanged | ✅ |
+| `GET /api/bridge/board?league=devoted-to-the-game` | **200**, `manager_key:"darthmarker"`, `draft_slot:4` | **200** same | unchanged | ✅ |
 
-**Local evidence only** (not accepted as gate closure): `POST /api/refresh` unit +
-route behavior — `GET → 405`, no secret → `401 endpoint_disabled`, wrong secret → `401`
-(value never echoed), unknown league → `404` pre-write, authenticated (no local
-Supabase) → `503 / PERSISTENCE_UNAVAILABLE`, LKG preserved. 21 orchestrator tests
-(`test/bridge-refresh.test.ts`). Storage-layer atomic-advance proof on the **production
-DB** (Stage E §5, transaction rolled back): 8 writers/seq0 → 1 advanced / 7 raced;
-guarded stale write → 0 rows.
+No `404` on any probe → the correct build is deployed on both targets. Production and
+preview differ only in env configuration (Supabase set on prod, not preview; secret
+unset on both), never in code behavior.
 
-**Operator runbook to close Gate 1** (on the preview deployment, `BRIDGE_PUBLISHED_SNAPSHOT` unset):
+---
+
+## Gate 1 — Preview / deployed publication
+
+### `BLOCKED — operator action required` (not run)
+
+`POST /api/refresh` is deployed and fail-closed: with `REFRESH_SECRET` unset it returns
+`401 endpoint_disabled` on **both** preview and production. An authenticated publish
+cannot be triggered from this session — I cannot set Vercel environment variables, and
+the `CRON_SECRET`-gated `/api/cron/publish` path is likewise not callable by hand.
+
+**What is proven:** route deployed, method gating (405), auth gating (401, value never
+echoed), deep-health wiring, published-pointer store `READY` on production, 0 baseline
+rows. Storage-layer atomic-advance proof on the production DB (Stage E §5, transaction
+rolled back): 8 writers/seq0 → 1 advanced / 7 raced; guarded stale write → 0 rows.
+21 orchestrator tests (`test/bridge-refresh.test.ts`).
+
+**What is not proven:** a real end-to-end deployed publish writing a pointer + audit row.
+
+**Two paths to close Gate 1:**
+
+1. **Operator sets `REFRESH_SECRET`** on the preview (or production) deployment, then
+   runs the runbook below.
+2. **Wait for the daily `/api/cron/publish` run** (13:00 UTC) on production — it uses
+   Vercel's auto-injected `CRON_SECRET` and Supabase is configured, so it will attempt
+   a real publish. Afterward verify:
+   ```sql
+   select league_slug, season, published_seq, league_snapshot_id, content_hash
+     from bridge_published_snapshot;
+   select league_slug, outcome, ok, integrity, pointer_advanced, error_category, attempted_at
+     from bridge_publication_audit order by attempted_at desc;
+   ```
+   Expect: `bloodline-bowl` + `devoted-to-the-game` → `outcome ∈ {published, unchanged}`,
+   `integrity=CERTIFIED`, `pointer_advanced=true` on the first run; `sportys-alumni` →
+   `outcome="skipped"` (pre_draft) with no pointer row. Flag stays OFF, so no read path
+   is affected either way.
+
+**Operator runbook (path 1, on a deployment with `REFRESH_SECRET` set, flag still OFF):**
 ```
-GET  <preview>/api/refresh                      → expect 405
-POST <preview>/api/refresh?league=bloodline-bowl (no auth) → expect 401
-POST <preview>/api/refresh?scope=all   -H "Authorization: Bearer $REFRESH_SECRET"
-     → expect 200; per league: outcome ∈ {published, unchanged},
-       integrity CERTIFIED, snapshot_id present, pointer_advanced true (first run)
-POST <preview>/api/refresh?league=sportys-alumni -H "Authorization: Bearer $REFRESH_SECRET"
-     → expect 200, outcome "skipped" (pre_draft) OR "published" if it has gone in_season
-POST <preview>/api/refresh?league=no-such-league -H "Authorization: Bearer $REFRESH_SECRET"
-     → expect 404, no DB write
-GET  <preview>/api/health?deep=1
-     → per league: publication_generation set, last_successful_refresh_at set,
-       freshness.status ≠ "UNKNOWN"; no secret anywhere in the body
+GET  <url>/api/refresh                                   → 405
+POST <url>/api/refresh?league=bloodline-bowl  (no auth)  → 401
+POST <url>/api/refresh?scope=all  -H "Authorization: Bearer $REFRESH_SECRET"
+     → 200; per league outcome ∈ {published, unchanged}, integrity CERTIFIED,
+       snapshot_id present, pointer_advanced true (first run)
+POST <url>/api/refresh?league=sportys-alumni  -H "Authorization: Bearer $REFRESH_SECRET"
+     → 200, outcome "skipped" (pre_draft)
+POST <url>/api/refresh?league=no-such-league  -H "Authorization: Bearer $REFRESH_SECRET"
+     → 404, no DB write
+GET  <url>/api/health?deep=1
+     → per league: freshness.status ≠ "UNKNOWN" after a publish; no secret in the body
 ```
 Record: deployment id, commit SHA, timestamps, HTTP statuses, `snapshot_id` /
-`published_seq` per league. Confirm `bridge_publication_audit` gained one row per attempt.
+`published_seq` per league, and one `bridge_publication_audit` row per attempt.
 
 ---
 
 ## Gate 2 — Deployed concurrency
 
-### `INCONCLUSIVE` (cannot run — prerequisite not met)
+### `BLOCKED — operator action required` (not run)
 
-Same blocker: no deployed `/api/refresh`.
+Same blocker as Gate 1 — no callable authenticated publish endpoint from this session.
 
-**Evidence that exists:** deterministic concurrency (`test/bridge-refresh.test.ts` —
-`Promise.all` of two publishes → outcomes `["published","raced"]`, seq monotonic) +
-the production-DB SQL race proof (Stage E §5). Neither exercises the deployed HTTP /
-serverless path, which is what this gate requires.
+**What is proven:** deterministic concurrency (`test/bridge-refresh.test.ts` —
+`Promise.all` of two publishes → `["published","raced"]`, seq monotonic) + the
+production-DB SQL race proof (Stage E §5). Neither exercises the deployed
+HTTP/serverless path.
 
-**Operator runbook to close Gate 2** (on the preview deployment):
-- **A. Same league:** fire 5–10 near-simultaneous authorized `POST /api/refresh?league=bloodline-bowl`. Expect each response ∈ {published, unchanged, raced}; `bridge_published_snapshot.published_seq` strictly increases and never regresses; `bridge_league_snapshots` gains at most one *new* content hash; last-known-good readable throughout.
-- **B. Cross-league:** concurrent `?league=bloodline-bowl` and `?league=sportys-alumni` (and `devoted-to-the-game`). Verify per-league pointer rows carry the correct `league_slug` / `snapshot_id` / `content_hash` / `schema_version`; no manager/profile/scoring bleed (compare each pointer's snapshot's `league.provenance.provider_id` + `scoring_fingerprint` + `roster_fingerprint` to that league's known values).
-- **C. Failure preservation:** only if the repo has a safe supported failure toggle — it does not; do not invent one. Skip and note.
+**Operator runbook (on a deployment with `REFRESH_SECRET`, flag OFF):**
+- **A. Same league:** 5–10 near-simultaneous authorized `POST /api/refresh?league=bloodline-bowl`.
+  Expect each response ∈ {published, unchanged, raced}; `bridge_published_snapshot.published_seq`
+  strictly increases, never regresses; at most one *new* content hash in `bridge_league_snapshots`;
+  last-known-good readable throughout.
+- **B. Cross-league:** concurrent `?league=bloodline-bowl`, `?league=devoted-to-the-game`,
+  `?league=sportys-alumni`. Verify per-league pointer rows carry the correct `league_slug` /
+  `snapshot_id` / `content_hash` / `schema_version`; no manager / scoring / roster bleed
+  (compare each pointer's snapshot `scoring_fingerprint` + `roster_fingerprint` to that
+  league's known values).
+- **C. Failure preservation:** the repo has no safe supported failure toggle — do not
+  invent one. Skip and note.
 
 Record request start/end timestamps per call.
 
@@ -114,81 +170,67 @@ Record request start/end timestamps per call.
 
 ## Gate 3 — Active-scoring-window shadow
 
-### `INCONCLUSIVE` — two independent blockers
+### `PENDING — real scoring window required` (deployed code ready; window unavailable)
 
-1. **Code not deployed** — the published/read path being compared is local only.
-2. **No active NFL scoring window** — both real leagues are at week 1 with no completed
-   games; `bridge_league_snapshots` latest capture is 2026-09-07. Synthetic activity
-   does not satisfy this gate.
+The published/read paths are now deployed, so blocker (1) from the prior report is
+cleared. Blocker (2) stands: it is 2026-09-08 ~02:45 UTC, NFL Week 1, no games live
+(Sunday games completed 09-07; MNF ~09-09 00:15 UTC). A synthetic window does not
+satisfy this gate.
 
-### Local run (live Sleeper, preseason — informational, NOT gate closure)
+### Post-merge shadow run (live Sleeper, no active window — informational, NOT gate closure)
 
-`npm run shadow:compare` @ `379f062`, 2026-09-08 02:10 UTC:
+`npm run shadow:compare` @ `05fabd6`, 2026-09-08 ~02:44 UTC:
 
-| league | source start id | source end id | source moved? | Layer A (deterministic) | Layer B | taxonomy | UNEXPLAINED | reconcile |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bloodline-bowl` | `snap:…:w1:1af3658949f1d670` | `…1af3658949f1d670` | **no** | EQUIVALENT (0) | **EQUIVALENT** | all categories 0 | **0** | CERTIFIED |
-| `devoted-to-the-game` | `snap:…:w1:22479a5b6e50687c` | `…22479a5b6e50687c` | **no** | EQUIVALENT (0) | **EQUIVALENT** | all categories 0 | **0** | CERTIFIED |
-| `sportys-alumni` | — | — | n/a | **NOT APPLICABLE** — publication path skips a `pre_draft` league | — | — | 0 | (skipped) |
+| league | source moved? | Layer A (deterministic) | Layer B | taxonomy | UNEXPLAINED | reconcile |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bloodline-bowl` | no | EQUIVALENT (0) | **EQUIVALENT** | all 8 categories 0 | **0** | CERTIFIED |
+| `devoted-to-the-game` | no | EQUIVALENT (0) | **EQUIVALENT** | all 8 categories 0 | **0** | CERTIFIED |
+| `sportys-alumni` | n/a | **NOT APPLICABLE** — publication skips a `pre_draft` league | — | — | 0 | (skipped) |
 
-P0 direct-route surfaces (canonical vs raw rosters/users/matchups/transactions):
-**0 timing / 0 semantic** for both scored leagues. Team-state model-input equivalence:
-12 teams each, **0 divergent**. Pointer rows written by the run: **0**. Model files
-changed: none.
+P0 direct-route surfaces: **0 timing / 0 semantic** for both scored leagues. Team-state
+model-input equivalence: 12 teams each, **0 divergent**. Pointer rows written by the
+run: **0**. Model files changed: none. Aggregate gate lines: both PASS.
 
-**This clears the "stable source ⇒ `UNEXPLAINED = 0`" property but NOT the gate** — the
-gate explicitly requires an *active scoring window with live state changing*.
+**This confirms determinism holds post-merge but does NOT close the gate** — the gate
+requires an active scoring window with live state changing.
 
-**Operator runbook to close Gate 3** (during a real Sun/Mon/Thu game window, code deployed):
-run `npm run shadow:compare` (or trigger the equivalent on the deployment) repeatedly
-across the window; let the publish cron advance pointers as scores move. For each
-league record: source-start id, source-end id, source-moved verdict, deterministic
-result, taxonomy counts, `UNEXPLAINED`, reconcile status. Required: `UNEXPLAINED = 0`
-on every stable-source run; `SOURCE_MOVED_DURING_RUN` runs classified as inconclusive
-(not "equivalent"), re-run. Do not adjust taxonomy thresholds.
+**Operator runbook (during a real Sun/Mon/Thu game window):** run `npm run shadow:compare`
+repeatedly across the window while the publish cron advances pointers as scores move.
+Per league record: source-start id, source-end id, source-moved verdict, deterministic
+result, taxonomy counts, `UNEXPLAINED`, reconcile status. Required: `UNEXPLAINED = 0` on
+every stable-source run; `SOURCE_MOVED_DURING_RUN` runs are inconclusive (re-run), not
+"equivalent". Do not adjust taxonomy thresholds.
 
 ---
 
 ## Gate 4 — Live Sporty's Alumni draft smoke
 
-### `PENDING` — draft starts `2026-09-08T22:00:00Z` (not observable in this session)
+### `PENDING — draft starts 2026-09-08T22:00:00Z` (not observable in this session)
 
-The `/bridge` UI seat-picker path is **not deployed** (Sporty's Bridge profile is on the
-local branch). The **generic Draft-Live API path IS deployed** (`6007d5f`) and was
-verified against production.
+The Sporty's Bridge profile and the `/bridge` seat-picker are now **deployed**
+(verified above: board 200, `manager_neutral:true`, 14 slots, `?slot=1` → `draft_slot:1`
+`user_override`). The generic Draft-Live API path is also live and was independently
+verified.
 
-### Pre-draft state — verified against **production** (deployed `6007d5f`), 2026-09-08 02:xx UTC
+### Pre-draft state — verified against **production** (`8378255`), 2026-09-08 ~02:4x UTC
 
 | check | result |
 | --- | --- |
-| `GET /api/health?draft=1&league=sportys-alumni` | `league_id=1389404340015370240`, `active_draft_id=1389404340032118784`, `draft_status=pre_draft`, `draft_type=snake` ✅ |
-| `GET /api/leagues/sportys-alumni/draft` | HTTP 200, `status=pre_draft`, `type=snake`, `teams=14`, `available=300` ✅ |
-| `GET /api/leagues/sportys-alumni/managers/mallermb/recommendations` | HTTP 200, `model=ri-snake-decision-2026.2`, `snake_engine_status=READY`, `league_slug=sportys-alumni`, `error=none` ✅ |
-| `GET /api/leagues/sportys-alumni/managers/rspata2/recommendations` | HTTP 200, same ✅ |
+| `GET /api/bridge/board?league=sportys-alumni` | 200, `platform_league_id=1389404340015370240`, `platform_draft_id=1389404340032118784`, `draft_feed.status=pre_draft`, 14 slots, `manager_neutral=true` ✅ |
+| `GET /api/bridge/board?league=sportys-alumni&slot=1` | 200, `draft_slot=1`, `draft_slot_source=user_override`, `manager_key=null` (no fabricated owner) ✅ |
 | cross-league isolation | Bloodline / Devoted / Sporty's each resolve to their own `league_id` + `draft_id` (all distinct; Bloodline & Devoted `complete`, Sporty's `pre_draft`) ✅ |
-| contamination scan | Sporty's recommendation payload contains **no** `bloodline` / `devoted` / `darthmarker` / other-league-id string ✅ |
-
-### Pre-draft `/bridge` UI seat-picker — verified **locally** (dev server, branch code) — NOT deployed
-
-`/bridge` lists all 3 leagues · Sporty's shows the "no default manager — pick your seat"
-banner + a 14-seat `<select>` (`1. mallermb … 14. TylerShreve`, matching Sleeper's
-`slot_to_roster_id` + `draft_order`) · no seat → `manager_neutral: true`,
-`manager_key: null`, `draft_slot_source: "unconfirmed"`, no `is_me` slot ·
-`?slot=1` → real manager `mallermb` (`1265477633718624256`) · full-PPR own board order
-(Bijan/Gibbs/Chase, not Bloodline's half-PPR order) · distinct scoring hash.
-9 live tests (`test/bridge-sportys-profile-live.test.ts`) green.
+| Bloodline & Devoted boards | unchanged — `manager_key` `supyo29` / `darthmarker`, slots 7 / 4 ✅ |
 
 ### DraftPoller cadence
 
-**Not measured at runtime** — no deployed draft to observe, and the draft is in the
-future. The constant is `DRAFT_LIVE_POLL_MS = 2000`; 13 fake-timer tests
-(`test/bridge-draft-poller.test.ts`) prove: pre_draft = 7 s, drafting/paused = 2 s,
-`pre_draft → drafting` auto-activates, `drafting → complete` stops, no pileups,
-transient-error backoff + recovery, visibility pause/resume. The board route returns
-`Cache-Control: no-store` when `draft_feed.status ∈ {drafting, paused}` (verified for
-the `pre_draft` case: `s-maxage=5`).
+**Not measured at runtime** — the draft is in the future. `DRAFT_LIVE_POLL_MS = 2000`;
+13 fake-timer tests (`test/bridge-draft-poller.test.ts`) prove: pre_draft = 7 s,
+drafting/paused = 2 s, `pre_draft → drafting` auto-activates, `drafting → complete`
+stops, no pileups, transient-error backoff + recovery, visibility pause/resume. The
+board route returns `Cache-Control: no-store` when `draft_feed.status ∈ {drafting,
+paused}`.
 
-### Operator runbook to close Gate 4 (during the real draft, `/bridge` deployed)
+### Operator runbook to close Gate 4 (during the real draft)
 
 Choose one real seat (record it). Before start: confirm `pre_draft`, manager-neutral
 intact, 14 seats, `?slot=N` resolves the right slot + username + user id, feed matches
@@ -201,25 +243,24 @@ record Sleeper pick #, player, slot, Sleeper timestamp, first bridge observation
 propagation delay; verify the drafted player leaves the pool + feed shows the pick +
 recommendations stop offering them + snake order advances + seat stays bound. Seat: an
 `is_me`/ownership marker appears only for the selected real seat, never when unselected,
-never inferred from Bloodline/Devoted/local identity; changing seats changes to the
-real corresponding manager. Recommendation smoke (narrow, not a model audit): after
-several picks the endpoint stays `READY`, `model` stays `ri-snake-decision-2026.2`,
+never inferred from Bloodline/Devoted/local identity. Recommendation smoke (narrow):
+after several picks the endpoint stays `READY`, `model` stays `ri-snake-decision-2026.2`,
 drafted players excluded, context reflects the selected seat, no other-league context.
-Completion: if observed, `drafting → complete` stops the poller; if not observed,
-mark **unobserved** (not a fabricated pass).
+Completion: if observed, `drafting → complete` stops the poller; if not observed, mark
+**unobserved** (not a fabricated pass).
 
 ---
 
-## Cross-league isolation — findings so far
+## Cross-league isolation
 
-Production (`6007d5f`): **clean** — each league's `league_id` / `draft_id` distinct;
-Sporty's recommendations carry `league_slug=sportys-alumni` and no other-league string.
-Local branch: the shadow harness compares `league_id`, `draft_id`, `scoring_fingerprint`,
-`roster_fingerprint`, manager mapping, draft feed, current pick, and the published
-snapshot identity across all three leagues on every run — **0 contamination** across the
-2026-09-08 run. The Bridge board's own isolation guards (`findBridgeProfile` never
-falls back to another league; a board whose returned `league_key` ≠ requested is
-rejected client-side) are unchanged and tested.
+Production (`8378255`): **clean** — each league's `league_id` / `draft_id` distinct;
+Sporty's recommendations carry `league_slug=sportys-alumni` and no other-league string;
+Sporty's board `manager_neutral:true` with no default seat. Bloodline & Devoted boards
+resolve to their own managers/slots, unchanged. The shadow harness compares `league_id`,
+`draft_id`, `scoring_fingerprint`, `roster_fingerprint`, manager mapping, draft feed,
+current pick, and published-snapshot identity across all three leagues on every run —
+**0 contamination** on the post-merge run. `findBridgeProfile` never falls back to
+another league; a board whose returned `league_key` ≠ requested is rejected client-side.
 
 ---
 
@@ -230,42 +271,86 @@ rejected client-side) are unchanged and tested.
 | targeted deterministic (`test/draft-sportys-alumni.test.ts`) | **17 pass / 0 fail** |
 | full non-live (`test/*.test.ts` minus `*-live`) | **1272 pass / 0 fail / 0 skipped** |
 | live bridge (`bridge-live` + `bridge-sportys-profile-live`) | **19 pass / 0 fail / 0 skipped** |
+| shadow compare (`npm run shadow:compare`, post-merge, live Sleeper) | `UNEXPLAINED = 0` both layers; 0 P0 semantic; 0 divergent teams; model files unchanged |
 | TypeScript (`tsc --noEmit`) | **clean** |
-| lint (`npm run lint`) | **0 errors** (29 pre-existing warnings) |
-| build (`npm run build`) | **compiles successfully** |
-| deployed / preview | **none run** — no deployment of this branch exists |
+| lint (`npm run lint`) | **0 errors** (pre-existing warnings only) |
+| build (`npm run build`) | **compiles** |
+| deployed code identity (preview `05fabd6` + production `8378255`) | **all probes pass** (table above) |
 
-No skips or failures hidden.
+No skips or failures hidden. `*-live.test.ts` files remain network-flaky under parallel
+load (pre-existing; reproduced on a clean pre-branch checkout) — the deterministic
+non-live suite is the gating signal.
+
+---
+
+## Code changes during this phase
+
+| commit | file(s) | change | model / semantics touched? |
+| --- | --- | --- | --- |
+| (rebase) | `lib/leagues/registry.ts` | conflict resolution: keep the `sportys-alumni` entry already on `origin/main` (`6007d5f`), drop the branch's functionally-identical duplicate | **no** |
+| `05fabd6` | `vercel.json` | **deployment/config defect fix.** PR #17's Vercel build failed (`vercel.link/3Fpeeb1` → cron usage-and-pricing). Root cause: `/api/cron/publish` at `*/5 * * * *` — the Vercel **Hobby** plan (confirmed `team_LetK8hiDkOnuySZBJL8Nst7U` `plan=hobby`) rejects any sub-daily cron at build time. Smallest fix: `/api/cron/publish` → `0 13 * * *` (daily, 13:00 UTC, 1 h after the capture cron so they never overlap). | **no** — not code, not a route, not auth, not the pointer, not the flag, not the DraftPoller. Publish *cadence* is reduced; documented below. |
+| `8378255` | (merge commit) | PR #17 merged to `main` with a merge commit preserving the staged A–F history | n/a |
+
+**Freshness implication of the cron change (documented, not a blocker):** under NORMAL
+thresholds (`ACCEPTABLE ≤ 600 s`) a once-daily automated publish leaves the published
+pointer STALE for most of each day. This is **inert while `BRIDGE_PUBLISHED_SNAPSHOT` is
+OFF** — no read path serves the pointer — and the operator `POST /api/refresh` path
+remains the on-demand advance. A sub-daily automated cadence needs a Vercel plan upgrade
+and is a **precondition for flipping the flag on**, not for this deploy. If the flag is
+ever enabled on the Hobby plan without an upgrade, `readLeagueState`'s `TOO_STALE`
+fallback correctly routes every eligible read back to the legacy live path between the
+daily cron run and the next operator refresh — degraded-safe, never wrong.
+
+**No change to** `ri-snake-decision-2026.2` · projection / trade / waiver / matchup
+models · canonical data model or schema · published-snapshot schema · pointer semantics
+· feature-flag semantics · league-profile architecture · manager-neutral architecture ·
+DraftPoller constants or behavior · Bloodline Bowl behavior · Devoted to the Game
+behavior · Sporty's ranking logic.
 
 ---
 
 ## Remaining blockers
 
-1. **`bridge-realtime-state-phase-f` is not pushed or deployed.** Prerequisite for Gates 1–4. Push → review/merge per the repo's process → deploy preview with `REFRESH_SECRET` + Supabase env → deploy production with `BRIDGE_PUBLISHED_SNAPSHOT` OFF.
-2. **Gate 1 — preview publication:** not run (needs the deployment).
-3. **Gate 2 — deployed concurrency:** not run (needs the deployment).
-4. **Gate 3 — active-scoring-window shadow:** not run (needs the deployment **and** a real NFL scoring window; preseason cannot satisfy it).
-5. **Gate 4 — live Sporty's Alumni draft smoke:** pending the real draft (`2026-09-08T22:00:00Z`); the `/bridge` seat-picker path also needs to be deployed first.
+| # | gate | blocker | who can clear it |
+| --- | --- | --- | --- |
+| 1 | Gate 1 — deployed publication | `REFRESH_SECRET` not set on any deployment (endpoint fail-closed at 401) | operator sets the env var, **or** wait for the 13:00 UTC publish cron + verify the DB |
+| 2 | Gate 2 — deployed concurrency | same as #1 | same as #1 |
+| 3 | Gate 3 — active-scoring-window shadow | no live NFL scoring window right now | real Sun/Mon/Thu game window + operator runs `shadow:compare` |
+| 4 | Gate 4 — live Sporty's Alumni draft smoke | draft starts `2026-09-08T22:00:00Z` | operator observes the real draft |
 
-`Remaining production blockers: 5` (one prerequisite + four gates).
+`Remaining production blockers: 4` (all four hard gates; the deploy prerequisite is now
+satisfied).
+
+No P0 contamination found. No unresolved defect. Production is on the intended SHA
+(`8378255`).
 
 ---
 
 ## Final release recommendation
 
-**Do not flip `BRIDGE_PUBLISHED_SNAPSHOT` in production.** It has no effect until the
-branch is deployed, and even then all four gates must pass on the deployment first. The
-code is complete and every local/deterministic check that gates the deployed work is
-green (1272 non-live + 19 live, tsc/lint/build clean, 0 model files changed, shadow
-`UNEXPLAINED = 0` on stable preseason source). The remaining work is a **deploy +
-operator-verification** exercise, in this order:
+**Do not flip `BRIDGE_PUBLISHED_SNAPSHOT` in production.** The code is merged, deployed,
+and verified inert (flag OFF, legacy live path serving, all code-identity probes pass on
+both preview and production, 0 model files changed, shadow `UNEXPLAINED = 0`). But the
+flag-flip criteria require **all four** deployed gates to pass on the deployment first,
+and none can be closed from this session.
 
-1. push + merge + deploy preview (flag OFF)
-2. Gate 1 on preview
-3. Gate 2 on preview
-4. deploy production (flag OFF) — cron begins advancing pointers; no read-path change
-5. Gate 3 during the next real scoring window
-6. Gate 4 during the Sporty's Alumni draft (2026-09-08 22:00 UTC)
-7. only after 1–6 are all green: flip `BRIDGE_PUBLISHED_SNAPSHOT` wave-by-wave
-   (`wave1` → validate → `wave2` → `wave3`), re-running `shadow:compare` after each,
-   requiring `UNEXPLAINED = 0`. Rollback at any point = unset the env var (no data rollback).
+Order of remaining work:
+
+1. Operator sets `REFRESH_SECRET` on preview (or production) — flag stays OFF.
+2. Gate 1 on that deployment (runbook above). Alternatively: let the 13:00 UTC publish
+   cron run on production and verify `bridge_published_snapshot` + `bridge_publication_audit`.
+3. Gate 2 on that deployment (concurrency runbook).
+4. Gate 3 during the next real NFL scoring window — `shadow:compare`, `UNEXPLAINED = 0`.
+5. Gate 4 during the Sporty's Alumni draft (2026-09-08 22:00 UTC).
+6. Only after 1–5 are all green, **and** the publish cadence is fast enough for the
+   NORMAL freshness ceiling (Vercel plan upgrade, or an accepted narrower serving
+   policy): flip `BRIDGE_PUBLISHED_SNAPSHOT` wave-by-wave (`wave1` → validate → `wave2`
+   → `wave3`), re-running `shadow:compare` after each and requiring `UNEXPLAINED = 0`.
+   Rollback at any point = unset the env var (no data rollback).
+
+### May `BRIDGE_PUBLISHED_SNAPSHOT` be enabled in production? **NO.**
+
+Not until Gates 1–4 are closed on the deployment and the publish cadence meets the
+freshness ceiling. Enabling it today is unsafe only in that it is unverified — the
+fallback path would still protect every read — but "unverified" is disqualifying under
+the stated criteria.
