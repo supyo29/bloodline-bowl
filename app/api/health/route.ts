@@ -22,7 +22,7 @@ import { parseLeagueSelector } from "@/lib/analytics/query";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { reconcilePublishCandidate } from "@/lib/canonical/reconcile";
 import { buildFreshnessEnvelope, compactCapabilities } from "@/lib/canonical/freshness-envelope";
-import { publishedSnapshotEnabled } from "@/lib/canonical/published-flag";
+import { publishedFlagState, publishedReadEnabled } from "@/lib/canonical/published-flag";
 import { getProvider } from "@/lib/providers/registry";
 import { getPersistence } from "@/lib/persistence";
 import { CANONICAL_SCHEMA_VERSION } from "@/lib/canonical/schema";
@@ -189,11 +189,12 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
     }),
   );
 
+  const flagState = publishedFlagState();
   emitBridgeEvent("deep_health_checked", {
     leagues: leagues.length,
     sleeper: sleeperHealth.status,
     pointer_store: pointerStatus,
-    flag_on: publishedSnapshotEnabled(),
+    flag_state: flagState,
   });
 
   const anyDegraded =
@@ -208,8 +209,19 @@ async function deepHealth(base: Record<string, unknown>): Promise<Record<string,
     deep: true,
     schema: { canonical_schema_version: CANONICAL_SCHEMA_VERSION },
     feature_flags: {
-      BRIDGE_PUBLISHED_SNAPSHOT: publishedSnapshotEnabled(),
-      note: "OFF ⇒ every route serves state from the legacy live path; the published pointer is inspection-only",
+      BRIDGE_PUBLISHED_SNAPSHOT: flagState,
+      eligible_routes_expected_source:
+        flagState === "OFF"
+          ? "LEGACY_LIVE_PATH"
+          : "PUBLISHED_SNAPSHOT (when a fresh certified pointer serves; else LEGACY_LIVE_PATH fallback)",
+      waves_enabled: {
+        wave1: publishedReadEnabled(1),
+        wave2: publishedReadEnabled(2),
+        wave3: publishedReadEnabled(3),
+      },
+      draft_live_independent: true,
+      waiver_free_agent_migration_eligible: false,
+      note: "OFF ⇒ every eligible route serves the legacy live path; Draft Live and waiver/free-agent surfaces are never migrated",
     },
     source_connectivity: sleeperHealth,
     persistence: {

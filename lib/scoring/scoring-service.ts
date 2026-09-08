@@ -9,7 +9,7 @@
  */
 
 import { SleeperError } from "@/lib/sleeper/client";
-import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { readLeagueState } from "@/lib/canonical/read";
 import { resolveLeagueForQuery } from "@/lib/leagues/resolve";
 import {
   canonicalScoringInputs,
@@ -47,7 +47,7 @@ export async function resolveScoringInputs(
 ): Promise<LegacyScoringInputs> {
   if (input && typeof input === "object") return canonicalScoringInputs(input.snapshot);
   const slug = resolveLeagueForQuery(input ?? null).league_slug;
-  const state = await buildCanonicalLeagueState(slug);
+  const state = await readLeagueState(slug, { wave: 1 });
   const snapshot = state.snapshot;
   // A usable snapshot (READY / PARTIAL, real league data) is required. A
   // not-found or provider failure is surfaced as a SleeperError so the route

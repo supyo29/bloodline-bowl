@@ -33,7 +33,11 @@ export async function GET(
         leagueSlug: result.context.league.league_slug,
         season: result.context.league.season,
         servedSnapshot: result.snapshot,
-        stateSource: "LEGACY_LIVE_PATH",
+        stateSource: result.state_source ?? "LEGACY_LIVE_PATH",
+        fallback: {
+          occurred: result.fallback_reason != null,
+          reason: result.fallback_reason ?? null,
+        },
       }).catch(() => null)
     : null;
 

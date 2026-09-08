@@ -62,9 +62,16 @@ export interface PublishedSnapshotInspection {
   certified: boolean | null;
 }
 
+export interface EnvelopeFallback {
+  occurred: boolean;
+  reason: string | null;
+}
+
 export interface FreshnessEnvelope {
   state_source: StateSource;
-  /** What actually served this response (legacy live path, until Stage F). */
+  /** Set when an eligible route wanted the published snapshot but served legacy. */
+  fallback: EnvelopeFallback;
+  /** What actually served this response. */
   response_state_lineage: ResponseStateLineage | null;
   /** The durable published pointer, INSPECTED. Not necessarily what served you. */
   published_snapshot: PublishedSnapshotInspection;
@@ -91,6 +98,8 @@ export interface BuildEnvelopeInput {
   sourceMaxStalenessSeconds?: number;
   /** Provider was unreachable while building `servedSnapshot`. */
   sourceUnavailable?: boolean;
+  /** When an eligible route wanted the pointer but fell back to legacy. */
+  fallback?: EnvelopeFallback;
   now?: number;
 }
 
@@ -215,6 +224,7 @@ export function buildFreshnessEnvelope(input: BuildEnvelopeInput): FreshnessEnve
 
   return {
     state_source: input.stateSource,
+    fallback: input.fallback ?? { occurred: false, reason: null },
     response_state_lineage: lineage,
     published_snapshot: pointerInspection,
     freshness,
@@ -236,6 +246,7 @@ export async function resolveFreshnessEnvelope(opts: {
   servedSnapshot: CanonicalLeagueSnapshot | null;
   stateSource: StateSource;
   sourceUnavailable?: boolean;
+  fallback?: EnvelopeFallback;
   mode?: RefreshMode;
   now?: number;
   persistence?: import("@/lib/persistence/types").PersistenceBundle;
@@ -253,6 +264,7 @@ export async function resolveFreshnessEnvelope(opts: {
     pointer,
     mode: opts.mode,
     sourceUnavailable: opts.sourceUnavailable,
+    fallback: opts.fallback,
     now: opts.now,
   });
 

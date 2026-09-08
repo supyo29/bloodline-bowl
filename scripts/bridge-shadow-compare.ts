@@ -24,6 +24,7 @@
 import { writeFileSync } from "node:fs";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { getPublishedLeagueSnapshot } from "@/lib/canonical/published";
+import { readLeagueState } from "@/lib/canonical/read";
 import { compareCanonicalPaths, compareDirectSurface, type ShadowComparison } from "@/lib/canonical/shadow";
 import { summarizeCapabilities } from "@/lib/canonical/capabilities";
 import { snapshotContentHash } from "@/lib/persistence/serialize";
@@ -76,6 +77,9 @@ interface LeagueReport {
         verdict: string;
         unexplained: number;
         source_stable: boolean;
+        /** Stage F — what `readLeagueState` returns with the flag forced ON. */
+        reader_state_source: string;
+        reader_fallback_reason: string | null;
       };
 }
 
@@ -216,6 +220,13 @@ async function runLeague(slug: string): Promise<LeagueReport> {
             sourceEndHash: endHash,
             reconcileOk: true,
           });
+          // Stage F — what does the shared reader actually serve with the flag ON?
+          const prevFlag = process.env.BRIDGE_PUBLISHED_SNAPSHOT;
+          process.env.BRIDGE_PUBLISHED_SNAPSHOT = "1";
+          const readerRes = await readLeagueState(slug, { wave: 3 });
+          if (prevFlag === undefined) delete process.env.BRIDGE_PUBLISHED_SNAPSHOT;
+          else process.env.BRIDGE_PUBLISHED_SNAPSHOT = prevFlag;
+
           report.published_comparison = {
             pointer_present: true,
             published_snapshot_id: ptr.league_snapshot_id,
@@ -223,6 +234,8 @@ async function runLeague(slug: string): Promise<LeagueReport> {
             verdict: cmp.verdict,
             unexplained: cmp.totals.UNEXPLAINED,
             source_stable: startHash === endHash,
+            reader_state_source: readerRes.provenance.state_source,
+            reader_fallback_reason: readerRes.provenance.fallback_reason,
           };
         }
       }
@@ -366,6 +379,7 @@ function md(reports: LeagueReport[]): string {
       const pc = r.published_comparison;
       L.push(`- published snapshot: \`${pc.published_snapshot_id}\` (seq ${pc.published_seq})`);
       L.push(`- verdict: **${pc.verdict}** · unexplained ${pc.unexplained} · source stable ${pc.source_stable}`);
+      L.push(`- reader (flag ON, wave 3): **${pc.reader_state_source}**${pc.reader_fallback_reason ? ` (fallback: ${pc.reader_fallback_reason})` : ""}`);
       if (pc.unexplained > 0 && pc.source_stable) anyUnexplainedStable = true;
     } else {
       L.push(`- ${r.published_comparison.note}`);

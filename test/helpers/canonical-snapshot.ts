@@ -9,6 +9,7 @@ import {
   type CanonicalPlayer,
   type CanonicalWarning,
 } from "../../lib/canonical/schema";
+import { ok, type FantasyProvider } from "../../lib/providers/types";
 
 export const TEST_LEAGUE = "bloodline-bowl";
 export const TEST_SEASON = 2026;
@@ -151,5 +152,49 @@ export function makeCanonicalSnapshot(opts: MakeSnapshotOpts = {}): CanonicalLea
     live_provider_status: opts.live_provider_status ?? "READY",
     history_persistence_status: "READY",
     warnings: opts.warnings ?? [],
+  };
+}
+
+/**
+ * A hermetic `FantasyProvider` that replays a fixed snapshot — for tests that
+ * exercise the legacy / fallback branch without touching the network.
+ */
+export function stubProvider(snap: CanonicalLeagueSnapshot): FantasyProvider {
+  const bundle = {
+    league: snap.league,
+    managers: snap.managers,
+    teams: snap.teams,
+    rosters: snap.rosters,
+    standings: snap.standings,
+    draft_picks: snap.draft_picks,
+    players: snap.players,
+    unresolved_players: snap.unresolved_players,
+  };
+  return {
+    name: "sleeper",
+    authentication: "NONE",
+    capabilities: () => ({
+      league: true, settings: true, managers: true, standings: true, rosters: true,
+      matchups: true, transactions: true, players: true, free_agents: true, waivers: true,
+      draft_results: true, live_authenticated_access: true,
+    }),
+    healthCheck: async () => ({
+      provider: "sleeper", status: "READY", authentication: "NONE", detail: "", checked_at: new Date().toISOString(),
+    }),
+    getLeagueState: async () => ok(bundle),
+    getLeague: async () => ok(bundle.league),
+    getManagers: async () => ok(bundle.managers),
+    getStandings: async () => ok(bundle.standings),
+    getRosters: async () => ok(bundle.rosters),
+    getMatchups: async () => ok([]),
+    getTransactions: async () => ok([]),
+    getDraftResults: async () => ok([]),
+    getWaiverState: async () =>
+      ok({
+        canonical_league_id: bundle.league.canonical_league_id,
+        league_slug: bundle.league.league_slug,
+        players: [],
+        provenance: { provider: "sleeper", provider_id: null, provider_synced_at: null },
+      }),
   };
 }

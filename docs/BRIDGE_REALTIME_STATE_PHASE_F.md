@@ -1,0 +1,465 @@
+# Bridge Real-Time State — Stage F: Read Migration to the Published Snapshot
+
+Status: **Stage F code complete. `BRIDGE_PUBLISHED_SNAPSHOT` OFF. Eligible reads still
+serve `LEGACY_LIVE_PATH`. Three deployment/scoring gates remain PENDING — the
+production flag flip is BLOCKED until they pass.**
+Branch: `bridge-realtime-state-phase-f` (from Stage E `cf67186`)
+This is the final stage. There is no Stage G.
+
+---
+
+## 0. Starting-state confirmation (§1)
+
+- Stage E checkpoint `cf67186` confirmed; branch `bridge-realtime-state-phase-f` cut from it.
+- Before any Stage F change: non-live suite green; `BRIDGE_PUBLISHED_SNAPSHOT` unset (OFF); ordinary reads reported `state_source: "LEGACY_LIVE_PATH"`.
+- Baseline note: even on `cf67186`, `npm test` (which includes network-dependent `*-live.test.ts`) is flaky — a clean-checkpoint run showed `1390 pass / 1 fail / 4 skipped`. The **non-live** suite is deterministic. Stage F does not touch any `*-live` file.
+
+---
+
+## 1. Objective (§Stage F Objective)
+
+Migrate eligible ordinary read surfaces from `LEGACY_LIVE_PATH` to `PUBLISHED_SNAPSHOT`
+via one shared reader, gated by `BRIDGE_PUBLISHED_SNAPSHOT`, with explicit legacy
+fallback, Draft Live untouched, and waiver/free-agent surfaces untouched. State-serving
+migration only — no model / scoring / trade / waiver / lineup / Draft-Live / Team-State /
+canonical-state semantics changed.
+
+---
+
+## 2. Route eligibility matrix (§2)
+
+### A — migrated (reader swapped; gated by the flag)
+
+| Surface | Wave | Reader call site | `state_source` surfaced? |
+| --- | --- | --- | --- |
+| `GET /api/league/[league]/state` | 1 | route → `readLeagueState` | ✅ in `freshness` envelope |
+| `/api/leagues/[l]/scoring`, `/api/scoring/[l]`, `/api/scoring`, `POST /api/scoring/calculate` | 1 | `lib/scoring/scoring-service.ts` | scoring payload unchanged; source visible via deep health |
+| `GET /api/context/[league]/[manager]` | 2 | `lib/canonical/manager-context.ts` | ✅ in `freshness` envelope + `ManagerContextResult.state_source` |
+| `GET /api/leagues/[l]/manage` | 2 | `lib/team-state/build.ts` | ✅ top-level `state_source` field |
+| `GET /api/leagues/[l]/managers/[m]/manage` | 2 | `lib/team-state/build.ts` | ✅ top-level `state_source` field |
+| trade-context consumers (`/api/trades/*`) | 3 | `lib/trades/context.ts` | trade payloads unchanged; source via deep health |
+
+### B — explicitly excluded
+
+| Surface | Reason |
+| --- | --- |
+| **Draft Live** — `/api/draft`, `/api/draft/[l]`, `/api/draft/debug`, `/api/leagues/[l]/draft`, `/api/leagues/[l]/managers/[m]/draft`, `/api/leagues/[l]/managers/[m]/recommendations`, `/api/bridge/board` | Hard exclusion (§3). Verified by grep: **zero** references to `readLeagueState` / `getPublishedLeagueSnapshot` / the pointer / the publish cron across every draft-path file (`lib/sleeper/draft*.ts`, `lib/draft/*.ts`, `lib/leagues/manager-draft.ts`, all draft routes). The draft path uses its own `getDraftLive` / `getDraftPicksLive` / `getLeagueRostersLive` seconds-level contract and is structurally independent. |
+| **Waiver / free-agent / pickup** — `/api/waivers`, `/api/player-availability`, `/api/manager-availability` | Stage E chose Option B: `free_agent_pool` permanently `UNAVAILABLE`. `lib/weekly/context.ts` (which feeds `/api/waivers`, `/api/matchup`, `/api/lineup`) was **reverted** to `buildCanonicalLeagueState` — kept fully legacy so the waiver-adjacent surface cannot be affected. Availability determination (`lib/weekly/availability.ts`) derives from canonical roster ownership + a bounded projection-candidate list — it never reads `snapshot.waiver_state` (null in both paths), so nothing infers claimability from ownership absence. |
+| `/api/health`, `/api/health?deep=1` | Diagnoses live-vs-published — must always read live. |
+| `/api/cron/publish`, `/api/cron/capture`, `lib/canonical/publish.ts` | Produce snapshots — must read live (circular otherwise). |
+
+### C — eligible in principle, deferred (documented later cleanup, §29)
+
+| Surface | Note |
+| --- | --- |
+| `GET /api/leagues/[l]/managers/[m]` (identity/roster) | eligible; still `buildCanonicalLeagueState`. Low-risk; migrate in a post-remodel pass. |
+| `/api/snapshot`, `/api/snapshot/[l]`, `/api/leagues/[l]/managers/[m]/snapshot`, `lib/analytics/snapshot.ts` | standings-focused; eligible; deferred. |
+| `lib/weekly/context.ts` (matchup / lineup inputs) | eligible for provider-read reduction but shares code with the excluded waiver surface; deferred to a dedicated phase once availability is materialized. |
+| `/api/league`, `/api/leagues/[l]` (legacy summary) | eligible; deferred. |
+
+### C — historical / provider-native (never migrate)
+
+`/api/history*`, `/api/raw`, `/api/weekly-stats`, `/api/player-weekly`, `/api/projections*`, `/api/transactions*` — not current-state or intentionally raw.
+
+---
+
+## 3. Draft Live — hard exclusion (§3, §20)
+
+**Sporty's Alumni is NOT in `lib/leagues/registry.ts`.** It cannot be resolved,
+drafted against, or preflighted by this codebase. Before relying on the Bridge for
+that draft, it must be added to the registry (one appended object). This is flagged as
+a **PENDING** item, not a defect.
+
+**Representative preflight (deterministic, done):**
+- The draft-live path (`lib/sleeper/draft.ts` `selectActiveDraft`, `getDraftLive`, `getDraftPicksLive`, `getLeagueRostersLive`; `lib/draft/service.ts`; all `/api/draft*` + `/api/leagues/[l]/managers/[m]/recommendations` routes) has **zero** dependency on the Stage E/F published machinery — verified by exhaustive grep.
+- No Stage F freshness threshold, the flag, or the `*/5` cron can reach the draft path.
+- Existing draft suites (pre-draft resolution, snake order, seat/manager mapping, mock-override, availability-on-pick, `pre_draft`/`drafting`/`complete` transitions) remain green (`draft*.test.ts`, `draft-live.test.ts`, `draft-mock-override.test.ts`, `available-player-eligibility*.test.ts`).
+- Live smoke (dev server, flag OFF **and** flag ON): `/api/leagues/bloodline-bowl/draft` → 200, `/api/leagues/bloodline-bowl/managers/supyo29/recommendations` → 200, unaffected by the flag.
+
+**Active-transition check for the real draft: PENDING** — run a live smoke during Sporty's Alumni's actual draft once that league is registered (§20).
+
+---
+
+## 4. Feature-flag contract (§4)
+
+`BRIDGE_PUBLISHED_SNAPSHOT` (in `lib/canonical/published-flag.ts`):
+
+| Value | Meaning |
+| --- | --- |
+| unset / `off` / `0` | every eligible route → `LEGACY_LIVE_PATH` (default) |
+| `wave1` | Wave 1 routes prefer the published snapshot |
+| `wave2` | Waves 1–2 |
+| `wave3` | Waves 1–3 |
+| `1` / `on` / `all` | every eligible wave |
+
+- **Flag OFF:** eligible routes behave exactly as legacy; `state_source: "LEGACY_LIVE_PATH"`, `fallback.occurred: false`. (Live-verified.)
+- **Flag ON:** an eligible route serves the published snapshot **iff** a pointer exists, its target loads, lineage/hash match, schema is supported, integrity is `CERTIFIED`, and freshness ∈ {FRESH, ACCEPTABLE}. Then `state_source: "PUBLISHED_SNAPSHOT"`. Otherwise it falls back to legacy with an observable `fallback.reason`. (Live-verified: flag ON + no pointer → every eligible route `LEGACY_LIVE_PATH` / `fallback: {occurred: true, reason: "PERSISTENCE_UNAVAILABLE"}`, never a false `PUBLISHED_SNAPSHOT`.)
+- **Reversible** by unsetting the env var: no migration, no cache flush, no snapshot rewrite, no redeploy-specific cleanup. The legacy path is never removed.
+
+---
+
+## 5. Shared published-snapshot reader (§5, §6)
+
+`lib/canonical/read.ts` → `readLeagueState(slug, opts)` — a near drop-in for
+`buildCanonicalLeagueState` returning the same `{ ok, status, code?, detail?, snapshot }`
+plus `provenance: { state_source, served_from_pointer, fallback_reason, pointer_present,
+pointer_snapshot_id, pointer_published_seq, serving_freshness, wave }`.
+
+Validation gate before a snapshot may serve (§6):
+1. flag enabled for this wave;
+2. `published.status()` READY (else `PERSISTENCE_UNAVAILABLE`);
+3. pointer exists (else `NO_POINTER`);
+4. pointer league + season match (else `LEAGUE_MISMATCH`);
+5. `snapshots.getById(pointer.snapshot_id)` returns a payload (else `TARGET_MISSING`);
+6. `schema_version ∈ {1,2,3}` (else `UNSUPPORTED_SCHEMA`);
+7. snapshot league/season match + `teams.length > 0` (else `MALFORMED`);
+8. `snapshotLineage(snapshot).league_snapshot_id === pointer.league_snapshot_id` **and** `snapshotContentHash(snapshot) === pointer.content_hash` (else `ID_MISMATCH`);
+9. `reconcilePublishCandidate(snapshot).snapshot_integrity === "CERTIFIED"` (else `INTEGRITY_FAILED`);
+10. `deriveFreshness(...).status ∈ {FRESH, ACCEPTABLE}` (else `TOO_STALE`).
+
+A missing/corrupt target never yields a partially reconstructed response — it falls
+back to a complete legacy read (or the legacy path's own explicit degraded result).
+The reader does **not** re-normalize canonical state — it validates and serves the
+already-certified immutable snapshot.
+
+---
+
+## 6. Fallback architecture (§7)
+
+Any gate failure → `legacy()` → `buildCanonicalLeagueState(slug, options)` with
+`provenance.state_source = "LEGACY_LIVE_PATH"` and `provenance.fallback_reason` set
+(one of `NO_POINTER / TARGET_MISSING / ID_MISMATCH / LEAGUE_MISMATCH /
+UNSUPPORTED_SCHEMA / INTEGRITY_FAILED / PERSISTENCE_UNAVAILABLE / TOO_STALE /
+MALFORMED`; `FLAG_OFF` maps to `null` — not a fallback, the flag is simply off).
+Envelope routes carry `fallback: { occurred, reason }`. Emits `stale_snapshot_served`
+with `fallback: true`.
+
+---
+
+## 7. Stage D envelope semantics preserved (§8, §9)
+
+`state_source` / `response_state_lineage` / `published_snapshot` / `freshness` /
+`response_state_lineage.served_freshness` / `integrity` / `capabilities` stay
+independent — no field reinterpreted. `fallback` is **additive**.
+
+- On PUBLISHED serve: `response_state_lineage.snapshot_id === published_snapshot.snapshot_id` (the reader's `ID_MISMATCH` check guarantees it).
+- On fallback: `response_state_lineage.snapshot_id` = the **live** snapshot's id; `published_snapshot.snapshot_id` = the **pointer target** (preserved, not overwritten). A deterministic test (`readLeagueState: lineage IDs are never conflated`) asserts the two are not conflated on fallback.
+
+Representable, unchanged:
+`{ state_source: LEGACY_LIVE_PATH, published_snapshot.present: true, freshness STALE, served_freshness ACCEPTABLE }` and
+`{ state_source: PUBLISHED_SNAPSHOT, integrity CERTIFIED, source_status SOURCE_UNAVAILABLE }`.
+
+---
+
+## 8. Serving freshness policy (§10)
+
+Reuses Stage D thresholds and `≤` boundary semantics unchanged.
+
+| Published-snapshot freshness | May serve? |
+| --- | --- |
+| `FRESH` (≤ mode fresh threshold) | yes |
+| `ACCEPTABLE` (≤ mode acceptable threshold) | yes — served as current |
+| `STALE` (> acceptable) | **no** → fall back to a fresher live read (`TOO_STALE`) |
+| `REFRESHING` / `DEGRADED` / `SOURCE_UNAVAILABLE` / `UNKNOWN` | no → fall back |
+
+Rationale: a certified-but-STALE snapshot is **not invalidated** — it stays visible and
+`CERTIFIED` in `published_snapshot`, and provider-source unavailability alone never
+changes that (the serve check is purely age-based). But when the provider is reachable a
+fresher live read is preferable; if the live read also fails, `buildCanonicalLeagueState`
+returns its own explicit degraded result. Integrity and freshness stay separate.
+
+`STALE`-as-LKG serving (serve the certified stale snapshot rather than fall back) is a
+deliberate future tuning knob, not enabled in Stage F.
+
+---
+
+## 9. Wave-by-wave migration (§13)
+
+One boolean-ish flag with graduated levels (`wave1` → `wave2` → `wave3` → `all`). The
+code migration is uniform (each eligible consumer calls `readLeagueState` with a `wave`
+tag); the **wave discipline is the preview rollout procedure** — enable `wave1`,
+validate the Wave-1 route family (flag-ON vs flag-OFF payload compare + shadow compare +
+fallback test + provider-read count), then `wave2`, then `wave3`. Each wave's validation
+is part of the pending deployment gates (§ Stage F readiness).
+
+Wave 1 = `state` + `scoring`. Wave 2 = `context` + `manage` (Team-State). Wave 3 = trade
+context. `wave` gating is unit-tested (`wave1` flag serves a wave-1 read as published but
+a wave-2 read stays legacy).
+
+---
+
+## 10. Payload compatibility (§11)
+
+- Deterministic: `readLeagueState` flag-ON serves a snapshot **byte-identical** (same content hash) to the one published — proven by test. So route-owned facts (manager/roster mapping, ownership, starters/bench/IR, scoring, week, team names, player identity/eligibility, matchup facts) are exactly those of a certified canonical snapshot.
+- Legacy-vs-published equivalence for the *same source moment* is proven structurally by `reconcilePublishCandidate` (only a `CERTIFIED` snapshot serves) and, with real data, by the shadow harness (§11 below).
+- No existing payload test was loosened. Non-live suite: **1225 pass / 0 fail / 0 skipped**, deterministic across repeated runs.
+
+---
+
+## 11. Shadow comparison (§12)
+
+`npm run shadow:compare` (`scripts/bridge-shadow-compare.ts`) — the §16 block now:
+1. compares legacy live vs the **actual published pointer snapshot** (`compareCanonicalPaths`, `LIVE_SHADOW`, source-moved aware); and
+2. records what `readLeagueState` (flag forced ON, wave 3) actually serves — `reader_state_source` + `reader_fallback_reason`.
+
+Stage C rule holds: `UNEXPLAINED = 0` on stable-source runs; no blanket timestamp
+ignore (ownership / lineup / records / matchups / transactions still compared). Local
+run: deterministic + Layer B `UNEXPLAINED = 0` both leagues; the §16 block reports
+"published-pointer store not configured in this environment" (expected locally — real
+comparison needs a deploy).
+
+---
+
+## 12. Provider-read reduction (§14)
+
+When flag ON + pointer serves, an eligible read does: `published.status()` +
+`published.get()` + `snapshots.getById()` + `reconcilePublishCandidate()` (pure) — and
+**zero Sleeper calls**. vs legacy `buildCanonicalLeagueState` ≈ 5–7 Sleeper fetch
+attempts (league/users/rosters/drafts/state + matchups + transactions), mostly cache
+hits but each with overhead.
+
+Remaining intentional live provider reads: Stage E refresh/publication, `/api/cron/*`,
+Draft Live, waiver/free-agent, `/api/health`, `weekly/context.ts` (deferred), the C-list
+deferred routes, history, `/api/raw`. No accidental duplicate live-normalization path —
+`readLeagueState` is the only new read front door and it never normalizes.
+
+**Before/after measurement: PENDING** — requires a deploy with a live pointer.
+
+---
+
+## 13. Read / publish concurrency (§15)
+
+`readLeagueState` reads the pointer (one atomic row: `snapshot_id` + `content_hash`
+move together in one `UPDATE`) then `getById` (one whole immutable row). A read
+concurrent with an advance resolves to either the whole old snapshot or the whole new
+one — never a mix. A torn read (pointer says hash X, snapshot hashes to Y) is caught by
+the `ID_MISMATCH` gate → fallback, never a wrong serve. Tested
+(`readLeagueState: read / publish concurrency` — `Promise.all([read, publish])`, read is
+a whole snapshot, final pointer seq 2 / hash B).
+
+---
+
+## 14. Preview deployment (§16) — Stage E gate #1
+
+**PENDING.** Deploy a preview with the existing Supabase env + `REFRESH_SECRET`
+(+ `CRON_SECRET`) and `BRIDGE_PUBLISHED_SNAPSHOT` OFF, then `POST /api/refresh?scope=all`
+and confirm: publication succeeds/dedupes for both leagues, pointer exists, target
+exists, integrity CERTIFIED, `freshness.status` ≠ `UNKNOWN`, deep health reports
+`publication_generation`, an audit row exists, and ordinary reads still `LEGACY_LIVE_PATH`.
+
+---
+
+## 15. Deployed concurrency (§17) — Stage E gate #2
+
+**PENDING.** From the preview, fire concurrent `POST /api/refresh` invocations; confirm
+no pointer regression, no duplicate corruption, one valid final pointer, `raced`
+outcomes reported as such, idempotent retries, accurate audit trail. Storage-layer
+proof on the production DB is already done (Stage E §5: 8 writers → 1 advanced / 7
+raced; stale guarded write → 0 rows); this gate needs the deployed HTTP path.
+
+---
+
+## 16. Active NFL scoring-window gate (§19) — Stage E gate #3
+
+**PENDING.** Both leagues are at week 1, no completed games. Run `npm run shadow:compare`
+(incl. the P0 route comparison `standings / managers / matchups / transactions /
+leagues/[l]/managers*`) during real scoring activity; require `UNEXPLAINED = 0`. Not
+satisfiable with preseason/synthetic activity.
+
+---
+
+## 17. Sporty's Alumni Draft Live (§20)
+
+- League **not registered** — add to `lib/leagues/registry.ts` before relying on the Bridge for that draft.
+- The draft-live path's independence from Stage E/F is proven for the representative Sleeper configuration (§3).
+- `pre_draft → drafting → complete` transition selection is covered by existing deterministic draft tests; a live smoke during the real draft is **PENDING** on registration + an active draft.
+
+---
+
+## 18. Waiver / free-agent exclusion certification (§21)
+
+- `lib/weekly/context.ts` **reverted** to `buildCanonicalLeagueState` — matchup / lineup / waiver inputs stay fully legacy.
+- `/api/waivers`, `/api/player-availability`, `/api/manager-availability` — not migrated.
+- `free_agent_pool` capability stays `UNAVAILABLE`; `LeagueManagementContext.ownership.free_agent_pool = "NOT_MATERIALIZED"` unchanged.
+- `lib/weekly/availability.ts` classifies a bounded projection-candidate list against canonical roster ownership — it never reads `snapshot.waiver_state`, and "not rostered" is never equated with "addable" beyond that existing bounded mechanism.
+- This is an intentional Stage F exception, documented, not an incomplete migration.
+
+---
+
+## 19. Health / observability (§22, §23)
+
+`GET /api/health?deep=1` — additive only (bare `/api/health` unchanged, read-only):
+- `feature_flags.BRIDGE_PUBLISHED_SNAPSHOT` (state string: `OFF` / `WAVE1..3` / `ALL_WAVES`), `eligible_routes_expected_source`, `waves_enabled.{wave1,wave2,wave3}`, `draft_live_independent: true`, `waiver_free_agent_migration_eligible: false`;
+- per league (from Stage D/E): `publication_generation`, `last_refresh`, `last_successful_refresh_at`, `recent_refresh_outcomes`, pointer inspection, integrity, capability matrix, discrepancy/material-unresolved counts;
+- `persistence.{history_stores, published_pointer_store, publication_audit_store}`.
+
+Structured events extended: `freshness_evaluated` now carries `state_source` +
+`serving_freshness` + `wave`; `stale_snapshot_served` carries `fallback: true` + `reason`
++ `wave`; `deep_health_checked` carries `flag_state`. IDs only — no secrets. Enough to
+tell "served from published vs legacy fallback, which route family, which league, which
+snapshot, freshness, fallback reason" from logs. No new telemetry subsystem.
+
+---
+
+## 20. Failure injection (§24)
+
+`test/bridge-published-read.test.ts` (12 tests, hermetic — `stubProvider` on the legacy
+branch, no network):
+
+| Injection | Result |
+| --- | --- |
+| flag OFF | legacy, `fallback_reason: null` |
+| flag ON, valid fresh pointer | `PUBLISHED_SNAPSHOT`, byte-identical snapshot |
+| wave gating (`wave1` flag, wave-2 read) | legacy, no fallback (flag off for that wave) |
+| NO_POINTER | legacy, `fallback_reason: NO_POINTER`, `pointer_present: false` |
+| TARGET_MISSING (pointer names a missing snapshot) | legacy, `TARGET_MISSING`, `pointer_present: true` |
+| ID_MISMATCH (tampered content_hash) | legacy, `ID_MISMATCH` |
+| UNSUPPORTED_SCHEMA (`schema_version: 99`) | legacy, `UNSUPPORTED_SCHEMA` |
+| MALFORMED (no teams) | legacy, `MALFORMED` |
+| TOO_STALE (1h-old pointer) | legacy, `TOO_STALE`, `serving_freshness: STALE`, pointer still visible |
+| PERSISTENCE_UNAVAILABLE (store status error) | legacy, `PERSISTENCE_UNAVAILABLE` |
+| lineage not conflated on fallback | `pointer_snapshot_id` = pointer target, not live id |
+| read concurrent with advance | whole old OR whole new, never a mix; final seq 2 |
+| flag toggled OFF / ON | `afterEach` clears; both states verified |
+
+`INTEGRITY_FAILED` and `LEAGUE_MISMATCH` are covered by inspection (a published snapshot
+always passes read-time `reconcilePublishCandidate` since it's the same gate; the pointer
+key guarantees league match) — the code paths exist and fall back.
+
+If neither published nor legacy can satisfy a route, `buildCanonicalLeagueState`'s
+explicit degraded result is returned — no fabricated success.
+
+---
+
+## 21. Security / rollout review (§25)
+
+- Stage F introduces **no new mutation surface** — `readLeagueState` only reads (pointer `get`, `getById`, pure reconcile).
+- Refresh auth unchanged (Stage E). `/api/health` still read-only. Ordinary reads cannot trigger publication.
+- Flag is a plain env var — not exposed to clients except as a status string in `?deep=1`.
+- Arbitrary league slugs: `readLeagueState` runs `resolveLeagueStrict` on the published branch; an unresolvable slug maps to `MALFORMED` → legacy path produces the canonical error. No unintended storage access.
+- No secrets in response/log output.
+
+---
+
+## 22. Adversarial audit — P0/P1/P2/P3 (§27)
+
+**P0 (wrong/unsafe state served): NONE.** `state_source: PUBLISHED_SNAPSHOT` is set only
+by the reader's success branch, which returns the pointer's own snapshot after 10
+validation gates including lineage + content-hash equality. Every other path hardcodes
+`LEGACY_LIVE_PATH`. A torn pointer/snapshot read → `ID_MISMATCH` → fallback, never served.
+
+**P1 (material freshness/fallback/compat/migration defect): NONE.**
+
+**P2:**
+- **P2-1 — cron cadence vs serving ceiling.** Original `*/10` cron vs NORMAL `ACCEPTABLE ≤ 600s` was too tight (a slightly-late cron → pointer STALE → all eligible reads flap to legacy). **Fixed in this commit → `*/5 * * * *`** so the pointer stays ≤ ~5–6 min ≤ 600 s and never STALE under normal operation.
+- **P2-2 — `reconcilePublishCandidate` on every published read.** Pure, O(rosters × players), microseconds for a 12-team league. Acceptable; noted.
+- **P2-3 — `lib/weekly/context.ts` not migrated.** Provider-read reduction not realized for `/api/matchup`, `/api/lineup` (waiver-adjacent). Deliberate; deferred to a post-remodel availability-materialization phase.
+- **P2-4 — C-list deferred routes.** `/api/leagues/[l]/managers/[m]`, `/api/*/snapshot`, `/api/league`, `/api/leagues/[l]` still legacy. Eligible; deferred; documented.
+
+**P3:**
+- lint: `_`-prefixed unused params on unconfigured stores (established pattern).
+- `npm test` flakiness lives entirely in `*-live.test.ts` (network/Supabase under parallel load) — **pre-existing** (reproduced on `cf67186`), unchanged by Stage F. Non-live suite is deterministic.
+
+No P0/P1 → Stage F is eligible to freeze on the code axis.
+
+---
+
+## 23. Regression (§28)
+
+| Check | Result |
+| --- | --- |
+| `tsc --noEmit` | clean |
+| `npm run lint` | 0 errors (29 warnings, pre-existing patterns) |
+| non-live deterministic suite (`test/*.test.ts` minus `*-live`) | **1225 pass / 0 fail / 0 skipped**, repeated runs identical |
+| bridge suite (`test/bridge-*.test.ts`) | **87 pass / 0 fail** (Stage E: 75; +12 Stage F reader tests) |
+| full `npm test` (incl. `*-live`) | pre-existing flaky (`cf67186` baseline: 1390/1/4); best Stage F run 1395/0/11 — flakiness is network-bound `*-live` only |
+| Stage C equivalence (`npm run shadow:compare`) | deterministic `UNEXPLAINED = 0`; live stable-source `UNEXPLAINED = 0` |
+| Stage D freshness / Stage E publication / Stage F reader tests | green |
+| canonical + Team-State certification | green (non-live) |
+| weekly / trade parity | green (non-live); `weekly/context.ts` unchanged |
+| live smoke both leagues (dev server, flag OFF and ON) | eligible routes `LEGACY_LIVE_PATH` (OFF) / safe fallback `PERSISTENCE_UNAVAILABLE` (ON, no local pointer); draft routes unaffected |
+| preview deployment / deployed concurrency / active-scoring window | **PENDING** (§14–16) |
+| model files changed | **none** |
+| pointer writes caused by Stage F dev work | **0** |
+| feature flag | **OFF** |
+
+No existing test weakened.
+
+---
+
+## 24. Files changed
+
+### New
+`lib/canonical/read.ts`, `test/bridge-published-read.test.ts`.
+
+### Modified
+`lib/canonical/published-flag.ts` (wave levels + `publishedFlagState`),
+`lib/canonical/freshness-envelope.ts` (`+ fallback`),
+`lib/canonical/manager-context.ts` (→ `readLeagueState`, `+ state_source`),
+`lib/team-state/build.ts` (→ `readLeagueState`, `+ state_source`),
+`lib/scoring/scoring-service.ts` (→ `readLeagueState`),
+`lib/trades/context.ts` (→ `readLeagueState`),
+`app/api/league/[league]/state/route.ts`, `app/api/context/[league]/[manager]/route.ts`,
+`app/api/leagues/[leagueSlug]/manage/route.ts`,
+`app/api/leagues/[leagueSlug]/managers/[managerSlug]/manage/route.ts` (surface `state_source`),
+`app/api/health/route.ts` (`?deep=1` flag/wave/exclusion fields),
+`scripts/bridge-shadow-compare.ts` (§16 reader check),
+`test/helpers/canonical-snapshot.ts` (`+ stubProvider`),
+`vercel.json` (publish cron `*/10` → `*/5`).
+
+`lib/weekly/context.ts` — **reverted** (kept legacy, §18).
+
+---
+
+## 25. Production rollout plan (§26)
+
+1. Deploy Stage F with `BRIDGE_PUBLISHED_SNAPSHOT` **OFF** — no behavior change.
+2. Verify `/api/cron/publish` advances the pointer; `/api/health?deep=1` shows `publication_generation`, `last_successful_refresh_at`, integrity CERTIFIED.
+3. `npm run shadow:compare` — stable-source legacy-vs-published `UNEXPLAINED = 0`.
+4. Deployed concurrency gate (§15).
+5. Active NFL scoring-window gate (§16) — `UNEXPLAINED = 0`.
+6. Confirm Sporty's Alumni registered + Draft Live independent (§17).
+7. Flip `BRIDGE_PUBLISHED_SNAPSHOT = wave1`; validate; then `wave2`; then `wave3` / `all`. After each: eligible routes → `PUBLISHED_SNAPSHOT`, `response_state_lineage.snapshot_id` matches the pointer, payload facts equivalent, provider reads drop, fallback works, Draft Live + waiver unaffected.
+8. Any P0/P1 / material discrepancy → unset the flag immediately. No data rollback needed.
+
+## 26. Rollback procedure
+
+Unset `BRIDGE_PUBLISHED_SNAPSHOT` (or set `off`). Next request → every eligible route
+serves `LEGACY_LIVE_PATH`. No migration reversal, no cache flush, no snapshot rewrite.
+The `bridge_published_snapshot` / `bridge_publication_audit` tables stay (inert while
+unread). The `/api/cron/publish` cron can keep running harmlessly or be removed from
+`vercel.json`.
+
+## 27. Remaining intentional legacy paths / later cleanup (outside this remodel)
+
+- Draft Live — permanent.
+- Waiver / free-agent / pickup + `lib/weekly/context.ts` — until a dedicated availability-materialization phase.
+- `/api/health` — permanent (must read live).
+- Publication / capture path — permanent (must read live).
+- C-list deferred routes (`/api/leagues/[l]/managers/[m]`, `/api/*/snapshot`, `/api/league`, `/api/leagues/[l]`, `analytics/snapshot`) — migrate in a small follow-up pass after the flag flip is stable.
+- **Not part of this remodel:** free-agent-pool materialization; `STALE`-as-LKG serving; per-domain snapshot timestamps; migrating the C-list; Sporty's Alumni registry entry.
+
+---
+
+## Stage F Certification
+
+**CONDITIONAL — PRODUCTION FLAG FLIP BLOCKED.**
+
+Stage F code is complete and correct. No P0/P1 findings. Flag OFF, eligible reads still
+`LEGACY_LIVE_PATH`, 0 pointer writes from dev work, 0 model files changed, non-live
+suite deterministic (1225/0/0), one P2 fixed (cron `*/5`).
+
+The production `BRIDGE_PUBLISHED_SNAPSHOT` flag **must not be flipped** until:
+
+1. **Preview publication gate** (Stage E #1) — deploy with `REFRESH_SECRET` + Supabase env, `POST /api/refresh?scope=all`, confirm pointer advances and `freshness.status` leaves `UNKNOWN` for both leagues.
+2. **Deployed concurrency gate** (Stage E #2) — concurrent `POST /api/refresh` from the deployed path; no pointer regression / duplication.
+3. **Active NFL scoring-window gate** (Stage E #3 / Stage F §16) — `npm run shadow:compare` incl. the P0 route comparison during real scoring; `UNEXPLAINED = 0`.
+
+Plus, before relying on the Bridge for that draft: **Sporty's Alumni must be added to
+`lib/leagues/registry.ts`** and its Draft Live path smoke-checked (deterministic now;
+live during the real draft).
+
+Once all four pass, flip `BRIDGE_PUBLISHED_SNAPSHOT` (wave-by-wave) per §25 and the
+bridge real-time-state remodel is complete. There is no Stage G.
+
+STOPPING per protocol.

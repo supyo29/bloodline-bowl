@@ -51,6 +51,8 @@ export async function GET(
   return jsonResponse(
     {
       context: managerContext(manager),
+      state_source: result.state_source ?? "LEGACY_LIVE_PATH",
+      ...(result.fallback_reason ? { fallback_reason: result.fallback_reason } : {}),
       version: ctx.version,
       lineage: myTeam.lineage,
       league: ctx.league,
