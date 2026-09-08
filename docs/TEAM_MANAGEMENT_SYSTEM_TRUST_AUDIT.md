@@ -375,18 +375,25 @@ hard gate fires if a stale slice ever reaches the policy). No process-lifetime c
 
 ## 21. Live production utilization + parity (§31–§32)
 
-Post-deploy prod smoke (`bloodline-bowl-sleeper-bridge.vercel.app`):
+Post-deploy prod smoke (`bloodline-bowl-sleeper-bridge.vercel.app`, deploy of `4bd6793`):
 
 - `/orchestrate` endpoints 200; unknown manager/league → 404 (fail-closed); `?include_trace=1`
   returns the `OrchestratorTrace`.
 - `deployment: ADVISORY_ONLY`; `orchestrator_version: team-management-orchestrator-2026.1`.
-- Lineage snapshot + scoring fingerprint coherent with the prod canonical.
-- **0 shadow-driven actions** (`forbidden_influence_ok: true`).
-- **Production recommendation parity:** prod `intelligence` `lineup.optimal_total` and
-  `matchup.win_probability` **byte-identical** to the Phase 1–7 and Phase 8 certification
-  values; `top_actions` unchanged.
-- Existing production engines (`roster-health`, `schedule-planning`, `manage`, `standings`,
-  `lineup`, `waivers`, `intelligence`) all 200.
+- **`trace.assembly`**: `canonical_provider_reads = 1`, `snapshot_coherent = true`,
+  `forbidden_influence_ok = true`.
+- **`trace.components`** (supyo29, WATCH): every component `production_influence = false`;
+  `start_sit_shadow: SHADOW_CONTEXT_ONLY` (**TA-1 fix confirmed live** — was `NOT_USED`),
+  `SHADOW_STARTSIT_DISAGREEMENT` now appears in the condition traces as
+  `SHADOW_DIAGNOSTIC_ONLY`; `matchup_shadow: NOT_USED` this run (no WP disagreement — legitimate).
+- **Production-engine additivity:** the trust-audit + Orchestrator code touched only
+  `lib/orchestrator/**` (Phase 8) + additive files; `git diff --stat f0bda54..HEAD` for every
+  production engine is empty; `orchestrator-isolation.test.ts` proves the weekly
+  lineup/matchup/waiver results reached through the shared context are byte-identical to a
+  direct build; `top_actions` shape unchanged. (Absolute prod numbers move day-to-day with
+  the live Sleeper feed — the isolation claim is invariance to the new code, not a fixed value.)
+- Existing production engines (`roster-health`, `schedule-planning`, `lineup`, `waivers`,
+  `intelligence`) all 200.
 
 Local-vs-production behaviour matches the documented architecture. Environment difference:
 the prod canonical snapshot content-hash differs from local (Supabase GSIS crosswalk) — a
