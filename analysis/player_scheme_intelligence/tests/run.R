@@ -7,5 +7,5 @@ if (!file.exists(file.path(root, "analysis", "player_scheme_intelligence", "conf
   stop("run from the repo root")
 for (f in c("test_tierA.R", "test_tierD_synthetic.R")) {
   cat("\n==== ", f, " ====\n")
-  system2("Rscript", file.path(root, "analysis", "player_scheme_intelligence", "tests", f))
+  system2("Rscript", shQuote(file.path(root, "analysis", "player_scheme_intelligence", "tests", f)))
 }
