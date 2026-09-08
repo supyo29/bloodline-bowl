@@ -27,7 +27,8 @@ const OUT = join(process.cwd(), "outputs", "player-scheme-intelligence-2026");
 test("tierB: manifest advertises tiers A+B and per-family provenance", () => {
   __resetPlayerSchemeCache();
   const psi = loadPlayerSchemeIntelligence()!;
-  assert.deepEqual((psi.manifest as { tiers?: string[] }).tiers, ["A", "B"]);
+  const tiers = (psi.manifest as { tiers?: string[] }).tiers ?? [];
+  assert.ok(tiers.includes("A") && tiers.includes("B"), "manifest lists tiers A and B");
   const tb = tierBManifest();
   assert.ok(tb, "tier_b block present");
   assert.ok(tb!.families.length >= 9);

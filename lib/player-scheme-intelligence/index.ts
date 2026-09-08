@@ -32,6 +32,12 @@ export {
   rbBoxProfile,
   tierBManifest,
   tierBFamilyMeta,
+  offenseTeamProfile,
+  defenseTeamProfile,
+  schemeEra,
+  qbArchetypeVector,
+  defenseArchetypeVector,
+  tierCManifest,
 } from "./read";
 export type {
   PlayerSchemeIntelligence,
@@ -43,12 +49,14 @@ export type {
   ChartingSplitRow,
   TierBAvailability,
   TierBManifest,
+  TierCManifest,
 } from "./read";
 export {
   buildQbProfile,
   buildReceivingProfile,
   buildRushingProfile,
   buildDefenseProfile,
+  buildTeamOffenseProfile,
   buildMatchupAlignment,
   resolveRef,
 } from "./query";

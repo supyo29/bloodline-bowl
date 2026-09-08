@@ -34,7 +34,13 @@ import {
   receiverMatrix,
   receiverRouteProfile,
   resolvePlayer,
+  defenseTeamProfile,
+  offenseTeamProfile,
+  schemeEra,
+  qbArchetypeVector,
+  defenseArchetypeVector,
   tierBFamilyMeta,
+  tierCManifest,
   type ChartingSplitRow,
   type DefensePassCell,
   type ProfileWindow,
@@ -159,6 +165,12 @@ export function buildQbProfile(raw: string) {
     ),
     spatial_availability: "LIVE_CAPABLE" as const,
     charting: qbChartingSection(ref.gsis_id),
+    archetype_vector: (() => {
+      const v = qbArchetypeVector(ref.gsis_id);
+      const tc = tierCManifest();
+      return v ? { ...v, labels_emitted: tc?.archetype.qb_labels_emitted ?? false,
+        note: "Numeric descriptive vector (spec §21). Cluster label withheld unless bootstrap-stable (spec §22)." } : null;
+    })(),
     lineage: {
       spatial_source: "nflverse play-by-play (LIVE_CAPABLE)",
       charting_source: "nflverse participation + FTN (PRIOR_ONLY / DESCRIPTIVE_ONLY — see charting.*.availability)",
@@ -250,7 +262,47 @@ export function buildDefenseProfile(team: string) {
         rush_direction: rush.filter((r) => r.window === w),
       }]),
     ),
-    lineage: { source: "nflverse play-by-play", note: "Allowed-target grid on the SAME depth x third definitions as the QB/receiver matrices (spec §18)." },
+    tendency: (() => {
+      const tc = tierCManifest();
+      const rows = defenseTeamProfile(team);
+      return {
+        column_availability: tc?.defense_column_availability ?? null,
+        by_window: Object.fromEntries(rows.map((r) => [r.window as string, r])),
+        note: "man/zone + coverage-family + pressure-generated tendencies are PRIOR_ONLY (participation, first season 2018); EPA/success/explosive-allowed are LIVE_CAPABLE (pbp).",
+      };
+    })(),
+    archetype_vector: (() => {
+      const v = defenseArchetypeVector(team);
+      const tc = tierCManifest();
+      return v ? { ...v, labels_emitted: tc?.archetype.def_labels_emitted ?? false } : null;
+    })(),
+    scheme_era: schemeEra(team).slice(-3),
+    lineage: {
+      source: "nflverse play-by-play + participation",
+      note: "Allowed-target grid on the SAME depth x third definitions as the QB/receiver matrices (spec §18). Tendency mixes LIVE_CAPABLE and PRIOR_ONLY columns; coordinator identity unavailable (spec §20).",
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Team offense tendency profile (spec §16)
+// ---------------------------------------------------------------------------
+export function buildTeamOffenseProfile(team: string) {
+  const meta = manifestMeta();
+  if (!meta) return null;
+  const rows = offenseTeamProfile(team);
+  if (rows.length === 0) return { ...meta, team: team.toUpperCase(), availability: "NOT_AVAILABLE" as const };
+  const tc = tierCManifest();
+  return {
+    ...meta,
+    team: team.toUpperCase(),
+    column_availability: tc?.offense_column_availability ?? null,
+    by_window: Object.fromEntries(rows.map((r) => [r.window as string, r])),
+    scheme_era: schemeEra(team).slice(-3),
+    lineage: {
+      source: "nflverse play-by-play + participation + FTN",
+      note: "DESCRIPTIVE TENDENCY primitives. Opponent-adjusted MODELED ratings remain owned by Football Intelligence (not duplicated). Per-column availability: pbp = LIVE_CAPABLE, participation formation/box = PRIOR_ONLY, FTN play-action/motion/RPO/screen = DESCRIPTIVE_ONLY.",
+    },
   };
 }
 

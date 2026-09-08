@@ -378,6 +378,60 @@ export function tierBFamilyMeta(family: string) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tier C — team tendency profiles + numeric archetype vectors + scheme era
+// ---------------------------------------------------------------------------
+function wideRows(file: string, keyField: string, keyValue: string): Array<Record<string, string | number | boolean | null>> {
+  return readCsv(file)
+    .filter((r) => (r[keyField] ?? "").toUpperCase() === keyValue.toUpperCase())
+    .map((r) => {
+      const o: Record<string, string | number | boolean | null> = {};
+      for (const [k, v] of Object.entries(r)) {
+        o[k] = ["team", "side", "window", "archetype_label_status", "vector_version", "starting_qb", "prior_qb", "gsis_id"].includes(k)
+          ? S(v) || null
+          : (["starting_qb_changed", "coordinator_known", "scheme_reset_hint"].includes(k) ? S(v) === "TRUE" : num(v));
+      }
+      return o;
+    });
+}
+
+export function offenseTeamProfile(team: string): Array<Record<string, string | number | boolean | null>> { return wideRows("offense_team_profile.csv", "team", team); }
+export function defenseTeamProfile(team: string): Array<Record<string, string | number | boolean | null>> { return wideRows("defense_team_profile.csv", "team", team); }
+export function schemeEra(team: string): Array<Record<string, string | number | boolean | null>> { return wideRows("scheme_era.csv", "team", team); }
+
+export function qbArchetypeVector(gsis_id: string): Record<string, string | number | null> | null {
+  const hit = readCsv("qb_archetype_vector.csv").find((r) => r.gsis_id === gsis_id);
+  if (!hit) return null;
+  const o: Record<string, string | number | null> = {};
+  for (const [k, v] of Object.entries(hit)) {
+    o[k] = k === "gsis_id" || k === "archetype_label_status" || k === "vector_version" ? S(v) : num(v);
+  }
+  return o;
+}
+
+export function defenseArchetypeVector(team: string): Record<string, string | number | null> | null {
+  const hit = readCsv("defense_archetype_vector.csv").find((r) => (r.team ?? "").toUpperCase() === team.toUpperCase());
+  if (!hit) return null;
+  const o: Record<string, string | number | null> = {};
+  for (const [k, v] of Object.entries(hit)) {
+    o[k] = k === "team" || k === "archetype_label_status" || k === "vector_version" ? S(v) : num(v);
+  }
+  return o;
+}
+
+export interface TierCManifest {
+  offense_column_availability: Record<string, string>;
+  defense_column_availability: Record<string, string>;
+  archetype: { qb_mean_ari: number; qb_labels_emitted: boolean; def_mean_ari: number; def_labels_emitted: boolean; policy: string };
+  scheme_era: { coordinator_identity_available: boolean; coordinators_yaml_entries: number; mechanism: string };
+  does_not_modify_football_intel: boolean;
+  notes: string[];
+}
+export function tierCManifest(): TierCManifest | null {
+  const psi = loadPlayerSchemeIntelligence();
+  return (psi?.manifest as { tier_c?: TierCManifest })?.tier_c ?? null;
+}
+
 export function leagueBaselines(): Array<Record<string, string | number | null>> {
   return readCsv("league_baselines.csv").map((r) => {
     const o: Record<string, string | number | null> = {};

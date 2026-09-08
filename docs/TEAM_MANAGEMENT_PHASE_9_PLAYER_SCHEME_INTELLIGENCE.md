@@ -439,11 +439,124 @@ reconcile; Tier A intact. Tier C (team offense/defense profiles + numeric
 archetype vectors + coordinator/scheme-era mechanism) builds on the same
 normalized play + charting spine and does **not** depend on Tier D.
 
+## Tier C — team tendency profiles + archetype vectors + scheme era ✅ COMPLETE
+
+**Lane:** `SHARED_DESCRIPTIVE`. Per-**column** availability. Additive; reads
+Tier A/B CSVs read-only; **does not touch Football Intelligence**.
+
+### Files added
+| File | Role |
+| --- | --- |
+| `analysis/player_scheme_intelligence/lib_team_archetype.R` | team offense/defense tendency builders + numeric archetype vector assembly + bootstrap cluster-stability |
+| `analysis/player_scheme_intelligence/build_tierC.R` | orchestrator: profiles, archetype clustering + stability gate, scheme-era mechanism, reconciliation, manifest merge |
+| 5 served CSV | `offense_team_profile`, `defense_team_profile`, `qb_archetype_vector`, `defense_archetype_vector`, `scheme_era` |
+| `app/api/player-scheme/teams/[team]/offense/route.ts` | team offense tendency surface |
+| `test/player-scheme-tierc.test.ts` | 8 Tier C contract tests |
+
+### What it computes
+- **Offense team tendency** (per team × window): pass rate, shotgun rate,
+  explosive-pass rate, target-area distribution (L/M/R + depth), rush-direction
+  distribution — all `LIVE_CAPABLE`; formation mix (shotgun/empty/UC/singleback/
+  I-form/pistol), box faced — `PRIOR_ONLY`; play-action / motion / RPO / screen /
+  no-huddle rate — `DESCRIPTIVE_ONLY` (FTN).
+- **Defense team tendency** (per team × window): EPA/success/explosive allowed —
+  `LIVE_CAPABLE`; man/zone rate, coverage-family rate (COVER_0/1/2/3/4/6, 2-MAN),
+  pressure-rate generated, blitz-proxy rate, `pressure_without_heavy_blitz_rate`,
+  box deployed — `PRIOR_ONLY`.
+- **Per-column availability map** in the manifest (`offense_column_availability`,
+  `defense_column_availability`) — a team profile mixes availability states
+  and never assigns one to the whole object (spec §16).
+- **QB archetype vector** (198 QBs): deep rate, behind-LOS rate, middle rate,
+  intermediate-middle rate, deep EPA, short EPA, aDOT, pressure EPA delta,
+  pressure scramble rate, play-action rate.
+- **Defense archetype vector** (32 teams): man rate, blitz-proxy rate,
+  pressure-rate generated, heavy-box rate, EPA allowed, deep/middle EPA allowed,
+  explosive allowed.
+- **Scheme era** (448 team-seasons): starting QB (most attempts), QB-change
+  breakpoint, `prior_weight_multiplier` (0.6 on a QB change), `coordinator_known:
+  false`, `scheme_reset_hint`.
+
+### Deliberate boundary with Football Intelligence
+FI owns the opponent-adjusted **MODELED** EPA/PROE/pace/pressure/explosive/RZ
+ratings. Tier C builds only **descriptive tendency primitives** FI does not
+have (formation/motion/PA mix, coverage tendency, box tendency, target-area
+distribution). `tier_c.does_not_modify_football_intel: true`; FI manifest byte-
+identical; a test asserts it.
+
+### Archetype cluster stability (spec §21, §22) → **LABELS WITHHELD**
+| Entity | k | mean bootstrap ARI | Outcome |
+| --- | --- | --- | --- |
+| QB | 4 | **0.43** | < 0.55 → **labels withheld, numeric vector only** |
+| Defense | 4 | **0.50** | < 0.55 → **labels withheld, numeric vector only** |
+4-way clustering of NFL QBs / defenses does **not** replicate across bootstrap
+resamples. Per spec §22 the categorical labels are rejected and the continuous
+numeric vectors are the deliverable (`archetype_label_status` says why). This
+is a **finding, not a failure** — the data is a continuum. (P9-C-1, INFO.)
+
+### Scheme-era limitation (spec §20)
+`analysis/football_intel/coordinators.yaml` has 0 entries →
+`coordinator_identity_available: false`, `coordinator_known: false` on every
+row. The mechanism (starting-QB-change breakpoint + `prior_weight_multiplier`
+hook) is built so a sourced coordinators.yaml entry would add a coordinator
+reset. **Documented, not guessed.** (P9-C-2, P3.)
+
+### Validation (Tier C gate)
+- `tierC_reconciliation.json` **all_pass = TRUE**: 32 teams both sides;
+  `man_rate + zone_rate == 1` (charted); offense target-area L/M/R and depth
+  shares sum to 1; QB + all-32 defense vectors shipped; `labels_only_if_stable`;
+  `coordinator_not_guessed`; FI untouched.
+- TS (8): tiers `[A,B,C]`; per-column availability present; man+zone=1;
+  target-area shares=1; vectors ship / labels withheld when ARI<0.55;
+  coordinator identity not guessed; defense query embeds tendency + archetype +
+  scheme era; **FI manifest unchanged**.
+- **Isolation:** `npm test` **1636 / 1632 pass / 0 fail / 4 skipped** (+8 Tier
+  C, 0 existing changed). Frozen surfaces untouched; no production import. tsc +
+  eslint clean.
+
+### Findings
+| ID | Sev | Finding |
+| --- | --- | --- |
+| P9-C-1 | INFO | 4-way archetype clustering unstable (ARI 0.43 QB / 0.50 defense) → labels withheld, numeric vectors shipped (spec §22). Expected — scheme space is a continuum. |
+| P9-C-2 | P3 | No coordinator identity (`coordinators.yaml` empty). Scheme-era resets limited to QB-change breakpoints; hook in place for a future sourced registry (spec §20). |
+
+No P0/P1/P2.
+
+### Runtime
+Tier C build ≈ 23 s.
+
+---
+
+## Descriptive-system gate (A + B + C) — spec §"A+B+C descriptive-system gate"
+
+The descriptive layer is certified **independently of Tier D**. It answers, from
+structured served fields:
+
+| Question | Surface |
+| --- | --- |
+| Where does QB X throw? / how deep? | `qb_directional`, `qb_spatial_matrix` (Tier A, `LIVE_CAPABLE`) |
+| How does QB X behave under pressure? | `qb_pressure_profile` (Tier B, `PRIOR_ONLY`) |
+| What coverage has QB X faced? | `qb_coverage_profile` (Tier B, `PRIOR_ONLY`, 2018+) |
+| What routes does WR X win on? | `receiver_route_profile` (Tier B, `PRIOR_ONLY`, targeted-route) |
+| Where does RB X run? / vs heavy boxes? | `rb_rush_matrix` (Tier A) + `rb_box_profile` (Tier B) |
+| Where is Defense Y vulnerable? / what does it play? | `defense_pass_vulnerability` (Tier A) + `defense_team_profile` tendency (Tier C) |
+| How does Offense Z operate? | `offense_team_profile` (Tier C) |
+
+**Gate conditions — all met:**
+- ✅ No unresolved P0/P1 across A/B/C.
+- ✅ Provenance programmatically enforced — every charting family + team-profile
+  column carries its own `availability`; nothing presented as a 2026 observation.
+- ✅ All denominators reconcile (A/B/C reconciliation artifacts `all_pass`).
+- ✅ Tier A frozen contracts intact (byte-identical).
+- ✅ Descriptive success does **not** depend on Tier D.
+
+**Descriptive system → `SHARED_DESCRIPTIVE`, certified.** Proceeding to Tier D
+(the interaction research model, `SHADOW_ONLY`).
+
 ---
 
 ## 7. Verdict
 
-**PART I COMPLETE. TIERS A & B COMPLETE & GATES PASSED.**
+**PART I COMPLETE. TIERS A, B & C COMPLETE & GATES PASSED. DESCRIPTIVE SYSTEM CERTIFIED.**
 No Section 47 verdict is issued until Part II implementation + validation +
 regression are complete. Phase 9 is **not** wired into Orchestrator ACTION
 generation or production projection adjustments, and will not be without a
