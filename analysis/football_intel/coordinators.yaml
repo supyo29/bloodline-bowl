@@ -1,0 +1,17 @@
+# Hand-maintained offensive / defensive coordinator registry (spec §13, P3-A3).
+#
+# nflverse ships HEAD COACH only. OC/DC change detection needs sourced entries.
+# RULES:
+#   - every entry MUST carry a source_url (a verifiable public record).
+#   - an absent (season, team) => continuity UNKNOWN => NO prior discount
+#     (spec guardrail: never assume). This is correct, not a gap to paper over.
+#   - `oc` / `dc` are free-text names; only equality across consecutive seasons
+#     is used, so spelling must be consistent within a team's timeline.
+#
+# This file is intentionally conservative. It is populated only where a change
+# is on the public record and load-bearing for a currently-registered league's
+# NFL context. Expand it as verified, not speculatively.
+
+version: 1
+entries: []
+#  - { season: 2026, team: NE, oc: "Josh McDaniels", dc: "Terrell Williams", source_url: "https://www.patriots.com/..." }

@@ -1,0 +1,44 @@
+{
+  "football_intelligence_version": "fi:2025:w18:6e872c5caa82",
+  "model_tag": "ri-football-intel-2026.1",
+  "feature_schema_version": 1,
+  "generated_at": "2026-09-07T23:54:20-0500",
+  "season": 2025,
+  "through_week": 18,
+  "data_cutoff": {
+    "ftn_charting": 18,
+    "ngs_passing": 18,
+    "ngs_receiving": 18,
+    "ngs_rushing": 18,
+    "participation": 18,
+    "pbp": 18,
+    "pfr_def": 18,
+    "pfr_pass": 18,
+    "snap_counts": 18
+  },
+  "seasons_used": {
+    "prior": [2021, 2022, 2023, 2024],
+    "current": 2025
+  },
+  "model_versions": {
+    "opponent_adjustment": "opp-adj-ridge-2026.1",
+    "prior": "prior-decay-2026.1",
+    "recency": "recency-ew-2026.1",
+    "trend": "trend-statediff-2026.1",
+    "usage": "usage-2026.1"
+  },
+  "source_versions": {
+    "nflreadr": "1.5.0"
+  },
+  "config": {
+    "prior_decay_lambda": 0.5,
+    "prior_max_lookback": 4,
+    "recency_halflife_games": 5,
+    "opp_adj_ridge_lambda": 1,
+    "seed": 20260907
+  },
+  "files": ["team_profile.csv", "player_usage_profile.csv", "unit_coverage_profile.csv", "contextual_matchup_feature.csv", "ftn_descriptive.csv"],
+  "output_classes": ["OBSERVED", "MODELED", "DESCRIPTIVE_ONLY"],
+  "determinism": "seeded + closed-form ridge; identical cache -> identical version",
+  "notes": ["FTN (ftn_descriptive.csv) is DESCRIPTIVE_ONLY and never feeds any rating/prior/trend/backtest.", "man/zone (def_man_rate) is DESCRIPTIVE_ONLY, min-play gated.", "Ratings are deviations from the season league mean on the metric's native scale."]
+}
