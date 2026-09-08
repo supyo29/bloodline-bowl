@@ -220,9 +220,111 @@ No P0/P1.
 
 ---
 
+---
+
+# Part II — Implementation
+
+Scope approved: **all tiers A→E**, with mandatory internal certification gates
+(A → certify → B → C → certify descriptive system → D → deep predictive audit →
+E). No re-approval between successful tiers; checkpoint reports after A / C / D / E.
+Tier D stays `SHADOW_ONLY` with `numeric_fantasy_adjustment ≡ 0` for the whole
+phase. API: dedicated `app/api/player-scheme/*`.
+
+## Tier A — PBP-only spatial descriptive profiles ✅ COMPLETE
+
+**Lane:** `SHARED_DESCRIPTIVE`. **Availability:** `LIVE_CAPABLE` (nflverse pbp
+only — no participation / FTN / NGS). Commit `c2bd382`.
+
+### Files added
+| File | Role |
+| --- | --- |
+| `analysis/player_scheme_intelligence/lib_spatial.R` | play-level normalized pass/rush datasets + all profile builders |
+| `analysis/player_scheme_intelligence/build_tierA.R` | orchestrator: builds profiles as-of (season, week), cut-point audit, reconciliation, artifacts, manifest |
+| `analysis/player_scheme_intelligence/tests/test_tierA.R` | 20 R invariant assertions |
+| `lib/player-scheme-intelligence/{read,query}.ts` | CSV read adapter + profile/matchup assembly |
+| `app/api/player-scheme/{,players/[playerId],teams/[team]/defense,matchups/[playerId]/[opponent]}/route.ts` | dedicated read-only API namespace |
+| `test/player-scheme-{read,isolation}.test.ts` | 14 TS contract + isolation tests |
+| 10 served CSV + `player_scheme_manifest.json` in `lib/player-scheme-intelligence/data/` | version `psi:2025:w18:08123edd58c9` |
+
+### What it computes (as-of 2025 wk18; windows: career / recent / current_team)
+- **QB spatial matrix** — 12 cells (BEHIND_LOS/SHORT/INTERMEDIATE/DEEP ×
+  LEFT/MIDDLE/RIGHT): attempts, attempt share, completion %, air yards, Y/A,
+  EPA/att (raw + shrunk), success, TD/INT/explosive/first-down rate, YAC, evidence class. **198 QBs** career.
+- **QB directional/depth tendencies** + deltas vs the league-QB baseline
+  (left/middle/right %, behind-LOS/short/intermediate/deep %, deep-left/middle/right %,
+  intermediate-middle %, short-middle %).
+- **Receiver target matrix** — same grid, targeted-location basis (not alignment). **1,224 receivers**.
+- **RB rush spatial** — direction (L/M/R) + gap (end/tackle/guard), EPA/rush,
+  success, YPC, explosive, stuff, TD/first-down rate. **610 RBs**. Direction and
+  gap only — never relabeled zone/gap/power/counter.
+- **Defense pass vulnerability map** — allowed-target grid on the *same*
+  depth×third definitions: target share allowed, comp % allowed, EPA/target
+  allowed, success allowed, explosive allowed, TD rate allowed, INT rate
+  generated. All 32 defenses × 12 cells × 2 windows.
+- **Defense rush-direction profile** + gap.
+- **League baselines** — pooled QB matrix per window.
+- **Player directory** — gsis/sleeper/pfr/espn/yahoo/name id resolution (2 of
+  1,536 unresolved to the ff crosswalk, recorded not dropped).
+
+### Documented denominators (spec §41)
+Pass-attempt universe: `play_type=="pass" & sack==0 & qb_spike==0 &
+two_point_attempt==0 & !is.na(passer_player_id)`, REG only. Sacks are **not**
+attempts (tracked separately). Designed-rush universe excludes kneels, spikes,
+**scrambles** (QB dropback plays), `!is.na(rusher_player_id)`. A play with
+`pass_location==NA` or `air_yards==NA` is counted in `attempts_total` /
+`attempts_uncharted` and lands in **no cell** — never reassigned. `air_yards==0`
+→ `SHORT` (documented). `run_location`/`run_gap` are offense-perspective as
+shipped by nflverse — **no mirroring**.
+
+### Cut-point sensitivity audit (spec §4) → **FROZEN 0 / 10 / 20**
+| Alt grid | Spearman deep% vs default | Spearman int-mid% | Verdict |
+| --- | --- | --- | --- |
+| c (12/22) — nearest conventional | 0.93 | 0.92 | rank-order stable |
+| b (8/16) — aggressive | **0.87** | 0.81 | reshuffles (P3 caveat) |
+Frozen the standard round-number bins (transparent, conventional). The raw
+per-cell `air_yards` mean + full matrix are served so any consumer can re-bin.
+
+### Validation (Tier A gate — spec §41, §42, §43)
+- `tierA_reconciliation.json` **all_pass = TRUE**: QB matrix cells sum to
+  `attempts_charted` (max abs gap 0); `charted + uncharted == total`; L/M/R and
+  depth shares sum to 1 (err < 1e-16); defense matrix cells sum to
+  `targets_charted`; 32 defenses.
+- R invariants (20): no fabricated SHORT/MIDDLE; sacks excluded; scrambles
+  excluded; chronology-safe as-of cut; determinism (identical frame); tiny-sample
+  cells forced `INSUFFICIENT`.
+- TS (14): versioned manifest; `deployment=SHARED_DESCRIPTIVE`;
+  `fantasy_adjustment_enabled=false`; unresolved id → `UNRESOLVED` (never a
+  guess); deep passer (Josh Freeman/Will Levis) ranks above checkdown passer
+  (Garoppolo/McCoy) on `deep_pct`; matchup output `numeric_fantasy_adjustment=0`
+  / `SHADOW_ONLY` / `SHARED_DESCRIPTIVE`; determinism (version hash == content hash).
+- **Isolation:** `npm test` **1617 / 1613 pass / 0 fail / 4 skipped** (+14
+  Phase 9, 0 existing changed). No production module imports Phase 9;
+  `git status` shows zero changes to any frozen surface. tsc + eslint clean.
+- Determinism: seeded, pure aggregation; identical cache → identical version id.
+
+### Findings
+| ID | Sev | Finding |
+| --- | --- | --- |
+| P9-A-1 | P3 | QB depth-share *levels* are cut-point sensitive; an aggressive 8/16 redefinition reshuffles deep% rank-order (ρ=0.87). Mitigated: standard bins frozen + raw matrix served for re-binning. |
+| P9-A-2 | P3 | Served data 10 MB (receiver matrix 6.2 MB). Acceptable; revisit (gzip / raise receiver floor from 20 targets) in Tier C if it grows. |
+| P9-A-3 | P3 | `current_team` window uses the player's as-of team; a mid-season 2026 trade would need a rebuild to reflect (expected — pipeline re-stamps on each run). |
+| P9-A-4 | P3 | 2 of 1,536 directory players unresolved to the ff crosswalk (recorded, not dropped). |
+
+No P0/P1/P2. **Cut-point verdict FROZEN, reconciliation ALL PASS.**
+
+### Runtime
+Full Tier A build ≈ 27 s (single pass over 676k pbp rows, 2012–2025).
+
+### Checkpoint — is Tier B safe to proceed?
+**Yes.** Tier A has no P0/P1/P2 accounting, identity, or leakage problem; all
+gate conditions pass. Tier B (charting-dependent `PRIOR_ONLY` profiles) builds
+on the same normalized play spine and reuses the evidence/shrinkage machinery.
+
+---
+
 ## 7. Verdict
 
-**PART I COMPLETE — PROCEED TO SCOPE GATE.**
+**PART I COMPLETE. TIER A COMPLETE & GATE PASSED.**
 No Section 47 verdict is issued until Part II implementation + validation +
 regression are complete. Phase 9 is **not** wired into Orchestrator ACTION
 generation or production projection adjustments, and will not be without a
