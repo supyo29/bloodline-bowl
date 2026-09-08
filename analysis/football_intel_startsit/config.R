@@ -6,7 +6,12 @@
 
 SS <- new.env()
 
-SS$MODEL_VERSION       <- "ri-startsit-2026.1"
+# ri-startsit-2026.1 is IMMUTABLE. A re-evaluation run overrides the version
+# and the training seasons via env vars so the frozen 2026.1 artifact and the
+# frozen 2021-25 training window are never rewritten.
+SS$MODEL_VERSION <- local({
+  ov <- Sys.getenv("SS_MODEL_VERSION_OVERRIDE", ""); if (nzchar(ov)) ov else "ri-startsit-2026.1"
+})
 SS$SEED                <- 20260908L
 
 # scoring archetypes (Sleeper precomputed points columns)
@@ -14,7 +19,10 @@ SS$ARCHETYPES <- c(std = "pts_std", half = "pts_half_ppr", ppr = "pts_ppr")
 
 # decision dataset grid — matches the Phase 3 walk-forward window + the
 # "need in-season sample before a current-season signal exists" floor.
-SS$SEASONS      <- 2021:2025
+SS$SEASONS <- local({
+  ov <- Sys.getenv("SS_SEASONS_OVERRIDE", "")
+  if (nzchar(ov)) as.integer(strsplit(ov, ",")[[1]]) else 2021:2025
+})
 SS$MIN_WEEK     <- 4L      # decisions from week 4 (>=3 played weeks of trailing form + FI)
 SS$MAX_WEEK     <- 17L     # regular season; week 18 rest-heavy, excluded from training
 SS$POSITIONS    <- c("QB", "RB", "WR", "TE")

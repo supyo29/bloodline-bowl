@@ -1,0 +1,26 @@
+{
+  "current_model_version": "ri-startsit-2026.1",
+  "deployment": "SHADOW_ONLY",
+  "season": 2026,
+  "completed_fi_weeks": 0,
+  "completed_fi_week_list": [],
+  "minimum_weeks_required": 4,
+  "preferred_weeks": 6,
+  "per_week_requirements": ["pbp_completed_reg_week", "phase3_fi_asof_snapshot_buildable", "fi_team_ratings_present_through_prior_week", "actual_fantasy_outcomes_present", "production_baseline_projection_available"],
+  "reevaluation_eligible": false,
+  "reevaluation_status": "NOT_ELIGIBLE",
+  "not_eligible_reason": "insufficient genuine 2026 FI sample: 0 completed current-season FI week(s), need >= 4 (prior-only snapshot fi:2025:w18:6e872c5caa82 does not count)",
+  "last_evaluated_through_week": null,
+  "next_candidate_version": "ri-startsit-2026.2",
+  "cadence": {
+    "first_check_week": 4,
+    "second_check_week": 6,
+    "thereafter_every_weeks": 3
+  },
+  "live_captured_decisions": 0,
+  "historically_reconstructed_decisions": 0,
+  "fi_snapshot_seen": "fi:2025:w18:6e872c5caa82",
+  "fi_snapshot_is_current_season": false,
+  "generated_at": "2026-09-08T11:42:00-0500",
+  "refresh_command": "Rscript analysis/football_intel_startsit/eligibility.R  (then reevaluate.R when ELIGIBLE)"
+}

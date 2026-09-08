@@ -1,6 +1,6 @@
 {
   "start_sit_model_version": "ri-startsit-2026.1",
-  "generated_at": "2026-09-08T11:00:09-0500",
+  "generated_at": "2026-09-08T11:41:34-0500",
   "football_intelligence_version": "fi:2025:w18:6e872c5caa82",
   "baseline": {
     "primary": "trailing_ppg_ew",
@@ -460,5 +460,14 @@
     }
   },
   "deployment": "SHADOW_ONLY",
+  "deployment_contract": {
+    "model_version": "ri-startsit-2026.1",
+    "deployment": "SHADOW_ONLY",
+    "positions": {},
+    "activation_log": [],
+    "lifecycle": ["SHADOW_ONLY", "RESEARCH_ELIGIBLE", "CERTIFICATION_PASSED", "PRODUCTION_ELIGIBLE", "PRODUCTION_ACTIVE"],
+    "production_influence_state": "PRODUCTION_ACTIVE",
+    "rule": "A Football-Intelligence numeric contribution reaches a production recommendation ONLY for a position explicitly set to PRODUCTION_ACTIVE via an activation_log entry. No research verdict promotes automatically."
+  },
   "deployment_note": "No position clears the production bar: FI reversals beat a coin flip only for RB against the naive trailing-PPG control, and that edge does not survive against the RotoWire-backed Sleeper baseline production actually uses (double-counting, §11). The shadow comparison path is delivered; production start/sit behavior is unchanged."
 }

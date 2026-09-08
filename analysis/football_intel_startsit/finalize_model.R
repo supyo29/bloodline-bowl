@@ -51,6 +51,18 @@ for (p in names(model$positions)) {
 }
 
 model$deployment <- "SHADOW_ONLY"
+# Part A — explicit deployment-state contract embedded in the served model.
+model$deployment_contract <- list(
+  model_version = model$start_sit_model_version,
+  deployment = "SHADOW_ONLY",
+  positions = structure(list(), names = character(0)),
+  activation_log = list(),
+  lifecycle = c("SHADOW_ONLY", "RESEARCH_ELIGIBLE", "CERTIFICATION_PASSED",
+                "PRODUCTION_ELIGIBLE", "PRODUCTION_ACTIVE"),
+  production_influence_state = "PRODUCTION_ACTIVE",
+  rule = paste("A Football-Intelligence numeric contribution reaches a production recommendation",
+               "ONLY for a position explicitly set to PRODUCTION_ACTIVE via an activation_log entry.",
+               "No research verdict promotes automatically."))
 model$deployment_note <- paste(
   "No position clears the production bar: FI reversals beat a coin flip only for RB",
   "against the naive trailing-PPG control, and that edge does not survive against the",

@@ -1,6 +1,8 @@
 # Team Management — Phase 4: Start/Sit Decision Engine
 
-**Status: BUILT + AUDITED. Verdict at §17.**
+**Status: BUILT + AUDITED + REMEDIATED (A + C). Verdict at §17.**
+Remediation sections: **§18 Current deployment decision**, **§19 Future current-season
+re-certification**.
 
 Branch `team-management-phase4-start-sit` (off the Phase 3 branch). Phase 3 (`lib/football-intel/`,
 `analysis/football_intel/`) is a **frozen read-only upstream** — not modified.
@@ -329,26 +331,176 @@ position enters production.**
 Every safety, enforcement, chronology, isolation, legality, determinism, and regression
 criterion passes. The FI→Start/Sit translation layer is deterministic, versioned, bounded,
 confidence-aware, ablatable, and programmatically respects the Phase 3
-`OBSERVED / MODELED / DESCRIPTIVE_ONLY` + `predictive_status` contract (proven by 17 tests).
-The shadow path is live-verified to change **nothing** in production, and the trade engine is
-provably untouched.
+`OBSERVED / MODELED / DESCRIPTIVE_ONLY` + `predictive_status` contract. The shadow path is
+live-verified to change **nothing** in production, and the trade engine is provably untouched.
 
-But the phase's own central question is answered in the negative: **certified Football
-Intelligence does not improve start/sit decisions over the projection production actually
-uses.** The information is already priced in (double-counting), it actively hurts TE, and the
-one real signal (RB coin-flips vs a naive baseline) does not survive the stricter comparison.
-Per §38, a phase certifies only with "evidence that the candidate decision layer … adds
-useful out-of-sample value." It does not.
+The phase's central question is answered in the negative: **`ri-startsit-2026.1` does not
+demonstrate reliable incremental start/sit value over the production weekly projection.** The
+information is already priced in (double-counting), it hurts TE, and the RB coin-flip signal
+does not survive the stricter comparison. That empirical finding is **accepted**.
 
-The blocker is not a defect and not remediable by more modeling — redundant information stays
-redundant. The remediation is a **scope decision** for review:
-(a) accept `SHADOW_ONLY` as the permanent Phase-4 end-state and re-run certification with that
-as the explicit target (the contract is already frozen and Phase-5-consumable); or
-(b) obtain the true production baseline (Roster Intel weekly projections, when they exist) and
-re-test RB; or
-(c) accumulate live-2026 FI and re-evaluate once FI is current-season rather than a prior.
+Per the approved remediation, both **A** (freeze) and **C** (future re-certification
+mechanism) are now implemented (§18, §19): the model is frozen `SHADOW_ONLY` behind an
+explicit deployment-state contract + production guard + 12 regression tests proving FI cannot
+reach production without a `PRODUCTION_ACTIVE` activation, and a dormant, evidence-gated 2026
+re-evaluation pipeline is in place and correctly reports `NOT_ELIGIBLE` (0 genuine
+current-season FI weeks).
 
-# CONDITIONAL — REMEDIATION REQUIRED
+# PHASE 4 CERTIFIED — SHADOW-ONLY FREEZE + 2026 RE-EVALUATION READY
 
-The remediation is the scope decision above, not code. Production start/sit behavior is
-unchanged and safe as-is. Do not begin Phase 5.
+Production start/sit behavior change = **0** (regression-verified). Do not begin Phase 5.
+
+---
+
+## 18. Current deployment decision (remediation Part A)
+
+**`ri-startsit-2026.1` is frozen `SHADOW_ONLY` and immutable.** Why:
+
+- Against the RotoWire-backed weekly projection production actually uses, FI adds **no**
+  incremental start/sit decision value for any position (§7.3, §9): reversal win rates
+  0.47–0.51, mean Δ ≤ 0 pts. The matchup / pace / efficiency signal FI carries is already
+  priced into the production projection — **double-counting** (§7, §9, spec §11).
+- Feature-family ablation: **every incremental MAE gain ≤ 0.003 pts** — noise (§9).
+- The one positive result — RB coin-flip decisions vs a *naive trailing-mean* control
+  (+0.042 accuracy, +2.09 pts/reversal, §7.2) — **vanishes** against the production baseline
+  (+0.00008 accuracy, −0.14 pts/reversal). QB is neutral-to-negative; **WR is a coin flip;
+  TE is actively harmful** (reversal win rate 0.416, −1.28 pts/reversal).
+- Projection MAE: FI does not improve MAE for any position; RMSE improves ~0.02 (§6).
+- The live FI snapshot is `fi:2025:w18` — a **2025-derived prior for 2026**, not observed
+  current-season performance.
+
+### The freeze is enforced, not assumed
+
+| Mechanism | File | Guarantee |
+| --- | --- | --- |
+| deployment-state contract | `lib/weekly/start-sit-fi/deployment.ts` + `start_sit_model.json.deployment_contract` | `deployment: "SHADOW_ONLY"`, `positions: {}`, `activation_log: []`, `production_influence_state: "PRODUCTION_ACTIVE"` |
+| production guard | `fiMayInfluenceProduction(model, position)` | returns `true` **only** when a position is explicitly `PRODUCTION_ACTIVE`; today always `false` for every position |
+| single gated integration point | `applyFiToProductionBatch()` | the only sanctioned way FI could adjust a production projection batch; a strict **no-op** under the current contract; **nothing in production calls it** |
+| lifecycle state machine | `isValidTransition(from, to)` | `SHADOW_ONLY → PRODUCTION_ACTIVE` is **invalid** (no state may be skipped); every step must be traversed |
+| regression proof | `test/start-sit-fi-remediation.test.ts` (12) + `test/start-sit-fi-isolation.test.ts` (4) | FI-adjusted projections cannot enter production start/sit, lineup, waiver, matchup, or trade without an explicit deployment-state change; `buildOptimalLineup` / `maxSlotMatching` byte-unchanged; `lib/trades/**` imports neither layer |
+
+Retained per the brief: `ri-startsit-2026.1`, `start_sit_shadow`, FI routing enforcement,
+confidence weighting, bounds, reversal tracking, lineage, and all historical evaluation code.
+
+---
+
+## 19. Future current-season re-certification (remediation Part C)
+
+A **dormant, versioned, evidence-gated** pipeline is implemented now so the model can be
+re-tested automatically once genuine 2026 Football Intelligence exists. It is currently
+`NOT_ELIGIBLE` and does nothing until the gate is satisfied.
+
+### 19.1 Evidence gate
+
+`analysis/football_intel_startsit/eligibility.R` → `lib/weekly/data/start_sit_reevaluation_manifest.json`.
+`ELIGIBLE` requires **≥ 4 completed 2026 NFL weeks** (re-checked at **6** if support is weak;
+then every **2–3 weeks**, or when the Phase 3 FI model version changes materially — the
+`cadence` block), where **each** included week satisfies all of:
+
+```
+pbp_completed_reg_week
+phase3_fi_asof_snapshot_buildable
+fi_team_ratings_present_through_prior_week
+actual_fantasy_outcomes_present
+production_baseline_projection_available
+```
+
+**The preseason / prior-only snapshot (`fi:2025:w18`) never counts** — `fi_snapshot_is_current_season`
+is `false` and the manifest says so explicitly. Current state:
+
+```json
+{ "current_model_version": "ri-startsit-2026.1", "deployment": "SHADOW_ONLY", "season": 2026,
+  "completed_fi_weeks": 0, "minimum_weeks_required": 4, "preferred_weeks": 6,
+  "reevaluation_eligible": false, "reevaluation_status": "NOT_ELIGIBLE",
+  "not_eligible_reason": "insufficient genuine 2026 FI sample: 0 completed current-season FI week(s)…",
+  "last_evaluated_through_week": null, "next_candidate_version": "ri-startsit-2026.2" }
+```
+
+`reevaluation_status ∈ { NOT_ELIGIBLE, ELIGIBLE, RUNNING, PASSED, FAILED }`.
+
+### 19.2 Candidate versioning
+
+`ri-startsit-2026.1` is **never retrained or rewritten**. A re-evaluation run overrides the
+version (`SS_MODEL_VERSION_OVERRIDE`) and training window (`SS_SEASONS_OVERRIDE`) via env vars
+and produces a **new** candidate `ri-startsit-2026.N` that preserves FI snapshot lineage,
+training cutoff, evaluation cutoff, baseline versions, feature-family status, coefficients,
+`tau`, caps, and the deployment verdict. `nextCandidateVersion("ri-startsit-2026.1") = "ri-startsit-2026.2"`.
+
+### 19.3 Re-evaluation workflow — one command
+
+`Rscript analysis/football_intel_startsit/reevaluate.R` — dormant until eligible; then, all
+chronology-safe against 2026 data: (1) locate valid 2026 FI as-of snapshots → (2) build the
+2026 decision dataset → (3) production baseline (Sleeper weekly; a week whose baseline can't
+be reconstructed reliably → **DEGRADED**, never a weaker substitute) → (4) train candidate
+past-only → (5) nested-fold hyper-parameter tuning → (6) held-out current-season evaluation →
+(7) ablation → (8) reversal analysis → (9) per-position certification → (10) compare against
+the **production** baseline (trailing-PPG / season-average remain *controls* only) → (11)
+per-position verdict. Any failure → `reevaluation_status = FAILED`, manifest consistent,
+**production untouched** (verified with `--force`).
+
+### 19.4 Chronology (unchanged from Phase 4)
+
+For evaluation week W: only FI available before W; only projection info before W; only prior
+actuals; Week-W actuals target-only; no W+1 leakage; participation lag honored (`PART_LAG = 2`).
+All Phase 4 leakage tests retained.
+
+### 19.5 Per-position deployment — allowed, but explicit
+
+A future candidate may certify selectively (`QB → SHADOW_ONLY`, `RB → PRODUCTION_ELIGIBLE`,
+`TE → REJECTED`, …). **No auto-promotion:** the pipeline emits `PRODUCTION_ELIGIBLE` at most
+and **never modifies production routing**. Activation requires a human-reviewed, versioned
+`activation_log` entry setting that position to `PRODUCTION_ACTIVE` in the deployment
+contract. `test/start-sit-fi-remediation.test.ts` proves a `PASSED` research verdict with a
+`PRODUCTION_ELIGIBLE` per-position result leaves `deploymentContract().positions` empty and
+`fiMayInfluenceProduction` `false`.
+
+### 19.6 Live shadow accumulation — now
+
+`lib/weekly/start-sit-fi/capture.ts`: from Week 1 of 2026, every shadow decision can be
+persisted with full as-of state (timestamp, week, scoring fingerprint, player identities,
+baseline projections, FI snapshot/version + inputs, adjusted projections, both
+recommendations, reversal state, model version, confidence; `actual_fantasy_points` filled
+in later). Every record is labelled **`LIVE_CAPTURED`** or **`HISTORICALLY_RECONSTRUCTED`** —
+the re-evaluation reports them separately and never mixes them silently. Default store is
+`NullCaptureStore` (no-op); `FileCaptureStore` appends JSONL under `outputs/startsit-2026/shadow_capture/`.
+The capture hook is wired into `buildWeeklyIntelligence` and fires only when a non-null store
+is set.
+
+### 19.7 Deployment lifecycle
+
+```
+SHADOW_ONLY → RESEARCH_ELIGIBLE → CERTIFICATION_PASSED → PRODUCTION_ELIGIBLE
+            → [explicit human deployment] → PRODUCTION_ACTIVE
+```
+plus `CERTIFICATION_FAILED` (from `RESEARCH_ELIGIBLE` / `CERTIFICATION_PASSED`) and rollback
+to `SHADOW_ONLY` from any state. `isValidTransition` forbids skipping. Current state for
+`ri-startsit-2026.1`: `SHADOW_ONLY`.
+
+### 19.8 Preserved null-result evidence
+
+RB value vs naive baseline (+0.42 acc / +2.09 pts per coin-flip reversal); its disappearance
+vs the production baseline (+0.00008 acc / −0.14 pts); QB / WR neutrality; **TE degradation**
+(0.416 reversal win rate, −1.28 pts/reversal); negligible feature-family MAE ablations
+(≤ 0.003 pts); tie-break gate holds (0 reversals in `moderate` / `obvious` buckets); the
+Sleeper-history provenance failure (2021 no timestamp, 2022 bulk backfill); **double-counting
+conclusion** — the production weekly projection already carries FI's information.
+
+---
+
+## 20. Remediation verification
+
+- `npx tsc --noEmit` — clean
+- `npx eslint app lib test` — 0 errors, 29 warnings (0 new)
+- `npm test` — **1500 pass / 0 fail / 4 skipped** (+12 remediation, +17 Phase 4 core; **0 existing tests changed**)
+- Phase 4 TS invariants (13) + isolation (4) + remediation (12) — pass
+- R adversarial audit `analysis/football_intel_startsit/adversarial_audit.R` — 12/12
+- R FI (Phase 3) invariants 24/24 + adversarial 15/15 — pass
+- Phase 1C cross-surface certification — `cross_surface_discrepancies = 0` on both real leagues
+- Phase 2 Team-State + weekly + trade regression — pass (weekly+trade 138/138)
+- Synthetic future-state transitions tested: Week 3 → `NOT_ELIGIBLE`; Week 4 without per-week
+  coverage → `NOT_ELIGIBLE`; Week 4 with coverage → `ELIGIBLE`; forced run with no 2026 data →
+  `FAILED` (manifest consistent, production untouched); `PASSED` + `PRODUCTION_ELIGIBLE` →
+  production routing unchanged.
+- **Production recommendation behavior change = 0** — `buildOptimalLineup` / `maxSlotMatching`
+  byte-identical; `start_sit` / `lineup` / `matchup` / `waivers` / trade outputs unchanged;
+  live smoke on `bloodline-bowl/supyo29` confirms production output identical to pre-Phase-4.

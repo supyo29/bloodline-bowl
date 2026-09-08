@@ -15,7 +15,7 @@ import { buildMatchup, buildLeverage } from "./matchup";
 import { buildWaiverRecommendations } from "./waivers";
 import { compareStartSit, type StartSitComparison } from "./start-sit";
 import { buildWeeklySummary, type WeeklySummary } from "./summary";
-import { buildStartSitShadow } from "./start-sit-fi";
+import { buildStartSitShadow, getShadowCaptureStore, captureShadowDecision } from "./start-sit-fi";
 import type { StartSitShadowComparison } from "./start-sit-fi";
 import { WEEKLY_ENGINE_VERSION, type DataQualityStatus, type Priority, type WeeklyTeamContext, type WeeklyWarning } from "./schema";
 import type { RecommendationLineage } from "@/lib/canonical/lineage";
@@ -172,6 +172,20 @@ async function buildWeeklyIntelligenceInner(
   let start_sit_shadow: StartSitShadowComparison | null = null;
   try {
     start_sit_shadow = buildStartSitShadow(ctx);
+    // Part C — live shadow-decision capture. No-op unless a store is wired
+    // (default NullCaptureStore). Preserves the original as-of state so the
+    // future 2026 re-certification does not need reconstruction.
+    if (start_sit_shadow && getShadowCaptureStore().kind !== "null") {
+      captureShadowDecision(start_sit_shadow, {
+        season: ctx.league.season,
+        week: ctx.league.week,
+        league_slug: ctx.league.slug,
+        manager_slug: ctx.manager.manager_slug,
+        scoring_fingerprint:
+          (ctx.lineage as { snapshot?: { scoring_fingerprint?: string | null } })?.snapshot?.scoring_fingerprint ?? null,
+        kind: "LIVE_CAPTURED",
+      });
+    }
   } catch {
     start_sit_shadow = null;
   }
