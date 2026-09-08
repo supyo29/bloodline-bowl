@@ -643,6 +643,103 @@ and completion disables rapid polling.
 
 ---
 
+# Stage F — Sporty's Alumni Bridge Profile (manager-neutral, `7db91c1`)
+
+Narrow config/UI integration. **No `ri-snake-decision-2026.2` mathematics / projections
+/ trade / waiver / canonical-state / published-snapshot / pointer / feature-flag change.**
+
+## S1. Bridge profile architecture audit
+
+`BridgeLeagueProfile` (`lib/bridge/profiles.ts`) is the frozen human-authored config,
+cross-checked live by `lib/bridge/board.ts`. Fields by category:
+
+| category | fields |
+| --- | --- |
+| **league identity** | `league_key`, `registry_key`, `aliases`, `league_name`, `season`, `platform`, `platform_league_id`, `platform_draft_id`, `previous_league_id` |
+| **presentation** | `display_label`, `short_label` |
+| **draft-engine config** | `draft.{type, team_count, rounds, starts_at}`, `roster_rules.{roster_positions, starters, bench, reserve, flex_positions}` |
+| **recommendation-model config** | `ranking_pack_id`, `model.{candidate_id, candidate_verified, candidate_source, survival_engine, declared_*_sha, default_ranking_source, notes}`, `opponent_modeling.{exclude_own_historical_profile, note}` |
+| **user / self-manager** | `manager` — was a single non-null object |
+
+`model` is required by the type but **does not require a real frozen model** — both
+existing profiles use `default_ranking_source: "sleeper_search_rank"` as the honest
+fallback (Bloodline: an owner-declared *unverified* candidate; Devoted: a validated
+ranking pack). The `/bridge` board never runs the snake decision engine — that is the
+separate `/api/leagues/:slug/managers/:slug/recommendations` route (registry-driven,
+already verified for Sporty's).
+
+## S2. Manager-neutral adaptation (the "no fixed self-manager" limitation)
+
+`BridgeLeagueProfile.manager` is now `BridgeManagerProfile | null` + an explicit
+`manager_neutral: boolean`. The **smallest safe adaptation**:
+
+- `lib/bridge/board.ts` — `manager_key` / `manager_display_name` / `manager_sleeper_user_id` in `league_identity` are nullable; a `manager_neutral` flag is added. With **no seat selected**: no slot is `is_me`, `draft_slot_source: "unconfirmed"`, no default manager. With **`?slot=N`**: the board resolves that seat's *real* user id + display name from the live `draft_order` — it never invents one.
+- `app/bridge/page.tsx` — a manager-neutral league shows a **seat `<select>`** populated from `board.draft_feed.slots` (all 14 live managers) and a *"pick your seat"* banner; the confirmed seat drives slot / current-next pick / roster needs / best-for-team. Every `profile.manager.*` is optional-chained.
+- `lib/bridge/state.ts` — `profile.manager?.draft_slot ?? null`.
+
+**No Sporty's manager is hard-coded as the owner** (tested: no member name appears as `manager_key` anywhere in the profile).
+
+## S3. Sporty's Alumni profile — verified live against Sleeper (2026-09-07)
+
+`league_key: "sportys_alumni"` · `registry_key: "sportys-alumni"` · aliases `sportys`, `sporty`
+· league `1389404340015370240` ("Sporty's Alumni") · draft `1389404340032118784`
+· `previous_league_id: "1255589856759775232"` · season 2026 · **snake, 14 teams, 15 rounds**
+· starts `2026-09-08T22:00:00.000Z` · roster `QB/RB/RB/WR/WR/TE/FLEX/FLEX/K/DEF + BN×5`
+· `manager: null`, `manager_neutral: true` · `ranking_pack_id: null` · `model.candidate_id: null`,
+`candidate_source: "none"`, `default_ranking_source: "sleeper_search_rank"` · no borrowed
+model / rankings / scoring (tested: no `bloodline`/`darthmarker` string anywhere in the profile).
+
+## S4. Live verification (dev server)
+
+- `/bridge` lists **all 3 leagues**; the Sporty's row reads "Sporty's Alumni (pick a seat) · pick a seat · snake".
+- Selecting Sporty's shows the banner + a **14-seat dropdown** — `1. mallermb … 14. TylerShreve` (matches Sleeper's `slot_to_roster_id` + `draft_order`), full-PPR Sleeper board order (Bijan/Gibbs/Chase — its own, not Bloodline's half-PPR order), a distinct scoring hash, `DRAFT SLOT: ?`.
+- Board API: `manager_neutral: true`, `manager_key: null`, `manager_sleeper_user_id: null`, `draft_slot_source: "unconfirmed"`, 14 seats, `pre_draft`, 14/15, `sleeper_search_rank`, 700-player pool, `Cache-Control: s-maxage=5` (pre_draft — becomes `no-store` at `drafting`).
+- `?slot=1` → `draft_slot: 1`, `draft_slot_source: "user_override"`, `manager_sleeper_user_id: 1265477633718624256` = "mallermb" (the real seat-1 owner).
+- Recommendations for **rspata2** and **dusty22k**: both `snake_engine_status: READY`, `model: ri-snake-decision-2026.2`, no error — engine unchanged.
+- Bloodline + Devoted UI/profile **unchanged** (text slot input, own model block, own manager defaults).
+
+## S5. Tests
+
+`test/bridge-sportys-profile.test.ts` (13, deterministic): profile resolution/aliases,
+verified-config-only, manager-neutral / no-fake-self-manager, no borrowed model,
+14-team snake geometry (picks 1/14/15/28 + a later round boundary, monotonic 15-pick
+slot ownership, snake ≠ linear, impossible slot rejected), existing profiles
+regression-stable (3 profiles, unique ids, Bloodline/Devoted fields intact), DraftPoller
+reuse (the page imports the shared poller, no `setInterval`).
+
+`test/bridge-sportys-profile-live.test.ts` (9, live): board resolves in isolation,
+manager-neutral with no default self-manager, all 14 seats exposed, selecting a seat
+resolves the real user id + roster, 14/15/snake reconciled, pool excludes
+drafted/rostered, Sleeper `search_rank` ranking, distinct scoring identity, and
+`BRIDGE_PUBLISHED_SNAPSHOT=all` does not change the board source.
+
+DraftPoller polling transitions (§5 pre_draft 7 s → drafting 2 s, pick observed on next
+poll, drafted player leaves pool, complete stops) are covered by the league-agnostic
+`test/bridge-draft-poller.test.ts` (13) — Sporty's drives the identical path.
+
+## S6. Regression
+
+`tsc` clean · `lint` 0 errors · **non-live suite 1271 / 0 / 0** (was 1258; +13) ·
+**live bridge suite 19 / 0** · **production `npm run build` compiles** · no
+recommendation-model file changed · `BRIDGE_PUBLISHED_SNAPSHOT` OFF · 0 pointer writes.
+Existing bridge / multi-league-isolation / leagues-registry count assertions updated
+for the 3rd profile — no test weakened.
+
+## S7. Live pre-draft + real-draft smoke — operator gate
+
+**Pre-draft (do before 2026-09-08 22:00 UTC):** `/bridge` → Sporty's Alumni; 14 seats
+selectable; status `pre_draft`; snake / 15 rounds / 60 s timer shown where the UI
+exposes them; a selected seat gets READY recommendations via the API; poller running at
+the pre-draft cadence; no manual refresh needed to detect the start.
+
+**During the real draft:** status auto-transitions to `drafting`; polling changes ~7 s → ~2 s;
+a real pick appears without manual refresh within one poll cycle + latency (else P0/P1);
+drafted player leaves availability; current pick advances; recommendations refresh;
+no stale drafted player recommended; seat stays correct; snake reversal at a real round
+boundary if observed; rapid polling stops on completion. **Record the observed cadence.**
+
+---
+
 ## Stage F Certification
 
 **CONDITIONAL — PRODUCTION FLAG FLIP BLOCKED.**
