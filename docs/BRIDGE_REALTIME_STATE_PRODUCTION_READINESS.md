@@ -22,16 +22,19 @@ preview and production: the legacy live path is byte-for-byte the serving path, 
 new machinery (refresh route, deep health, freshness envelope, published-pointer store,
 Sporty's manager-neutral profile) is present and inert.
 
-**Gate 1 (deployed publication) is now `PASS`** — the operator set `REFRESH_SECRET` on
-production, and an authenticated `POST /api/refresh?scope=all` published certified
-pointers for `bloodline-bowl` (seq 1) and `devoted-to-the-game` (seq 1), skipped the
-`pre_draft` `sportys-alumni`, wrote 3 audit rows, and — critically — **did not change
-the serving path** (`state_source` stayed `LEGACY_LIVE_PATH`, flag still OFF).
+**Gates 1 and 2 are now `PASS` on production.** The operator set `REFRESH_SECRET`;
+an authenticated `POST /api/refresh?scope=all` published certified pointers for
+`bloodline-bowl` (seq 1) and `devoted-to-the-game` (seq 1), skipped `pre_draft`
+`sportys-alumni`, and — critically — **did not change the serving path**
+(`state_source` stayed `LEGACY_LIVE_PATH`). Two concurrent bursts (8 same-league +
+5 cross-league, all HTTP 200) left the pointer monotonic, produced zero duplicate
+content rows, zero cross-league bleed, and kept LKG readable. One residual: the
+deployed *contended advance* (`raced`) is proven only at the storage layer, not
+end-to-end HTTP, because the source content did not move between calls.
 
-The flag still **cannot** be enabled: Gate 2 (deployed concurrency) is not yet run,
-Gate 3 requires a real NFL scoring window, Gate 4 requires the Sporty's Alumni draft
-(2026-09-08 22:00 UTC), and the daily-only publish cron does not meet the NORMAL
-freshness ceiling without a Vercel plan upgrade.
+The flag still **cannot** be enabled: Gate 3 requires a real NFL scoring window,
+Gate 4 requires the Sporty's Alumni draft (2026-09-08 22:00 UTC), and the daily-only
+publish cron does not meet the NORMAL freshness ceiling without a Vercel plan upgrade.
 
 ---
 
@@ -49,7 +52,7 @@ freshness ceiling without a Vercel plan upgrade.
 | Supabase env (prod) | **set** — deep health `persistence.{history_stores, published_pointer_store, publication_audit_store} = READY` |
 | Supabase env (preview) | **not set** — deep health persistence `PERSISTENCE_NOT_CONFIGURED` |
 | `bridge_published_snapshot` rows (prod DB) | **2** — `bloodline-bowl` seq 1, `devoted-to-the-game` seq 1 (written by the Gate 1 authenticated refresh, 2026-09-08 03:17 UTC) |
-| `bridge_publication_audit` rows (prod DB) | **3** — 2 `published` + 1 `skipped` (`sportys-alumni`), all `ok:true` `integrity:CERTIFIED` `error:null` |
+| `bridge_publication_audit` rows (prod DB) | **16** — 2 `published` (Gate 1) + 2 `skipped` (`sportys-alumni`) + 12 `unchanged` (Gate 2 bursts); all `ok:true` `integrity:CERTIFIED` `error:null` |
 | `/api/cron/publish` schedule | `0 13 * * *` (daily — Vercel Hobby plan constraint, see "Code changes") |
 | `/api/cron/capture` schedule | `0 12 * * *` (unchanged) |
 
@@ -142,33 +145,49 @@ deployment when convenient.
 
 ## Gate 2 — Deployed concurrency
 
-### `READY TO RUN — operator action` (not yet run; no longer blocked)
+### `PASS` (with one residual noted) — executed on production, 2026-09-08 03:37 UTC
 
-`REFRESH_SECRET` is now set on production, so the authenticated publish path is callable.
-Gate 1 already exercised a single 3-league refresh cleanly. What remains is the
-concurrent case, which needs several near-simultaneous authenticated calls fired from
-the operator's shell (the secret must not enter this session).
+Two authenticated bursts fired from the operator's shell (secret via `X-Refresh-Secret`,
+never entered this session), against production `331672e`, flag OFF.
 
-**What is already proven:** deterministic concurrency (`test/bridge-refresh.test.ts` —
-`Promise.all` of two publishes → `["published","raced"]`, seq monotonic) + the
-production-DB SQL race proof (Stage E §5, 8 writers/seq0 → 1 advanced / 7 raced). Gate 1
-proved the deployed single-writer path advances the pointer atomically to seq 1. Neither
-exercises the deployed *concurrent* HTTP path.
+**A. Same-league burst — 8 concurrent `POST /api/refresh?league=bloodline-bowl`:**
 
-**Operator runbook (production, flag OFF, `REFRESH_SECRET` set):**
-- **A. Same league:** 5–10 near-simultaneous authorized `POST /api/refresh?league=bloodline-bowl`.
-  Expect each response ∈ {published, unchanged, raced}; `bridge_published_snapshot.published_seq`
-  strictly increases, never regresses; at most one *new* content hash in `bridge_league_snapshots`;
-  last-known-good readable throughout.
-- **B. Cross-league:** concurrent `?league=bloodline-bowl`, `?league=devoted-to-the-game`,
-  `?league=sportys-alumni`. Verify per-league pointer rows carry the correct `league_slug` /
-  `snapshot_id` / `content_hash` / `schema_version`; no manager / scoring / roster bleed
-  (compare each pointer's snapshot `scoring_fingerprint` + `roster_fingerprint` to that
-  league's known values).
-- **C. Failure preservation:** the repo has no safe supported failure toggle — do not
-  invent one. Skip and note.
+| property | result |
+| --- | --- |
+| HTTP status | **200 × 8** |
+| outcome | `unchanged` × 8 (source content byte-identical to the Gate 1 publish → every rebuild produced hash `44ba3cfb…`, so no advance was warranted) |
+| `integrity` | `CERTIFIED` × 8 |
+| `bridge_published_snapshot.published_seq` | **stayed 1** — never advanced, never regressed |
+| new content-hash rows in `bridge_league_snapshots` | **0** — hash `44ba3cfb…` present exactly once |
+| audit rows | 8, all `ok:true`, `error:null`, 8 distinct `audit_id` |
+| reads during the burst | `GET /api/league/bloodline-bowl/state` → `status: READY`, `state_source: LEGACY_LIVE_PATH`, lineage hash `44ba3cfb…` — LKG served throughout |
 
-Record request start/end timestamps per call.
+**B. Cross-league burst — 5 concurrent `POST /api/refresh` across
+`bloodline-bowl` ×2, `devoted-to-the-game` ×2, `sportys-alumni` ×1:**
+
+| property | result |
+| --- | --- |
+| HTTP status | **200 × 5** |
+| outcome | `bloodline-bowl` `unchanged` ×2, `devoted-to-the-game` `unchanged` ×2, `sportys-alumni` `skipped` ×1 |
+| pointer rows after | `bloodline-bowl` seq 1 / hash `44ba3cfb…`; `devoted-to-the-game` seq 1 / hash `f0e05074…`; **no `sportys-alumni` row** |
+| cross-league bleed | **none** — each pointer carries its own `league_slug` + own `content_hash` + `schema_version 3`; each audit row tagged with the correct league |
+| errors | 0 across all 13 concurrent requests (8 + 5) |
+
+**Residual (documented, not blocking):** every burst request landed as `unchanged`
+because the underlying Sleeper state did not move between rebuilds, so the deployed HTTP
+path's *contended pointer advance* — N racers, one wins, the rest return `raced` — was
+not exercised end-to-end. That specific race is proven at the storage layer (Stage E §5,
+production DB, transaction rolled back: 8 writers seq0 → **1 advanced / 7 raced**,
+guarded stale write → 0 rows) and by `test/bridge-refresh.test.ts` (`Promise.all` of two
+publishes → `["published","raced"]`). Everything the concurrency gate guards against —
+pointer regression, duplicate content rows, cross-league contamination, uncertified or
+errored writes, unreadable LKG — is verified clean on the deployed path. To close the
+residual fully: repeat burst A during a real scoring window when the source hash changes
+between calls, and confirm exactly one `published` + the rest `raced`/`unchanged` with a
+single seq increment.
+
+**C. Failure preservation:** the repo has no safe supported failure toggle — not
+invented, not tested.
 
 ---
 
@@ -280,7 +299,8 @@ another league; a board whose returned `league_key` ≠ requested is rejected cl
 | lint (`npm run lint`) | **0 errors** (pre-existing warnings only) |
 | build (`npm run build`) | **compiles** |
 | deployed code identity (preview `05fabd6` + production `8378255` / `331672e`) | **all probes pass** (table above) |
-| **Gate 1 — deployed publication (production, `331672e`)** | **PASS** — authed refresh published 2 certified pointers (seq 1), skipped `pre_draft` Sporty's, 3 audit rows, serving path unchanged (`LEGACY_LIVE_PATH`) |
+| **Gate 1 — deployed publication (production `331672e`)** | **PASS** — authed refresh published 2 certified pointers (seq 1), skipped `pre_draft` Sporty's, serving path unchanged (`LEGACY_LIVE_PATH`) |
+| **Gate 2 — deployed concurrency (production `331672e`)** | **PASS** (residual noted) — 13 concurrent authed requests, all 200, pointer monotonic, 0 duplicate content rows, 0 cross-league bleed, LKG readable; contended `raced` advance still storage-layer-only |
 
 No skips or failures hidden. `*-live.test.ts` files remain network-flaky under parallel
 load (pre-existing; reproduced on a clean pre-branch checkout) — the deterministic
@@ -321,12 +341,12 @@ behavior · Sporty's ranking logic.
 | # | gate | status | who can clear it |
 | --- | --- | --- | --- |
 | 1 | Gate 1 — deployed publication | **PASS** (2026-09-08 03:17 UTC) | — done |
-| 2 | Gate 2 — deployed concurrency | not run (no longer blocked) | operator fires ~8 concurrent authed `POST /api/refresh` from their shell + I verify seq monotonicity in the DB |
+| 2 | Gate 2 — deployed concurrency | **PASS**, residual noted (2026-09-08 03:37 UTC) | — done; residual (contended `raced` on the HTTP path) closes opportunistically during a scoring window |
 | 3 | Gate 3 — active-scoring-window shadow | PENDING | real Sun/Mon/Thu game window + operator runs `shadow:compare` |
 | 4 | Gate 4 — live Sporty's Alumni draft smoke | PENDING | operator observes the real draft (2026-09-08 22:00 UTC) |
 
-`Remaining production blockers: 3` (Gates 2–4). The deploy prerequisite and Gate 1 are
-satisfied.
+`Remaining production blockers: 2` (Gates 3–4). The deploy prerequisite and Gates 1–2
+are satisfied.
 
 Additional flag-flip precondition (not a gate, but disqualifying on its own): the
 daily-only `/api/cron/publish` cadence does not keep the pointer inside the NORMAL
@@ -342,30 +362,29 @@ No P0 contamination found. No unresolved defect. Production is on the intended S
 
 **Do not flip `BRIDGE_PUBLISHED_SNAPSHOT` in production.** The code is merged, deployed,
 and verified inert (flag OFF, legacy live path serving, all code-identity probes pass on
-both preview and production, 0 model files changed, shadow `UNEXPLAINED = 0`). Gate 1 now
-proves the deployed publish path end-to-end: it advances certified pointers and writes
-audit rows **without touching the serving path**. But the flag-flip criteria require
-**all four** deployed gates plus an adequate publish cadence, and Gates 2–4 are open.
+both preview and production, 0 model files changed, shadow `UNEXPLAINED = 0`). Gates 1–2
+now prove the deployed publish path end-to-end: it advances certified pointers, writes
+audit rows, and survives concurrency **without touching the serving path**. But the
+flag-flip criteria require **all four** deployed gates plus an adequate publish cadence,
+and Gates 3–4 are open.
 
 Order of remaining work:
 
-1. ~~Operator sets `REFRESH_SECRET`~~ — done. ~~Gate 1~~ — **PASS**.
-2. **Gate 2** — operator fires ~8 concurrent authed `POST /api/refresh?league=bloodline-bowl`
-   (and a cross-league burst) from their shell; verify `published_seq` is strictly
-   monotonic and never regresses, at most one new content hash, LKG readable throughout.
-3. **Gate 3** — during the next real NFL scoring window: `shadow:compare`, require
-   `UNEXPLAINED = 0` on every stable-source run.
-4. **Gate 4** — during the Sporty's Alumni draft (2026-09-08 22:00 UTC).
-5. Resolve the publish-cadence precondition (Vercel plan upgrade for a sub-daily
+1. ~~Operator sets `REFRESH_SECRET`~~ — done. ~~Gate 1~~ **PASS**. ~~Gate 2~~ **PASS** (residual noted).
+2. **Gate 3** — during the next real NFL scoring window: `shadow:compare`, require
+   `UNEXPLAINED = 0` on every stable-source run. Opportunistically also close the Gate 2
+   residual (a burst that produces one `published` + the rest `raced`).
+3. **Gate 4** — during the Sporty's Alumni draft (2026-09-08 22:00 UTC).
+4. Resolve the publish-cadence precondition (Vercel plan upgrade for a sub-daily
    `/api/cron/publish`, or an accepted narrower serving policy).
-6. Only after 2–5 are all green: flip `BRIDGE_PUBLISHED_SNAPSHOT` wave-by-wave
+5. Only after 2–4 are all green: flip `BRIDGE_PUBLISHED_SNAPSHOT` wave-by-wave
    (`wave1` → validate → `wave2` → `wave3`), re-running `shadow:compare` after each and
    requiring `UNEXPLAINED = 0`. Rollback at any point = unset the env var (no data
    rollback; the published pointers can stay — they are only read when the flag is on).
 
 ### May `BRIDGE_PUBLISHED_SNAPSHOT` be enabled in production? **NO.**
 
-Not until Gates 2–4 are closed on the deployment and the publish cadence meets the
-freshness ceiling. Gate 1 is done. Enabling the flag today would still be fallback-safe
-for every read, but "unverified against Gates 2–4" is disqualifying under the stated
-criteria.
+Not until Gates 3–4 are closed on the deployment and the publish cadence meets the
+freshness ceiling. Gates 1–2 are done. Enabling the flag today would still be
+fallback-safe for every read, but "unverified against Gates 3–4" is disqualifying under
+the stated criteria.
