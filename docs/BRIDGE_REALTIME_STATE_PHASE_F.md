@@ -552,6 +552,97 @@ Updated for the 5th league (no test weakened): `test/multi-league-isolation.test
 
 ---
 
+# Stage F — Draft-Live Automatic Polling (readiness fix, `c68d5dc`)
+
+Narrow client-side fix. No new remodel stage; no recommendation-model / snake /
+valuation / canonical / published-snapshot / pointer change.
+
+## P1. What was missing
+
+Verified before: the repo had **no automatic draft-poll loop** — `/bridge` refetched
+only on a state-signature change. Seconds-level pick visibility during a live draft
+was not guaranteed.
+
+## P2. Implementation
+
+- **`lib/bridge/draft-poller.ts`** — `DraftPoller`, a framework-agnostic status-driven
+  poller (so the interval mechanics are unit-testable with fake timers; the React
+  component just wires it up). One place for the constants:
+  `DRAFT_LIVE_POLL_MS = 2000`, `DRAFT_STATUS_POLL_MS = 7000`, `DRAFT_POLL_MAX_BACKOFF_MS = 15000`.
+
+  | draft status | behavior |
+  | --- | --- |
+  | `drafting` / `paused` | poll every **2 s** |
+  | `pre_draft` | poll every **7 s** (notice the start; no indefinite 2 s loop) |
+  | `complete` / any other known status | **stop** polling |
+  | unknown (no board yet) | poll once to learn it, then bounded (≤8) 7 s re-checks |
+
+  - **No request pileups** — recursive `setTimeout` schedules the next tick only *after*
+    the current `poll()` promise settles; a structural in-flight guard on top.
+  - **Transient failure** — bounded exponential backoff (`interval × 2ⁿ`, capped 15 s),
+    the loop never stops, the board is never cleared, no other state is substituted.
+  - **Visibility** — `pause()` on tab hidden, `resume()` on visible does an *immediate*
+    refresh then resumes cadence.
+  - Reads no env, imports no canonical / published / pointer / model code (asserted).
+
+- **`app/bridge/page.tsx`** — one `useEffect` creates a `DraftPoller` (re-armed per
+  league), feeds it `board.draft_feed.status`, wires a `visibilitychange` listener.
+  `fetchBoard()` gains `{ silent, keepOnError }`: a polled refresh doesn't toggle the
+  loading spinner and **keeps the last-known-good board on any error** ("showing last
+  update; retrying") — a user-driven load still clears as before.
+
+- **`app/api/bridge/board/route.ts`** — `Cache-Control: no-store` when
+  `draft_feed.status ∈ {drafting, paused}` (was always `s-maxage=5`). No CDN window can
+  now stretch the effective 2 s cadence. `pre_draft` / `complete` keep the short CDN cache.
+
+## P3. Pick-change flow (automatic, no reload / button / external trigger)
+
+On each 2 s poll the client refetches `/api/bridge/board`, which already composes
+everything from fresh Sleeper reads (`getDraft`/`getDraftPicks` with `noStore`):
+new completed picks, current/next pick geometry inputs, the available-player pool
+(drafted players already excluded), and the ranked recommendation source. No alternate
+Draft-Live state model was introduced.
+
+## P4. Tests — `test/bridge-draft-poller.test.ts` (13, fake timers, no network, no React render)
+
+cadence per status · `pre_draft → drafting` auto-activation · unknown-status learn poll ·
+`drafting → complete` stops rapid polling · no pileups (a hanging poll → `maxConcurrent = 1`) ·
+transient error keeps the board + auto-recovers + returns to 2 s · tab hidden pauses /
+visible refreshes immediately · `stop()` cancels a pending tick · `BRIDGE_PUBLISHED_SNAPSHOT=all`
+changes nothing and the source has no env/pointer reference · a 14-team snake draft
+(Sporty's Alumni shape) drives the identical path. `pollIntervalForStatus` /
+`pollDecision` boundary values.
+
+## P5. Scope note — Sporty's Alumni and the `/bridge` UI
+
+The **`/bridge` web UI serves `bloodline_bowl` and `devoted_to_the_game` only** — those
+are the two registered *Bridge profiles* (`lib/bridge/profiles.ts`), which carry a
+frozen `model_profile`. **Sporty's Alumni has no Bridge profile**, so it is not
+selectable in that UI. Its Draft-Live consumers are the API routes
+(`/api/leagues/sportys-alumni/draft`, `.../managers/{m}/draft`, `.../managers/{m}/recommendations`),
+which are already `Cache-Control: no-store` and poll-safe. The polling fix makes the
+`/bridge` UI auto-refresh during `drafting` for the leagues it serves, and the board
+route now returns `no-store` during an active draft for *any* client. Giving Sporty's
+Alumni a rapid-polling UI would require adding a Bridge profile with a `model_profile`
+— out of scope for this narrow fix (would touch model wiring) and flagged for the user.
+
+## P6. Regression
+
+`tsc` clean · `lint` 0 errors · **non-live suite 1258 / 0 / 0** (deterministic) ·
+**production `npm run build` compiles** · draft + Sporty's Alumni + Stage F reader
+suites green · no model files changed · `BRIDGE_PUBLISHED_SNAPSHOT` OFF · 0 pointer writes.
+
+## P7. Live Sporty's Alumni draft smoke — still an operator gate
+
+During the real draft, read-only: confirm `drafting` is detected, rapid polling
+activates, **record the observed poll cadence**, a real pick appears without a manual
+refresh within one poll cycle + normal latency (else → material Draft-Live defect),
+the player leaves availability, current pick advances, recommendations update, no stale
+drafted player stays recommended, snake reversal at a real round boundary if observed,
+and completion disables rapid polling.
+
+---
+
 ## Stage F Certification
 
 **CONDITIONAL — PRODUCTION FLAG FLIP BLOCKED.**
