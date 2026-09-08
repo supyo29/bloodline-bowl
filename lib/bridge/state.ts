@@ -249,7 +249,7 @@ export function mergeSleeperPicks(
   }
   assertStateBelongsToLeague(profile, state);
 
-  const mySlot = state.slot_override ?? profile.manager.draft_slot;
+  const mySlot = state.slot_override ?? profile.manager?.draft_slot ?? null;
   const entries = { ...state.entries };
 
   for (const pick of picks) {

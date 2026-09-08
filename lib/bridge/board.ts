@@ -143,9 +143,12 @@ export interface BridgeBoardResponse {
     platform: "sleeper";
     platform_league_id: string;
     platform_draft_id: string;
-    manager_key: string;
-    manager_display_name: string;
-    manager_sleeper_user_id: string;
+    /** `null` for a MANAGER-NEUTRAL league until the user selects a seat. */
+    manager_key: string | null;
+    manager_display_name: string | null;
+    manager_sleeper_user_id: string | null;
+    /** True when the league has no registered self-manager — the UI must pick a seat. */
+    manager_neutral: boolean;
     /** Best-known slot: user override wins, then live draft_order, then profile. */
     draft_slot: number | null;
     draft_slot_source: "user_override" | "sleeper_draft_order" | "unconfirmed";
@@ -377,7 +380,7 @@ export async function buildBridgeBoard(
       .map((r) => [r.owner_id as string, r.roster_id]),
   );
   const draftOrder = draft?.draft_order ?? {};
-  const meUserId = profile.manager.sleeper_user_id;
+  const meUserId = profile.manager?.sleeper_user_id ?? null;
 
   const slots = Object.entries(draftOrder)
     .map(([userId, slot]) => ({
@@ -390,17 +393,27 @@ export async function buildBridgeBoard(
     .sort((a, b) => a.slot - b.slot);
 
   const liveSlot =
-    typeof draftOrder[meUserId] === "number" ? draftOrder[meUserId]! : null;
+    meUserId != null && typeof draftOrder[meUserId] === "number"
+      ? draftOrder[meUserId]!
+      : null;
   const resolvedSlot =
     options.slotOverride != null
       ? options.slotOverride
-      : (liveSlot ?? profile.manager.draft_slot);
+      : (liveSlot ?? profile.manager?.draft_slot ?? null);
   const slotSource: BridgeBoardResponse["league_identity"]["draft_slot_source"] =
     options.slotOverride != null
       ? "user_override"
       : liveSlot != null
         ? "sleeper_draft_order"
         : "unconfirmed";
+
+  // MANAGER-NEUTRAL: the selected seat's user id (from the live draft order),
+  // when the user has confirmed a slot. Otherwise null — no default "me".
+  const selectedUserId: string | null =
+    meUserId ??
+    (resolvedSlot != null
+      ? (slots.find((s) => s.slot === resolvedSlot)?.user_id ?? null)
+      : null);
 
   const sortedPicks = [...picks].sort((a, b) => a.pick_no - b.pick_no);
   const feedPicks = sortedPicks.map((p) => ({
@@ -599,13 +612,13 @@ export async function buildBridgeBoard(
         status: "FALLBACK",
         source_label: "Sleeper search_rank — FALLBACK",
         warning:
-          `${profile.manager.display_name} canonical ranking pack is not active: ${reasons.join(" ")}`,
+          `${profile.manager?.display_name ?? profile.league_name} canonical ranking pack is not active: ${reasons.join(" ")}`,
       };
       warnings.push({
         code: "ranking_pack_not_active",
         resource: "bridge/ranking-packs",
         message:
-          `${profile.manager.display_name.toUpperCase()} MODEL NOT LOADED — USING SLEEPER FALLBACK RANKINGS. ${reasons.join(" ")}`,
+          `${(profile.manager?.display_name ?? profile.league_name).toUpperCase()} MODEL NOT LOADED — USING SLEEPER FALLBACK RANKINGS. ${reasons.join(" ")}`,
       });
     } else {
       rankingSource = "sleeper_search_rank";
@@ -633,9 +646,12 @@ export async function buildBridgeBoard(
       platform: "sleeper",
       platform_league_id: leagueId,
       platform_draft_id: profile.platform_draft_id,
-      manager_key: profile.manager.manager_key,
-      manager_display_name: profile.manager.display_name,
-      manager_sleeper_user_id: meUserId,
+      manager_key: profile.manager?.manager_key ?? null,
+      manager_display_name:
+        profile.manager?.display_name ??
+        (selectedUserId ? (usersById.get(selectedUserId)?.display_name ?? null) : null),
+      manager_sleeper_user_id: selectedUserId,
+      manager_neutral: profile.manager_neutral,
       draft_slot: resolvedSlot,
       draft_slot_source: slotSource,
       team_count: liveTeamCount,
