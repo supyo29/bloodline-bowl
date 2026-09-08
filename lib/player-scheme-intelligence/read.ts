@@ -290,6 +290,94 @@ export function defenseRushProfile(team: string): Array<Record<string, string | 
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Tier B — charting-dependent split profiles (participation + FTN).
+// Every row carries `availability` (PRIOR_ONLY | DESCRIPTIVE_ONLY) and `source`.
+// ---------------------------------------------------------------------------
+export type TierBAvailability = "PRIOR_ONLY" | "DESCRIPTIVE_ONLY";
+
+export interface ChartingSplitRow {
+  gsis_id: string;
+  window: ProfileWindow;
+  bucket: string;
+  plays: number | null;
+  values: Record<string, number | null>;
+  evidence_class: EvidenceClass;
+  availability: TierBAvailability;
+  source: string;
+  family: string;
+}
+
+function chartingRows(file: string, idField: string, idValue: string): ChartingSplitRow[] {
+  return readCsv(file)
+    .filter((r) => (r[idField] ?? r.gsis_id) === idValue)
+    .map((r) => {
+      const values: Record<string, number | null> = {};
+      for (const [k, v] of Object.entries(r)) {
+        if (["gsis_id", "window", "bucket", "evidence_class", "availability", "source", "family", "note", "metric_note"].includes(k)) continue;
+        values[k] = num(v);
+      }
+      return {
+        gsis_id: S(r.gsis_id),
+        window: S(r.window) as ProfileWindow,
+        bucket: S(r.bucket),
+        plays: num(r.plays ?? r.targets ?? r.carries ?? r.plays_with_concept),
+        values,
+        evidence_class: (S(r.evidence_class) as EvidenceClass) || "INSUFFICIENT",
+        availability: (S(r.availability) as TierBAvailability) || "PRIOR_ONLY",
+        source: S(r.source) || "participation",
+        family: S(r.family) || file.replace(/\.csv$/, ""),
+      };
+    });
+}
+
+export const qbCoverageProfile = (g: string) => chartingRows("qb_coverage_profile.csv", "gsis_id", g);
+export const qbCoverageFamily = (g: string) => chartingRows("qb_coverage_family.csv", "gsis_id", g);
+export const qbPressureProfile = (g: string) => chartingRows("qb_pressure_profile.csv", "gsis_id", g);
+export const qbRusherCountProfile = (g: string) => chartingRows("qb_rusher_count_profile.csv", "gsis_id", g);
+export const qbFormationProfile = (g: string) => chartingRows("qb_formation_profile.csv", "gsis_id", g);
+export const qbConceptProfile = (g: string) => chartingRows("qb_concept_profile.csv", "gsis_id", g);
+export const qbProgressionProfile = (g: string) => chartingRows("qb_progression_profile.csv", "gsis_id", g);
+export const receiverRouteProfile = (g: string) => chartingRows("receiver_route_profile.csv", "gsis_id", g);
+export const receiverCoverageProfile = (g: string) => chartingRows("receiver_coverage_profile.csv", "gsis_id", g);
+export const rbBoxProfile = (g: string) => chartingRows("rb_box_profile.csv", "gsis_id", g);
+
+export interface TierBManifest {
+  built_at: string;
+  feature_registry_version: string;
+  data_cutoff: Record<string, number | null>;
+  current_season_observed: { participation: boolean; ftn: boolean };
+  box_bucket_verdict: string;
+  reconciliation_all_pass: boolean;
+  families: Array<{
+    family: string;
+    source: string;
+    first_supported_season: number;
+    availability: TierBAvailability;
+    source_season_through: string;
+    current_season_observed: boolean;
+  }>;
+  notes: string[];
+}
+
+export function tierBManifest(): TierBManifest | null {
+  const psi = loadPlayerSchemeIntelligence();
+  return (psi?.manifest as { tier_b?: TierBManifest })?.tier_b ?? null;
+}
+
+export function tierBFamilyMeta(family: string) {
+  const tb = tierBManifest();
+  const f = tb?.families.find((x) => x.family === family);
+  if (!f) return { availability: "PRIOR_ONLY" as TierBAvailability, source: "participation", first_supported_season: null, source_season_through: null, current_season_observed: false };
+  return {
+    availability: f.availability,
+    source: f.source,
+    first_supported_season: f.first_supported_season,
+    source_season_through: f.source_season_through,
+    current_season_observed: f.current_season_observed,
+  };
+}
+
 export function leagueBaselines(): Array<Record<string, string | number | null>> {
   return readCsv("league_baselines.csv").map((r) => {
     const o: Record<string, string | number | null> = {};

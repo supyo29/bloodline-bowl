@@ -18,12 +18,24 @@ import {
   defenseRushProfile,
   leagueBaselines,
   loadPlayerSchemeIntelligence,
+  qbCoverageProfile,
+  qbCoverageFamily,
+  qbConceptProfile,
   qbDirectional,
+  qbFormationProfile,
   qbMatrix,
+  qbPressureProfile,
+  qbProgressionProfile,
+  qbRusherCountProfile,
+  rbBoxProfile,
   rbRushGap,
   rbRushMatrix,
+  receiverCoverageProfile,
   receiverMatrix,
+  receiverRouteProfile,
   resolvePlayer,
+  tierBFamilyMeta,
+  type ChartingSplitRow,
   type DefensePassCell,
   type ProfileWindow,
   type SpatialCellRow,
@@ -87,6 +99,38 @@ export function resolveRef(raw: string): ResolvedRef | { resolution: "UNRESOLVED
 }
 
 // ---------------------------------------------------------------------------
+// Tier B — charting-dependent family blocks with per-family provenance (spec §4, §19)
+// ---------------------------------------------------------------------------
+function chartingFamily(family: string, rows: ChartingSplitRow[]) {
+  const meta = tierBFamilyMeta(family);
+  const windows: Record<string, ChartingSplitRow[]> = {};
+  for (const r of rows) (windows[r.window] ??= []).push(r);
+  return {
+    family,
+    availability: meta.availability,
+    source: meta.source,
+    first_supported_season: meta.first_supported_season,
+    source_season_through: meta.source_season_through,
+    current_season_observed: meta.current_season_observed,
+    // hard, machine-readable: this is NOT a current-season observation
+    is_current_season_observation: meta.current_season_observed === true,
+    windows: Object.keys(windows).length ? windows : null,
+  };
+}
+
+function qbChartingSection(gsis_id: string) {
+  return {
+    coverage: chartingFamily("qb_coverage", qbCoverageProfile(gsis_id)),
+    coverage_family: chartingFamily("qb_coverage", qbCoverageFamily(gsis_id)),
+    pressure: chartingFamily("qb_pressure", qbPressureProfile(gsis_id)),
+    pass_rusher_count: chartingFamily("qb_rusher_count", qbRusherCountProfile(gsis_id)),
+    formation: chartingFamily("qb_formation", qbFormationProfile(gsis_id)),
+    concepts: chartingFamily("qb_concepts", qbConceptProfile(gsis_id)),
+    progression: chartingFamily("qb_progression", qbProgressionProfile(gsis_id)),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // QB
 // ---------------------------------------------------------------------------
 export function buildQbProfile(raw: string) {
@@ -113,10 +157,12 @@ export function buildQbProfile(raw: string) {
         }];
       }),
     ),
+    spatial_availability: "LIVE_CAPABLE" as const,
+    charting: qbChartingSection(ref.gsis_id),
     lineage: {
-      source: "nflverse play-by-play",
-      fields: ["pass_location", "air_yards"],
-      note: "Tier A is PBP-only and LIVE_CAPABLE. Cells built only from charted plays; uncharted attempts counted in attempts_total, never binned (spec §41).",
+      spatial_source: "nflverse play-by-play (LIVE_CAPABLE)",
+      charting_source: "nflverse participation + FTN (PRIOR_ONLY / DESCRIPTIVE_ONLY — see charting.*.availability)",
+      note: "Spatial cells built only from charted plays; uncharted attempts counted in attempts_total, never binned (spec §41). Charting families carry per-family availability; none is a current-2026 observation (spec §3, §4).",
     },
   };
 }
@@ -141,7 +187,16 @@ export function buildReceivingProfile(raw: string) {
         targets_uncharted: rows[0]?.attempts_uncharted ?? null,
       }]),
     ),
-    lineage: { source: "nflverse play-by-play", note: "Target location = the throw's location/depth, NOT receiver alignment (spec §10)." },
+    spatial_availability: "LIVE_CAPABLE" as const,
+    charting: {
+      routes: chartingFamily("receiver_route", receiverRouteProfile(ref.gsis_id)),
+      coverage: chartingFamily("receiver_coverage", receiverCoverageProfile(ref.gsis_id)),
+    },
+    lineage: {
+      spatial_source: "nflverse play-by-play (LIVE_CAPABLE)",
+      charting_source: "nflverse participation (PRIOR_ONLY)",
+      note: "Target location = the throw's location/depth, NOT receiver alignment (spec §10). `routes` is TARGETED-route only — a share of targets, not routes run; YPRR not computable (spec §10).",
+    },
   };
 }
 
@@ -164,7 +219,13 @@ export function buildRushingProfile(raw: string) {
         carries_uncharted: rows[0]?.attempts_uncharted ?? null,
       }]),
     ),
-    lineage: { source: "nflverse play-by-play", note: "Direction + gap ONLY (end/tackle/guard). Never relabeled zone/gap/power/counter (spec §13). Offense-perspective, no mirroring (spec §42)." },
+    spatial_availability: "LIVE_CAPABLE" as const,
+    charting: { box: chartingFamily("rb_box", rbBoxProfile(ref.gsis_id)) },
+    lineage: {
+      spatial_source: "nflverse play-by-play (LIVE_CAPABLE)",
+      charting_source: "nflverse participation defenders_in_box (PRIOR_ONLY)",
+      note: "Direction + gap ONLY (end/tackle/guard). Never relabeled zone/gap/power/counter (spec §13). Offense-perspective, no mirroring (spec §42). Box count is NOT a defensive front scheme (spec §14).",
+    },
   };
 }
 

@@ -34,5 +34,101 @@
   "cutpoint_verdict": "FROZEN",
   "reconciliation_all_pass": true,
   "determinism": "seeded; pure aggregation; identical cache -> identical version",
-  "notes": ["Tier A is PBP-only and LIVE_CAPABLE. No participation / FTN / NGS input.", "Cells are built ONLY from plays with a charted pass_location AND air_yards (or run_location). Uncharted plays are counted in *_total, never assigned to a cell (spec §41).", "depth bins: BEHIND_LOS air_yards<0 | SHORT 0-9 | INTERMEDIATE 10-19 | DEEP 20+. air_yards==0 -> SHORT (documented).", "run_location / run_gap are offense-perspective as shipped by nflverse; no mirroring (spec §42).", "Scrambles + sacks + spikes + kneels + 2-pt are excluded from the designed-play universes; sacks are NOT pass attempts.", "current_season_status=PRIOR_ONLY: newest data is a prior season; NOT a current-season observation (spec §3)."]
+  "notes": ["Tier A is PBP-only and LIVE_CAPABLE. No participation / FTN / NGS input.", "Cells are built ONLY from plays with a charted pass_location AND air_yards (or run_location). Uncharted plays are counted in *_total, never assigned to a cell (spec §41).", "depth bins: BEHIND_LOS air_yards<0 | SHORT 0-9 | INTERMEDIATE 10-19 | DEEP 20+. air_yards==0 -> SHORT (documented).", "run_location / run_gap are offense-perspective as shipped by nflverse; no mirroring (spec §42).", "Scrambles + sacks + spikes + kneels + 2-pt are excluded from the designed-play universes; sacks are NOT pass attempts.", "current_season_status=PRIOR_ONLY: newest data is a prior season; NOT a current-season observation (spec §3)."],
+  "tiers": ["A", "B"],
+  "tier_b": {
+    "built_at": "2026-09-08T17:11:19-0500",
+    "spatial_version": "qb-spatial-2026.1",
+    "tendency_version": "player-tendency-2026.1",
+    "feature_registry_version": "psi-feature-registry-2026.1",
+    "data_cutoff": {
+      "participation_season": 2025,
+      "participation_week": 18,
+      "ftn_season": 2025,
+      "ftn_week": 22
+    },
+    "current_season_observed": {
+      "participation": false,
+      "ftn": false
+    },
+    "box_bucket_verdict": "CAVEAT_RAW_SERVED",
+    "reconciliation_all_pass": true,
+    "served_content_sha256": "c3693a39b72346cd3d08f4569b6669ab135a205a6a2cdf5021cf50b0501aa049",
+    "families": [
+      {
+        "family": "qb_coverage",
+        "source": "participation",
+        "first_supported_season": 2018,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      },
+      {
+        "family": "qb_pressure",
+        "source": "participation",
+        "first_supported_season": 2016,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      },
+      {
+        "family": "qb_rusher_count",
+        "source": "participation",
+        "first_supported_season": 2016,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      },
+      {
+        "family": "qb_formation",
+        "source": "participation",
+        "first_supported_season": 2016,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      },
+      {
+        "family": "qb_concepts",
+        "source": "ftn",
+        "first_supported_season": 2022,
+        "availability": "DESCRIPTIVE_ONLY",
+        "source_season_through": "2025 w22",
+        "current_season_observed": false
+      },
+      {
+        "family": "qb_progression",
+        "source": "ftn",
+        "first_supported_season": 2022,
+        "availability": "DESCRIPTIVE_ONLY",
+        "source_season_through": "2025 w22",
+        "current_season_observed": false
+      },
+      {
+        "family": "receiver_route",
+        "source": "participation",
+        "first_supported_season": 2018,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      },
+      {
+        "family": "receiver_coverage",
+        "source": "participation",
+        "first_supported_season": 2018,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      },
+      {
+        "family": "rb_box",
+        "source": "participation",
+        "first_supported_season": 2016,
+        "availability": "PRIOR_ONLY",
+        "source_season_through": "2025 w18",
+        "current_season_observed": false
+      }
+    ],
+    "files": ["qb_coverage_profile.csv", "qb_coverage_family.csv", "qb_pressure_profile.csv", "qb_rusher_count_profile.csv", "qb_formation_profile.csv", "qb_concept_profile.csv", "qb_progression_profile.csv", "receiver_route_profile.csv", "receiver_coverage_profile.csv", "rb_box_profile.csv"],
+    "notes": ["Every Tier B family is PRIOR_ONLY (participation) or DESCRIPTIVE_ONLY (FTN). NONE is LIVE_CAPABLE for 2026.", "Denominators are CHARTED plays; coverage_rate_* is exposed. Uncharted plays never become MAN/ZONE/FALSE/a box bucket (spec §5, §23).", "participation `route` is the TARGETED route only. targeted_route_share is a share of targets, NOT routes run. YPRR is not computable (spec §10).", "FTN n_blitzers (true blitz count) is kept distinct from participation number_of_pass_rushers >= 5 (blitz PROXY) (spec §8).", "FTN families are DESCRIPTIVE_ONLY and can never enter Tier D as a LIVE_CAPABLE predictor (spec §11)."]
+  }
 }

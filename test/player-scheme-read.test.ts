@@ -145,7 +145,7 @@ test("psi §33/§35: matchup output is descriptive, adjustment 0, SHADOW_ONLY", 
 test("psi: defense profile has 32 teams and a 12-cell vulnerability map", () => {
   const d = buildDefenseProfile("SF") as Record<string, unknown>;
   assert.ok(d && "windows" in d);
-  const w = (d.windows as Record<string, { pass_vulnerability_matrix: unknown[] }>).career;
+  const w = (d.windows as Record<string, { pass_vulnerability_matrix: unknown[] }>).career!;
   assert.equal(w.pass_vulnerability_matrix.length, 12);
 });
 

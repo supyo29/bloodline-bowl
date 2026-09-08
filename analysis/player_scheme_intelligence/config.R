@@ -116,6 +116,42 @@ PSI$SHRINK_K <- list(
   interact  = 8      # opponent-games; toward zero effect
 )
 
+# ---- Tier B: charting-dependent families (spec §4, §5, §31, §36) -----
+# Per-family availability + first supported season. Nothing here is
+# LIVE_CAPABLE for 2026: participation / FTN in-season 2026 is unproven
+# (Part I audit). All Tier B families are PRIOR_ONLY (participation) or
+# DESCRIPTIVE_ONLY (FTN — never a predictive input, spec §11 / FI guardrail 1).
+PSI$TIERB_FAMILIES <- list(
+  qb_coverage    = list(source = "participation", first_season = 2018L, availability = "PRIOR_ONLY"),
+  qb_pressure    = list(source = "participation", first_season = 2016L, availability = "PRIOR_ONLY"),
+  qb_rusher_count= list(source = "participation", first_season = 2016L, availability = "PRIOR_ONLY"),
+  qb_formation   = list(source = "participation", first_season = 2016L, availability = "PRIOR_ONLY"),
+  qb_concepts    = list(source = "ftn",           first_season = 2022L, availability = "DESCRIPTIVE_ONLY"),
+  qb_progression = list(source = "ftn",           first_season = 2022L, availability = "DESCRIPTIVE_ONLY"),
+  receiver_route    = list(source = "participation", first_season = 2018L, availability = "PRIOR_ONLY"),
+  receiver_coverage = list(source = "participation", first_season = 2018L, availability = "PRIOR_ONLY"),
+  rb_box            = list(source = "participation", first_season = 2016L, availability = "PRIOR_ONLY")
+)
+PSI$COVERAGE_FAMILIES <- c("COVER_0", "COVER_1", "COVER_2", "2_MAN", "COVER_3", "COVER_4", "COVER_6")
+PSI$COVERAGE_FAMILY_OTHER <- c("COMBO", "COVER_9", "PREVENT", "BLOWN")
+PSI$RUSHER_BUCKETS <- list(LT4 = c(0, 4), FOUR = c(4, 5), FIVE = c(5, 6), SIXPLUS = c(6, Inf))
+PSI$BOX_BUCKETS <- list(LIGHT = c(-Inf, 6.5), NEUTRAL = c(6.5, 7.5), HEAVY = c(7.5, Inf))
+PSI$BOX_BUCKET_GRID <- list(
+  a = list(light_hi = 6.5, heavy_lo = 7.5),
+  b = list(light_hi = 6.5, heavy_lo = 8.5),
+  c = list(light_hi = 5.5, heavy_lo = 7.5)
+)
+PSI$TIERB_EVIDENCE <- list(
+  coverage_split = c(insufficient = 30, weak = 80, moderate = 200),
+  pressure_split = c(insufficient = 25, weak = 70, moderate = 175),
+  route_family   = c(insufficient = 8,  weak = 20, moderate = 50),
+  box_bucket     = c(insufficient = 15, weak = 40, moderate = 100),
+  concept        = c(insufficient = 15, weak = 40, moderate = 120)
+)
+PSI$TIERB_MIN_COVERAGE_RATE <- 0.55
+PSI$TIERB_MIN_OPP_DIVERSITY <- 4L
+PSI$FEATURE_REGISTRY_VERSION <- "psi-feature-registry-2026.1"
+
 # ---- recency / role-change (spec §9, §27) -------------------------
 PSI$RECENCY_HALFLIFE_GAMES <- 10
 PSI$RECENCY_HALFLIFE_GRID  <- c(6, 8, 10, 14)

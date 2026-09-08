@@ -320,11 +320,130 @@ Full Tier A build ≈ 27 s (single pass over 676k pbp rows, 2012–2025).
 gate conditions pass. Tier B (charting-dependent `PRIOR_ONLY` profiles) builds
 on the same normalized play spine and reuses the evidence/shrinkage machinery.
 
+## Tier B — charting-dependent PRIOR_ONLY profiles ✅ COMPLETE
+
+**Lane:** `SHARED_DESCRIPTIVE`. **Availability:** per-family `PRIOR_ONLY`
+(participation) / `DESCRIPTIVE_ONLY` (FTN) — **none is `LIVE_CAPABLE` for 2026**.
+Additive to Tier A: reads nothing from Tier A artifacts, does not modify them.
+
+### Files added
+| File | Role |
+| --- | --- |
+| `analysis/player_scheme_intelligence/lib_charting.R` | participation + FTN join onto the pbp spine; per-family split builders |
+| `analysis/player_scheme_intelligence/build_tierB.R` | orchestrator: box-bucket sensitivity audit, reconciliation, artifacts, manifest merge, registry status |
+| 10 served CSV in `lib/player-scheme-intelligence/data/` | `qb_coverage_profile`, `qb_coverage_family`, `qb_pressure_profile`, `qb_rusher_count_profile`, `qb_formation_profile`, `qb_concept_profile`, `qb_progression_profile`, `receiver_route_profile`, `receiver_coverage_profile`, `rb_box_profile` |
+| `test/player-scheme-tierb.test.ts` | 11 Tier B contract tests |
+| `feature_registry.yaml` `built_status:` block | actual built status (spec §21) |
+
+### What it computes (windows career / recent / current_team)
+| Family | Source | First season | Rows | Buckets |
+| --- | --- | --- | --- | --- |
+| QB coverage (man/zone + families) | participation | 2018 | 588 + fam | `MAN`/`ZONE`; `COVER_0/1/2/3/4/6`, `2_MAN`, `OTHER` |
+| QB pressure | participation | 2016 | 651 | `PRESSURED`/`CLEAN` |
+| QB pass-rusher count | participation | 2016 | 1,292 | `LT4`/`FOUR`/`FIVE`/`SIXPLUS` (5+ = **blitz PROXY**, not charted identity) |
+| QB formation | participation | 2016 | 1,534 | `SHOTGUN`/`EMPTY`/`SINGLEBACK`/`I_FORM`/`PISTOL`/`UNDER CENTER`/`JUMBO`/`WILDCAT` |
+| QB concepts (FTN) | ftn | 2022 | 1,764 | play_action / motion / no_huddle / rpo / screen / out_of_pocket / throwaway — frequency + efficiency |
+| QB progression (FTN) | ftn | 2022 | 1,485 | `FIRST_READ`/`SECOND_READ`/`CHECKDOWN`/`DESIGNED`/`SCRAMBLE_DRILL`/`PRE_SNAP_OR_ZERO` |
+| Receiver route | participation | 2018 | 18,019 | targeted-route taxonomy (21 values) |
+| Receiver coverage | participation | 2018 | 3,236 | `MAN`/`ZONE` |
+| RB box | participation | 2016 | 2,669 | `LIGHT`<6.5 / `NEUTRAL` / `HEAVY`≥7.5 |
+
+For each split: exposure (how often faced), **kept separate from** tendency
+(depth/direction distribution) and efficiency (EPA, success, completion, air
+yards, sack rate, scramble rate, turnover rate, TTT). Every row carries
+`charted_plays` context via the family totals + `coverage_rate_*`,
+`evidence_class`, `availability`, `source`.
+
+### Source-timeliness contract (spec §3, §22) — programmatic
+Manifest `tier_b.families[]` carries, per family: `source`,
+`first_supported_season`, `availability`, `source_season_through` (e.g.
+`"2025 w18"`), `current_season_observed: false`. The API `charting.*` blocks
+carry the same plus `is_current_season_observation: false`. A consumer **cannot
+flatten provenance away** — every charting family object names its own
+availability. `current_season_observed` is measured against
+`PSI$SEASON_CURRENT` (2026), so it stays `false` even on a 2025-target build.
+
+### Key semantic decisions
+- **Denominators are charted plays.** `coverage_rate_mz`, `coverage_rate_pressure`,
+  `route_coverage_rate` exposed. Uncharted plays → **no bucket** (never MAN/ZONE/FALSE).
+- **`route` is targeted-route only** (participation is one row per play). Field
+  is `targeted_route_share` = share of *targets*, not routes run. **YPRR is not
+  computable** from this source and is not emitted (spec §10).
+- **blitz ≠ pressure.** `qb_pressure` (was_pressure) and `qb_rusher_count`
+  (number_of_pass_rushers) are separate families. 5+ rushers is labelled a
+  PROXY. FTN `n_blitzers` (true count, 2022+) is retained internally, kept distinct.
+- **man/zone is the primary historical split**; detailed coverage families are a
+  secondary table, long tail collapsed to `OTHER`. First supported season 2018
+  (0% charted 2016–17).
+- **FTN families are `DESCRIPTIVE_ONLY`** — barred from becoming a Tier D
+  `LIVE_CAPABLE` predictor by the feature registry (`predictive_eligible: false`).
+- **Evidence gate** (spec §15): `psi_tierb_evidence` caps a split at `WEAK` when
+  the player's own `coverage_rate` < 0.55 **or** opponent diversity < 4, even if
+  raw sample is large.
+
+### Box-bucket sensitivity audit (spec §14) → **CAVEAT, raw served**
+| Alt grid | Spearman (heavy−light EPA) vs default |
+| --- | --- |
+| b (light<6.5 / heavy≥8.5) | 0.73 |
+| c (light<5.5 / heavy≥7.5) | 0.58 |
+RB box-response rank-order **is** cut-point sensitive. Default buckets kept for
+presentation; `mean_box_faced` + per-bucket `carries` served so a consumer can
+re-bucket. Manifest `box_bucket_verdict: "CAVEAT_RAW_SERVED"`. (P9-B-1, P3.)
+
+### Validation (Tier B gate — spec §23)
+- `tierB_reconciliation.json` **all_pass = TRUE**: man+zone ≤ charted_mz ≤
+  eligible; coverage buckets ∈ {MAN,ZONE}; pressured+clean == charted (R-side);
+  pressure states ∈ {PRESSURED,CLEAN}; `targeted_route_share` sums to 1 (err
+  3e-16); box_share sums to 1 (err 1e-16); box buckets ∈ {LIGHT,NEUTRAL,HEAVY};
+  FTN `plays_with_concept ≤ charted_plays` (never fabricate FALSE);
+  `no_current_season_participation = TRUE`, `no_current_season_ftn = TRUE`.
+- TS (11): manifest advertises `tiers: [A,B]`; every family `PRIOR_ONLY`/
+  `DESCRIPTIVE_ONLY` + `current_season_observed:false`; FTN→DESCRIPTIVE_ONLY,
+  participation→PRIOR_ONLY; only MAN/ZONE buckets; box partitions;
+  `targeted_route_share` sums to 1; tiny-sample & low-charting splits forced
+  `INSUFFICIENT`; registry-status artifact has `current_season_status:PRIOR_ONLY`
+  for all 9 families and `predictive_eligible:false` for FTN.
+- **Isolation:** `npm test` **1628 / 1624 pass / 0 fail / 4 skipped** (+11 Tier
+  B, 0 existing changed). Zero frozen-surface changes; no production import.
+  tsc + eslint clean.
+- Determinism: seeded, pure aggregation; `served_content_sha256` in the manifest.
+
+### Evidence distribution (career+recent+current_team)
+| Family | STRONG | MODERATE | WEAK | INSUFFICIENT |
+| --- | --- | --- | --- | --- |
+| qb_coverage | 331 | 154 | 78 | 25 |
+| qb_pressure | 377 | 159 | 85 | 30 |
+| receiver_route | 979 | 2,980 | 4,582 | 9,478 |
+| rb_box | 621 | 585 | 750 | 713 |
+The gate is doing its job — the receiver-route long tail is dominated by
+`INSUFFICIENT` micro-splits (1–7 targets on a route), emitted and flagged, never
+suppressed or fabricated.
+
+### Findings
+| ID | Sev | Finding |
+| --- | --- | --- |
+| P9-B-1 | P3 | RB box-bucket rank-order is cut-point sensitive (Spearman 0.58–0.73). Mitigated: default buckets + raw `mean_box_faced`/per-bucket carries served; manifest `CAVEAT_RAW_SERVED`. |
+| P9-B-2 | P3 | Served data now 20 MB (`receiver_route_profile.csv` ≈ largest). Cannot trim `INSUFFICIENT` rows without breaking `targeted_route_share` reconciliation. Revisit (gzip / per-window split files) in Tier E if it grows. |
+| P9-B-3 | P3 | `route` is targeted-only — no routes-run denominator. Documented in schema, manifest, registry; blocks YPRR. Upstream (nflverse participation) limitation, not a defect. |
+| P9-B-4 | INFO | participation man/zone unavailable 2016–17 → `qb_coverage`/`receiver_*` `first_season = 2018`. `qb_pressure`/`rb_box`/`formation` supported from 2016. |
+
+No P0/P1/P2. **Reconciliation ALL PASS; provenance programmatically enforced;
+Tier A artifacts byte-identical.**
+
+### Runtime
+Tier B build ≈ 53 s (participation join + FTN join + 9 families × 3 windows).
+
+### Checkpoint — is Tier C safe to proceed?
+**Yes.** No P0/P1; provenance is machine-readable per family; all denominators
+reconcile; Tier A intact. Tier C (team offense/defense profiles + numeric
+archetype vectors + coordinator/scheme-era mechanism) builds on the same
+normalized play + charting spine and does **not** depend on Tier D.
+
 ---
 
 ## 7. Verdict
 
-**PART I COMPLETE. TIER A COMPLETE & GATE PASSED.**
+**PART I COMPLETE. TIERS A & B COMPLETE & GATES PASSED.**
 No Section 47 verdict is issued until Part II implementation + validation +
 regression are complete. Phase 9 is **not** wired into Orchestrator ACTION
 generation or production projection adjustments, and will not be without a
