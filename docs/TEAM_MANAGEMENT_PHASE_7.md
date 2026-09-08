@@ -569,3 +569,190 @@ real cross-check reported separately (§24–§25). On approval, implementation 
 §12/§27/§28 and ends with one of `PHASE 7 CERTIFIED — SHARED SCHEDULE-PLANNING CONTEXT` /
 `CONDITIONAL — REMEDIATION REQUIRED` / `PHASE 7 NOT CERTIFIED`. **Stopping. No Phase 7
 implementation until the scope is reviewed.**
+
+
+---
+
+# PART II — IMPLEMENTATION & VALIDATION (Scope 3, SHARED_CONTEXT)
+
+_Branch `team-management-phase7-schedule-planning` (stacked on `48a97cb`). Implementation of the approved Scope 3 per the 35-constraint spec and the §33 sequence._
+
+## II.1 What was built
+
+`lib/schedule-planning/` — a shared forward-planning context, `SHARED_CONTEXT`, model/version
+`schedule-planning-2026.1`. Additive only; nothing in `lib/trades/`, `lib/weekly/lineup.ts`,
+`lib/roster-health/` or any recommendation engine is modified.
+
+| file | role |
+| --- | --- |
+| `schema.ts` | The Phase 7 contract. `WeekPlan` splits **STRUCTURE** fields (`nfl_schedule_state`, `starters_on_bye`, `bye_player_count`, `legal_lineup_covered`, `uncovered_slot_labels`, `structure_confidence`) from **VALUE** fields (`projection_basis`, `projected_lineup_value`, `no_bye_lineup_value`, `estimated_bye_loss`, `value_confidence`, `value_source`). `PlanningDegradation` carries **separate** `structure` and `value` grades — never one collapsed confidence. `PLANNING_MODEL_VERSION`, `PlanningLineage`, `PlanningSummary`, `TeamSchedulePlan`, `SchedulePlanningLeagueContext`, `SchedulePlanningDelta`. |
+| `schedule.ts` | `loadFullSchedule(season, fromWeek, toWeek)` → `FullSchedule` (per-week bye set + opponent map for the whole remaining season). The `SleeperScheduleProvider` caches the entire regular season on first use, so 18 `getWeekSchedule` calls cost **one** provider read (measured 17 ms). A week whose feed fails the structural-intactness check goes into `incompleteWeeks` and its byes are **not asserted** (spec §2). Home/away is not exposed by the provider → `home_away` is always `null`, recorded in the contract. |
+| `evaluate.ts` | `buildWeekTimeline(input)` — the per-team week-by-week planner. For every remaining week: schedule-verified byes → drop bye players via the frozen Phase 6 `rosterWithout` → best legal lineup via the **frozen `buildOptimalLineup`** (joint FLEX/SUPER_FLEX/multi-position matching — a versatile backup fills at most one slot) → uncovered slots + `estimated_bye_loss` (no-bye lineup value − bye-adjusted lineup value) + projected lineup value. Current week uses the true weekly projection (`projection_basis = WEEKLY`); every future week uses **prorated ROS** (`ROS_PROJECTION`, per-player ROS total ÷ remaining playing weeks). Future roster-health pressure for weeks within 6 of current is the **frozen `evaluateHorizon`** run on a per-week inputs clone. FI is **not** consulted for any numeric adjustment (`football_intelligence_version = "not_used"`). |
+| `build.ts` | `buildSchedulePlanningContext(leagueSlug)` — one `runInLeagueStateScope`: one `buildRosterHealthInputs` (the shared canonical state + weekly batch + RI + replacement + schedule that Phase 6 / the weekly engine already build), one `buildLeagueManagementContext`, one `loadFullSchedule`. Planning horizon (`last_regular_week`, `playoff_weeks`) comes from **canonical `league.playoff_settings`** — not hard-coded weeks 15–17; absent config → plan through NFL week 18, no playoff weeks, `PLAYOFF_CONFIG_UNAVAILABLE`. Per-team `PlanningSummary` (next/worst bye, tightest bye-concentration window, uncovered-slot weeks, playoff exposure, per-week projected-lineup timeline) + rolled-up degradation. |
+| `delta.ts` | `planningDelta(before, after)` — descriptive comparison of two immutable planning snapshots for the same team. Coverage improved/worsened, new/resolved uncovered-slot weeks, bye-collision added/removed, ROS-projected lineup shift (labelled, never a verdict), playoff-fragility shift, bye-concentration shift. Identical inputs → zero changes. Summary text is descriptive only — it never says a move was good or bad. |
+| `index.ts` | Barrel. |
+| `app/api/leagues/[leagueSlug]/schedule-planning/route.ts` | League-wide endpoint, all 12 teams, `Cache-Control: 30/120`. |
+| `app/api/leagues/[leagueSlug]/managers/[managerSlug]/schedule-planning/route.ts` | One manager's slice of the same single-read derivation. |
+
+## II.2 Structure vs value confidence — the core requirement (spec §1, §9)
+
+Every `WeekPlan` resolves the two confidences **independently**:
+
+- `structure_confidence` = `HIGH` for any week whose schedule feed is intact — for the **whole
+  regular season and the playoff weeks**, regardless of how far away. It drops to `LOW` only
+  when the NFL feed itself is incomplete (`SCHEDULE_WEEK_INCOMPLETE`). Distance from the
+  current week never degrades it.
+- `value_confidence` = `HIGH` only for the current week (true weekly projection); `MEDIUM` for
+  future weeks inside the 6-week window; `ROS_CONTEXT_ONLY` beyond it; `LOW` when a starter's
+  projection is missing.
+- `PlanningDegradation.structure` and `.value` are graded separately. A distant week with a
+  known bye reads `structure: "OK"` / `value: "ROS_ONLY"` — never a single blended grade.
+
+Live example (Bloodline `supyo29`, week 15 playoff): `structure_confidence = HIGH`,
+`value_confidence = ROS_CONTEXT_ONLY`, `projected_lineup_value = 134.77` carried with
+`projection_basis = ROS_PROJECTION`.
+
+## II.3 Projection hierarchy (spec §8)
+
+`projection_basis` is `WEEKLY` for exactly one week (current) and `ROS_PROJECTION` for every
+other. Future weekly values are the player's ROS total prorated over that player's remaining
+**playing** weeks (schedule byes removed from the denominator), never the current weekly
+number stretched across the season. `value_source` on every week records
+`weekly_model_version`, `ros_source` (`sleeper_season_rotowire_prorated`) and `ri_model_version`.
+Future weeks always carry `FUTURE_WEEKLY_PROJECTION_UNAVAILABLE` + `ROS_PROJECTION_USED` in
+`degradation.reasons`.
+
+## II.4 Frozen reuse (spec §3, §4, §26)
+
+- `lib/trades/ros.ts` — **untouched**. Phase 7 imports nothing from `lib/trades/`; `lib/trades/`
+  imports nothing from `lib/schedule-planning/`. `RosRosterValue.weekly_totals`,
+  `bye_hole_slot_weeks`, the trade regular/playoff windows and trade ROS scoring are unchanged.
+  Isolation-tested (static import graph) + the full trade-engine suite passes unchanged.
+- `buildOptimalLineup` / `maxSlotMatching` — used verbatim through `lib/weekly/lineup.ts` and
+  the Phase 6 `contingency.ts` primitives. No new optimizer, no new slot normalizer.
+- `evaluateHorizon` — called unmodified with `horizon: "rest_of_season"`. Phase 7 owns only the
+  per-week **scenario** (which players are on bye that week); the roster-health methodology,
+  lineage and degradation are Phase 6's.
+
+## II.5 Planning per NFL week; roster static (spec §5, §6)
+
+Timelines are indexed by NFL week, not by fantasy opponent — every week carries
+`ROSTER_ASSUMED_STATIC`. No hypothetical adds/drops/trades/waivers; no future FA pool
+(`FA_POOL_UNAVAILABLE` is available as a degradation reason for any consumer that asks for
+roster-held-only planning to be made explicit). Fantasy-playoff-opponent modelling is deferred.
+
+## II.6 Runtime (spec §31) — measured, Bloodline (12 teams, 17-week horizon)
+
+| stage | ms | note |
+| --- | ---: | --- |
+| shared inputs (canonical state + weekly batch + RI + replacement + schedule) | ~1,554 | the same reads Phase 6 / the weekly engine already perform — **inherited unchanged** |
+| Team-State context | 25 | shared, one call |
+| full-season NFL schedule | 17 | 18 `getWeekSchedule` calls = **one** cached provider read |
+| **per-team planning compute (12 teams × 17 weeks)** | **248** | **20.7 ms/team** |
+| **extra provider reads per manager / per week** | **0** | |
+
+Phase 7's own added cost is ~265 ms for the full league — within the spec's ~150–400 ms band.
+The ~1.5 s is pre-existing shared-read latency Phase 7 does not own. Endpoint is
+`Cache-Control: 30/120`; output is deterministic given a fixed snapshot + fixed models
+(verified byte-identical across repeated builds on both real leagues).
+
+## II.7 Tests — `test/schedule-planning.test.ts`, 19 / 19 pass
+
+Structure/value separation (spec §1): current-week `WEEKLY` vs future `ROS_PROJECTION`; known
+structure stays `HIGH` while value is `ROS_CONTEXT_ONLY`; `SCHEDULE_WEEK_INCOMPLETE` drops
+structure confidence without fabricating a bye.
+
+Invariants (spec §30): no byes → every `estimated_bye_loss` is 0 · removing a bye collision
+never increases bye-loss · identical inputs → byte-identical timeline · adding a legal strong
+backup never worsens future coverage or bye-loss · playoff weeks come from league config, not a
+15–17 assumption · future ROS value is explicitly labelled · missing future projection →
+degraded, not a fabricated weekly number.
+
+Adversarial matrix (spec §29): same-week QB + SUPER_FLEX bye with one backup → real uncovered
+exposure, no double count · multiple RB byes same week → FLEX collision in coverage · a
+versatile bench backup is never counted for two simultaneous vacated slots (2 WR byes, 1 legal
+filler → exactly 1 uncovered).
+
+Delta (spec §22): identical planning snapshots → zero changes · a new bye collision surfaces as
+`BYE_COLLISION_ADDED` with a descriptive (non-verdict) summary.
+
+Isolation (spec §3, §26): `lib/trades/**` never imports `schedule-planning` · `ros.ts` /
+`lineup.ts` unchanged · `schedule-planning/**` never imports a recommendation engine · the
+frozen `buildOptimalLineup` + `evaluateHorizon` are the compute primitives, no new optimizer.
+
+## II.8 Live smoke — both real leagues
+
+`bloodline-bowl` (12 teams) and `devoted-to-the-game` (12 teams): 17-week timelines,
+`planning_horizon` `{current_week: 1, last_regular_week: 14, playoff_weeks: [15,16,17]}` from
+canonical `playoff_settings` (start 15, teams 6, championship 17) — **not hard-coded**.
+`deployment = SHARED_CONTEXT`, `football_intelligence_version = "not_used"`. Real 2026 NFL bye
+weeks resolve correctly (wk5 CAR/KC, wk7 BUF/JAX/LAC/WAS, wk11 six teams, …); week 6's feed is
+structurally incomplete and is correctly flagged `SCHEDULE_WEEK_INCOMPLETE` with no asserted
+byes. `supyo29` worst bye week 7, `estimated_bye_loss ≈ 29.4` (`ROS_PROJECTION`, `MEDIUM`);
+uncovered-slot weeks `[7, 11, 14]`. Determinism verified on both leagues.
+
+## II.9 Regression
+
+`tsc --noEmit` clean · `eslint lib/schedule-planning test app` — 0 errors (0 new warnings) ·
+`npm test` **1558 pass / 0 fail / 4 skipped** (+19 schedule-planning; **0 existing tests
+changed**) · every trade-engine, weekly, waiver, Phase 4 start-sit-fi, Phase 5
+matchup-intelligence and Phase 6 roster-health suite passes **unchanged** ·
+**production recommendation behaviour change = 0** (`lib/trades/ros.ts` byte-identical; no
+`buildOptimalLineup` / `maxSlotMatching` change; no new normalizer).
+
+## II.10 Findings (Part II)
+
+| ID | Sev | Finding | Disposition |
+| --- | --- | --- | --- |
+| P7-1 (audit) | P2 | a per-future-week legal-lineup timeline already exists in `lib/trades/ros.ts` | **RESOLVED** — frozen; `lib/schedule-planning/` generalises the concept (full 18-week horizon, joint slot matching, per-week bye scenarios, structure/value split, playoff config) without touching trade numbers. Isolation-tested. |
+| P7-2 (audit) | P2 | Bloodline has 0 played weeks → no predictive validation | **DOCUMENTED** — v1 certifies determinism + schedule/bye math + horizon separation + real-league smoke. Dormant re-eval `schedule-planning-2026.2` once ≥4 completed 2026 weeks + a `devoted` reconstruction exist (spec §28). |
+| P7-3 | P2 | future weekly projections do not exist | **RESOLVED BY DESIGN** — prorated ROS, `projection_basis = ROS_PROJECTION`, horizon-graded `value_confidence`, `FUTURE_WEEKLY_PROJECTION_UNAVAILABLE` + `ROS_PROJECTION_USED` always present. Structure confidence is unaffected. |
+| P7-4 | P3 | provider exposes no home/away | `home_away` is `null` in every `ScheduleContextEntry`, recorded as a contract limitation in `schedule.ts`. Opponent identity (the predictive part) is unaffected. |
+| P7-5 | P3 | per-team compute 20.7 ms/team | Full-league added compute 248 ms is within the ~150–400 ms target. Memoising repeated `buildOptimalLineup` solves across weeks is a future optimisation if the horizon grows. |
+| P7-6 | P3 | week 6 NFL feed structurally incomplete on both leagues right now | Correctly surfaced as `SCHEDULE_WEEK_INCOMPLETE` (no fabricated byes). Self-resolves when Sleeper finalises the feed. |
+
+No P0. No P1.
+
+## II.11 Deferred (`DEFERRED_FEATURES`)
+
+Fantasy-playoff **opponent** modelling (bracket/seeding) · any FI or Phase 3/4/5 numeric
+projection adjustment (null findings remain binding — descriptive context only) · K/DST
+streaming recommendations (schedule facts only; Phase 6 K/DST fragility exclusions preserved) ·
+future free-agent / waiver planning · an aggregate "strength of schedule" scalar (the
+week-by-week vector is the output) · `PRODUCTION_WIRED` deployment (requires an explicit future
+deployment-state change + `schedule-planning-2026.2` re-certification; no auto-promotion).
+
+## II.12 Freeze criteria (spec §34) — check
+
+- [x] Full-season schedule/bye facts correct (real 2026 byes verified; incomplete weeks flagged, not fabricated)
+- [x] Future legal-lineup coverage uses joint slot matching (frozen `buildOptimalLineup`); a versatile backup fills at most one slot (tested)
+- [x] Structural confidence separate from value confidence on every week-level output; separate degradation grades
+- [x] True weekly and ROS projections never masquerade as the same horizon (`projection_basis`, `value_source`, always-on degradation reasons)
+- [x] Future ROS values explicitly labelled + horizon-graded
+- [x] Phase 6 `evaluateHorizon` semantics frozen (called unmodified; per-week scenario only)
+- [x] Trade ROS semantics frozen (`lib/trades/ros.ts` byte-identical; import graph isolated; trade suite unchanged)
+- [x] Playoff weeks from canonical `league.playoff_settings`; absent → degrade, don't infer
+- [x] Roster-static assumption explicit (`ROSTER_ASSUMED_STATIC` on every week)
+- [x] No fake future FA pool
+- [x] Planning deltas non-prescriptive (descriptive summary; no good/bad verdict; identical inputs → zero delta)
+- [x] Provider reads shared + bounded (1 canonical state + 1 Team-State + 1 schedule + shared projection inputs; **0** per manager / per week)
+- [x] Production recommendation behaviour change = 0
+- [x] Phase 1C cross-surface certification green; Phase 2/4/5/6 suites unchanged
+- [x] P0 / P1 findings: none
+
+## II.13 VERDICT
+
+Scope 3 is implemented exactly as approved: a `SHARED_CONTEXT` forward-planning layer
+(`schedule-planning-2026.1`) covering bye exposure, future legal-lineup coverage, the weekly
+projected-lineup vector, future roster-health pressure, regular-season schedule-context vectors
+and playoff planning context — on two additive endpoints, wired into **no** recommendation
+score. Every week-level output separates schedule-grounded STRUCTURE confidence (HIGH for the
+whole season) from projection-driven VALUE confidence (horizon-graded, `ROS_PROJECTION`-labelled).
+`lib/trades/ros.ts`, `buildOptimalLineup` and Phase 6 are frozen and isolation-tested; the full
+1558-test suite passes with zero existing tests changed and zero production recommendation
+behaviour change; both real leagues smoke clean and deterministic. Predictive validation is
+deferred (no played weeks) with a documented dormant `schedule-planning-2026.2` re-evaluation.
+No P0 / P1 findings.
+
+# PHASE 7 CERTIFIED — SHARED FORWARD-PLANNING CONTEXT FREEZE
+
