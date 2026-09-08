@@ -10,7 +10,7 @@
  * (the deterministic core the tests hit directly).
  */
 
-import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { readLeagueState } from "@/lib/canonical/read";
 import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { snapshotLineage } from "@/lib/canonical/snapshot-lineage";
 import { buildRecommendationLineage } from "@/lib/canonical/lineage";
@@ -330,6 +330,9 @@ export interface LeagueManagementResult {
   code?: string;
   detail?: string;
   context: LeagueManagementContext | null;
+  /** Stage F — where the underlying snapshot came from. */
+  state_source?: "PUBLISHED_SNAPSHOT" | "LEGACY_LIVE_PATH";
+  fallback_reason?: string | null;
 }
 
 export async function buildLeagueManagementContext(
@@ -338,10 +341,17 @@ export async function buildLeagueManagementContext(
 ): Promise<LeagueManagementResult> {
   return runInLeagueStateScope(async () => {
     let snapshot = options.snapshotOverride ?? null;
+    let stateSource: LeagueManagementResult["state_source"] = options.snapshotOverride
+      ? "LEGACY_LIVE_PATH"
+      : undefined;
+    let fallbackReason: string | null = null;
     if (!snapshot) {
-      const state = await buildCanonicalLeagueState(leagueSlug, {
+      const state = await readLeagueState(leagueSlug, {
+        wave: 2,
         providerOverride: options.providerOverride,
       });
+      stateSource = state.provenance.state_source;
+      fallbackReason = state.provenance.fallback_reason;
       if (!state.snapshot) {
         return { ok: false, status: state.status, code: state.code, detail: state.detail, context: null };
       }
@@ -433,6 +443,6 @@ export async function buildLeagueManagementContext(
       league_position_summary,
       warnings,
     };
-    return { ok: true, status: 200, context };
+    return { ok: true, status: 200, context, state_source: stateSource, fallback_reason: fallbackReason };
   });
 }

@@ -30,21 +30,21 @@ import {
 } from "../lib/canonical/schema";
 import { yahooFixture, rogersParkFixture, YAHOO_LEAGUE_FIXTURES } from "./fixtures/yahoo";
 
-const SLEEPER = ["bloodline-bowl", "devoted-to-the-game"] as const;
+const SLEEPER = ["bloodline-bowl", "devoted-to-the-game", "sportys-alumni"] as const;
 const YAHOO = ["maclin-on-chicks-xvi", "rogers-park"] as const;
 const ALL = [...SLEEPER, ...YAHOO];
 const BASE = { reportPersistence: false as const, crosswalkOverride: new PlayerCrosswalk(NoCrosswalk) };
 
 /* --------------------------------------------------------------- registry */
 
-describe("registry: 4 leagues · 2 providers · 3 known manager contexts", () => {
-  it("contains exactly the four initial leagues, no warnings", () => {
+describe("registry: 5 leagues · 2 providers · 3 known manager contexts", () => {
+  it("contains exactly the registered leagues, no warnings", () => {
     const { targets, warnings } = getLeagueRegistry();
     assert.deepEqual(warnings, []);
     assert.deepEqual(targets.map((t) => t.key).sort(), [...ALL].sort());
   });
 
-  it("providers: bloodline/devoted = sleeper; maclin/rogers-park = yahoo", () => {
+  it("providers: bloodline/devoted/sportys = sleeper; maclin/rogers-park = yahoo", () => {
     for (const slug of SLEEPER) assert.equal(findLeagueTarget(slug)!.provider, "sleeper");
     for (const slug of YAHOO) assert.equal(findLeagueTarget(slug)!.provider, "yahoo");
   });
@@ -69,7 +69,7 @@ describe("registry: 4 leagues · 2 providers · 3 known manager contexts", () =>
 
 /* ------------------------------------------------------------- routing */
 
-describe("path routing resolves all four leagues to the right provider", () => {
+describe("path routing resolves every registered league to the right provider", () => {
   for (const slug of ALL) {
     it(`resolveLeagueStrict("${slug}") resolves (registered), never 404`, () => {
       const r = resolveLeagueStrict(slug);

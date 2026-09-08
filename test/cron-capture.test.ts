@@ -78,7 +78,7 @@ describe("/api/cron/capture never fabricates Yahoo data", () => {
     const { listLeagueTargets, leagueConfigStatus } = await import("../lib/leagues/registry");
     const active = listLeagueTargets().filter((t) => t.provider === "sleeper" && leagueConfigStatus(t) === "READY");
     const yahoo = listLeagueTargets().filter((t) => t.provider === "yahoo");
-    assert.deepEqual(active.map((t) => t.key).sort(), ["bloodline-bowl", "devoted-to-the-game"]);
+    assert.deepEqual(active.map((t) => t.key).sort(), ["bloodline-bowl", "devoted-to-the-game", "sportys-alumni"]);
     assert.ok(yahoo.every((t) => leagueConfigStatus(t) !== "READY"));
   });
 });

@@ -125,6 +125,19 @@ export class SupabaseRest {
     });
   }
 
+  /**
+   * Filtered PATCH that returns the rows it actually changed. A single Postgres
+   * `UPDATE ... WHERE <filter>` statement — atomic. When the filter includes a
+   * guard column (e.g. `published_seq=eq.<n>`) an empty result is an
+   * unambiguous "lost the race", not an error.
+   */
+  async updateReturning<T>(table: string, filter: Filter, patch: unknown): Promise<T[]> {
+    const params = new URLSearchParams(filter);
+    return this.#request<T[]>("PATCH", `${table}?${params.toString()}`, patch, table, {
+      Prefer: "return=representation",
+    });
+  }
+
   async #request<T>(
     method: string,
     path: string,

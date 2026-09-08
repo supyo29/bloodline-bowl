@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BridgeBoardResponse, BoardPlayer } from "@/lib/bridge/board";
+import { DraftPoller } from "@/lib/bridge/draft-poller";
 import {
   DEFAULT_BRIDGE_LEAGUE_KEY,
   listBridgeProfiles,
@@ -68,6 +69,13 @@ const KNOWN_MANAGERS: Record<string, Array<{ slug: string; label: string }>> = {
     { slug: "bijimac", label: "BijiMac" },
   ],
   "devoted-to-the-game": [{ slug: "darthmarker", label: "DarthMarker" }],
+  // Sporty's Alumni — manager-neutral. A few verified members for URL copy; the
+  // seat dropdown lists all 14 live. Any member slug resolves against the API.
+  "sportys-alumni": [
+    { slug: "rspata2", label: "rspata2" },
+    { slug: "dusty22k", label: "dusty22k" },
+    { slug: "battmurwinkle", label: "battmurwinkle" },
+  ],
 };
 
 const C = {
@@ -180,9 +188,14 @@ export default function BridgePage() {
 
   /* -- fetch board -------------------------------------------------- */
   const fetchBoard = useCallback(
-    async (key: string, slot: number | null, mode: "sleeper" | "custom") => {
-      setBoardLoading(true);
-      setBoardError(null);
+    async (
+      key: string,
+      slot: number | null,
+      mode: "sleeper" | "custom",
+      opts: { silent?: boolean; keepOnError?: boolean } = {},
+    ) => {
+      if (!opts.silent) setBoardLoading(true);
+      if (!opts.keepOnError) setBoardError(null);
       try {
         const url = new URL("/api/bridge/board", window.location.origin);
         url.searchParams.set("league", key);
@@ -202,6 +215,7 @@ export default function BridgePage() {
           );
         }
         setBoard(body);
+        setBoardError(null);
         // Record the scoring identity this state is now aligned to.
         setDraftState((prev) =>
           prev && prev.league_key === key
@@ -209,14 +223,64 @@ export default function BridgePage() {
             : prev,
         );
       } catch (err) {
-        setBoard(null);
-        setBoardError(err instanceof Error ? err.message : "Failed to load board.");
+        const msg = err instanceof Error ? err.message : "Failed to load board.";
+        // A polled refresh that fails keeps the last-known-good board on screen —
+        // never blank it, never substitute other state. A user-driven load may
+        // clear it as before.
+        if (!opts.keepOnError) setBoard(null);
+        setBoardError(opts.keepOnError ? `${msg} (showing last update; retrying)` : msg);
       } finally {
-        setBoardLoading(false);
+        if (!opts.silent) setBoardLoading(false);
       }
     },
     [],
   );
+
+  /* -- Draft-Live automatic polling while status is `drafting` ------- */
+  const boardStatusRef = useRef<string | null>(null);
+  const pollArgsRef = useRef<{ key: string; slot: number | null; mode: "sleeper" | "custom" }>({
+    key: leagueKey,
+    slot: null,
+    mode: rankingMode,
+  });
+  useEffect(() => {
+    boardStatusRef.current = board?.draft_feed.status ?? null;
+  }, [board]);
+  useEffect(() => {
+    pollArgsRef.current = {
+      key: leagueKey,
+      slot: draftState?.slot_override ?? null,
+      mode: rankingMode,
+    };
+  }, [leagueKey, draftState, rankingMode]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const poller = new DraftPoller({
+      getStatus: () => boardStatusRef.current,
+      poll: async () => {
+        const { key, slot, mode } = pollArgsRef.current;
+        await fetchBoard(key, slot, mode, { silent: true, keepOnError: true });
+      },
+    });
+    poller.start();
+
+    const onVisibility = () => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "hidden") poller.pause();
+      else poller.resume();
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    return () => {
+      poller.stop();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+    // Re-arm on league change (a fresh poller for the new league's status).
+  }, [hydrated, leagueKey, fetchBoard]);
 
   const lastFetchKey = useRef<string>("");
   useEffect(() => {
@@ -316,7 +380,7 @@ export default function BridgePage() {
 
   /* -- actions ---------------------------------------------------- */
   const teamCount = board?.rules.team_count ?? profile.draft.team_count;
-  const mySlot = board?.league_identity.draft_slot ?? profile.manager.draft_slot;
+  const mySlot = board?.league_identity.draft_slot ?? profile.manager?.draft_slot ?? null;
 
   const mark = useCallback(
     (p: BoardPlayer, status: "drafted" | "mine") => {
@@ -358,6 +422,19 @@ export default function BridgePage() {
     );
     lastFetchKey.current = "";
   }, [slotInput]);
+
+  /** Manager-neutral leagues: pick a seat from the live draft order. */
+  const applySeat = useCallback((slot: number | null) => {
+    setSlotInput(slot != null ? String(slot) : "");
+    setDraftState((prev) =>
+      prev ? { ...prev, slot_override: slot, updated_at: new Date().toISOString() } : prev,
+    );
+    lastFetchKey.current = "";
+  }, []);
+
+  const managerNeutral = board?.league_identity.manager_neutral ?? profile.manager_neutral;
+  const seatUnselected = managerNeutral && (draftState?.slot_override ?? null) == null;
+  const seatOptions = board?.draft_feed.slots ?? [];
 
   const loadRankings = useCallback(() => {
     if (!board) return;
@@ -575,7 +652,7 @@ export default function BridgePage() {
           <span style={{ color: C.dim }}>
             SLOT{" "}
             <span style={{ color: C.text }}>
-              {id?.draft_slot ?? profile.manager.draft_slot ?? "?"}
+              {id?.draft_slot ?? profile.manager?.draft_slot ?? "?"}
             </span>
             {id && id.draft_slot_source !== "sleeper_draft_order" && (
               <span style={{ color: C.warn }}> ({id.draft_slot_source})</span>
@@ -652,8 +729,11 @@ export default function BridgePage() {
               {p.display_label}
               <span style={{ color: C.dim, fontWeight: 400 }}>
                 {" "}
-                · slot {p.manager.draft_slot ?? "?"} ·{" "}
-                {p.draft.type}
+                ·{" "}
+                {p.manager_neutral
+                  ? "pick a seat"
+                  : `slot ${p.manager?.draft_slot ?? "?"}`}{" "}
+                · {p.draft.type}
               </span>
             </button>
           );
@@ -765,7 +845,7 @@ export default function BridgePage() {
         <Field label="ALSO KNOWN AS" value={profile.display_label} />
         <Field
           label="DRAFT SLOT"
-          value={String(id?.draft_slot ?? profile.manager.draft_slot ?? "?")}
+          value={String(id?.draft_slot ?? profile.manager?.draft_slot ?? "?")}
           big
         />
         <Field
@@ -845,6 +925,23 @@ export default function BridgePage() {
         </div>
       )}
 
+      {seatUnselected && (
+        <div
+          style={{
+            border: `1px solid ${C.warn}`,
+            background: "#241d0e",
+            color: C.warn,
+            borderRadius: 6,
+            padding: "8px 12px",
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          This league has no default manager — <b>pick your seat below</b> to see
+          slot-specific state (current/next pick, roster needs, best-for-your-team).
+        </div>
+      )}
+
       {/* slot confirm + ranking toggle */}
       <div
         style={{
@@ -856,25 +953,52 @@ export default function BridgePage() {
           fontSize: 13,
         }}
       >
-        <label style={{ color: C.dim }}>
-          Confirm your draft slot:{" "}
-          <input
-            value={slotInput}
-            onChange={(e) => setSlotInput(e.target.value)}
-            placeholder={String(profile.manager.draft_slot ?? "")}
-            style={{
-              width: 54,
-              background: C.panel2,
-              border: `1px solid ${C.border}`,
-              color: C.text,
-              padding: "4px 6px",
-              borderRadius: 4,
-            }}
-          />{" "}
-          <button onClick={applySlot} style={btn}>
-            Set
-          </button>
-        </label>
+        {managerNeutral ? (
+          <label style={{ color: C.dim }}>
+            Your seat:{" "}
+            <select
+              value={String(draftState?.slot_override ?? "")}
+              onChange={(e) =>
+                applySeat(e.target.value === "" ? null : Number.parseInt(e.target.value, 10))
+              }
+              style={{
+                background: C.panel2,
+                border: `1px solid ${seatUnselected ? C.warn : C.border}`,
+                color: C.text,
+                padding: "4px 6px",
+                borderRadius: 4,
+                maxWidth: 260,
+              }}
+            >
+              <option value="">— select a manager / seat —</option>
+              {seatOptions.map((s) => (
+                <option key={s.slot} value={String(s.slot)}>
+                  {s.slot}. {s.display_name ?? `(roster ${s.roster_id ?? "?"})`}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label style={{ color: C.dim }}>
+            Confirm your draft slot:{" "}
+            <input
+              value={slotInput}
+              onChange={(e) => setSlotInput(e.target.value)}
+              placeholder={String(profile.manager?.draft_slot ?? "")}
+              style={{
+                width: 54,
+                background: C.panel2,
+                border: `1px solid ${C.border}`,
+                color: C.text,
+                padding: "4px 6px",
+                borderRadius: 4,
+              }}
+            />{" "}
+            <button onClick={applySlot} style={btn}>
+              Set
+            </button>
+          </label>
+        )}
         <span style={{ color: C.dim }}>
           Ranking:{" "}
           <b style={{ color: rankingMode === "sleeper" ? C.accent : C.text }}>

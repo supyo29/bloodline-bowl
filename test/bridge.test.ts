@@ -110,10 +110,11 @@ function fakeBoard(
       platform: "sleeper",
       platform_league_id: profile.platform_league_id,
       platform_draft_id: profile.platform_draft_id,
-      manager_key: profile.manager.manager_key,
-      manager_display_name: profile.manager.display_name,
-      manager_sleeper_user_id: profile.manager.sleeper_user_id,
-      draft_slot: profile.manager.draft_slot,
+      manager_key: profile.manager?.manager_key ?? null,
+      manager_display_name: profile.manager?.display_name ?? null,
+      manager_sleeper_user_id: profile.manager?.sleeper_user_id ?? null,
+      manager_neutral: profile.manager_neutral,
+      draft_slot: profile.manager?.draft_slot ?? null,
       draft_slot_source: "sleeper_draft_order",
       team_count: profile.draft.team_count,
       draft_type: profile.draft.type,
@@ -227,18 +228,19 @@ describe("bridge profiles: resolution never crosses leagues", () => {
     assert.equal(findBridgeProfile(null), null);
   });
 
-  it("keeps the two leagues on distinct keys and Sleeper ids", () => {
+  it("keeps every league on distinct keys and Sleeper ids", () => {
     const profiles = listBridgeProfiles();
-    assert.equal(profiles.length, 2);
-    assert.notEqual(profiles[0]!.league_key, profiles[1]!.league_key);
-    assert.notEqual(
-      profiles[0]!.platform_league_id,
-      profiles[1]!.platform_league_id,
-    );
-    assert.notEqual(profiles[0]!.platform_draft_id, profiles[1]!.platform_draft_id);
+    assert.equal(profiles.length, 3);
+    const keys = profiles.map((p) => p.league_key);
+    const leagueIds = profiles.map((p) => p.platform_league_id);
+    const draftIds = profiles.map((p) => p.platform_draft_id);
+    assert.equal(new Set(keys).size, 3, "league_keys unique");
+    assert.equal(new Set(leagueIds).size, 3, "platform_league_ids unique");
+    assert.equal(new Set(draftIds).size, 3, "platform_draft_ids unique");
     assert.deepEqual(knownBridgeSelectors(), [
       "bloodline_bowl",
       "devoted_to_the_game",
+      "sportys_alumni",
     ]);
   });
 

@@ -13,7 +13,8 @@
  *   4. otherwise -> explicit `manager_not_in_league` (never a fallback pick)
  */
 
-import { buildCanonicalLeagueState, type BuildStateOptions } from "./state";
+import { type BuildStateOptions } from "./state";
+import { readLeagueState, type ReadStateSource, type FallbackReason } from "./read";
 import { runInLeagueStateScope } from "./request-scope";
 import { findRegisteredManager } from "@/lib/leagues/managers";
 import type {
@@ -34,6 +35,16 @@ export interface ManagerContextResult {
   code?: string;
   detail?: string;
   context: ManagerContext | null;
+  /**
+   * The canonical snapshot this context was built from. Exposed so a route can
+   * attach an observational freshness/capability envelope without a second
+   * provider read. Present whenever `context` is.
+   */
+  snapshot?: CanonicalLeagueSnapshot | null;
+  /** Where the snapshot came from (Stage F). */
+  state_source?: ReadStateSource;
+  /** Non-null when an eligible read fell back to the legacy path. */
+  fallback_reason?: FallbackReason | null;
 }
 
 export interface ManagerContext {
@@ -99,7 +110,7 @@ async function buildManagerContextInner(
     return { ok: false, status: 400, code: "manager_slug_required", detail: "A manager slug is required.", context: null };
   }
 
-  const state = await buildCanonicalLeagueState(leagueSlug, options);
+  const state = await readLeagueState(leagueSlug, { wave: 2, ...options });
   if (!state.ok || !state.snapshot) {
     return {
       ok: false,
@@ -209,7 +220,14 @@ async function buildManagerContextInner(
     warnings: snap.warnings,
   };
 
-  return { ok: true, status: 200, context };
+  return {
+    ok: true,
+    status: 200,
+    context,
+    snapshot: snap,
+    state_source: state.provenance.state_source,
+    fallback_reason: state.provenance.fallback_reason,
+  };
 }
 
 export function resolveManager(managers: CanonicalManager[], slug: string): CanonicalManager | null {

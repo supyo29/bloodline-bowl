@@ -13,6 +13,8 @@ import type {
   CanonicalTransaction,
 } from "@/lib/canonical/schema";
 import type {
+  AdvancePointerInput,
+  AdvancePointerResult,
   CaptureRunInput,
   CaptureRunStore,
   CaptureType,
@@ -20,6 +22,10 @@ import type {
   LedgerStore,
   PersistenceBundle,
   PersistenceStatus,
+  PublicationAudit,
+  PublicationAuditStore,
+  PublishedPointer,
+  PublishedPointerStore,
   PutSnapshotResult,
   SnapshotKey,
   SnapshotStore,
@@ -84,6 +90,11 @@ export class MemorySnapshotStore implements SnapshotStore {
 
   async getLatest(key: SnapshotKey): Promise<StoredSnapshot | null> {
     return this.#newestFirst(this.#match(key))[0] ?? null;
+  }
+
+  async getById(id: string): Promise<StoredSnapshot | null> {
+    const row = this.#rows.find((r) => r.id === id);
+    return row ? { ...strip(row), payload: row.payload } : null;
   }
 
   async listVersions(key: SnapshotKey): Promise<StoredSnapshotMeta[]> {
@@ -203,14 +214,100 @@ export class MemoryCaptureRunStore implements CaptureRunStore {
   }
 }
 
+/**
+ * Reference implementation of the atomic-monotonic pointer contract the Supabase
+ * store enforces with a single conditional `UPDATE ... WHERE published_seq = $n`.
+ * A mismatched `expected_seq` is a lost race, never an overwrite.
+ */
+export class MemoryPublishedPointerStore implements PublishedPointerStore {
+  readonly backend = "memory";
+  #rows = new Map<string, PublishedPointer>();
+
+  #key(league_slug: string, season: number): string {
+    return `${league_slug}::${season}`;
+  }
+
+  async status(): Promise<PersistenceStatus> {
+    return "READY";
+  }
+
+  async get(league_slug: string, season: number): Promise<PublishedPointer | null> {
+    return this.#rows.get(this.#key(league_slug, season)) ?? null;
+  }
+
+  async advance(
+    input: AdvancePointerInput,
+    expected_seq: number,
+  ): Promise<AdvancePointerResult> {
+    const key = this.#key(input.league_slug, input.season);
+    const current = this.#rows.get(key) ?? null;
+    const currentSeq = current?.published_seq ?? 0;
+
+    if (current && current.content_hash === input.content_hash) {
+      return { status: "READY", outcome: "unchanged", pointer: current };
+    }
+    if (currentSeq !== expected_seq) {
+      return { status: "READY", outcome: "raced", pointer: current };
+    }
+
+    const now = new Date().toISOString();
+    const next: PublishedPointer = {
+      league_slug: input.league_slug,
+      season: input.season,
+      snapshot_id: input.snapshot_id,
+      league_snapshot_id: input.league_snapshot_id,
+      content_hash: input.content_hash,
+      week: input.week,
+      published_seq: currentSeq + 1,
+      certified: true,
+      source_provider_synced_at: input.source_provider_synced_at,
+      published_at: now,
+      updated_at: now,
+      schema_version: input.schema_version,
+    };
+    this.#rows.set(key, next);
+    return { status: "READY", outcome: "advanced", pointer: next };
+  }
+}
+
+export class MemoryPublicationAuditStore implements PublicationAuditStore {
+  readonly backend = "memory";
+  rows: PublicationAudit[] = [];
+
+  async status(): Promise<PersistenceStatus> {
+    return "READY";
+  }
+  async record(audit: PublicationAudit) {
+    const id = uid();
+    this.rows.push({ ...audit, id });
+    return { status: "READY" as PersistenceStatus, id };
+  }
+  async latest(league_slug: string, season: number): Promise<PublicationAudit | null> {
+    const rows = this.rows
+      .filter((r) => r.league_slug === league_slug && r.season === season)
+      .sort((a, b) => b.attempted_at.localeCompare(a.attempted_at));
+    return rows[0] ?? null;
+  }
+  async recent(league_slug: string, season: number, limit = 20): Promise<PublicationAudit[]> {
+    return this.rows
+      .filter((r) => r.league_slug === league_slug && r.season === season)
+      .sort((a, b) => b.attempted_at.localeCompare(a.attempted_at))
+      .slice(0, limit);
+  }
+}
+
 export function memoryPersistence(): PersistenceBundle {
   const snapshots = new MemorySnapshotStore();
   const ledger = new MemoryLedgerStore();
   const runs = new MemoryCaptureRunStore();
+  const published = new MemoryPublishedPointerStore();
+  const publication_audit = new MemoryPublicationAuditStore();
   return {
     snapshots,
     ledger,
     runs,
+    published,
+    publication_audit,
     status: async () => "READY",
   };
 }

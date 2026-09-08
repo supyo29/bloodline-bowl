@@ -16,7 +16,7 @@
  */
 
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
-import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { readLeagueState } from "@/lib/canonical/read";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
 import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-source";
 import { buildWeeklyTeamContext, type BuildWeeklyContextOptions } from "@/lib/weekly/context";
@@ -188,7 +188,8 @@ export async function buildTradeAnalysisContext(
     (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
 
   // ---- THE single league-state read ------------------------------------------
-  const state = await buildCanonicalLeagueState(leagueSlug, {
+  const state = await readLeagueState(leagueSlug, {
+    wave: 3,
     includeMatchups: true,
     includeRecentTransactions: true,
     reportPersistence: true,

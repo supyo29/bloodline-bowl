@@ -30,7 +30,12 @@ export async function GET(
   }
 
   return jsonResponse(
-    { context: leagueContext(league), ...result.context },
+    {
+      context: leagueContext(league),
+      state_source: result.state_source ?? "LEGACY_LIVE_PATH",
+      ...(result.fallback_reason ? { fallback_reason: result.fallback_reason } : {}),
+      ...result.context,
+    },
     {
       headers: {
         "Cache-Control": cacheHeader(30, 120),

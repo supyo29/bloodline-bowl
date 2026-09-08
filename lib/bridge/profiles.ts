@@ -13,7 +13,7 @@
  *
  * IMPORTANT — model identity honesty:
  *   This repository does not contain a frozen projection/ranking/survival
- *   "candidate" artifact for either league. The `model` block below records
+ *   "candidate" artifact for any league. The `model` block below records
  *   what actually exists (Sleeper's own ordering + a hash of the league's live
  *   scoring) plus any owner-declared candidate id, explicitly marked
  *   `candidate_verified: false`. Nothing here fabricates a hash.
@@ -99,7 +99,15 @@ export interface BridgeLeagueProfile {
    * it never silently ranks the wrong way.
    */
   ranking_pack_id: string | null;
-  manager: BridgeManagerProfile;
+  /**
+   * A registered "self" manager for this league, or `null` for a
+   * MANAGER-NEUTRAL league (no bridge account is a member). When null the
+   * `/bridge` UI must let the user pick a seat from the live draft order before
+   * showing seat-specific state — it never silently treats one manager as "me".
+   */
+  manager: BridgeManagerProfile | null;
+  /** True iff `manager` is null — an explicit, greppable marker. */
+  manager_neutral: boolean;
   draft: {
     type: DraftType;
     team_count: number;
@@ -137,6 +145,7 @@ const PROFILES: BridgeLeagueProfile[] = [
     platform_draft_id: "1395549282349617152",
     previous_league_id: null,
     ranking_pack_id: null,
+    manager_neutral: false,
     manager: {
       manager_key: "supyo29",
       display_name: "supyo29",
@@ -207,6 +216,7 @@ const PROFILES: BridgeLeagueProfile[] = [
     platform_draft_id: "1389735763649761281",
     previous_league_id: "1264616401079914496",
     ranking_pack_id: "darthmarker_2026",
+    manager_neutral: false,
     manager: {
       manager_key: "darthmarker",
       display_name: "DarthMarker",
@@ -263,6 +273,68 @@ const PROFILES: BridgeLeagueProfile[] = [
         "DarthMarker/Mark's own past drafting tendencies are excluded from " +
         "recommendation optimization by design — historical behavior should " +
         "not constrain the current recommended strategy.",
+    },
+  },
+  {
+    // MANAGER-NEUTRAL league — no bridge account is a member. Every field below
+    // is verified live against Sleeper (2026-09-07). The `/bridge` UI requires a
+    // seat selection (from the live draft order) before showing seat-specific
+    // state; no manager is a default "me".
+    league_key: "sportys_alumni",
+    registry_key: "sportys-alumni",
+    aliases: ["sportys", "sporty", "sportys-alumni"],
+    league_name: "Sporty's Alumni",
+    display_label: "Sporty's Alumni (pick a seat)",
+    short_label: "SPORTY'S ALUMNI",
+    season: 2026,
+    platform: "sleeper",
+    platform_league_id: "1389404340015370240",
+    platform_draft_id: "1389404340032118784",
+    previous_league_id: "1255589856759775232",
+    ranking_pack_id: null,
+    manager_neutral: true,
+    manager: null,
+    draft: {
+      type: "snake",
+      team_count: 14,
+      rounds: 15,
+      starts_at: "2026-09-08T22:00:00.000Z",
+    },
+    roster_rules: {
+      roster_positions: [
+        "QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "K", "DEF",
+        "BN", "BN", "BN", "BN", "BN",
+      ],
+      starters: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, K: 1, DEF: 1 },
+      bench: 5,
+      reserve: 2,
+      flex_positions: ["RB", "WR", "TE"],
+    },
+    model: {
+      // No frozen candidate, no vendored ranking pack, no survival engine for
+      // this league. The board ranks by Sleeper's own search_rank (the same
+      // honest fallback Bloodline Bowl uses). The certified snake decision engine
+      // `ri-snake-decision-2026.2` is reached through the existing
+      // /api/leagues/sportys-alumni/managers/{m}/recommendations route — it is
+      // NOT re-implemented or altered here.
+      candidate_id: null,
+      candidate_verified: false,
+      candidate_source: "none",
+      survival_engine: null,
+      declared_projection_sha: null,
+      declared_scoring_sha: null,
+      declared_config_sha: null,
+      default_ranking_source: "sleeper_search_rank",
+      notes:
+        "Manager-neutral league. Board ranks by Sleeper search_rank; the live " +
+        "scoring hash computed each session is the authoritative scoring " +
+        "identity. Snake recommendations (ri-snake-decision-2026.2, SNAKE_ONLY) " +
+        "are served by the manager recommendation API, unchanged. No model, " +
+        "ranking, or scoring from another league is applied.",
+    },
+    opponent_modeling: {
+      exclude_own_historical_profile: false,
+      note: "Manager-neutral — no per-manager opponent-history model is wired.",
     },
   },
 ];

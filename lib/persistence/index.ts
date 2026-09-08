@@ -18,6 +18,8 @@ import type {
   CanonicalTransaction,
 } from "@/lib/canonical/schema";
 import type {
+  AdvancePointerInput,
+  AdvancePointerResult,
   CaptureRunInput,
   CaptureRunStore,
   CaptureType,
@@ -25,6 +27,10 @@ import type {
   LedgerStore,
   PersistenceBundle,
   PersistenceStatus,
+  PublicationAudit,
+  PublicationAuditStore,
+  PublishedPointer,
+  PublishedPointerStore,
   PutSnapshotResult,
   SnapshotKey,
   SnapshotStore,
@@ -39,6 +45,8 @@ import {
   SupabaseLedgerStore,
   SupabaseSnapshotStore,
 } from "./supabase/stores";
+import { SupabasePublishedPointerStore } from "./supabase/published-pointer";
+import { SupabasePublicationAuditStore } from "./supabase/publication-audit";
 
 const NOT_CONFIGURED: PersistenceStatus = "PERSISTENCE_NOT_CONFIGURED";
 
@@ -54,6 +62,9 @@ class UnconfiguredSnapshotStore implements SnapshotStore {
     return { status: NOT_CONFIGURED, outcome: "error", meta: null, error: "persistence not configured" };
   }
   async getLatest(_k: SnapshotKey): Promise<StoredSnapshot | null> {
+    return null;
+  }
+  async getById(_id: string): Promise<StoredSnapshot | null> {
     return null;
   }
   async listVersions(_k: SnapshotKey): Promise<StoredSnapshotMeta[]> {
@@ -91,6 +102,40 @@ class UnconfiguredRunStore implements CaptureRunStore {
   async finish(): Promise<void> {}
 }
 
+class UnconfiguredPublishedPointerStore implements PublishedPointerStore {
+  readonly backend = "none";
+  async status() {
+    return NOT_CONFIGURED;
+  }
+  async get(_l: string, _s: number): Promise<PublishedPointer | null> {
+    return null;
+  }
+  async advance(_i: AdvancePointerInput, _e: number): Promise<AdvancePointerResult> {
+    return {
+      status: NOT_CONFIGURED,
+      outcome: "error",
+      pointer: null,
+      error: "persistence not configured",
+    };
+  }
+}
+
+class UnconfiguredPublicationAuditStore implements PublicationAuditStore {
+  readonly backend = "none";
+  async status() {
+    return NOT_CONFIGURED;
+  }
+  async record(_a: PublicationAudit) {
+    return { status: NOT_CONFIGURED, id: null, error: "persistence not configured" };
+  }
+  async latest(_l: string, _s: number): Promise<PublicationAudit | null> {
+    return null;
+  }
+  async recent(_l: string, _s: number, _n?: number): Promise<PublicationAudit[]> {
+    return [];
+  }
+}
+
 let cached: PersistenceBundle | null = null;
 
 export function getPersistence(env: NodeJS.ProcessEnv = process.env): PersistenceBundle {
@@ -102,6 +147,8 @@ export function getPersistence(env: NodeJS.ProcessEnv = process.env): Persistenc
       snapshots: new UnconfiguredSnapshotStore(),
       ledger: new UnconfiguredLedgerStore(),
       runs: new UnconfiguredRunStore(),
+      published: new UnconfiguredPublishedPointerStore(),
+      publication_audit: new UnconfiguredPublicationAuditStore(),
       status: async () => NOT_CONFIGURED,
     };
     if (useCache) cached = bundle;
@@ -111,10 +158,19 @@ export function getPersistence(env: NodeJS.ProcessEnv = process.env): Persistenc
   const snapshots = new SupabaseSnapshotStore(rest);
   const ledger = new SupabaseLedgerStore(rest);
   const runs = new SupabaseCaptureRunStore(rest);
+  const published = new SupabasePublishedPointerStore(rest);
+  const publication_audit = new SupabasePublicationAuditStore(rest);
   const bundle: PersistenceBundle = {
     snapshots,
     ledger,
     runs,
+    published,
+    publication_audit,
+    // Aggregate status intentionally covers only the three historical stores.
+    // The published-pointer store has an INDEPENDENT status (surfaced by
+    // /api/health) so that a pointer-table outage degrades live freshness
+    // reporting WITHOUT blocking historical capture — the same live/history
+    // separation `lib/canonical/state.ts` already enforces.
     status: async () => {
       const [a, b, c] = await Promise.all([snapshots.status(), ledger.status(), runs.status()]);
       return [a, b, c].every((s) => s === "READY") ? "READY" : "PERSISTENCE_ERROR";
