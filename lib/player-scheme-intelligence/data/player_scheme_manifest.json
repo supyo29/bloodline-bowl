@@ -1,0 +1,38 @@
+{
+  "player_scheme_version": "psi:2025:w18:08123edd58c9",
+  "model_tag": "player-scheme-intelligence-2026.1",
+  "tier": "A",
+  "feature_schema_version": 1,
+  "generated_at": "2026-09-08T16:50:36-0500",
+  "current_season": 2025,
+  "as_of_week": 18,
+  "data_cutoff": {
+    "pbp": 18
+  },
+  "seasons_used": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+  "availability_state": "HISTORICAL_CURRENT_THROUGH_2025",
+  "live_class": "LIVE_CAPABLE",
+  "current_season_status": "PRIOR_ONLY",
+  "model_versions": {
+    "spatial": "qb-spatial-2026.1"
+  },
+  "source_versions": {
+    "nflreadr": "1.5.0"
+  },
+  "config": {
+    "seed": 20260908,
+    "depth_short_hi": 10,
+    "depth_int_hi": 20,
+    "recent_from_season": 2023,
+    "explosive_pass_yards": 16,
+    "explosive_rush_yards": 12
+  },
+  "windows": ["career", "recent", "current_team"],
+  "files": ["player_directory.csv", "qb_spatial_matrix.csv", "qb_directional.csv", "receiver_spatial_matrix.csv", "rb_rush_matrix.csv", "rb_rush_gap.csv", "defense_pass_vulnerability.csv", "defense_rush_profile.csv", "defense_rush_gap.csv", "league_baselines.csv"],
+  "deployment": "SHARED_DESCRIPTIVE",
+  "fantasy_adjustment_enabled": false,
+  "cutpoint_verdict": "FROZEN",
+  "reconciliation_all_pass": true,
+  "determinism": "seeded; pure aggregation; identical cache -> identical version",
+  "notes": ["Tier A is PBP-only and LIVE_CAPABLE. No participation / FTN / NGS input.", "Cells are built ONLY from plays with a charted pass_location AND air_yards (or run_location). Uncharted plays are counted in *_total, never assigned to a cell (spec §41).", "depth bins: BEHIND_LOS air_yards<0 | SHORT 0-9 | INTERMEDIATE 10-19 | DEEP 20+. air_yards==0 -> SHORT (documented).", "run_location / run_gap are offense-perspective as shipped by nflverse; no mirroring (spec §42).", "Scrambles + sacks + spikes + kneels + 2-pt are excluded from the designed-play universes; sacks are NOT pass attempts.", "current_season_status=PRIOR_ONLY: newest data is a prior season; NOT a current-season observation (spec §3)."]
+}
