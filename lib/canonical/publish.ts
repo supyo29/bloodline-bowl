@@ -76,6 +76,7 @@ function errorCategory(
     case "unchanged":
     case "reused":
     case "raced":
+    case "skipped":
       return null;
     case "rejected":
     case "uncertified":
@@ -99,6 +100,7 @@ function httpStatus(outcome: PublishOutcome, priorPointerPresent: boolean): numb
     case "published":
     case "unchanged":
     case "raced":
+    case "skipped":
       return 200;
     case "rejected":
     case "uncertified":
@@ -203,13 +205,15 @@ export async function publishLeagueSnapshot(
         ? "duplicate"
         : res.snapshot_put_outcome === "error"
           ? "error"
-          : res.outcome === "rejected" || res.outcome === "uncertified"
+          : res.outcome === "rejected" || res.outcome === "uncertified" || res.outcome === "skipped"
             ? "skipped"
             : "not_attempted";
 
   const outcome = res.outcome;
   const httpStatusCode = httpStatus(outcome, !!prior);
-  const published = outcome === "published" || outcome === "unchanged" || outcome === "raced";
+  // `skipped` (pre_draft / drafting) is a benign non-event, not a failure.
+  const published =
+    outcome === "published" || outcome === "unchanged" || outcome === "raced" || outcome === "skipped";
 
   const capabilities =
     res.capabilities ?? (res.snapshot ? assessCapabilities(res.snapshot) : null);

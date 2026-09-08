@@ -46,10 +46,12 @@ export interface MakeSnapshotOpts {
   warnings?: CanonicalWarning[];
   live_provider_status?: CanonicalLeagueSnapshot["live_provider_status"];
   provider_synced_at?: string;
+  league_status?: string;
+  league_slug?: string;
 }
 
 export function makeCanonicalSnapshot(opts: MakeSnapshotOpts = {}): CanonicalLeagueSnapshot {
-  const L = TEST_LEAGUE;
+  const L = opts.league_slug ?? TEST_LEAGUE;
   const week = opts.week ?? 3;
   const teamSpecs = opts.teams ?? [
     { roster_id: "1", wins: 2, losses: 1, points_for: 300 },
@@ -110,7 +112,7 @@ export function makeCanonicalSnapshot(opts: MakeSnapshotOpts = {}): CanonicalLea
       league_slug: L,
       name: "Bloodline Bowl",
       season: TEST_SEASON,
-      status: "in_season",
+      status: opts.league_status ?? "in_season",
       sport: "nfl",
       team_count: teamSpecs.length,
       current_week: week,

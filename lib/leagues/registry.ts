@@ -101,12 +101,21 @@ const LEAGUE_TARGETS: LeagueTarget[] = [
     enabled: true,
   },
   {
+    // Sleeper league id verified live 2026-09-07: name "Sporty's Alumni",
+    // season 2026, 14 rosters, status pre_draft, snake draft 1389404340032118784
+    // (15 rounds, 60s pick timer, reversal_round 0). The account maintaining this
+    // bridge is NOT a member, so there is no registered "self" manager —
+    // `sleeper_username`/`sleeper_user_id` stay null (same as the Yahoo entries)
+    // and every manager resolves generically at request time.
     key: "sportys-alumni",
     provider: "sleeper",
     league_id: "1389404340015370240",
     external_league_id: "1389404340015370240",
     season: 2026,
     display_name: "Sporty's Alumni",
+    // No registered managers — every member resolves generically at request time
+    // (the bridge account is not in this league). Verified live: real members
+    // include rspata2, dusty22k, battmurwinkle, and 11 others.
     known_managers: [],
     sleeper_username: null,
     sleeper_user_id: null,

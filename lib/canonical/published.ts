@@ -51,6 +51,7 @@ export type PublishOutcome =
   | "rejected" // candidate failed the gate; served the prior published snapshot
   | "uncertified" // candidate failed the gate and there is NO prior snapshot
   | "dry_run" // built + reconciled a candidate but published nothing (shadow mode)
+  | "skipped" // league has no management state to publish yet (pre_draft / drafting)
   | "source_unavailable"; // provider read failed; served the prior published snapshot (if any)
 
 export interface PublishedSnapshotResult {
@@ -210,6 +211,31 @@ async function publishInner(
   }
 
   const candidate = built.snapshot;
+
+  // --- pre-draft / drafting leagues have no management state to publish ----
+  // Their canonical snapshot is an empty shell (no rosters, no matchups). Never
+  // advance a pointer for one — and never interfere with the seconds-level
+  // Draft Live path during a draft. They auto-enroll once the season starts.
+  if (candidate.league.status === "pre_draft" || candidate.league.status === "drafting") {
+    emitBridgeEvent("refresh_completed", {
+      league_slug,
+      outcome: "skipped",
+      reason: `league status ${candidate.league.status}`,
+    });
+    return {
+      ok: true,
+      status: 200,
+      outcome: "skipped",
+      snapshot: candidate,
+      pointer,
+      policy,
+      detail: `league status is "${candidate.league.status}" — no management state to publish`,
+      freshness: pointer
+        ? freshnessFor(pointer, policy.mode, "AVAILABLE", null, now)
+        : deriveFreshness({ mode: policy.mode, degraded_reason: "NO_PUBLISHED_SNAPSHOT", now }),
+    };
+  }
+
   const reconcile = reconcilePublishCandidate(candidate);
 
   // --- shadow mode: never touch persistence or the pointer -----------------

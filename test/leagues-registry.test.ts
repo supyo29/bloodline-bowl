@@ -56,6 +56,34 @@ describe("registry: the real static target list", () => {
     assert.equal(devoted.enabled, true);
   });
 
+  it("includes Sporty's Alumni as an explicit league target (draft league)", () => {
+    const sportys = findLeagueTarget("sportys-alumni");
+    assert.ok(sportys, "expected a registry entry for sportys-alumni");
+    assert.equal(sportys.league_id, "1389404340015370240");
+    assert.equal(sportys.external_league_id, "1389404340015370240");
+    assert.equal(sportys.display_name, "Sporty's Alumni");
+    assert.equal(sportys.season, 2026);
+    assert.equal(sportys.provider, "sleeper");
+    assert.equal(sportys.enabled, true);
+    // The bridge account is not a member — no registered "self" manager.
+    assert.equal(sportys.sleeper_username, null);
+    assert.equal(sportys.sleeper_user_id, null);
+  });
+
+  it("Sporty's Alumni does not collide with or alter any other league", () => {
+    const all = listLeagueTargets();
+    const sportys = all.filter((t) => t.key === "sportys-alumni");
+    assert.equal(sportys.length, 1);
+    // existing entries unchanged
+    assert.equal(findLeagueTarget("bloodline-bowl")!.league_id, "1395549281678532608");
+    assert.equal(findLeagueTarget("devoted-to-the-game")!.league_id, "1389735763649761280");
+    // no other league resolves to Sporty's id
+    assert.equal(
+      all.filter((t) => t.league_id === "1389404340015370240").length,
+      1,
+    );
+  });
+
   it("keeps every enabled target's league_id unique", () => {
     const { targets } = getLeagueRegistry();
     const ids = targets.map((t) => `${t.provider}:${t.league_id}`);
@@ -244,6 +272,13 @@ describe("resolveLeagueId: selector resolution", () => {
   it("resolves a registry key to its league_id", () => {
     assert.equal(resolveLeagueId("devoted-to-the-game"), "1389735763649761280");
     assert.equal(resolveLeagueId("bloodline-bowl"), "1395549281678532608");
+    assert.equal(resolveLeagueId("sportys-alumni"), "1389404340015370240");
+  });
+
+  it("an unrelated league key never resolves to Sporty's Alumni", () => {
+    assert.notEqual(resolveLeagueId("bloodline-bowl"), "1389404340015370240");
+    assert.notEqual(resolveLeagueId("devoted-to-the-game"), "1389404340015370240");
+    assert.equal(findLeagueTarget("sportys-alumnii"), null); // typo does not resolve
   });
 
   it("passes through a raw numeric league id even if unregistered", () => {
