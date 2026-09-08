@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BridgeBoardResponse, BoardPlayer } from "@/lib/bridge/board";
+import { DraftPoller } from "@/lib/bridge/draft-poller";
 import {
   DEFAULT_BRIDGE_LEAGUE_KEY,
   listBridgeProfiles,
@@ -180,9 +181,14 @@ export default function BridgePage() {
 
   /* -- fetch board -------------------------------------------------- */
   const fetchBoard = useCallback(
-    async (key: string, slot: number | null, mode: "sleeper" | "custom") => {
-      setBoardLoading(true);
-      setBoardError(null);
+    async (
+      key: string,
+      slot: number | null,
+      mode: "sleeper" | "custom",
+      opts: { silent?: boolean; keepOnError?: boolean } = {},
+    ) => {
+      if (!opts.silent) setBoardLoading(true);
+      if (!opts.keepOnError) setBoardError(null);
       try {
         const url = new URL("/api/bridge/board", window.location.origin);
         url.searchParams.set("league", key);
@@ -202,6 +208,7 @@ export default function BridgePage() {
           );
         }
         setBoard(body);
+        setBoardError(null);
         // Record the scoring identity this state is now aligned to.
         setDraftState((prev) =>
           prev && prev.league_key === key
@@ -209,14 +216,64 @@ export default function BridgePage() {
             : prev,
         );
       } catch (err) {
-        setBoard(null);
-        setBoardError(err instanceof Error ? err.message : "Failed to load board.");
+        const msg = err instanceof Error ? err.message : "Failed to load board.";
+        // A polled refresh that fails keeps the last-known-good board on screen —
+        // never blank it, never substitute other state. A user-driven load may
+        // clear it as before.
+        if (!opts.keepOnError) setBoard(null);
+        setBoardError(opts.keepOnError ? `${msg} (showing last update; retrying)` : msg);
       } finally {
-        setBoardLoading(false);
+        if (!opts.silent) setBoardLoading(false);
       }
     },
     [],
   );
+
+  /* -- Draft-Live automatic polling while status is `drafting` ------- */
+  const boardStatusRef = useRef<string | null>(null);
+  const pollArgsRef = useRef<{ key: string; slot: number | null; mode: "sleeper" | "custom" }>({
+    key: leagueKey,
+    slot: null,
+    mode: rankingMode,
+  });
+  useEffect(() => {
+    boardStatusRef.current = board?.draft_feed.status ?? null;
+  }, [board]);
+  useEffect(() => {
+    pollArgsRef.current = {
+      key: leagueKey,
+      slot: draftState?.slot_override ?? null,
+      mode: rankingMode,
+    };
+  }, [leagueKey, draftState, rankingMode]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const poller = new DraftPoller({
+      getStatus: () => boardStatusRef.current,
+      poll: async () => {
+        const { key, slot, mode } = pollArgsRef.current;
+        await fetchBoard(key, slot, mode, { silent: true, keepOnError: true });
+      },
+    });
+    poller.start();
+
+    const onVisibility = () => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "hidden") poller.pause();
+      else poller.resume();
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    return () => {
+      poller.stop();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+    // Re-arm on league change (a fresh poller for the new league's status).
+  }, [hydrated, leagueKey, fetchBoard]);
 
   const lastFetchKey = useRef<string>("");
   useEffect(() => {

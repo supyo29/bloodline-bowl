@@ -89,9 +89,16 @@ export async function GET(request: Request): Promise<Response> {
       { rankingSource, slotOverride },
     );
 
+    // An actively-running draft must be pollable at seconds-level cadence — no
+    // CDN window can be allowed to stretch the effective refresh interval past
+    // the client's ~2s draft poll. Pre-draft / complete / idle keep the normal
+    // short CDN cache.
+    const draftActive =
+      board.draft_feed.status === "drafting" || board.draft_feed.status === "paused";
+
     return jsonResponse(board, {
       headers: {
-        "Cache-Control": cacheHeader(5, 15),
+        "Cache-Control": draftActive ? "no-store" : cacheHeader(5, 15),
         "X-Bridge-League": board.league_identity.league_key,
         "X-Bridge-Draft-Status": board.draft_feed.status,
       },
