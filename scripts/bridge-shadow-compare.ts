@@ -62,6 +62,8 @@ interface LeagueReport {
   league_slug: string;
   reachable: boolean;
   error?: string;
+  /** Set when the publication path intentionally skips this league (pre_draft / drafting). */
+  skipped_reason?: string;
   layerA: { verdict: string; unexplained: number };
   layerB: ShadowComparison | null;
   p0: Record<string, { timing: number; semantic: number; semantic_detail: string[] }>;
@@ -158,6 +160,19 @@ async function runLeague(slug: string): Promise<LeagueReport> {
     forced: true,
     dryRun: true,
   });
+  // A league the publication path intentionally skips (pre_draft / drafting) has
+  // no management state to compare — record it and move on.
+  if (newRes.outcome === "skipped" || !newRes.reconcile) {
+    report.reachable = true;
+    report.skipped_reason =
+      newRes.detail ?? `publication outcome=${newRes.outcome} (no reconcile)`;
+    report.layerA = { verdict: "SKIPPED", unexplained: 0 };
+    report.capability_summary = newRes.capabilities
+      ? summarizeCapabilities(newRes.capabilities)
+      : "-";
+    return report;
+  }
+
   const newSnap = newRes.snapshot!;
   report.capability_summary = newRes.capabilities
     ? summarizeCapabilities(newRes.capabilities)
@@ -322,6 +337,13 @@ function md(reports: LeagueReport[]): string {
     if (!r.reachable) {
       L.push(`- comparison mode: **INCONCLUSIVE** — provider unreachable from this environment`);
       L.push(`- error: \`${r.error}\``);
+      L.push("");
+      continue;
+    }
+    if (r.skipped_reason) {
+      L.push(`- comparison mode: **NOT APPLICABLE** — publication path skips this league`);
+      L.push(`- reason: \`${r.skipped_reason}\``);
+      L.push(`- capability health: \`${r.capability_summary}\``);
       L.push("");
       continue;
     }

@@ -183,6 +183,23 @@ describe("Sporty's Alumni: a pre_draft league is never published (no pointer to 
     assert.equal(await p.published.get(SLUG, 2026), null);
   });
 
+  it("getPublishedLeagueSnapshot(dryRun) on a pre_draft league: outcome `skipped`, NO reconcile", async () => {
+    // The shadow harness (and any consumer) must not assume `reconcile` exists on
+    // a skipped result — the skip happens before certification runs.
+    const { getPublishedLeagueSnapshot } = await import("../lib/canonical/published");
+    const p = memoryPersistence();
+    const snap = makeCanonicalSnapshot({ league_slug: SLUG, league_status: "pre_draft" });
+    const r = await getPublishedLeagueSnapshot(SLUG, {
+      persistence: p,
+      forced: true,
+      dryRun: true,
+      buildOverride: async () => ({ ok: true, status: 200, snapshot: snap }),
+    });
+    assert.equal(r.outcome, "skipped");
+    assert.equal(r.reconcile, undefined);
+    assert.equal(await p.published.get(SLUG, 2026), null);
+  });
+
   it("a `drafting` league is also skipped", async () => {
     const p = memoryPersistence();
     const snap = makeCanonicalSnapshot({ league_slug: SLUG, league_status: "drafting" });
