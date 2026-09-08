@@ -22,10 +22,16 @@ preview and production: the legacy live path is byte-for-byte the serving path, 
 new machinery (refresh route, deep health, freshness envelope, published-pointer store,
 Sporty's manager-neutral profile) is present and inert.
 
-The flag **cannot** be enabled yet. Two of the four hard gates require an operator to
-set `REFRESH_SECRET` on a deployment (I cannot set Vercel env vars); one requires a real
-NFL scoring window; one requires the Sporty's Alumni draft (2026-09-08 22:00 UTC). None
-of these can be closed from this session.
+**Gate 1 (deployed publication) is now `PASS`** — the operator set `REFRESH_SECRET` on
+production, and an authenticated `POST /api/refresh?scope=all` published certified
+pointers for `bloodline-bowl` (seq 1) and `devoted-to-the-game` (seq 1), skipped the
+`pre_draft` `sportys-alumni`, wrote 3 audit rows, and — critically — **did not change
+the serving path** (`state_source` stayed `LEGACY_LIVE_PATH`, flag still OFF).
+
+The flag still **cannot** be enabled: Gate 2 (deployed concurrency) is not yet run,
+Gate 3 requires a real NFL scoring window, Gate 4 requires the Sporty's Alumni draft
+(2026-09-08 22:00 UTC), and the daily-only publish cron does not meet the NORMAL
+freshness ceiling without a Vercel plan upgrade.
 
 ---
 
@@ -38,12 +44,12 @@ of these can be closed from this session.
 | production deploy | auto-deployed from `origin/main` after merge; code identity verified below |
 | PR preview | `bloodline-bowl-sleeper-bridge-3s1tgbcpp-…` @ `05fabd6` (Vercel check PASS) |
 | `BRIDGE_PUBLISHED_SNAPSHOT` (prod) | **OFF** (`feature_flags.BRIDGE_PUBLISHED_SNAPSHOT: "OFF"`, all waves false) |
-| `REFRESH_SECRET` (prod) | **not set** — `POST /api/refresh` → `401 endpoint_disabled` (fail-closed) |
-| `REFRESH_SECRET` (preview) | **not set** — same |
+| `REFRESH_SECRET` (prod) | **set** (operator, 2026-09-08 ~03:15 UTC) — `POST /api/refresh` no auth → `401 unauthorized`, bad bearer → `401 unauthorized` "Invalid credentials", value never echoed |
+| `REFRESH_SECRET` (preview) | not set — `POST /api/refresh` → `401 endpoint_disabled` |
 | Supabase env (prod) | **set** — deep health `persistence.{history_stores, published_pointer_store, publication_audit_store} = READY` |
 | Supabase env (preview) | **not set** — deep health persistence `PERSISTENCE_NOT_CONFIGURED` |
-| `bridge_published_snapshot` rows (prod DB) | **0** (baseline; first writer will be the daily publish cron) |
-| `bridge_publication_audit` rows (prod DB) | **0** (baseline) |
+| `bridge_published_snapshot` rows (prod DB) | **2** — `bloodline-bowl` seq 1, `devoted-to-the-game` seq 1 (written by the Gate 1 authenticated refresh, 2026-09-08 03:17 UTC) |
+| `bridge_publication_audit` rows (prod DB) | **3** — 2 `published` + 1 `skipped` (`sportys-alumni`), all `ok:true` `integrity:CERTIFIED` `error:null` |
 | `/api/cron/publish` schedule | `0 13 * * *` (daily — Vercel Hobby plan constraint, see "Code changes") |
 | `/api/cron/capture` schedule | `0 12 * * *` (unchanged) |
 
@@ -88,70 +94,68 @@ unset on both), never in code behavior.
 
 ## Gate 1 — Preview / deployed publication
 
-### `BLOCKED — operator action required` (not run)
+### `PASS` — executed on production, 2026-09-08 03:17 UTC
 
-`POST /api/refresh` is deployed and fail-closed: with `REFRESH_SECRET` unset it returns
-`401 endpoint_disabled` on **both** preview and production. An authenticated publish
-cannot be triggered from this session — I cannot set Vercel environment variables, and
-the `CRON_SECRET`-gated `/api/cron/publish` path is likewise not callable by hand.
+The operator set `REFRESH_SECRET` on the production environment and redeployed
+(`331672e`, `dpl_Ebg…`). An authenticated `POST /api/refresh?scope=all` was run from the
+operator's shell (secret supplied via `X-Refresh-Secret`, never entered into this
+session). HTTP **200**, `ok:true`.
 
-**What is proven:** route deployed, method gating (405), auth gating (401, value never
-echoed), deep-health wiring, published-pointer store `READY` on production, 0 baseline
-rows. Storage-layer atomic-advance proof on the production DB (Stage E §5, transaction
-rolled back): 8 writers/seq0 → 1 advanced / 7 raced; guarded stale write → 0 rows.
-21 orchestrator tests (`test/bridge-refresh.test.ts`).
+| league | outcome | pointer | persisted | integrity | freshness | audit id |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bloodline-bowl` | **published** | seq null → **1**, `pointer_advanced:true` | `created` | **CERTIFIED** | `FRESH` (`age_seconds:0`) | `48fdf4a0-…` |
+| `devoted-to-the-game` | **published** | seq null → **1**, `pointer_advanced:true` | `duplicate` (snapshot content already existed from the capture cron — pointer still advanced) | **CERTIFIED** | `FRESH` | `f177b907-…` |
+| `sportys-alumni` | **skipped** (`pre_draft`) | none | `skipped` | CERTIFIED (nominal) | `UNKNOWN` / `NO_PUBLISHED_SNAPSHOT` | `e6849fd7-…` |
 
-**What is not proven:** a real end-to-end deployed publish writing a pointer + audit row.
+**Auth gate (production, post-secret):** `GET /api/refresh` → 405; `POST` no auth →
+`401 unauthorized` "Missing credentials"; `POST` bad bearer → `401 unauthorized`
+"Invalid credentials"; secret value never appears in any response body.
 
-**Two paths to close Gate 1:**
-
-1. **Operator sets `REFRESH_SECRET`** on the preview (or production) deployment, then
-   runs the runbook below.
-2. **Wait for the daily `/api/cron/publish` run** (13:00 UTC) on production — it uses
-   Vercel's auto-injected `CRON_SECRET` and Supabase is configured, so it will attempt
-   a real publish. Afterward verify:
-   ```sql
-   select league_slug, season, published_seq, league_snapshot_id, content_hash
-     from bridge_published_snapshot;
-   select league_slug, outcome, ok, integrity, pointer_advanced, error_category, attempted_at
-     from bridge_publication_audit order by attempted_at desc;
-   ```
-   Expect: `bloodline-bowl` + `devoted-to-the-game` → `outcome ∈ {published, unchanged}`,
-   `integrity=CERTIFIED`, `pointer_advanced=true` on the first run; `sportys-alumni` →
-   `outcome="skipped"` (pre_draft) with no pointer row. Flag stays OFF, so no read path
-   is affected either way.
-
-**Operator runbook (path 1, on a deployment with `REFRESH_SECRET` set, flag still OFF):**
+**Persistence verified directly (Supabase, prod project `ijpfjdzmaztofawhwepf`):**
 ```
-GET  <url>/api/refresh                                   → 405
-POST <url>/api/refresh?league=bloodline-bowl  (no auth)  → 401
-POST <url>/api/refresh?scope=all  -H "Authorization: Bearer $REFRESH_SECRET"
-     → 200; per league outcome ∈ {published, unchanged}, integrity CERTIFIED,
-       snapshot_id present, pointer_advanced true (first run)
-POST <url>/api/refresh?league=sportys-alumni  -H "Authorization: Bearer $REFRESH_SECRET"
-     → 200, outcome "skipped" (pre_draft)
-POST <url>/api/refresh?league=no-such-league  -H "Authorization: Bearer $REFRESH_SECRET"
-     → 404, no DB write
-GET  <url>/api/health?deep=1
-     → per league: freshness.status ≠ "UNKNOWN" after a publish; no secret in the body
+bridge_published_snapshot:
+  bloodline-bowl       season 2026  published_seq 1  certified true  schema_version 3
+    league_snapshot_id snap:bloodline-bowl:2026:w1:44ba3cfb957dad7d
+    content_hash 44ba3cfb957dad7d… (matches the refresh response)
+  devoted-to-the-game  season 2026  published_seq 1  certified true  schema_version 3
+    league_snapshot_id snap:devoted-to-the-game:2026:w1:f0e050746ffd9fa9
+  (no sportys-alumni row)
+bridge_publication_audit: 3 rows, trigger=API, matching the 3 audit ids above,
+  ok=true, integrity=CERTIFIED, error=null
 ```
-Record: deployment id, commit SHA, timestamps, HTTP statuses, `snapshot_id` /
-`published_seq` per league, and one `bridge_publication_audit` row per attempt.
+
+**Serving path unchanged (the critical safety property):** after the publish, the
+deployed `GET /api/league/bloodline-bowl/state` freshness envelope reports
+`state_source: "LEGACY_LIVE_PATH"`, `fallback.occurred: false` — the published snapshot
+did **not** become the serving source, because `BRIDGE_PUBLISHED_SNAPSHOT` is still OFF.
+What did change, additively: `published_snapshot.present` flipped `false → true`
+(`published_seq:1`, `certified:true`), and `freshness.status` moved `UNKNOWN → FRESH`
+for both published leagues. `/api/health?deep=1` shows `bloodline-bowl` +
+`devoted-to-the-game` `FRESH`, `sportys-alumni` `UNKNOWN`, flag `OFF`, all waves false.
+
+**Not exercised** (deferred, low risk): `POST /api/refresh?league=no-such-league` →
+expected `404`, no DB write. Covered by `publish.ts` resolving the league before any
+store call and by a deterministic test; worth one operator call to confirm on the
+deployment when convenient.
 
 ---
 
 ## Gate 2 — Deployed concurrency
 
-### `BLOCKED — operator action required` (not run)
+### `READY TO RUN — operator action` (not yet run; no longer blocked)
 
-Same blocker as Gate 1 — no callable authenticated publish endpoint from this session.
+`REFRESH_SECRET` is now set on production, so the authenticated publish path is callable.
+Gate 1 already exercised a single 3-league refresh cleanly. What remains is the
+concurrent case, which needs several near-simultaneous authenticated calls fired from
+the operator's shell (the secret must not enter this session).
 
-**What is proven:** deterministic concurrency (`test/bridge-refresh.test.ts` —
+**What is already proven:** deterministic concurrency (`test/bridge-refresh.test.ts` —
 `Promise.all` of two publishes → `["published","raced"]`, seq monotonic) + the
-production-DB SQL race proof (Stage E §5). Neither exercises the deployed
-HTTP/serverless path.
+production-DB SQL race proof (Stage E §5, 8 writers/seq0 → 1 advanced / 7 raced). Gate 1
+proved the deployed single-writer path advances the pointer atomically to seq 1. Neither
+exercises the deployed *concurrent* HTTP path.
 
-**Operator runbook (on a deployment with `REFRESH_SECRET`, flag OFF):**
+**Operator runbook (production, flag OFF, `REFRESH_SECRET` set):**
 - **A. Same league:** 5–10 near-simultaneous authorized `POST /api/refresh?league=bloodline-bowl`.
   Expect each response ∈ {published, unchanged, raced}; `bridge_published_snapshot.published_seq`
   strictly increases, never regresses; at most one *new* content hash in `bridge_league_snapshots`;
@@ -275,7 +279,8 @@ another league; a board whose returned `league_key` ≠ requested is rejected cl
 | TypeScript (`tsc --noEmit`) | **clean** |
 | lint (`npm run lint`) | **0 errors** (pre-existing warnings only) |
 | build (`npm run build`) | **compiles** |
-| deployed code identity (preview `05fabd6` + production `8378255`) | **all probes pass** (table above) |
+| deployed code identity (preview `05fabd6` + production `8378255` / `331672e`) | **all probes pass** (table above) |
+| **Gate 1 — deployed publication (production, `331672e`)** | **PASS** — authed refresh published 2 certified pointers (seq 1), skipped `pre_draft` Sporty's, 3 audit rows, serving path unchanged (`LEGACY_LIVE_PATH`) |
 
 No skips or failures hidden. `*-live.test.ts` files remain network-flaky under parallel
 load (pre-existing; reproduced on a clean pre-branch checkout) — the deterministic
@@ -290,6 +295,8 @@ non-live suite is the gating signal.
 | (rebase) | `lib/leagues/registry.ts` | conflict resolution: keep the `sportys-alumni` entry already on `origin/main` (`6007d5f`), drop the branch's functionally-identical duplicate | **no** |
 | `05fabd6` | `vercel.json` | **deployment/config defect fix.** PR #17's Vercel build failed (`vercel.link/3Fpeeb1` → cron usage-and-pricing). Root cause: `/api/cron/publish` at `*/5 * * * *` — the Vercel **Hobby** plan (confirmed `team_LetK8hiDkOnuySZBJL8Nst7U` `plan=hobby`) rejects any sub-daily cron at build time. Smallest fix: `/api/cron/publish` → `0 13 * * *` (daily, 13:00 UTC, 1 h after the capture cron so they never overlap). | **no** — not code, not a route, not auth, not the pointer, not the flag, not the DraftPoller. Publish *cadence* is reduced; documented below. |
 | `8378255` | (merge commit) | PR #17 merged to `main` with a merge commit preserving the staged A–F history | n/a |
+| `9e97b6e` | `docs/BRIDGE_REALTIME_STATE_PRODUCTION_READINESS.md`, `docs/BRIDGE_REALTIME_STATE_PHASE_C_SHADOW_RUN.md` | post-merge report + regenerated shadow-run artifact | docs only |
+| `331672e` | (empty commit) | forces a production redeploy so the operator-added `REFRESH_SECRET` binds into the running deployment (Gate 1) | **no** |
 
 **Freshness implication of the cron change (documented, not a blocker):** under NORMAL
 thresholds (`ACCEPTABLE ≤ 600 s`) a once-daily automated publish leaves the published
@@ -311,18 +318,23 @@ behavior · Sporty's ranking logic.
 
 ## Remaining blockers
 
-| # | gate | blocker | who can clear it |
+| # | gate | status | who can clear it |
 | --- | --- | --- | --- |
-| 1 | Gate 1 — deployed publication | `REFRESH_SECRET` not set on any deployment (endpoint fail-closed at 401) | operator sets the env var, **or** wait for the 13:00 UTC publish cron + verify the DB |
-| 2 | Gate 2 — deployed concurrency | same as #1 | same as #1 |
-| 3 | Gate 3 — active-scoring-window shadow | no live NFL scoring window right now | real Sun/Mon/Thu game window + operator runs `shadow:compare` |
-| 4 | Gate 4 — live Sporty's Alumni draft smoke | draft starts `2026-09-08T22:00:00Z` | operator observes the real draft |
+| 1 | Gate 1 — deployed publication | **PASS** (2026-09-08 03:17 UTC) | — done |
+| 2 | Gate 2 — deployed concurrency | not run (no longer blocked) | operator fires ~8 concurrent authed `POST /api/refresh` from their shell + I verify seq monotonicity in the DB |
+| 3 | Gate 3 — active-scoring-window shadow | PENDING | real Sun/Mon/Thu game window + operator runs `shadow:compare` |
+| 4 | Gate 4 — live Sporty's Alumni draft smoke | PENDING | operator observes the real draft (2026-09-08 22:00 UTC) |
 
-`Remaining production blockers: 4` (all four hard gates; the deploy prerequisite is now
-satisfied).
+`Remaining production blockers: 3` (Gates 2–4). The deploy prerequisite and Gate 1 are
+satisfied.
+
+Additional flag-flip precondition (not a gate, but disqualifying on its own): the
+daily-only `/api/cron/publish` cadence does not keep the pointer inside the NORMAL
+`ACCEPTABLE ≤ 600 s` window — needs a Vercel plan upgrade or an accepted narrower
+serving policy before the flag goes on.
 
 No P0 contamination found. No unresolved defect. Production is on the intended SHA
-(`8378255`).
+(`main` = `331672e`, a no-op redeploy of `8378255`).
 
 ---
 
@@ -330,27 +342,30 @@ No P0 contamination found. No unresolved defect. Production is on the intended S
 
 **Do not flip `BRIDGE_PUBLISHED_SNAPSHOT` in production.** The code is merged, deployed,
 and verified inert (flag OFF, legacy live path serving, all code-identity probes pass on
-both preview and production, 0 model files changed, shadow `UNEXPLAINED = 0`). But the
-flag-flip criteria require **all four** deployed gates to pass on the deployment first,
-and none can be closed from this session.
+both preview and production, 0 model files changed, shadow `UNEXPLAINED = 0`). Gate 1 now
+proves the deployed publish path end-to-end: it advances certified pointers and writes
+audit rows **without touching the serving path**. But the flag-flip criteria require
+**all four** deployed gates plus an adequate publish cadence, and Gates 2–4 are open.
 
 Order of remaining work:
 
-1. Operator sets `REFRESH_SECRET` on preview (or production) — flag stays OFF.
-2. Gate 1 on that deployment (runbook above). Alternatively: let the 13:00 UTC publish
-   cron run on production and verify `bridge_published_snapshot` + `bridge_publication_audit`.
-3. Gate 2 on that deployment (concurrency runbook).
-4. Gate 3 during the next real NFL scoring window — `shadow:compare`, `UNEXPLAINED = 0`.
-5. Gate 4 during the Sporty's Alumni draft (2026-09-08 22:00 UTC).
-6. Only after 1–5 are all green, **and** the publish cadence is fast enough for the
-   NORMAL freshness ceiling (Vercel plan upgrade, or an accepted narrower serving
-   policy): flip `BRIDGE_PUBLISHED_SNAPSHOT` wave-by-wave (`wave1` → validate → `wave2`
-   → `wave3`), re-running `shadow:compare` after each and requiring `UNEXPLAINED = 0`.
-   Rollback at any point = unset the env var (no data rollback).
+1. ~~Operator sets `REFRESH_SECRET`~~ — done. ~~Gate 1~~ — **PASS**.
+2. **Gate 2** — operator fires ~8 concurrent authed `POST /api/refresh?league=bloodline-bowl`
+   (and a cross-league burst) from their shell; verify `published_seq` is strictly
+   monotonic and never regresses, at most one new content hash, LKG readable throughout.
+3. **Gate 3** — during the next real NFL scoring window: `shadow:compare`, require
+   `UNEXPLAINED = 0` on every stable-source run.
+4. **Gate 4** — during the Sporty's Alumni draft (2026-09-08 22:00 UTC).
+5. Resolve the publish-cadence precondition (Vercel plan upgrade for a sub-daily
+   `/api/cron/publish`, or an accepted narrower serving policy).
+6. Only after 2–5 are all green: flip `BRIDGE_PUBLISHED_SNAPSHOT` wave-by-wave
+   (`wave1` → validate → `wave2` → `wave3`), re-running `shadow:compare` after each and
+   requiring `UNEXPLAINED = 0`. Rollback at any point = unset the env var (no data
+   rollback; the published pointers can stay — they are only read when the flag is on).
 
 ### May `BRIDGE_PUBLISHED_SNAPSHOT` be enabled in production? **NO.**
 
-Not until Gates 1–4 are closed on the deployment and the publish cadence meets the
-freshness ceiling. Enabling it today is unsafe only in that it is unverified — the
-fallback path would still protect every read — but "unverified" is disqualifying under
-the stated criteria.
+Not until Gates 2–4 are closed on the deployment and the publish cadence meets the
+freshness ceiling. Gate 1 is done. Enabling the flag today would still be fallback-safe
+for every read, but "unverified against Gates 2–4" is disqualifying under the stated
+criteria.
