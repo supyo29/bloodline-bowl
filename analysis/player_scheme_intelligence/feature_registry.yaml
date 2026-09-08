@@ -1,0 +1,300 @@
+# ===========================================================================
+# Player x Scheme Intelligence — machine-readable feature registry (spec §40).
+#
+# Every feature family Phase 9 may compute is recorded here BEFORE it is built,
+# with its source, availability state, and — critically — whether it is
+# live-capable or retrospective-only. This prevents a future model from
+# accidentally treating retrospective-only charting as live data (spec §31, §40).
+#
+# availability values: LIVE_CURRENT | HISTORICAL_CURRENT_THROUGH_2025 |
+#                      PRIOR_ONLY | POSTSEASON_ONLY | UNAVAILABLE
+# live_capable values: LIVE_CAPABLE | RETROSPECTIVE_ONLY | PRIOR_ONLY_CURRENT_SEASON
+# observed_or_modeled: OBSERVED | MODELED | DESCRIPTIVE_ONLY
+# numerically_predictive_eligible: may this feature EVER earn a production
+#   fantasy adjustment after certification? (false = SHARED_DESCRIPTIVE only)
+#
+# current_season_status is re-stamped every run of source_audit.R against the
+# real cache. As of 2026-09-08 every family below is PRIOR_ONLY for 2026.
+# ===========================================================================
+
+registry_version: psi-feature-registry-2026.1
+model_tag: player-scheme-intelligence-2026.1
+as_of: "2026-09-08"
+global_note: >
+  No feature in this registry may change production projection / lineup /
+  start-sit / waiver / trade / matchup / Orchestrator ACTION behavior during
+  Phase 9. Predictive interaction effects default to numeric_fantasy_adjustment = 0.
+
+features:
+
+  # ---- QB spatial (pbp backbone — no charting dependency) ----------------
+  - feature_name: qb_field_area_matrix
+    entity_level: player
+    position: QB
+    source: nflverse_pbp
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: OBSERVED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: attempts per (depth_bin x field_third) cell; evidence class from PSI$EVIDENCE_THRESHOLDS$qb_cell_attempts
+    numerically_predictive_eligible: false
+    description: 4x3 QB target matrix (BEHIND_LOS/SHORT/INTERMEDIATE/DEEP x LEFT/MIDDLE/RIGHT), per-cell attempts, attempt share, comp%, air yards, Y/A, EPA/att, success, TD/INT/explosive/first-down rate, YAC.
+
+  - feature_name: qb_directional_tendency
+    entity_level: player
+    position: QB
+    source: nflverse_pbp
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: OBSERVED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: attempts by direction / depth marginal
+    numerically_predictive_eligible: false
+    description: left/middle/right %, behind-LOS/short/intermediate/deep %, deep-left/middle/right %, each with relative-to-league-QB-baseline delta. TENDENCY separated from EFFICIENCY.
+
+  - feature_name: qb_pressure_profile
+    entity_level: player
+    position: QB
+    source: nflverse_participation + pfr_pass
+    availability: PRIOR_ONLY            # participation was_pressure lags; pfr weekly is live-capable but coarser
+    live_capable: PRIOR_ONLY_CURRENT_SEASON
+    observed_or_modeled: OBSERVED
+    first_season: 2018
+    current_season_status: PRIOR_ONLY
+    sample_definition: dropbacks pressured vs clean; blitzed vs non-blitzed
+    numerically_predictive_eligible: false
+    description: EPA / success / comp / air yards / sack / TO / scramble / explosive / time-to-throw, split pressured vs clean and blitz vs non-blitz. pfr weekly counts are the LIVE_CAPABLE fallback in 2026.
+
+  - feature_name: qb_coverage_profile
+    entity_level: player
+    position: QB
+    source: nflverse_participation
+    availability: PRIOR_ONLY
+    live_capable: PRIOR_ONLY_CURRENT_SEASON
+    observed_or_modeled: OBSERVED
+    first_season: 2018            # man/zone effectively absent before 2018
+    current_season_status: PRIOR_ONLY
+    sample_definition: charted dropbacks vs MAN / ZONE / coverage family
+    numerically_predictive_eligible: false
+    description: attempts, attempt share, comp, EPA, success, air yards, explosive, TO rate, and target-area distribution vs man / zone / coverage family. Charted on ~38-49% of plays only — shrinkage mandatory.
+
+  - feature_name: qb_concept_profile
+    entity_level: player
+    position: QB
+    source: nflverse_ftn + nflverse_pbp
+    availability: PRIOR_ONLY
+    live_capable: PRIOR_ONLY_CURRENT_SEASON
+    observed_or_modeled: DESCRIPTIVE_ONLY
+    first_season: 2022
+    current_season_status: PRIOR_ONLY
+    sample_definition: plays by concept (shotgun/UC/pistol from pbp; PA/motion/no-huddle/RPO/screen/OOP/read-thrown from FTN)
+    numerically_predictive_eligible: false
+    description: frequency AND effectiveness per concept. FTN-derived fields are DESCRIPTIVE_ONLY and never a predictive model input (inherits FI guardrail 1).
+
+  - feature_name: qb_tendency_stability
+    entity_level: player
+    position: QB
+    source: nflverse_pbp
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: profile deltas across seasons / teams / coordinators / half-season / rolling windows
+    numerically_predictive_eligible: false
+    description: career vs recent vs current-team/coordinator profile with recency weighting + hierarchical shrinkage; breakpoint flags on team/coordinator/role change.
+
+  # ---- WR / TE ---------------------------------------------------------
+  - feature_name: receiver_field_area_profile
+    entity_level: player
+    position: WR,TE
+    source: nflverse_pbp
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: OBSERVED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: targets per depth x location cell
+    numerically_predictive_eligible: false
+    description: target location/depth matrix, target share, catches, yards, YAC, EPA/target, success, explosive/first-down/TD rate. WHERE targeted vs WHERE efficient kept separate.
+
+  - feature_name: receiver_route_profile
+    entity_level: player
+    position: WR,TE,RB
+    source: nflverse_participation
+    availability: PRIOR_ONLY
+    live_capable: PRIOR_ONLY_CURRENT_SEASON
+    observed_or_modeled: OBSERVED
+    first_season: 2018
+    current_season_status: PRIOR_ONLY
+    sample_definition: routes run per route type (charted ~37-42% of plays)
+    numerically_predictive_eligible: false
+    description: per-route target rate, catch rate, YPRR (only where denominator trustworthy), EPA/target, success, explosive, YAC, air yards. Route vocab from participation.route (21 values).
+
+  - feature_name: receiver_coverage_interaction
+    entity_level: player
+    position: WR,TE,RB
+    source: nflverse_participation
+    availability: PRIOR_ONLY
+    live_capable: PRIOR_ONLY_CURRENT_SEASON
+    observed_or_modeled: MODELED
+    first_season: 2018
+    current_season_status: PRIOR_ONLY
+    sample_definition: charted targets vs man / zone
+    numerically_predictive_eligible: false   # promote only after §35 criteria met
+    description: player-specific deviation from position / league / archetype baseline in receiving efficiency vs man-heavy vs zone-heavy environments, controlling for role & opportunity.
+
+  # ---- RB -----------------------------------------------------------
+  - feature_name: rb_rush_spatial_profile
+    entity_level: player
+    position: RB
+    source: nflverse_pbp
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: OBSERVED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: carries per direction (L/M/R) and gap (end/tackle/guard/middle)
+    numerically_predictive_eligible: false
+    description: attempts, attempt share, EPA/rush, success, YPC, explosive, stuff/negative rate, TD/goal-line rate. Direction/gap ONLY — never relabeled zone/gap/power/counter (no charting supports concept).
+
+  - feature_name: rb_box_interaction
+    entity_level: player
+    position: RB
+    source: nflverse_participation
+    availability: PRIOR_ONLY
+    live_capable: PRIOR_ONLY_CURRENT_SEASON
+    observed_or_modeled: MODELED
+    first_season: 2018            # box 100% only from 2023; partial 2018-22
+    current_season_status: PRIOR_ONLY
+    sample_definition: carries per defenders-in-box bucket (buckets defined from data + sensitivity tested)
+    numerically_predictive_eligible: false
+    description: RB rushing performance vs light / neutral / heavy box. Box count is NOT a defensive front scheme (spec §14).
+
+  - feature_name: rb_receiving_profile
+    entity_level: player
+    position: RB
+    source: nflverse_pbp + nflverse_participation
+    availability: HISTORICAL_CURRENT_THROUGH_2025   # pbp part; route part PRIOR_ONLY
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: OBSERVED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: targets per depth/location; screen/checkdown usage
+    numerically_predictive_eligible: false
+    description: target location/depth, target share, screen usage, checkdown usage (where read data supports), route families (PRIOR_ONLY), YAC, EPA/target, receiving success, explosive receiving.
+
+  # ---- team offense / defense ------------------------------------------
+  - feature_name: offense_team_profile
+    entity_level: team
+    position: null
+    source: nflverse_pbp + participation + ftn
+    availability: HISTORICAL_CURRENT_THROUGH_2025   # pace/PROE/location live; PA/motion/personnel PRIOR_ONLY
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: team-weeks, as-of week, chronology-safe
+    numerically_predictive_eligible: false
+    description: pass rate, PROE, pace, shotgun/UC/pistol, personnel, PA, motion, RPO, screen, target depth/location/position distribution, rush location/gap, box faced, pressure allowed, TTT, explosive, RZ/goal-line tendencies. Each split tagged by its own availability.
+
+  - feature_name: defense_scheme_profile
+    entity_level: team
+    position: null
+    source: nflverse_pbp + participation + pfr_def
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: defense-weeks, opponent-adjusted, chronology-safe
+    numerically_predictive_eligible: false
+    description: pass D (EPA/dropback allowed, success, explosive, pressure, rusher count, blitz proxy, man/zone historical, coverage family historical, target depth/location allowed, target-area matrix, position target distribution, YAC allowed, RZ pass D) + run D (EPA/rush allowed, success, explosive, direction/gap allowed, box, short-yardage/goal-line).
+
+  - feature_name: defense_spatial_vulnerability_map
+    entity_level: team
+    position: null
+    source: nflverse_pbp
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: targets allowed per depth x location cell, opponent-adjusted
+    numerically_predictive_eligible: false
+    description: defense allowed-target grid on the SAME QB depth/location definitions — target share allowed, comp allowed, EPA/target allowed, success allowed, explosive allowed, TD rate allowed, INT rate generated. Enables direct QB/receiver profile matching.
+
+  - feature_name: ol_dl_proxy_layer
+    entity_level: team
+    position: null
+    source: nflverse_pbp + pfr
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2018
+    current_season_status: PRIOR_ONLY
+    sample_definition: team-weeks
+    numerically_predictive_eligible: false
+    description: TEAM-LEVEL proxies only — pressure rate allowed/generated, sack rate adj for dropbacks, TTT context, rush EPA/success, negative-run rate, short-yardage success, inside/outside splits, box counts. NO fake individual OL grades, NO PFF-equivalent claims (spec §19).
+
+  # ---- archetypes ----------------------------------------------------
+  - feature_name: player_archetype_vector
+    entity_level: player
+    position: QB,RB,WR,TE
+    source: derived
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: player-seasons with sufficient volume
+    numerically_predictive_eligible: false
+    description: numeric descriptive profile vector (shipped regardless of label stability); interpretable clusters / rule-derived archetype label optional and only if stable.
+
+  - feature_name: defense_archetype_vector
+    entity_level: team
+    position: null
+    source: derived
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: MODELED
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: defense-seasons
+    numerically_predictive_eligible: false
+    description: numeric defensive profile vector (primary) + optional archetype label; not forced if the data is a continuum.
+
+  # ---- the core research target -------------------------------------
+  - feature_name: player_scheme_interaction_effect
+    entity_level: player_x_defense
+    position: QB,RB,WR,TE
+    source: derived
+    availability: PRIOR_ONLY
+    live_capable: RETROSPECTIVE_ONLY   # until §35 + §31 live-availability proven
+    observed_or_modeled: MODELED
+    first_season: 2018
+    current_season_status: PRIOR_ONLY
+    sample_definition: opponent-games with matching profile characteristics; evidence from PSI$EVIDENCE_THRESHOLDS$interaction_games + model uncertainty + opponent diversity + recency
+    numerically_predictive_eligible: candidate   # SHADOW_ONLY in 2026.1; promotion needs separate certification
+    description: >
+      Hierarchical/shrunk estimate of whether a player's RESIDUAL performance
+      (vs a trustworthy pregame baseline — NOT raw fantasy splits) changes
+      systematically against defenses with particular profile characteristics,
+      AFTER controlling for the production projection baseline (anti-double-
+      counting, spec §24). Effects that vanish after baseline control get
+      numeric_fantasy_adjustment = 0 and are explanatory context only.
+
+  - feature_name: coordinator_scheme_era
+    entity_level: team_season
+    position: null
+    source: analysis/football_intel/coordinators.yaml
+    availability: HISTORICAL_CURRENT_THROUGH_2025
+    live_capable: LIVE_CAPABLE
+    observed_or_modeled: DESCRIPTIVE_ONLY
+    first_season: 2012
+    current_season_status: PRIOR_ONLY
+    sample_definition: team-season coordinator identity
+    numerically_predictive_eligible: false
+    description: reuses FI's coordinators.yaml; major coaching change resets / sharply shrinks prior tendency weights. Where reliable coordinator identity is missing, the limitation is documented rather than guessed (spec §20).
