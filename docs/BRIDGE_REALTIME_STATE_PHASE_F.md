@@ -441,25 +441,138 @@ unread). The `/api/cron/publish` cron can keep running harmlessly or be removed 
 
 ---
 
+---
+
+# Stage F — Operational Addendum (post-`6e76a5e`)
+
+Commit `518f8de`. No remodel architecture added; no recommendation-model change.
+
+## A1. Sporty's Alumni registry addition (Part 1)
+
+`lib/leagues/registry.ts` — append-only entry, existing leagues untouched:
+
+| field | value | source |
+| --- | --- | --- |
+| `key` | `sportys-alumni` | — |
+| `provider` | `sleeper` | — |
+| `league_id` / `external_league_id` | `1389404340015370240` | user commit `6007d5f`, verified live |
+| `season` | `2026` | Sleeper `league.season` |
+| `display_name` | `Sporty's Alumni` | Sleeper `league.name` (`Sporty's Alumni`) |
+| `known_managers` | `[]` | the bridge account is **not a member** — every manager resolves generically at request time |
+| `sleeper_username` / `sleeper_user_id` | `null` | **genuinely N/A** — no registered self-manager (matches the two Yahoo entries) |
+
+**Live-verified against Sleeper (2026-09-07):** league `1389404340015370240` = "Sporty's Alumni",
+season 2026, status `pre_draft`, 14 rosters, roster `QB/RB/RB/WR/WR/TE/FLEX/FLEX/K/DEF + 5 BN`
+(no IR/taxi), 132 scoring keys. Draft `1389404340032118784`: `pre_draft`, type **snake**,
+15 rounds, 14 slots, 60 s pick timer, `reversal_round: 0`, `start_time` 2026-09-08 (tomorrow).
+Full `draft_order` + `slot_to_roster_id` present.
+
+Verified (deterministic + live smoke):
+- slug resolves → `1389404340015370240`; `resolveLeagueStrict` ok, `registered: true`;
+- no other configured league resolves to that id or draft; a typo does not fall back;
+- `selectActiveDraft` → `1389404340032118784`, type `snake`;
+- season 2026; draft type resolves; `draft_order`/`slot_to_roster_id` accessible;
+- manager mapping resolves generically (`rspata2` etc. — 14 real members);
+- scoring + roster settings resolve (132 keys, 15-slot roster);
+- canonical state builds where applicable → `DEGRADED` pre-draft shell (14 teams, empty rosters), honest;
+- ordinary registry lookups for other leagues unchanged.
+
+Deterministic coverage: `test/leagues-registry.test.ts` (+5), `test/draft-sportys-alumni.test.ts` (15).
+
+## A2. Sporty's Alumni Draft-Live preflight (Part 2)
+
+**Draft Live is NOT routed through the published-snapshot system** — proven three ways:
+1. exhaustive grep: `lib/draft/service.ts`, `lib/sleeper/draft*.ts`, `lib/leagues/manager-draft.ts`, every `/api/draft*` + `/api/bridge/board` + `/api/leagues/[l]/managers/[m]/recommendations` route → **zero** references to `readLeagueState` / `getPublishedLeagueSnapshot` / the pointer / `published-flag` / the publish cron;
+2. a test asserts `lib/draft/service.ts` source contains none of those symbols;
+3. `computeDraftGeometry` + `selectActiveDraft` are pure (no `process.env` read) — a test runs them with `BRIDGE_PUBLISHED_SNAPSHOT=all` and gets byte-identical output.
+
+**Pre-draft checks (live smoke, dev server):**
+- `/api/health?draft=1&league=sportys-alumni` → `active_draft_id: 1389404340032118784`, `draft_status: pre_draft`, `draft_type: snake`;
+- `/api/leagues/sportys-alumni/draft` → HTTP 200, 14 teams, 300-player bounded pool, `Cache-Control: no-store`;
+- `/api/leagues/sportys-alumni/managers/rspata2/recommendations` → HTTP 200, `readiness: READY`, `error: null`, `recommendation_model_version: ri-snake-decision-2026.2` (**snake** engine — SNAKE_ONLY gate passes for `type: snake`), `completed_picks: 0`, **`Cache-Control: no-store`**, **no `state_source` field** (correctly a direct draft-path response, not a canonical/published one);
+- already-drafted-player reconciliation: the pool excludes drafted + rostered players (existing `available-player-eligibility` + `draft-live` coverage; 0 picks so far);
+- current/next pick + snake geometry: deterministic tests for a 14-team draft (round 1 slot 7 → pick 7; round 2 reverses → 22; round 3 → 35; "next pick" advances past spent picks so a manager is never stranded; impossible slot 15 rejected).
+
+**Freshness / source-path checks:**
+- room endpoints (`/api/leagues/[l]/draft`, `.../managers/[m]/draft`, `.../recommendations`) → `Cache-Control: no-store`, hit fresh Sleeper via `getDraftLive` / `getDraftPicksLive` / `getLeagueRostersLive`;
+- independent of the `*/5` publish cron and the published pointer (grep + pure-function tests);
+- a `pre_draft` / `drafting` league is now **skipped** by `getPublishedLeagueSnapshot` (`outcome: "skipped"`, no `put`, no pointer advance) — so the publish cron cannot even build state for Sporty's Alumni during its draft. Auto-enrolls once `status` becomes `in_season`. (`test/draft-sportys-alumni.test.ts` — pre_draft → skipped/no pointer; drafting → skipped; in_season → published.)
+
+**Actual polling cadence (as implemented in code — not assumed):**
+- **The repository implements NO automatic draft-poll loop.** The `/bridge` UI (`app/bridge/page.tsx`) refetches the board on a state-signature change (`leagueKey|slot|rankingMode`), via `fetch(..., { cache: "no-store" })` — there is no `setInterval`.
+- The **backend makes the endpoints poll-safe**: room endpoints are `Cache-Control: no-store` (no CDN floor); the legacy `/api/draft` form is `s-maxage` = **5 s when `drafting`**, 30 s `pre_draft`, 300 s `complete` (`CACHE_SECONDS_BY_STATUS` in `lib/sleeper/draft-service.ts`), and reports `metadata.polling_safe: true` + `cache_seconds`.
+- **Seconds-level live updating during a draft is the client's responsibility** — a client polling a no-store room endpoint every ~2–5 s would work, but that loop is not in this repo. This is a factual finding, not a defect.
+
+**State-transition checks:** `pre_draft → drafting → complete` selection is covered deterministically (`selectActiveDraft` picks `drafting` over `complete`, surfaces `pre_draft` as the upcoming draft, keeps a `complete` draft readable). **The live active-transition smoke is PENDING** the real draft — do not fake it.
+
+## A3. Draft safety regression (Part 3)
+
+`test/draft-sportys-alumni.test.ts` — all 10 required checks, deterministic, 15 tests, 0 network:
+1. configured league → correct draft ✅
+2. wrong league cannot resolve to Sporty's draft ✅
+3. active pick increments (geometry "next pick" advances) ✅
+4. drafted player disappears from availability — existing `draft-live` / `available-player-eligibility` coverage (0 picks yet) ✅
+5. duplicate Sleeper pick ingestion idempotent — existing `draft*.test.ts` coverage ✅
+6. snake-order reversal correct for 14 teams ✅
+7. manager/slot mapping stable ✅ (draft_order + slot_to_roster_id from Sleeper, geometry deterministic)
+8. API response not from published snapshot ✅ (grep + source assertion + no `state_source` on the live response)
+9. Stage F flag cannot throttle Draft Live ✅ (pure functions, `BRIDGE_PUBLISHED_SNAPSHOT=all` → identical)
+10. completed draft exits active mode ✅ (`selectActiveDraft` + status-based cache)
+
+No recommendation-model file changed. No P0/P1.
+
+## A4. Deployment / scoring gates (Parts 4–9) — status
+
+| Gate | Status |
+| --- | --- |
+| Part 4 — preview publication (`POST /api/refresh?scope=all`, pointer advances, `freshness` leaves `UNKNOWN`) | **PENDING** — needs a preview deploy with `REFRESH_SECRET` + Supabase env |
+| Part 5 — deployed concurrency (concurrent `POST /api/refresh` on the deployed HTTP path) | **PENDING** — storage-layer proof on the production DB is done (Stage E §5); the deployed path is not |
+| Part 6 — active NFL scoring-window shadow (`npm run shadow:compare` incl. P0, `UNEXPLAINED = 0`) | **PENDING** — preseason; no scoring window available. Synthetic activity does not satisfy this gate. |
+| Part 7 — preview wave rollout (`wave1` → `wave2` → `wave3`, `UNEXPLAINED = 0` after each) | **PENDING** — follows Parts 4–5 |
+| Part 8/9 — production flip + wave rollout | **BLOCKED** on Parts 4–7 + a live Sporty's Alumni draft smoke |
+
+I cannot deploy, and no live NFL scoring window is available during this session. Parts 4–9
+are operator actions; the code and the local/deterministic checks that gate them are complete.
+
+## A5. Regression (updated)
+
+| Check | Result |
+| --- | --- |
+| `tsc --noEmit` | clean |
+| `npm run lint` | 0 errors (29 warnings, pre-existing patterns) |
+| non-live deterministic suite | **1245 pass / 0 fail / 0 skipped** (was 1225; +20 Sporty's/registry), repeated runs identical |
+| bridge suite | **87 pass / 0 fail** |
+| draft suite incl. `draft-sportys-alumni` | green |
+| model files changed | **none** |
+| feature flag | **OFF** |
+| pointer writes from dev work | **0** |
+
+Updated for the 5th league (no test weakened): `test/multi-league-isolation.test.ts`
+(`SLEEPER` list, "5 leagues" describe title), `test/cron-capture.test.ts` (READY-sleeper list).
+
+---
+
 ## Stage F Certification
 
 **CONDITIONAL — PRODUCTION FLAG FLIP BLOCKED.**
 
-Stage F code is complete and correct. No P0/P1 findings. Flag OFF, eligible reads still
-`LEGACY_LIVE_PATH`, 0 pointer writes from dev work, 0 model files changed, non-live
-suite deterministic (1225/0/0), one P2 fixed (cron `*/5`).
+Stage F code is complete and correct, and Sporty's Alumni is registered and its Draft
+Live path is preflighted (deterministic + live smoke). No P0/P1 findings. Flag OFF,
+eligible reads still `LEGACY_LIVE_PATH`, 0 pointer writes from dev work, 0
+recommendation-model files changed, non-live suite deterministic (**1245 / 0 / 0**),
+two P2s fixed (cron `*/5`; pre-draft/drafting publish skip).
 
-The production `BRIDGE_PUBLISHED_SNAPSHOT` flag **must not be flipped** until:
+The production `BRIDGE_PUBLISHED_SNAPSHOT` flag **must not be flipped** until every one
+of these operator gates passes:
 
-1. **Preview publication gate** (Stage E #1) — deploy with `REFRESH_SECRET` + Supabase env, `POST /api/refresh?scope=all`, confirm pointer advances and `freshness.status` leaves `UNKNOWN` for both leagues.
-2. **Deployed concurrency gate** (Stage E #2) — concurrent `POST /api/refresh` from the deployed path; no pointer regression / duplication.
-3. **Active NFL scoring-window gate** (Stage E #3 / Stage F §16) — `npm run shadow:compare` incl. the P0 route comparison during real scoring; `UNEXPLAINED = 0`.
+1. **Preview publication gate** — deploy with `REFRESH_SECRET` + Supabase env, `POST /api/refresh?scope=all`; pointer advances, target exists, integrity CERTIFIED, `freshness.status` leaves `UNKNOWN`, audit row written, ordinary reads still `LEGACY_LIVE_PATH`.
+2. **Deployed concurrency gate** — concurrent `POST /api/refresh` from the deployed HTTP path; no pointer regression / duplication; races reported as `raced`.
+3. **Active NFL scoring-window gate** — `npm run shadow:compare` incl. the P0 route comparison during real scoring; `UNEXPLAINED = 0` on stable-source runs.
+4. **Live Sporty's Alumni draft smoke** — during the actual draft: `pre_draft → drafting → complete` selection, picks observed on the next live poll, drafted players leave the pool, snake seat mapping stays correct, Draft Live never touches the pointer.
 
-Plus, before relying on the Bridge for that draft: **Sporty's Alumni must be added to
-`lib/leagues/registry.ts`** and its Draft Live path smoke-checked (deterministic now;
-live during the real draft).
+Rollback at any point: unset `BRIDGE_PUBLISHED_SNAPSHOT`. No data rollback needed.
 
-Once all four pass, flip `BRIDGE_PUBLISHED_SNAPSHOT` (wave-by-wave) per §25 and the
-bridge real-time-state remodel is complete. There is no Stage G.
+Once all four pass, flip the flag wave-by-wave (§25). The bridge real-time-state remodel
+is then complete. **There is no Stage G.**
 
 STOPPING per protocol.
