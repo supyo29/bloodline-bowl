@@ -1243,11 +1243,31 @@ correctness, safe specialist coordination, gating, conflict resolution, dominanc
 isolation, explanation provenance, and performance. It does **not** claim the policy has been
 empirically proven to improve fantasy outcomes.
 
-## II.12 Deployment
+## II.12 Deployment & production certification
 
-Merged to `main` (see final SHA below), deployed to Vercel production. `ADVISORY_ONLY`:
-the endpoints recommend; they never execute. `BRIDGE_PUBLISHED_SNAPSHOT` stays OFF — the
-Orchestrator reads the same legacy-live canonical path as every other engine.
+- **Merged to `main`:** fast-forward `f0bda54 → 242b77e` (zero conflicts, all additive — the
+  three Phase 8 commits: audit `7cb17b8`, implementation `3f866cc`, Part II `242b77e`).
+- **Tag:** `team-management-orchestrator-2026.1` → `242b77e`.
+- **Vercel:** deployment `dpl_J1wzUCV8HWczYepvhH1kVCGDToLZ`, target `production`, commit
+  `242b77e`, **state `READY`**, alias `bloodline-bowl-sleeper-bridge.vercel.app`.
+
+**Production smoke (`ADVISORY_ONLY`):**
+
+| check | result |
+| --- | --- |
+| `GET …/managers/supyo29/orchestrate` | 200 · `team-management-orchestrator-2026.1` · `deployment: ADVISORY_ONLY` · verdict `WATCH` |
+| `GET …/orchestrate` (league) | 200 · 12 rows |
+| `GET …/managers/darthmarker/orchestrate` (devoted) | 200 |
+| unknown manager / league | **404** (fail-closed, no 5xx) |
+| lineage snapshot / scoring fingerprint | coherent with the prod canonical (`snap:…44ba3cfb…` / `scoring:v1:29acc6bc…`) |
+| shadow-only actions | **0** (the §11 boundary holds in prod) |
+| **recommendation isolation** — prod `intelligence` | `lineup.optimal_total = 113.36`, `matchup.win_probability = 0.482` — **byte-identical** to the Phase 1–7 production certification; `top_actions` length 2 (untouched) |
+| existing engines (`roster-health`, `schedule-planning`, `manage`, `standings`, `lineup`) | all 200 |
+
+`BRIDGE_PUBLISHED_SNAPSHOT` stays OFF — the Orchestrator reads the same legacy-live
+canonical path as every other engine. `state_source: LEGACY_LIVE_PATH` unchanged.
+
+**Final `main` SHA: `242b77e`.**
 
 ---
 
