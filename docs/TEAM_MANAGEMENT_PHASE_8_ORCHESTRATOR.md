@@ -1055,3 +1055,224 @@ surface** leaving `top_actions` byte-stable (§43); and the **synthetic-only, no
 certification standard with a data-gated `orchestrator-2026.2` (§31–§32).
 
 **Stopping. No Orchestrator implementation until the scope is reviewed.**
+
+---
+---
+
+# Part II — Implementation & Certification (`team-management-orchestrator-2026.1`)
+
+_Scope 2, `ADVISORY_ONLY`, approved from the audit above. Branch
+`team-management-phase8-orchestrator`. No Phase 1–7 frozen semantics changed._
+
+## II.1 Implementation architecture
+
+```
+Phase 1 CanonicalLeagueSnapshot ─┐
+Phase 2 Team-State ───────────────┤
+Phase 3 Football Intelligence ────┤   buildManagementAnalysisContext(leagueSlug)
+Phase 4 Start/Sit FI  (SHADOW) ───┤     ├─ ONE runInLeagueStateScope
+Phase 5 Matchup Intel (SHADOW) ───┼──▶  ├─ ONE canonical provider read (superset shape, primes the scope memo)
+Phase 6 Roster Health (SHARED) ───┤     ├─ ONE Team-State league context   (snapshotOverride)
+Phase 7 Schedule Plan (SHARED) ───┤     ├─ ONE Roster Health league context
+existing Weekly / Lineup / …  ────┤     ├─ ONE Schedule Planning league context
+existing Waiver engine ───────────┤     ├─ ONE trade-analysis context  → strategy profiles
+existing Trade discovery ─────────┘     └─ per-manager Weekly Intelligence  (lazy, memoised, snapshotOverride)
+                                              │
+                                   deriveConditions → aggregateConditions (§32)
+                                              │
+                                   generateCandidates  (production specialists only)
+                                     LINEUP  ← wi.lineup / wi.start_sit
+                                     WAIVER  ← wi.waivers
+                                     TRADE_EXPLORATION ← trade search profile [+ discoverTrades if opted in]
+                                              │
+                                   runPolicy:  hard gates → lexicographic priority → dominance suppression → verdict
+                                              │
+                                   OrchestratorResult  (immutable, lineage-stamped)  → captureOrchestratorResult (NullCaptureStore default)
+```
+
+**Files** — `lib/orchestrator/`: `schema.ts` (contract + `ORCHESTRATOR_DEPLOYMENT =
+"ADVISORY_ONLY"` + `orchestratorMayExecuteTransactions()` ≡ `false` + decision-capture
+schema), `context.ts` (`ManagementAnalysisContext`), `dimensions.ts`, `conditions.ts`,
+`candidates.ts`, `gates.ts`, `policy.ts`, `capture.ts`, `build.ts`, `index.ts`.
+**API** — `GET /api/leagues/:slug/orchestrate` and
+`GET /api/leagues/:slug/managers/:mgr/orchestrate` (`?include_trade_search=1`).
+
+## II.2 P8-2 resolution (request-scoped context)
+
+`buildManagementAnalysisContext` runs everything in **one** `runInLeagueStateScope` and
+primes the scope memo with a single canonical read in the superset shape
+(`includeMatchups + includeRecentTransactions + reportPersistence`). Every specialist that
+accepts `snapshotOverride` (Team-State, Weekly Intelligence) is handed the primed snapshot;
+Roster Health / Schedule Planning hit the same memo key. Measured:
+
+| | context assembly | canonical provider reads | Team-State builds | RH builds | SP builds | trade-ctx builds |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| bloodline-bowl | 1.76 s | **1** | 1 | 1 | 1 | 1 |
+| devoted-to-the-game | 1.28 s | **1** | 1 | 1 | 1 | 1 |
+
+The audit's P8-2 (up to **2** canonical reads from divergent read-shapes) is **resolved** —
+`canonical_provider_reads = 1`. **Bounded residual (documented, not a rewrite):** Roster
+Health and Schedule Planning each still re-assemble the weekly projection batch + RI signal
+in memory from the (memoised) snapshot — RH ≈ 350–700 ms, SP ≈ 450–540 ms of the assembly.
+Eliminating it needs a frozen Phase 6/7 builder change (`buildRosterHealthInputs` accepting
+pre-built inputs), which §9 forbids for Phase 8. Zero extra provider reads; deferred to a
+future dedicated refactor phase.
+
+`test/orchestrator-isolation.test.ts` asserts `metrics.snapshot_ids_seen.size === 1` and
+`snapshot_coherent === true`.
+
+## II.3 Dimension normalisation (§14 / §15)
+
+No raw specialist score is compared across domains. Each candidate is translated in
+`dimensions.ts`:
+
+| dimension | keeps | example source |
+| --- | --- | --- |
+| `expected_weekly_effect` | `{ value, unit: "fantasy_points", source, basis }` — **not** rescaled | `lineup.projected_points_gained`, `waiver.starter_impact` / `net_roster_gain` |
+| `risk_reduction` | cardinal points **or** `{ direction, magnitude_class, source }` | `roster_health.fragility`, `waiver.bye_coverage_impact` |
+| `urgency` | `NOW \| THIS_WEEK \| BEFORE_WAIVERS \| NEAR_TERM \| FUTURE \| INFORMATIONAL` (band) | current-week defect / `waiver_day` / Schedule-Planning week distance |
+| `confidence` | `HIGH \| MEDIUM \| LOW`, **capped by the evidence floor** | specialist `Confidence` / `PROVISIONAL` / `ROS_CONTEXT_ONLY` |
+| `cost` | `{ band: ZERO\|LOW\|MEDIUM\|HIGH, consumes }` | free swap / FAAB / waiver priority / roster asset |
+| `irreversibility` | `REVERSIBLE \| PARTLY_REVERSIBLE \| IRREVERSIBLE` | lineup vs waiver-with-drop vs trade |
+
+`value === null` where a dimension cannot be quantified — never fabricated.
+
+## II.4 P8-1 enforcement (no fabricated intra-day precision)
+
+`classifyUrgency` produces only week-grain bands. `NOW` is emitted **only** for a current
+*structural* defect (illegal lineup / empty starter slot / a starter on a schedule-verified
+bye) and always carries `EXACT_LOCK_TIME_UNAVAILABLE`. A waiver claim carries
+`WAIVER_DAY_UNKNOWN` when the provider does not expose `waiver_day`. The Orchestrator never
+emits "before tonight", "before the 7:20 kickoff", "before Player X locks", or "you have N
+minutes". Tested (`orchestrator.test.ts` "P8-1: urgency never finer than week").
+
+## II.5 Shadow prohibition (§11) — enforced in code
+
+`gates.ts::shadowGate` fails any candidate whose entire evidence set is
+`start_sit_shadow` / `matchup_shadow` (`SHADOW_ONLY_EVIDENCE`). `candidates.ts` never
+sources a candidate from a shadow output — shadow disagreements become
+`SHADOW_DIAGNOSTIC_ONLY` conditions in `conditions.ts` and can only ever be `future_watch_items`.
+`orchestrator.test.ts` "swapping the shadow payload never changes primary/secondary actions"
++ the live test's per-action non-shadow-evidence assertion prove it.
+
+## II.6 Validation results
+
+| check | result |
+| --- | --- |
+| `npx tsc --noEmit` | **clean** |
+| `eslint app lib test` | **0 errors**, 29 warnings (**0 new** — same pre-existing set) |
+| `npm test` | **1588 tests · 1584 pass · 0 fail · 4 skipped** (0 existing tests changed; +33 orchestrator tests) |
+| `test/orchestrator.test.ts` | 24/24 — deployment guard, dimension units, P8-1 urgency, confidence propagation, 5 hard gates, HOLD (already-optimal + no-waiver + resilient), ACTION (obvious lineup fix / fragility+waiver), tiny-edge → not-ACTION, WATCH (fragility-no-remedy / distant bye), INSUFFICIENT_EVIDENCE vs HOLD, dominance (free swap > costly waiver), independent actions co-surface, shadow-swap invariance, cross-manager symmetry, byte-identical determinism, §37 matrix rows, illegal-never-recommended, distant-doesn't-outrank-immediate |
+| `test/orchestrator-isolation.test.ts` | 3/3 — weekly lineup/matchup/waivers **byte-identical** direct vs via-context; roster-health + schedule-planning identical; one coherent snapshot, 1 canonical read |
+| `test/orchestrator-live.test.ts` | 6/6 — bloodline + devoted advisory smoke, lineage coherent, no shadow-driven ACTION, HOLD carries rationale, deterministic |
+| Phase 1C live (3 leagues) | `cross_surface_discrepancies = 0`, `null_required_fields = 0` |
+| frozen surfaces `git diff --stat f0bda54..HEAD` | **empty** for `lib/trades/{ros,depth}.ts`, `lib/weekly/{lineup,slots,start-sit,waivers,matchup,intelligence}.ts`, `lib/weekly/start-sit-fi/**`, `lib/weekly/matchup-intelligence/**`, `lib/roster-health/**`, `lib/schedule-planning/**`, `lib/team-state/**`, `lib/canonical/**`, `lib/football-intel/**` |
+| `WeeklyIntelligence.top_actions` | untouched — byte-stable; the Orchestrator is a separate surface |
+
+**§40 specialist recommendation behaviour change = 0** — proven structurally (empty diff) and
+behaviourally (`orchestrator-isolation.test.ts`: production `lineup.optimal_total`,
+`matchup.win_probability`, and every waiver `net_roster_gain` / `priority` are identical
+whether reached directly or through the shared context).
+
+## II.7 Live advisory smoke (preseason, week 1–2, 0 played weeks)
+
+| | verdict | primary | watch |
+| --- | --- | --- | --- |
+| bloodline-bowl / supyo29 | **WATCH** | — (lineup gain below materiality; every waiver immaterial; QB depth is a WATCH; week-7 uncovered slot NOT_URGENT) | ROSTER_FRAGILITY, WEEK_7_UNCOVERED_SLOT, QB_DEPTH_VULNERABILITY |
+| devoted-to-the-game / darthmarker | **ACTION** | LINEUP / HIGH / THIS_WEEK — a bench player outprojects a starter (+ WAIVER secondary) | ROSTER_FRAGILITY, WEEK_7_UNCOVERED_SLOT, SHADOW_MATCHUP_WP_DISAGREEMENT (diagnostic), QB_DEPTH_VULNERABILITY |
+| bloodline-bowl league (12) | 3 × WATCH, 9 × ACTION (all LINEUP / WAIVER — unset preseason lineups) | — | — |
+
+Every live ACTION is backed by a production-certified specialist remedy (lineup engine /
+waiver engine). No verdict was forced; the preseason mix of WATCH/ACTION was preserved.
+Deterministic on repeat. Runtime: ~1.5 s / manager cold, ~7 s full 12-team league,
+`?include_trade_search=1` ~2.1 s — all well within the 60 s lambda budget.
+
+## II.8 Decision capture (§36)
+
+`OrchestratorDecisionRecord` schema is defined and `captureOrchestratorResult` is wired into
+`orchestrateManager`. The default `getOrchestratorCaptureStore()` is a `NullCaptureStore`
+(no-op) — persistence infrastructure was not approved for Phase 8, so nothing is written
+unless an operator calls `setOrchestratorCaptureStore(...)`. `MemoryCaptureStore` exists for
+tests. `acted_upon` is always `"UNKNOWN"` (manager compliance is never fabricated). This
+record is the basis for the future `2026.2` re-evaluation.
+
+## II.9 Findings (implementation)
+
+| ID | Sev | Finding | Disposition |
+| --- | --- | --- | --- |
+| P8-1 | P1 (from audit) | no certified player-lock / kickoff fact | **Enforced honestly** — week-grain urgency + `EXACT_LOCK_TIME_UNAVAILABLE` / `WAIVER_DAY_UNKNOWN`; no small authoritative adapter exists to add exact lock (§5), so intra-day urgency stays deferred. Scope 2 does not depend on it. |
+| P8-2 | P1 (from audit) | shared-input reassembly + divergent read-shapes | **Resolved** for provider reads (1 canonical read/request). In-memory projection re-assembly by RH + SP remains as a bounded, documented residual (II.2) — a frozen-semantics refactor phase, not Phase 8. |
+| P8-3 | P2 | `WeeklyIntelligence.top_actions` overlaps the Orchestrator | Left byte-stable. A future migration (re-point `top_actions` at the Orchestrator, or deprecate it) is a separate tested change — documented, not done. |
+| P8-4 | P2 | trade discovery cost | Handled — pointer by default, concrete `discoverTrades` behind `?include_trade_search=1`; never run league-wide. |
+| P8-5 | P2 | no durable decision capture | Additive interface + schema shipped; `NullCaptureStore` default (II.8). |
+| P8-9 | P3 | RH/SP each re-assemble the weekly batch within one scope | Same as the P8-2 residual — measured (II.2), deferred. |
+
+**No P0. No unresolved P1** (P8-1 is a data limitation enforced correctly, not a defect;
+P8-2's provider-read half is resolved and the residual is documented per §8 / §48).
+
+## II.10 Freeze contract — `team-management-orchestrator-2026.1`
+
+The Orchestrator is frozen at **`ADVISORY_ONLY`**. Future work may consume it; it may not:
+
+- execute any transaction — `orchestratorMayExecuteTransactions()` must stay `false`; any
+  autonomous "action layer" is a separate certified phase with an explicit versioned
+  deployment change, never an auto-promotion;
+- compare raw specialist scores across domains — every candidate goes through
+  `dimensions.ts`;
+- let a `SHADOW_ONLY` output (Phase 4/5) be the deciding evidence for an `ACTION`;
+- turn a `SHARED_CONTEXT` fact (Phase 6/7) directly into a remedy — a remedy must come from a
+  production specialist;
+- change any Phase 1–7 specialist's semantics, or `lib/trades/{ros,depth}.ts`, or
+  `WeeklyIntelligence.top_actions`;
+- claim intra-day timing precision without a certified lock/kickoff fact;
+- introduce a learned ranking model or an opaque `management_score` without calibrated
+  historical management-decision data;
+- implement Scope 3 (multi-step dependent plans) or Scope 4 (autonomous execution).
+
+A policy / threshold / dimension change requires a new version (`2026.2`). The frozen v1
+constants live in `lib/orchestrator/{gates,dimensions,policy}.ts` with inline rationale.
+
+## II.11 `2026.2` re-evaluation (deferred, data-gated)
+
+Once genuine 2026 management-decision + outcome evidence accumulates (via a wired capture
+store), `2026.2` may evaluate: unnecessary-transaction avoidance, realised lineup gain,
+waiver value, trade-exploration usefulness, fragility reduction that paid off, bye-hole
+avoidance, HOLD quality, and WATCH→ACTION timing. v1 is **not** retrained or rewritten
+retroactively. **`2026.1` certification is non-predictive** — it certifies deterministic
+correctness, safe specialist coordination, gating, conflict resolution, dominance, lineage,
+isolation, explanation provenance, and performance. It does **not** claim the policy has been
+empirically proven to improve fantasy outcomes.
+
+## II.12 Deployment
+
+Merged to `main` (see final SHA below), deployed to Vercel production. `ADVISORY_ONLY`:
+the endpoints recommend; they never execute. `BRIDGE_PUBLISHED_SNAPSHOT` stays OFF — the
+Orchestrator reads the same legacy-live canonical path as every other engine.
+
+---
+
+## §48 Freeze criteria — met
+
+- one request-scoped coherent management context exists ✔ (`ManagementAnalysisContext`, 1 canonical read, coherent snapshot asserted)
+- P8-2 shared-input duplication resolved/bounded without semantic rewrites ✔ (provider reads resolved; in-memory residual documented)
+- P8-1 exact-lock limitation enforced honestly ✔ (`EXACT_LOCK_TIME_UNAVAILABLE`, week-grain bands, `NOW` only for structural defects)
+- raw specialist scores never cross-compared ✔ (`dimensions.ts`; tested)
+- shadow systems cannot drive ACTION ✔ (`shadowGate`; tested with adversarial swap)
+- shared context cannot invent remedies ✔ (`conditions.ts` produces conditions only; remedies come from `candidates.ts` production specialists)
+- concrete actions originate in certified production specialists ✔ (LINEUP ← lineup/start-sit; WAIVER ← waiver engine; TRADE_EXPLORATION ← discovery/search profile)
+- HOLD / WATCH / ACTION all work ✔ (tested + live)
+- dominance / suppression coherent ✔ (tested)
+- negative evidence retained ✔ (`suppressed_actions`, `hold_rationale`, condition `suppression_reasons`)
+- lineage coherent ✔ (`OrchestratorLineage` with per-specialist `SpecialistUsage`; isolation test)
+- one canonical reality maintained ✔
+- APIs additive ✔ (`/orchestrate`; `/manage` + `top_actions` untouched)
+- deployment `ADVISORY_ONLY` ✔ · zero autonomous execution ✔ (`orchestratorMayExecuteTransactions()` ≡ false)
+- specialist recommendation behaviour change = 0 ✔ (empty diff + isolation test)
+- all P0/P1 implementation defects resolved ✔ (no P0; P8-1 enforced, P8-2 provider-read half resolved + residual documented)
+
+---
+
+# PHASE 8 CERTIFIED — ADVISORY TEAM MANAGEMENT ORCHESTRATOR FREEZE
+
+`team-management-orchestrator-2026.1`, `ADVISORY_ONLY`. Merged & deployed. Scope 2 only —
+no multi-step dependent plans, no autonomous execution. STOP.
