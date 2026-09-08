@@ -1,0 +1,7 @@
+{
+  "start_sit_model_version": "ri-startsit-2026.1",
+  "football_intelligence_version": "fi:2025:w18:6e872c5caa82",
+  "generated_at": "2026-09-08T11:00:09-0500",
+  "files": ["start_sit_model.json", "start_sit_feature_status.csv", "start_sit_validation.csv"],
+  "determinism": "seeded ridge, closed form; identical dataset -> identical model"
+}

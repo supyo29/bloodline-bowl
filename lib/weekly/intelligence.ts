@@ -15,6 +15,8 @@ import { buildMatchup, buildLeverage } from "./matchup";
 import { buildWaiverRecommendations } from "./waivers";
 import { compareStartSit, type StartSitComparison } from "./start-sit";
 import { buildWeeklySummary, type WeeklySummary } from "./summary";
+import { buildStartSitShadow } from "./start-sit-fi";
+import type { StartSitShadowComparison } from "./start-sit-fi";
 import { WEEKLY_ENGINE_VERSION, type DataQualityStatus, type Priority, type WeeklyTeamContext, type WeeklyWarning } from "./schema";
 import type { RecommendationLineage } from "@/lib/canonical/lineage";
 import type { LineupResult } from "./lineup";
@@ -47,6 +49,12 @@ export interface WeeklyIntelligence {
 
   lineup: LineupResult;
   start_sit: StartSitComparison[];
+  /**
+   * Phase 4 SHADOW comparison — baseline vs Football-Intelligence-adjusted
+   * lineup/start-sit. `null` if the shadow model is unavailable. This NEVER
+   * changes `lineup` or `start_sit`; `lineage.deployment` is `SHADOW_ONLY`.
+   */
+  start_sit_shadow: StartSitShadowComparison | null;
   matchup: MatchupResult;
   matchup_leverage: LeverageItem[];
   waivers: WaiverResult;
@@ -160,6 +168,13 @@ async function buildWeeklyIntelligenceInner(
   const matchup_leverage = buildLeverage(matchup);
   const waivers = buildWaiverRecommendations(ctx);
   const start_sit = buildCloseCalls(ctx, lineup);
+  // Phase 4 shadow path — non-fatal, never alters production output.
+  let start_sit_shadow: StartSitShadowComparison | null = null;
+  try {
+    start_sit_shadow = buildStartSitShadow(ctx);
+  } catch {
+    start_sit_shadow = null;
+  }
   const summary = buildWeeklySummary({ ctx, lineup, matchup, waivers });
 
   const base = `/api/intelligence/${leagueSlug}/${managerSlug}/week/${ctx.league.week}`;
@@ -182,6 +197,7 @@ async function buildWeeklyIntelligenceInner(
       summary,
       lineup,
       start_sit,
+      start_sit_shadow,
       matchup,
       matchup_leverage,
       waivers,

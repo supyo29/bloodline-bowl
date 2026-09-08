@@ -1,0 +1,464 @@
+{
+  "start_sit_model_version": "ri-startsit-2026.1",
+  "generated_at": "2026-09-08T11:00:09-0500",
+  "football_intelligence_version": "fi:2025:w18:6e872c5caa82",
+  "baseline": {
+    "primary": "trailing_ppg_ew",
+    "control_note": "Sleeper historical projection is research-only; 2021 has no timestamp, 2022 bulk-backfilled, 2023-25 possible through-week revision (§3)."
+  },
+  "trained_on": {
+    "seasons": "2021-2022+",
+    "outer_test_seasons": [
+      2023,
+      2024,
+      2025
+    ],
+    "weeks": "4-17",
+    "archetypes": [
+      "std",
+      "half",
+      "ppr"
+    ]
+  },
+  "routing": {
+    "PREDICTIVE": "eligible (free coefficient)",
+    "WEAKLY_PREDICTIVE": "eligible, |beta| capped at median |PREDICTIVE beta|",
+    "NOT_PREDICTIVE": "excluded from design matrix; contribution forced 0",
+    "DESCRIPTIVE_ONLY": "excluded; explanation-only",
+    "UNVALIDATED": "deferred; not in v1"
+  },
+  "max_total_adjustment_fraction": 0.25,
+  "tau_tie_break": 3,
+  "positions": {
+    "QB": {
+      "status": "CANDIDATE",
+      "formulation": "residual",
+      "lambda": 25,
+      "families": [
+        {
+          "family": "def_success_allowed",
+          "beta": -0.3478,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.2983,
+          "value_col": "fidef_def_success_allowed_league_percentile",
+          "confidence_col": "fidef_def_success_allowed_confidence",
+          "prior_dominated_col": null
+        },
+        {
+          "family": "off_explosive_pass_rate",
+          "beta": -0.329,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.3041,
+          "value_col": "fi_off_explosive_pass_rate_league_percentile",
+          "confidence_col": "fi_off_explosive_pass_rate_confidence",
+          "prior_dominated_col": "fi_off_explosive_pass_rate_prior_dominated"
+        }
+      ],
+      "conf_weight": {
+        "HIGH": 1,
+        "MEDIUM": 0.5,
+        "LOW": 0.2,
+        "INSUFFICIENT_SAMPLE": 0
+      },
+      "prior_dominated_haircut": 0.6,
+      "production_status": "SHADOW_ONLY_NO_VALUE",
+      "decision_metrics": {
+        "position": "QB",
+        "production_status": "SHADOW_ONLY_NO_VALUE",
+        "reversal_win_rate_trailing": 0.5194,
+        "mean_delta_points_trailing": 0.013,
+        "reversal_win_rate_sleeper": 0.472,
+        "mean_delta_points_sleeper": -0.0196,
+        "large_loss_rate": 0.3214,
+        "large_win_rate": 0.3463
+      },
+      "family_status": [
+        {
+          "family": "def_success_allowed",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.003
+        },
+        {
+          "family": "interaction_pass_epa_vs_pass_defense",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0028
+        },
+        {
+          "family": "off_explosive_pass_rate",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0029
+        },
+        {
+          "family": "off_pace_sec_play",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0065
+        },
+        {
+          "family": "off_pass_epa",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.009
+        },
+        {
+          "family": "off_proe",
+          "status": "REMOVE",
+          "incremental_mae_gain": -0.0258
+        },
+        {
+          "family": "off_success_rate",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0033
+        }
+      ]
+    },
+    "RB": {
+      "status": "CANDIDATE",
+      "formulation": "residual",
+      "lambda": 25,
+      "families": [
+        {
+          "family": "off_pace_sec_play",
+          "beta": -0.0691,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.2936,
+          "value_col": "fi_off_pace_sec_play_league_percentile",
+          "confidence_col": "fi_off_pace_sec_play_confidence",
+          "prior_dominated_col": "fi_off_pace_sec_play_prior_dominated"
+        },
+        {
+          "family": "usage_snap_share",
+          "beta": 1.4119,
+          "routing": "PREDICTIVE",
+          "center": 0.4047,
+          "scale": 0.2086,
+          "value_col": "fi_usage_snap_share_modeled",
+          "confidence_col": "fi_usage_snap_share_confidence",
+          "prior_dominated_col": null
+        }
+      ],
+      "conf_weight": {
+        "HIGH": 1,
+        "MEDIUM": 0.5,
+        "LOW": 0.2,
+        "INSUFFICIENT_SAMPLE": 0
+      },
+      "prior_dominated_haircut": 0.6,
+      "production_status": "TIE_BREAK_SHADOW_ONLY",
+      "decision_metrics": {
+        "position": "RB",
+        "production_status": "TIE_BREAK_SHADOW_ONLY",
+        "reversal_win_rate_trailing": 0.6062,
+        "mean_delta_points_trailing": 0.0606,
+        "reversal_win_rate_sleeper": 0.5049,
+        "mean_delta_points_sleeper": -0.0012,
+        "large_loss_rate": 0.1875,
+        "large_win_rate": 0.3401
+      },
+      "family_status": [
+        {
+          "family": "def_success_allowed",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0003
+        },
+        {
+          "family": "interaction_rush_epa_vs_rush_defense",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0002
+        },
+        {
+          "family": "off_pace_sec_play",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.001
+        },
+        {
+          "family": "off_rush_epa",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0
+        },
+        {
+          "family": "off_success_rate",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0016
+        },
+        {
+          "family": "usage_rush_share",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0006
+        },
+        {
+          "family": "usage_snap_share",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.002
+        },
+        {
+          "family": "usage_target_share",
+          "status": "REMOVE",
+          "incremental_mae_gain": -0.0288
+        }
+      ]
+    },
+    "WR": {
+      "status": "CANDIDATE",
+      "formulation": "residual",
+      "lambda": 8.6667,
+      "families": [
+        {
+          "family": "def_success_allowed",
+          "beta": -0.5481,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.2999,
+          "value_col": "fidef_def_success_allowed_league_percentile",
+          "confidence_col": "fidef_def_success_allowed_confidence",
+          "prior_dominated_col": null
+        },
+        {
+          "family": "interaction_pass_epa_vs_pass_defense",
+          "beta": 0.351,
+          "routing": "WEAKLY_PREDICTIVE",
+          "center": 0.0028,
+          "scale": 0.4242,
+          "value_col": "fi_interaction_pass_epa_vs_pass_defense_modeled",
+          "confidence_col": "fi_interaction_pass_epa_vs_pass_defense_confidence",
+          "prior_dominated_col": null
+        },
+        {
+          "family": "off_explosive_pass_rate",
+          "beta": -0.1538,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.3024,
+          "value_col": "fi_off_explosive_pass_rate_league_percentile",
+          "confidence_col": "fi_off_explosive_pass_rate_confidence",
+          "prior_dominated_col": "fi_off_explosive_pass_rate_prior_dominated"
+        },
+        {
+          "family": "off_pass_epa",
+          "beta": -0.8406,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.3024,
+          "value_col": "fi_off_pass_epa_league_percentile",
+          "confidence_col": "fi_off_pass_epa_confidence",
+          "prior_dominated_col": "fi_off_pass_epa_prior_dominated"
+        },
+        {
+          "family": "off_proe",
+          "beta": -0.0574,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.2963,
+          "value_col": "fi_off_proe_league_percentile",
+          "confidence_col": "fi_off_proe_confidence",
+          "prior_dominated_col": "fi_off_proe_prior_dominated"
+        }
+      ],
+      "conf_weight": {
+        "HIGH": 1,
+        "MEDIUM": 0.5,
+        "LOW": 0.2,
+        "INSUFFICIENT_SAMPLE": 0
+      },
+      "prior_dominated_haircut": 0.6,
+      "production_status": "SHADOW_ONLY_NO_VALUE",
+      "decision_metrics": {
+        "position": "WR",
+        "production_status": "SHADOW_ONLY_NO_VALUE",
+        "reversal_win_rate_trailing": 0.4915,
+        "mean_delta_points_trailing": -0.014,
+        "reversal_win_rate_sleeper": 0.4878,
+        "mean_delta_points_sleeper": -0.0039,
+        "large_loss_rate": 0.2372,
+        "large_win_rate": 0.2143
+      },
+      "family_status": [
+        {
+          "family": "def_success_allowed",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0017
+        },
+        {
+          "family": "interaction_pass_epa_vs_pass_defense",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0008
+        },
+        {
+          "family": "off_explosive_pass_rate",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0016
+        },
+        {
+          "family": "off_pace_sec_play",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0002
+        },
+        {
+          "family": "off_pass_epa",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0032
+        },
+        {
+          "family": "off_proe",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0009
+        },
+        {
+          "family": "off_success_rate",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.005
+        },
+        {
+          "family": "usage_route_participation",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0007
+        },
+        {
+          "family": "usage_target_share",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0095
+        }
+      ]
+    },
+    "TE": {
+      "status": "CANDIDATE",
+      "formulation": "residual",
+      "lambda": 25,
+      "families": [
+        {
+          "family": "off_pace_sec_play",
+          "beta": 0.2482,
+          "routing": "PREDICTIVE",
+          "center": 0.5,
+          "scale": 0.3003,
+          "value_col": "fi_off_pace_sec_play_league_percentile",
+          "confidence_col": "fi_off_pace_sec_play_confidence",
+          "prior_dominated_col": "fi_off_pace_sec_play_prior_dominated"
+        },
+        {
+          "family": "usage_route_participation",
+          "beta": 0.4806,
+          "routing": "PREDICTIVE",
+          "center": 0.4661,
+          "scale": 0.2151,
+          "value_col": "fi_usage_route_participation_modeled",
+          "confidence_col": "fi_usage_route_participation_confidence",
+          "prior_dominated_col": null
+        },
+        {
+          "family": "usage_target_share",
+          "beta": -0.7599,
+          "routing": "PREDICTIVE",
+          "center": 0.0439,
+          "scale": 0.0265,
+          "value_col": "fi_usage_target_share_modeled",
+          "confidence_col": "fi_usage_target_share_confidence",
+          "prior_dominated_col": null
+        }
+      ],
+      "conf_weight": {
+        "HIGH": 1,
+        "MEDIUM": 0.5,
+        "LOW": 0.2,
+        "INSUFFICIENT_SAMPLE": 0
+      },
+      "prior_dominated_haircut": 0.6,
+      "production_status": "SHADOW_ONLY_NO_VALUE",
+      "decision_metrics": {
+        "position": "TE",
+        "production_status": "SHADOW_ONLY_NO_VALUE",
+        "reversal_win_rate_trailing": 0.4164,
+        "mean_delta_points_trailing": -0.0437,
+        "reversal_win_rate_sleeper": 0.4844,
+        "mean_delta_points_sleeper": -0.0054,
+        "large_loss_rate": 0.2304,
+        "large_win_rate": 0.1327
+      },
+      "family_status": [
+        {
+          "family": "def_success_allowed",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0032
+        },
+        {
+          "family": "off_pace_sec_play",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0006
+        },
+        {
+          "family": "off_pass_epa",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0026
+        },
+        {
+          "family": "off_success_rate",
+          "status": "EXPLAIN",
+          "incremental_mae_gain": -0.0074
+        },
+        {
+          "family": "usage_route_participation",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0003
+        },
+        {
+          "family": "usage_target_share",
+          "status": "KEEP_WEAK",
+          "incremental_mae_gain": 0.0023
+        }
+      ]
+    }
+  },
+  "decision_backtest": {
+    "primary_baseline": "trailing_ppg_clean",
+    "tuned_on": "2023-2024",
+    "evaluated_on": "2025",
+    "overall_trailing": {
+      "n": 880375,
+      "reversal_rate": 0.0347,
+      "base_acc": 0.6693,
+      "fi_acc": 0.6701,
+      "acc_delta": 0.0007,
+      "mean_delta_points": 0.0077,
+      "total_delta_points": 6781.88,
+      "n_reversals": 30511,
+      "rev_win_rate": 0.5107,
+      "rev_mean_delta": 0.2223,
+      "rev_median_delta": 0.1,
+      "rev_large_loss_rate": 0.2269,
+      "rev_large_win_rate": 0.2419
+    },
+    "eval2025_trailing": {
+      "n": 180009,
+      "reversal_rate": 0.0322,
+      "base_acc": 0.6639,
+      "fi_acc": 0.6643,
+      "acc_delta": 0.0004,
+      "mean_delta_points": 0.0124,
+      "total_delta_points": 2234.36,
+      "n_reversals": 5793,
+      "rev_win_rate": 0.5056,
+      "rev_mean_delta": 0.3857,
+      "rev_median_delta": 0.1,
+      "rev_large_loss_rate": 0.2272,
+      "rev_large_win_rate": 0.2548
+    },
+    "overall_sleeper_2023_25": {
+      "n": 660281,
+      "reversal_rate": 0.0161,
+      "base_acc": 0.7027,
+      "fi_acc": 0.7023,
+      "acc_delta": -0.0004,
+      "mean_delta_points": -0.0046,
+      "total_delta_points": -3066.04,
+      "n_reversals": 10618,
+      "rev_win_rate": 0.4872,
+      "rev_mean_delta": -0.2888,
+      "rev_median_delta": -0.2,
+      "rev_large_loss_rate": 0.2534,
+      "rev_large_win_rate": 0.2347
+    }
+  },
+  "deployment": "SHADOW_ONLY",
+  "deployment_note": "No position clears the production bar: FI reversals beat a coin flip only for RB against the naive trailing-PPG control, and that edge does not survive against the RotoWire-backed Sleeper baseline production actually uses (double-counting, §11). The shadow comparison path is delivered; production start/sit behavior is unchanged."
+}
