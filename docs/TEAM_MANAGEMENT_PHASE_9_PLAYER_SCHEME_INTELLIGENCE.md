@@ -795,3 +795,37 @@ Start/Sit, Matchup, waiver, trade, Roster Health, Schedule Planning, or
 Orchestrator ACTION generation. Any future promotion of a Tier D family
 requires a separate integration/certification decision — none is eligible
 today.
+
+---
+
+## 8. Merge / deployment / release record
+
+| Item | Value |
+| --- | --- |
+| Merge | fast-forward `6125f38..a941a5a` → `main` (zero conflicts, all additive) |
+| Merge SHA | `a941a5abde85e45cfafc496f5e2fa971fa7c55e5` |
+| Release tag | `player-scheme-intelligence-2026.1` (annotated, immutable) |
+| Deployment | Vercel `dpl_6TPDAe6E5AA69oC6LwfzBr4bgzP2` — state `READY`, target `production`, `bloodline-bowl-sleeper-bridge.vercel.app` |
+| Artifact identity | `player_scheme_manifest.json` version `psi:2025:w18:08123edd58c9`, tiers A–D |
+| Model versions | `qb-spatial-2026.1` / `player-tendency-2026.1` / `defense-scheme-2026.1` / `player-scheme-interaction-2026.1` |
+
+### Regression (pre-merge, on `main` post-merge)
+`npm test` 1643 / 1639 pass / 0 fail / 4 skipped (+40 Phase 9, 0 existing
+changed) · `tsc --noEmit` clean · `eslint app lib test` 0 errors · frozen
+surfaces byte-identical `6125f38..HEAD` · FI manifest byte-identical · 0
+production imports of Phase 9 · R suites (Tier A invariants + Tier D synthetic)
+pass.
+
+### Production smoke (live, `dpl_6TPDAe6E5AA69oC6LwfzBr4bgzP2`)
+| Surface | Result |
+| --- | --- |
+| `GET /api/player-scheme` | `READY`, `psi:2025:w18:08123edd58c9`, tiers `[A,B,C,D]`, `deployment: SHARED_DESCRIPTIVE`, `current_season_status: PRIOR_ONLY`, `fantasy_adjustment_enabled: false` |
+| `GET /api/player-scheme/players/00-0033873?view=qb` | Mahomes resolved by gsis id; 12 matrix cells; `spatial_availability: LIVE_CAPABLE`; `charting.coverage: PRIOR_ONLY` + `is_current_season_observation: false`; `charting.concepts: DESCRIPTIVE_ONLY`; archetype `labels_emitted: false` |
+| `GET /api/player-scheme/teams/SF/defense` | 12 vulnerability cells; tendency `man_zone: PRIOR_ONLY`; `coordinator_known: false` |
+| `GET /api/player-scheme/teams/KC/offense` | per-column availability (`live: LIVE_CAPABLE`, `formation: PRIOR_ONLY`, `ftn: DESCRIPTIVE_ONLY`) |
+| `GET /api/player-scheme/matchups/00-0033873/SF` | `alignment.numeric_fantasy_adjustment: 0` / `SHADOW_ONLY`; `interaction_research.numeric_fantasy_adjustment: 0` / `SHADOW_ONLY`; families `EXPLANATORY_ONLY` (adj 0); `outcome_summary {predictive_incremental: 0, explanatory_only: 5, unstable: 0, rejected: 2}` |
+| Phase 1–8 isolation | `/api/intelligence/...` + `/api/matchup/...` 200; Football Intelligence version `fi:2025:w18:6e872c5caa82` **byte-identical**; no Phase 9 regression |
+
+**0 P0 / P1 from merge or deployment.** Phase 9 is **FROZEN**. No Tier D
+promotion. No Phase 9.1 integration. Any future numeric player × scheme
+influence requires a separate certification with new evidence.

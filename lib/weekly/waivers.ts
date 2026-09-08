@@ -61,6 +61,25 @@ export interface WaiverResult {
   week: number;
   league_slug: string;
   waiver_model: "faab" | "rolling_priority" | "free_agency" | "unknown";
+  /**
+   * Whether the canonical free-agent pool is materialized / certified enough to
+   * support ACTIONABLE pickup recommendations.
+   *
+   *   "AVAILABLE"   — the pool is certified; `recommendations` (possibly empty
+   *                   because nothing clears its drop cost) is authoritative.
+   *   "UNAVAILABLE" — the pool is NOT materialized/certified. `recommendations`
+   *                   and `do_not_add` are empty and NOT authoritative; no
+   *                   candidate here is claimed to be currently available. This
+   *                   is a DIFFERENT semantic state from "available, nothing
+   *                   clears the bar".
+   */
+  availability_status: "AVAILABLE" | "UNAVAILABLE";
+  /** Stable machine code; set iff `availability_status === "UNAVAILABLE"`. */
+  unavailable_reason_code: "FREE_AGENT_POOL_UNAVAILABLE" | null;
+  /** Canonical capability reasons + missing inputs; set iff UNAVAILABLE. */
+  unavailable_detail:
+    | { capability: "free_agent_pool"; reasons: string[]; missing_inputs: string[] }
+    | null;
   roster_has_open_spot: boolean;
   faab: { budget: number | null; remaining: number | null; suggested_bid_note: string } | null;
   waiver_priority: { current: number | null; note: string } | null;
@@ -80,6 +99,45 @@ export function buildWaiverRecommendations(
   const warnings: WeeklyWarning[] = [];
   const limit = opts.limit ?? 8;
   const proj = (id: string) => ctx.projections.by_player.get(id) ?? null;
+
+  const ws = ctx.league.waiver_settings;
+  const waiver_model: WaiverResult["waiver_model"] =
+    ws.type === "faab" ? "faab" : ws.type === "reverse_standings" || ws.type === "rolling" ? "rolling_priority" : ws.type === "unknown" ? "unknown" : "free_agency";
+
+  // ---- READINESS GATE. A player being unrostered in ownership data is NOT
+  // enough to call them a current free agent / waiver claim. Actionable pickup
+  // output requires the canonical `free_agent_pool` capability to be HEALTHY.
+  // When it is not, suppress ALL candidate output (never surface an add/drop
+  // pair, a score, or a "stand pat") and report the unavailable readiness state.
+  const readiness = ctx.free_agent_pool_readiness;
+  if (!readiness.actionable) {
+    return {
+      week: ctx.league.week,
+      league_slug: ctx.league.slug,
+      waiver_model,
+      availability_status: "UNAVAILABLE",
+      unavailable_reason_code: readiness.reason_code ?? "FREE_AGENT_POOL_UNAVAILABLE",
+      unavailable_detail: {
+        capability: "free_agent_pool",
+        reasons: readiness.reasons,
+        missing_inputs: readiness.missing_inputs,
+      },
+      roster_has_open_spot: false,
+      faab: null,
+      waiver_priority: null,
+      recommendations: [],
+      considered: 0,
+      do_not_add: [],
+      warnings: [
+        {
+          code: "FREE_AGENT_POOL_UNAVAILABLE",
+          message:
+            "Current free-agent pool is not materialized/certified — waiver, free-agent, pickup and add/drop recommendations are unavailable and are NOT claimed to be current. Unrostered in ownership data does not make a player a certified free agent.",
+          severity: "warning",
+        },
+      ],
+    };
+  }
 
   const myPlayers = new Map<string, CanonicalPlayer>(ctx.all_rostered.map((p) => [p.canonical_player_id, p]));
 
@@ -428,10 +486,6 @@ export function buildWaiverRecommendations(
       starter_impact_status: e.starter_impact_status,
     }));
 
-  const ws = ctx.league.waiver_settings;
-  const waiver_model =
-    ws.type === "faab" ? "faab" : ws.type === "reverse_standings" || ws.type === "rolling" ? "rolling_priority" : ws.type === "unknown" ? "unknown" : "free_agency";
-
   if (ctx.availability.free_agents.length === 0) {
     warnings.push({ code: "no_free_agents", message: "No projected free agents in this league's pool.", severity: "warning" });
   }
@@ -443,6 +497,9 @@ export function buildWaiverRecommendations(
     week: ctx.league.week,
     league_slug: ctx.league.slug,
     waiver_model,
+    availability_status: "AVAILABLE",
+    unavailable_reason_code: null,
+    unavailable_detail: null,
     roster_has_open_spot: openActiveSpot,
     faab:
       waiver_model === "faab"

@@ -15,6 +15,7 @@
  */
 
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { assessFreeAgentPoolReadiness } from "@/lib/canonical/capabilities";
 import { snapshotLineage } from "@/lib/canonical/snapshot-lineage";
 import { buildRecommendationLineage, type ProjectionLineageEntry } from "@/lib/canonical/lineage";
 import { resolveManager } from "@/lib/canonical/manager-context";
@@ -466,6 +467,10 @@ export async function buildWeeklyTeamContext(
     projections,
     replacement,
     availability,
+    // Authoritative capability gate for every downstream waiver / pickup surface.
+    // Derived from the SAME canonical model `/api/league/[l]/state` and `/api/ai`
+    // discovery consume — never recomputed from `all_players - rostered`.
+    free_agent_pool_readiness: assessFreeAgentPoolReadiness(snap),
     ros_signal: ros_meta
       ? {
           status: ros_meta.ri_status,

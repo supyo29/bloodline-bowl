@@ -171,6 +171,7 @@ export { CANONICAL_SCHEMA_VERSION };
 
 import { WEEKLY_ENGINE_VERSION } from "../../lib/weekly/schema";
 import { buildLeagueAvailability } from "../../lib/weekly/availability";
+import { assessFreeAgentPoolReadiness } from "../../lib/canonical/capabilities";
 import { computeWeeklyReplacement } from "../../lib/weekly/replacement";
 import type {
   CanonicalFantasyTeam,
@@ -218,6 +219,13 @@ export interface WeeklyContextFixture {
   faProjections?: WeeklyProjection[];
   raw_scoring?: Record<string, number>;
   waiver_settings?: CanonicalLeagueSnapshot["league"]["waiver_settings"];
+  /**
+   * Canonical free-agent-pool capability state. Default "HEALTHY" — a materialized
+   * `waiver_state` so the readiness gate lets the waiver engine run (matching every
+   * pre-existing waiver test's assumption). Set "UNAVAILABLE" to exercise the
+   * readiness-contract gate (no `waiver_state`, as in production today).
+   */
+  freeAgentPool?: "HEALTHY" | "UNAVAILABLE";
 }
 
 export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
@@ -288,6 +296,30 @@ export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
     candidates: allPlayers,
     startable_positions: startablePositions,
   });
+
+  // Materialize a canonical waiver_state unless the test asks for the
+  // not-materialized (production-today) state, so the readiness gate in
+  // `buildWaiverRecommendations` matches the fixture's intent.
+  if ((f.freeAgentPool ?? "HEALTHY") === "HEALTHY") {
+    snapshot.waiver_state = {
+      canonical_league_id: snapshot.league.canonical_league_id,
+      league_slug: leagueSlug,
+      players: availability.players.map((p) => ({
+        canonical_player_id: p.canonical_player_id,
+        ownership:
+          p.ownership === "free_agent"
+            ? ("free_agent" as const)
+            : p.ownership === "waiver"
+              ? ("waiver" as const)
+              : p.ownership === "locked_ineligible"
+                ? ("locked" as const)
+                : ("rostered" as const),
+        canonical_team_id: p.owned_by_team_id,
+        waiver_clears_at: null,
+      })),
+      provenance: { provider: "sleeper", provider_id: leagueSlug, provider_synced_at: null },
+    };
+  }
   const replacement = computeWeeklyReplacement({
     league_slug: leagueSlug,
     week,
@@ -340,6 +372,7 @@ export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
     projections: projBatch,
     replacement,
     availability,
+    free_agent_pool_readiness: assessFreeAgentPoolReadiness(snapshot),
     ros_signal: { status: "UNAVAILABLE", ri_model_version: null, external_source: "test", players_with_ri: 0, players_with_disagreement: 0 },
     byes: { bye_status: "VERIFIED", schedule_source: "test", by_player: {}, starters_on_bye_this_week: [], teams_on_bye: [] },
     positional_needs: [],

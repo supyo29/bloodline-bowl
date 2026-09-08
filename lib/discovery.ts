@@ -223,7 +223,7 @@ export const CAPABILITIES: Capability[] = [
     id: "weekly_intelligence",
     title: "Weekly intelligence (combined decision layer)",
     description:
-      "Lineup + start/sit + matchup + leverage + waivers for one manager and week, plus top_actions and a manager-facing summary. Missing projections degrade explicitly, never to 0.",
+      "Lineup + start/sit + matchup + leverage + waivers for one manager and week, plus top_actions and a manager-facing summary. Missing projections degrade explicitly, never to 0. Waiver actionability alone is gated on the canonical free_agent_pool capability: when it is unavailable there is no WAIVER top_action and summary.waiver_priority states the pool is not materialized, while lineup / start-sit / matchup / Football-Intelligence / positional-needs are unaffected.",
     scope: "manager-week",
     route_template: "/api/intelligence/{leagueSlug}/{managerSlug}/week/{week}",
     canonical: true,
@@ -253,7 +253,7 @@ export const CAPABILITIES: Capability[] = [
     id: "weekly_waivers",
     title: "Waiver / add-drop engine",
     description:
-      "League-aware acquisition engine: every candidate paired with the drop it requires, DO_NOT_ADD when the wire is not worth it. Free agency is canonical, this-league availability only.",
+      "League-aware acquisition engine: every candidate paired with the drop it requires, DO_NOT_ADD when the wire is not worth it. Free agency is canonical, this-league availability only. Gated on the canonical free_agent_pool capability: until the provider free-agent pool is materialized/certified the response is status NOT_READY (HTTP 200, reason_code FREE_AGENT_POOL_UNAVAILABLE) with empty recommendations — UNROSTERED != CERTIFIED_FREE_AGENT, HTTP_200 != ACTIONABLE_DATA.",
     scope: "manager-week",
     route_template: "/api/waivers/{leagueSlug}/{managerSlug}/week/{week}",
     canonical: true,

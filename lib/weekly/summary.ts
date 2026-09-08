@@ -58,11 +58,14 @@ export function buildWeeklySummary(input: {
         : "Lineup is already optimal.";
 
   const topAdd = waivers.recommendations[0] ?? null;
-  const waiver_priority = topAdd
-    ? `Add ${topAdd.add_name}${topAdd.drop_name ? `, drop ${topAdd.drop_name}` : ""} (${topAdd.priority}, net +${topAdd.net_roster_gain.toFixed(1)})`
-    : waivers.considered > 0
-      ? "No waiver add clears its drop cost — stand pat."
-      : null;
+  const waiver_priority =
+    waivers.availability_status === "UNAVAILABLE"
+      ? "Waiver recommendations unavailable: current free-agent pool is not materialized/certified."
+      : topAdd
+        ? `Add ${topAdd.add_name}${topAdd.drop_name ? `, drop ${topAdd.drop_name}` : ""} (${topAdd.priority}, net +${topAdd.net_roster_gain.toFixed(1)})`
+        : waivers.considered > 0
+          ? "No waiver add clears its drop cost — stand pat."
+          : null;
 
   const weakness = ctx.positional_needs.find((n) => n.severity === "critical") ?? ctx.positional_needs.find((n) => n.severity === "weak") ?? null;
   const biggest_weakness = weakness

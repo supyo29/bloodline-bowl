@@ -308,6 +308,52 @@ export function assessCapabilities(
   };
 }
 
+/**
+ * Stable machine-readable code for "the free-agent / waiver pool is not
+ * materialized or certified enough to support actionable pickup recommendations".
+ */
+export const FREE_AGENT_POOL_UNAVAILABLE = "FREE_AGENT_POOL_UNAVAILABLE" as const;
+
+export interface FreeAgentPoolReadiness {
+  /** true ONLY when the canonical `free_agent_pool` capability is HEALTHY. */
+  actionable: boolean;
+  status: CapabilityStatus;
+  /** `FREE_AGENT_POOL_UNAVAILABLE` when not actionable; `null` when actionable. */
+  reason_code: typeof FREE_AGENT_POOL_UNAVAILABLE | null;
+  /** The canonical capability reasons (verbatim from `assessCapabilities`). */
+  reasons: string[];
+  missing_inputs: string[];
+}
+
+/**
+ * THE authoritative answer to: "is this league's free-agent pool currently
+ * certified enough to support ACTIONABLE waiver / pickup / add-drop / claim
+ * recommendations?" Every waiver consumer — the direct `/api/waivers` endpoint,
+ * the combined `/api/intelligence` layer, the Team-Management orchestrator —
+ * gates on this one function so they cannot disagree.
+ *
+ * Invariant: `UNROSTERED != CERTIFIED_FREE_AGENT`. A player merely being absent
+ * from every roster in ownership data does NOT make the pool actionable — real
+ * provider/league claimability must be materialized (`snapshot.waiver_state`),
+ * exactly as `assessCapabilities` already models it. `HTTP_200 != ACTIONABLE_DATA`.
+ *
+ * Pure. No I/O. Delegates the actual capability verdict to `assessCapabilities`
+ * so there is no parallel readiness logic.
+ */
+export function assessFreeAgentPoolReadiness(
+  snap: CanonicalLeagueSnapshot,
+): FreeAgentPoolReadiness {
+  const a = assessCapabilities(snap).capabilities.free_agent_pool;
+  const actionable = a.status === "HEALTHY";
+  return {
+    actionable,
+    status: a.status,
+    reason_code: actionable ? null : FREE_AGENT_POOL_UNAVAILABLE,
+    reasons: a.reasons,
+    missing_inputs: a.missing_inputs,
+  };
+}
+
 /** Compact one-line summary for logs / reports. */
 export function summarizeCapabilities(r: CapabilityReport): string {
   const caps = Object.entries(r.capabilities)

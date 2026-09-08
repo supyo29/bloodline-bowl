@@ -298,6 +298,16 @@ export interface WeeklyTeamContext {
   replacement: WeeklyReplacement;
   availability: LeagueAvailability;
 
+  /**
+   * Authoritative readiness of the league free-agent / waiver pool, derived from
+   * the canonical capability model (`assessFreeAgentPoolReadiness`). Any waiver /
+   * pickup / add-drop / claim surface MUST gate ACTIONABLE output on
+   * `free_agent_pool_readiness.actionable`. `availability` above being populated
+   * (unrostered players exist in ownership data) does NOT make the pool
+   * actionable — UNROSTERED != CERTIFIED_FREE_AGENT.
+   */
+  free_agent_pool_readiness: import("@/lib/canonical/capabilities").FreeAgentPoolReadiness;
+
   /** How the rest-of-season signal was assembled (external + RI ordinal). */
   ros_signal: {
     status: "READY" | "UNAVAILABLE";

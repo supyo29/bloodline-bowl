@@ -333,7 +333,14 @@ function buildTopActions(input: {
   for (const sw of matchup.swing_players.filter((x) => x.side === "team").slice(0, 1)) {
     actions.push({ type: "ALERT", priority: "MEDIUM", message: `${nameOf(sw.canonical_player_id)}: ${sw.swing_note}`, detail_route: base });
   }
-  for (const w of waivers.recommendations.filter((r) => r.priority === "HIGH" || r.priority === "MEDIUM").slice(0, 2)) {
+  // No WAIVER action unless the free-agent pool is a certified, actionable
+  // surface. When it is UNAVAILABLE `waivers.recommendations` is already empty;
+  // this guard makes the contract explicit and future-proof.
+  const waiverActions =
+    waivers.availability_status === "AVAILABLE"
+      ? waivers.recommendations.filter((r) => r.priority === "HIGH" || r.priority === "MEDIUM").slice(0, 2)
+      : [];
+  for (const w of waiverActions) {
     actions.push({
       type: "WAIVER",
       priority: w.priority as Priority,
