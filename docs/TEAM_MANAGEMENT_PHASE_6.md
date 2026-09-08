@@ -1,6 +1,6 @@
 # Team Management — Phase 6: Roster Health Intelligence
 
-**Status: PRE-IMPLEMENTATION AUDIT. Verdict at §35. NO substantive implementation.**
+**Status: BUILT + VALIDATED. Verdict at Part II §II.17.**
 
 Branch `team-management-phase6-roster-health` (off the Phase 5 stack). Phases 3/4/5 remain
 stacked and unmerged — not restructured. Phase 5 (`lib/weekly/matchup-intelligence/`) is
@@ -562,3 +562,213 @@ with a `devoted` real cross-check reported separately (§24–§25), and shared-
 proceeds per §20/§32 and ends with one of `PHASE 6 CERTIFIED — SHARED ROSTER-HEALTH CONTEXT` /
 `CONDITIONAL — REMEDIATION REQUIRED` / `PHASE 6 NOT CERTIFIED`. **Stopping. No Phase 6
 implementation until the scope is reviewed.**
+
+---
+---
+
+# PART II — IMPLEMENTATION & VALIDATION (Scope 3, SHARED_CONTEXT)
+
+Branch `team-management-phase6-roster-health`. `roster-health-2026.1`. `lib/trades/depth.ts`
+**frozen and unchanged**; no trade / waiver / lineup / start-sit / matchup recommendation
+value changed (isolation-tested).
+
+## II.1 What was built
+
+```
+lib/roster-health/
+  schema.ts       ROSTER_HEALTH_VERSION, HorizonView, PlayerDependency, RosterFragility,
+                  PositionHealth, QualitySurplus, BenchUtility, RosterHealthDelta, degradation
+  inputs.ts       ONE shared league-wide read: buildCanonicalLeagueState + one weekly
+                  projection batch (all rostered) + RI season signal + assembleRosSignals
+                  + buildLeagueAvailability + computeWeeklyReplacement. ROS replacement =
+                  position-rank-theoretical (always FA_POOL_ROS_APPROXIMATE).
+  contingency.ts  bestLegalLineup / contingency / rosterWithout / horizonBatch — reuses the
+                  FROZEN buildOptimalLineup (Hungarian max-weight, joint FLEX/SUPER_FLEX);
+                  maxSlotMatching is NOT modified.
+  evaluate.ts     evaluateHorizon(inputs, roster, teamState, horizon) -> HorizonView
+                  (starter quality, per-player dependency, depth quality, quality surplus,
+                  bench utility, fragility component vector, degradation)
+  benchmark.ts    league- + position-relative percentiles (same league/snapshot/scoring/horizon)
+  delta.ts        rosterHealthDelta(before, after) — descriptive typed change list
+  build.ts        buildRosterHealthContext(leagueSlug) — orchestrates all 12 teams in ONE
+                  runInLeagueStateScope; 0 extra provider reads per manager
+app/api/leagues/[leagueSlug]/roster-health/route.ts                      (league surface)
+app/api/leagues/[leagueSlug]/managers/[managerSlug]/roster-health/route.ts (manager slice)
+```
+
+**Not wired** into `buildWeeklyIntelligence` (per-manager) — roster health is a *shared*
+context, derived once at the league level (spec §22, §30). `deployment: "SHARED_CONTEXT"`.
+
+## II.2 Horizons kept strictly separate (spec §5)
+
+`weekly` uses `SleeperWeeklyProjectionProvider` points + the real league-derived free-agent
+replacement (`computeWeeklyReplacement`). `rest_of_season` uses external season points
+prorated (`assembleRosSignals`, RI ordinal only) + a **position-rank-theoretical** replacement
+line. Every `HorizonView` carries its horizon; **nothing is averaged across horizons**. Every
+ROS view carries `FA_POOL_ROS_APPROXIMATE` in its degradation vector (invariant-tested).
+
+## II.3 Contingency primitive (spec §3, §7)
+
+`contingency(removedId)` = `baseline.optimal_total − buildOptimalLineup(roster − removedId).optimal_total`,
+using the frozen optimizer for both horizons (ROS via a synthesized batch). FLEX / SUPER_FLEX
+/ multi-position eligibility are resolved jointly — a versatile backup is matched to at most
+one slot (invariant test: "SUPER_FLEX QB2 backs both QB and SUPER_FLEX but is not counted
+twice"). One-player-loss only; two-player is deferred (spec §7).
+
+## II.4 Player dependency — four interpretable forms (spec §8), no opaque score
+
+`raw_point_loss` · `pct_lineup_loss` · `replacement_gap` · `league_percentile` (+ `position_percentile`).
+`single_point_of_failure` = starter, 0 remaining usable backups, positive loss — **K/DST
+excluded** (spec §14, §18). Live (`bloodline-bowl/supyo29`): Trevor Lawrence unavailable →
+best-legal-lineup value falls **14.4 pts (12.7%)**, league dependency percentile 96, SPOF (no
+QB backup). Trey McBride 12.2 pts (10.8%), percentile 95, SPOF.
+
+## II.5 Roster fragility — component vector (spec §9)
+
+`worst_starter_dependency` · `expected_one_loss_damage` · `top3_weighted_dependency` ·
+`tail_dependency_p90` · `single_points_of_failure[]` · `min_slot_value_retained_after_any_one_loss`.
+Derived label `profile ∈ {RESILIENT, CONCENTRATED_FRAGILITY, DISTRIBUTED_FRAGILITY,
+FRAGILE_BOTH}` — components always retained. `CONCENTRATED` (one catastrophic SPOF, otherwise
+moderate) and `DISTRIBUTED` (broadly thin, no single catastrophe) are distinct, as the spec
+requires. K/DST are excluded from the fragility components (invariant-tested).
+
+## II.6 Depth quality (spec §10) & quality surplus (spec §11)
+
+`PositionHealth` per slot key: `starter_quality_vor` (Σ VOR of the best `required` legal
+starters), `best_backup_vor`, `second_backup_vor`, `replacement_cliff`, `usable_backup_count`
+(≥ replacement line), `nominal_backup_count`, `depth_quality_grade ∈ {STRONG, ADEQUATE, THIN,
+BARE}`. **`quality_surplus` ≠ Phase 2 `structural_surplus`** — the Phase 2 fact is echoed as
+`team_state_structural_surplus` and never overwritten; `quality_surplus` requires bench
+players a position-relative threshold above replacement (invariant test: five
+replacement-level RBs → `team_state_structural_surplus: true`, `quality_surplus: false`,
+grade ≠ STRONG).
+
+## II.7 Bench utility (spec §12) & multi-slot (spec §13)
+
+Deterministic contingency usefulness only — `starter_replacement_value` (max damage this
+bench player prevents, computed as the difference in a starter's contingency loss with vs
+without this bench player), `multi_slot_coverage` (# slot families where he is the best usable
+backup — cannot be simultaneously available to all), `bye_coverage_slots`, `bench_utility_grade
+∈ {HIGH, MODERATE, LOW, DEAD_WEIGHT}`. **No breakout/upside probabilities.**
+
+## II.8 League- & position-relative benchmarking (spec §16, §17)
+
+Percentiles computed only across the 12 teams of the same league / snapshot / scoring /
+horizon. `starter_quality_pct`, `depth_quality_pct`, `fragility_pct` (inverted — higher =
+healthier), `bench_utility_pct`, `worst_dependency_pct`; per-player `league_percentile` +
+`position_percentile`. Raw values always retained. No cross-league percentiles.
+
+## II.9 Snapshot health-delta (spec §19, §20)
+
+`rosterHealthDelta(before, after)` — a typed change list (`FRAGILITY_INCREASED`,
+`DEPTH_QUALITY_IMPROVED`, `NEW_SINGLE_POINT_OF_FAILURE`, `QUALITY_SURPLUS_GAINED`,
+`CONCENTRATION_INCREASED`, …) + a **purely descriptive** summary. Carries both snapshots'
+lineage; a projection/scoring-model mismatch → `comparison_degradation: ["LINEAGE_MISMATCH"]`,
+the diff still emitted, flagged. Invariant test: identical states → 0 changes.
+
+## II.10 Degradation (spec §22, §27)
+
+Structured `RosterHealthDegradation` — `reasons[]` + `overall ∈ {OK, PARTIAL, DEGRADED,
+INSUFFICIENT}`. `MISSING_WEEKLY_PROJECTION` / `MISSING_ROS_PROJECTION` / `FA_POOL_ROS_APPROXIMATE`
+/ `CONTINGENCY_PROVISIONAL` (an UNKNOWN starter) / `SCHEDULE_LIMITED` / `VACANT_TEAM` / … A
+metric computed on a degraded input is emitted flagged, never as clean certainty
+(invariant-tested).
+
+## II.11 Runtime (spec §28, §30) — measured
+
+| stage | ms |
+| --- | ---: |
+| shared reads (canonical state + weekly projections + RI + schedule + Team-State) | ~2,250 (the same reads the weekly engine already performs) |
+| **per-team roster-health compute (12 teams × 2 horizons)** | **82 ms** (6.8 ms/team) |
+| **extra provider reads for per-manager calcs** | **0** |
+
+82 ms is slightly above the 50 ms target; per spec §30 this is retained (no material live
+impact — the endpoint is `Cache-Control: 30/120`, and the compute is pure in-memory over one
+shared batch). Determinism verified (same snapshot + same models → byte-identical output).
+
+## II.12 Invariants + adversarial (spec §28, §29) — 16 / 16 pass
+
+`test/roster-health.test.ts`:
+- higher-quality replacement → lower dependency loss
+- stronger legal backup → fragility not higher
+- adding a replacement-level bench player → no large quality-surplus gain
+- five replacement-level RBs → not STRONG depth; `structural_surplus` echoed, `quality_surplus` false
+- elite RB + no backup → high dependency + `single_point_of_failure`
+- K without backup → not a SPOF, not in fragility components
+- SUPER_FLEX QB2 → real contingency loss, not double-counted
+- ROS horizon → always `FA_POOL_ROS_APPROXIMATE`
+- missing projection → degraded, not fabricated certainty
+- `rosterWithout` clears the starting slot; determinism
+- delta: identical states → 0 changes
+- isolation: `lib/trades/**` never imports `roster-health`; `roster-health/**` never imports a
+  recommendation engine; `buildOptimalLineup` / `maxSlotMatching` / `lineup.ts` unchanged
+
+`REAL_HISTORICAL_ROSTERS`: not available (Bloodline first-year, 0 played weeks). `SYNTHETIC_ROSTERS`:
+the 16 fixture-based tests above + the live smoke on Bloodline (12 teams). **No predictive
+claim is made** — v1 certifies deterministic correctness + mathematical behavior + real-league
+smoke (spec §24, §25).
+
+## II.13 Regression (spec §32, §34)
+
+`tsc` clean · `eslint app lib test` 0 errors, 29 warnings (**0 new**) · `npm test`
+**1535 pass / 0 fail / 4 skipped** (+16 roster-health; 0 existing tests changed) ·
+Phase 1C cross-surface certification **`cross_surface_discrepancies = 0`** · Phase 2 Team-State
++ weekly + **trade** + waiver + Phase 4 start-sit-fi + Phase 5 matchup-intelligence suites all
+pass unchanged · **production recommendation behavior change = 0** (`lib/trades/depth.ts`
+byte-identical; no `buildOptimalLineup` / `maxSlotMatching` change; no new canonical/slot
+normalizer).
+
+## II.14 Findings (Part II)
+
+| ID | Sev | Finding | Disposition |
+| --- | --- | --- | --- |
+| P6-1 (audit) | P2 | evaluative fragility model already in `lib/trades/depth.ts` | **RESOLVED** — frozen; `lib/roster-health/` generalizes the concepts + adds the whole-lineup `maxSlotMatching` contingency, four-form dependency, `quality_surplus`, deltas. Isolation-tested. |
+| P6-2 (audit) | P2 | no real historical Bloodline rosters | **DOCUMENTED** — v1 certifies determinism + math + smoke, not predictive value. Dormant re-eval `roster-health-2026.2` once 2026 weeks + `devoted` reconstruction exist (spec §25). |
+| P6-3 (audit) | P2 | ROS FA pool not materializable | **RESOLVED** — ROS replacement is position-rank-theoretical, **always** `FA_POOL_ROS_APPROXIMATE` (programmatic, invariant-tested). Weekly uses the real league FA pool. |
+| P6-7 | P3 | per-team compute 82 ms vs 50 ms target | Retained per spec §30 (no material live impact; cached endpoint; 0 extra provider reads). Memoizing repeated `buildOptimalLineup` solves is a future optimization if needed. |
+| P6-8 | P3 | `single_point_of_failure` initially flagged the only K | **FIXED** during implementation — K/DST excluded from the SPOF flag and the fragility components (spec §14, §18). |
+
+No P0. No P1.
+
+## II.15 Deferred (`DEFERRED_FEATURES`)
+
+Two-player-loss contingency · true inactive/injury probabilities · predictive validation
+(needs 2026 played weeks) · repointing `lib/trades/depth.ts` onto the shared signals · full ROS
+strength-of-schedule / streaming models · bench breakout/upside probabilities · `roster_health`
+wired into any recommendation score · `PRODUCTION_WIRED` deployment (requires explicit later
+activation).
+
+---
+
+## II.16 Freeze criteria (spec §34) — check
+
+1 whole-lineup contingencies legal + deterministic ✓ · 2 dependency behaves monotonically ✓
+(invariant) · 3 depth quality distinguishes count from quality ✓ (invariant) · 4 structural
+vs quality surplus separate ✓ · 5 K/DST do not distort core health ✓ (invariant) · 6
+weekly/ROS never blend ✓ · 7 ROS approximation explicitly degraded ✓ (invariant) · 8
+benchmarks same-league/same-horizon ✓ · 9 health deltas factual not prescriptive ✓ · 10
+trade/waiver/lineup/start-sit/matchup recommendation behavior change = 0 ✓ · 11 no alternate
+canonical/slot normalizer ✓ (reuses frozen `buildOptimalLineup` + `maxSlotMatching`) · 12
+provider reads bounded/shared ✓ (0 extra per manager) · 13 Phase 1C certification green ✓ ·
+14 P0/P1 resolved ✓.
+
+## II.17 VERDICT
+
+`lib/roster-health/` derives evaluative roster quality / fragility / depth / player-dependency
+/ quality-surplus / snapshot-deltas from Phase 2 Team-State facts + production projections +
+the existing replacement framework + the frozen `buildOptimalLineup`, with weekly and
+rest-of-season horizons kept strictly separate, the ROS replacement approximation always
+programmatically flagged, K/DST excluded from core fragility, `quality_surplus` kept distinct
+from Phase 2's `structural_surplus`, league- and position-relative benchmarking across the 12
+teams of one snapshot, a structured degradation vector, and a deterministic descriptive
+snapshot health-delta. It is a **shared evaluative context** (`SHARED_CONTEXT`, no
+auto-promotion) exposed on two additive endpoints and consumed by nothing. `lib/trades/depth.ts`
+is frozen; **no production recommendation value changes** (regression-verified). Per-manager
+compute is 0 extra provider reads and ~7 ms; determinism and all 16 invariant/adversarial/
+isolation tests pass. Predictive validation is deferred (Bloodline has no played weeks) —
+v1 certifies deterministic correctness + mathematical behavior + real-league smoke, exactly
+as scoped.
+
+# PHASE 6 CERTIFIED — SHARED ROSTER-HEALTH CONTEXT FREEZE
+
+Do not begin Phase 7.
