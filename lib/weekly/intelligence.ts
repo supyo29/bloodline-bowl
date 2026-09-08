@@ -17,6 +17,8 @@ import { compareStartSit, type StartSitComparison } from "./start-sit";
 import { buildWeeklySummary, type WeeklySummary } from "./summary";
 import { buildStartSitShadow, getShadowCaptureStore, captureShadowDecision } from "./start-sit-fi";
 import type { StartSitShadowComparison } from "./start-sit-fi";
+import { buildMatchupIntelligence } from "./matchup-intelligence";
+import type { MatchupIntelligence } from "./matchup-intelligence";
 import { WEEKLY_ENGINE_VERSION, type DataQualityStatus, type Priority, type WeeklyTeamContext, type WeeklyWarning } from "./schema";
 import type { RecommendationLineage } from "@/lib/canonical/lineage";
 import type { LineupResult } from "./lineup";
@@ -56,6 +58,10 @@ export interface WeeklyIntelligence {
    */
   start_sit_shadow: StartSitShadowComparison | null;
   matchup: MatchupResult;
+  /** Phase 5 SHADOW — calibrated score distributions + win probability +
+   * degradation vector + explanations + leverage diagnostics. Never changes
+   * `matchup`, `lineup`, `start_sit`, or any recommendation. */
+  matchup_intelligence: MatchupIntelligence | null;
   matchup_leverage: LeverageItem[];
   waivers: WaiverResult;
   positional_needs: WeeklyTeamContext["positional_needs"];
@@ -189,6 +195,13 @@ async function buildWeeklyIntelligenceInner(
   } catch {
     start_sit_shadow = null;
   }
+  // Phase 5 shadow path — non-fatal, never alters production output.
+  let matchup_intelligence: MatchupIntelligence | null = null;
+  try {
+    matchup_intelligence = buildMatchupIntelligence(ctx);
+  } catch {
+    matchup_intelligence = null;
+  }
   const summary = buildWeeklySummary({ ctx, lineup, matchup, waivers });
 
   const base = `/api/intelligence/${leagueSlug}/${managerSlug}/week/${ctx.league.week}`;
@@ -213,6 +226,7 @@ async function buildWeeklyIntelligenceInner(
       start_sit,
       start_sit_shadow,
       matchup,
+      matchup_intelligence,
       matchup_leverage,
       waivers,
       positional_needs: ctx.positional_needs,

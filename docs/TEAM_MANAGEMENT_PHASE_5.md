@@ -651,3 +651,294 @@ model over a full copula (§7), the synthetic-primary / real-cross-check evaluat
 approval, implementation proceeds per §24/§27/§28 and ends with one of
 `PHASE 5 CERTIFIED — SCOPE 2 SHADOW` / `CONDITIONAL — REMEDIATION REQUIRED` /
 `PHASE 5 NOT CERTIFIED`. **Stopping. No Phase 5 implementation until the scope is reviewed.**
+
+---
+---
+
+# PART II — IMPLEMENTATION & VALIDATION (Scope 2, SHADOW_ONLY)
+
+Branch `team-management-phase5-matchup-intelligence`. `ri-matchup-2026.1` /
+`ri-matchup-dist-2026.1` / `ri-matchup-corr-2026.1`. Production `buildMatchup`,
+`buildOptimalLineup`, `maxSlotMatching`, Start/Sit, waivers, trades — **unchanged**
+(regression-verified). No `MAX_WIN_PROBABILITY` objective.
+
+## II.1 What was built
+
+```
+analysis/football_intel_matchup/          R — research + calibration (chronology-safe)
+  config.R  build_residual_dataset.R  fit_distributions.R  fit_correlations.R
+  calibration_backtest.R  real_crosscheck_and_convergence.R  context_fi_ablation.R
+lib/weekly/data/                          served, versioned, committed
+  matchup_distribution_model.json   per-position bias + sd model + empirical z-grid + injury widen
+  matchup_correlation_model.json    2-factor loadings + pairwise control (DIAGNOSTIC)
+lib/weekly/matchup-intelligence/          TS — deterministic serving (SHADOW)
+  schema.ts distributions.ts correlations.ts simulator.ts confidence.ts
+  explain.ts deployment.ts build.ts index.ts
+```
+
+Shadow field `intelligence.matchup_intelligence` on `buildWeeklyIntelligence`
+(non-fatal try/catch). Residual dataset: **68,713 rows**, 2021–2025, 6 positions,
+3 archetypes; every row labelled `HISTORICALLY_RECONSTRUCTED` with a provenance
+sub-label (2021 `sleeper_no_timestamp`, 2022 `sleeper_bulk_backfill`, 2023–25
+`sleeper_in_season_possibly_revised`).
+
+## II.2 Current vs calibrated uncertainty (spec §29)
+
+| position | weeklyBand CV sd @ mean proj | empirical residual sd | ratio | v1 model | mean-bias correction | injury-widen |
+| --- | ---: | ---: | ---: | --- | ---: | ---: |
+| QB | 6.36 | 7.49 | 1.18 | const sd + normal_clamp | **−2.06** | 1.00 |
+| RB | 3.78 | 6.39 | **1.69** | const sd + empirical z-grid | +0.58 | 1.107 |
+| WR | 4.15 | 6.45 | **1.56** | cv sd + empirical z-grid | +0.85 | 1.171 |
+| TE | 3.11 | 5.33 | **1.71** | cv sd + empirical z-grid | +1.56 | 1.012 |
+| K | ~3.4 | ~3.5 | ~1.03 | cv sd + empirical z-grid | +0.15 | 1.039 |
+| DEF | ~4.1 | ~4.2 | ~1.02 | bucket sd + empirical z-grid | +0.86 | 1.00 |
+
+The empirical standardized-residual grid absorbs both the scale error *and* the
+skew/heavy-tail/bust shape, so it corrects the current MC's under-dispersion.
+QB `−2.06` bias correction is from the least-polluted provenance rows only
+(§23); the RotoWire QB projection runs optimistic even in-season (2023 −2.0,
+2024 −1.5, 2025 −2.7). Pre-2023 evaluation is flagged `BASELINE_PROVENANCE_DEGRADED`.
+
+## II.3 Distribution-family comparison (OOS, walk-forward 2023–25, empirical marginal)
+
+| position | best `cal_score` model | pit_ks | pi80_cov | pi50_cov | chosen (simplest within 10%) |
+| --- | --- | ---: | ---: | ---: | --- |
+| QB | bucket / const | 0.078 | 0.783 | 0.477 | **const + normal_clamp** |
+| RB | const / bucket | 0.048 | 0.821 | 0.519 | **const + empirical** |
+| WR | cv | 0.039 | 0.813 | 0.503 | **cv + empirical** |
+| TE | linear / cv | 0.056 | 0.801 | 0.507 | **cv + empirical** |
+| K | cv | 0.046 | 0.801 | 0.497 | **cv + empirical** |
+| DEF | sqrt / bucket | 0.055 | 0.803 | 0.495 | **bucket + empirical** |
+
+**`empirical` marginal wins for every skill/K/DEF position.** The heteroscedastic
+`linear`/`sqrt` sd models were within noise of `const`/`cv` — the marginal family
+does the work, not the sd form (spec §3: choose the simplest that calibrates).
+`normal_clamp` was kept only for QB (near-symmetric, thin tails). **K/DST are
+NOT forced Gaussian** — both use the empirical grid, DEF with a bucketed sd
+(spec §5, §20). DST's negative tail is preserved (`max(0, ...)` is not applied
+to the DEF grid mean shift beyond the actual scoring floor).
+
+## II.4 Synthetic calibration + correlation ablation (spec §12, §27) — 7,152 walk-forward synthetic matchups
+
+| layer | Brier | log loss | AUC | **calibration slope** |
+| --- | ---: | ---: | ---: | ---: |
+| L0 analytic Φ(score-diff / weeklyBand sd) | 0.2056 | 0.6038 | 0.754 | 0.658 |
+| **L1 current MC** (weeklyBand + `max(0,Normal)`, independent) | 0.2055 | 0.6037 | 0.754 | **0.655** — overconfident |
+| **L2 calibrated marginals** (independent) | **0.2020** | **0.5881** | 0.752 | **1.079** — well calibrated |
+| L3 + 2-factor dependence | 0.2018 | 0.5873 | 0.752 | 1.034 |
+
+- **L1 → L2: Brier −0.0035, log loss −0.0157, calibration slope 0.66 → 1.08.**
+  The calibrated marginal model **materially fixes the current MC's
+  overconfidence** — this is the Phase 5 core deliverable and it works.
+- **L2 → L3: Brier −0.0002, log loss −0.0007.** The 2-factor dependence adds
+  **no incremental win-probability calibration value.** Per spec §6/§28 this is
+  a legitimate Phase 5 outcome: *"calibrated independent residual simulation
+  beats current MC; correlation adds no incremental value."* **The 2-factor
+  model is REJECTED for the headline WP and retained as a `dependence_diagnostics`
+  block + for the theoretical sanity checks.**
+
+**Calibration curve (L2, deciles):** mean_pred vs empirical win rate track within
+~1–3pp across every bucket (0.07/0.06, 0.16/0.16, 0.25/0.25, 0.35/0.33, 0.45/0.46,
+0.55/0.57, 0.65/0.65, 0.75/0.76, 0.84/0.88, 0.93/0.97). Slightly under-confident
+in the tails — acceptable and conservative.
+
+## II.5 Correlation / dependence evidence (measured; DIAGNOSTIC only)
+
+| relationship | n | residual corr | in the model as |
+| --- | ---: | ---: | --- |
+| QB ↔ WR, same team | 7,107 | **0.26** (loading 0.31) | team-passing factor |
+| QB ↔ TE, same team | 3,501 | **0.22** (loading 0.26) | team-passing factor |
+| QB ↔ RB, same team | 4,917 | 0.05 | excluded (negligible) |
+| QB ↔ opposing QB | 2,060 | **0.19** (per-QB loading 0.43) | game-scoring factor |
+| DST ↔ opposing QB | 1,984 | **−0.36** | DST loads the opposing passing factor negatively |
+| WR ↔ WR, same team | 19,510 | ≈ 0.00 | not modeled (audit §6) |
+
+Real, but immaterial to aggregate WP calibration (II.4).
+
+## II.6 Game-context + FI-for-variance ablation (spec §8, §9, §27) — all noise-level
+
+Incremental OOS improvement in |standardized residual| prediction (gamma GLM,
+walk-forward). Threshold for retention: ≥ ~0.005.
+
+| candidate | QB | RB | WR | TE | verdict |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `game_total` | +0.0002 | +0.0012 | +0.0010 | +0.0001 | **EXCLUDE** |
+| `implied_team_total` | +0.0045 | +0.0002 | +0.0000 | −0.0003 | **EXCLUDE** (QB borderline, still sub-threshold) |
+| `spread` | +0.0034 | +0.0001 | +0.0001 | −0.0008 | **EXCLUDE** |
+| `is_indoor` | −0.0002 | +0.0002 | −0.0002 | −0.0009 | **EXCLUDE** |
+| FI `off_pace` / `off_proe` / `off_explosive` / `def_success_allowed` (§9) | ≤ +0.0005 | ≤ 0 | ≤ 0 | ≤ +0.0018 | **EXCLUDE** — no FI field adds incremental variance information |
+
+The projection already prices the game environment; the residual-variance effect
+is not there either. Phase 4's double-counting lesson extends to variance.
+**v1 has no game-context term and no FI term** — `football_intelligence_version:
+"not_used"`.
+
+## II.7 REAL_HISTORICAL_MATCHUPS cross-check (spec §14) — reported separately
+
+`devoted-to-the-game` chain: **1 prior season (2025), 98 real manager matchups.**
+Pregame projections are **not** retrievable for that chain → it is a **model-free
+outcome anchor only, not a pregame WP evaluation** (labelled `REAL_HISTORICAL_MATCHUPS`,
+never merged with synthetic). Anchor stats: **realized margin sd = 34.8**,
+`P(|margin| ≤ 10) = 0.28`. The v1 simulator's margin sd on real Bloodline
+lineups is ~30–41 — consistent with the real anchor. Bloodline itself has 0
+played weeks (2026 not started).
+
+## II.8 Simulation convergence + runtime (spec §15) — `SIM_N = 10,000` frozen
+
+| N | WP sd across seeds | theoretical SE | ms / matchup | ms / 12 managers |
+| ---: | ---: | ---: | ---: | ---: |
+| 1,000 | 0.0159 | 0.0158 | 1.5 | 43 |
+| 5,000 | 0.0081 | 0.0071 | 4.0 | 85 |
+| **10,000** | **0.0058** | **0.0050** | **6.9** | **91** |
+| 20,000 | 0.0040 | 0.0035 | 13.3 | 159 |
+| 50,000 | 0.0015 | 0.0022 | 29.3 | 371 |
+
+N=10,000 → WP sd across seeds ≈ 0.6pp, well under the whole-percent reporting
+precision; 91 ms for all 12 managers. Leverage diagnostics use N=4,000 per
+candidate swap (screened to close-or-worse candidates, ≤ 8 reported).
+
+## II.9 Determinism (spec §14, §22)
+
+Seed = `hash(league_snapshot_id | team_id | opp_team_id | week | matchup_model_version
+| distribution_model_version | sim_count)`. Fixes the P5-3 finding (the current
+MC seed ignores snapshot + model identity). Verified: identical `seedIdentity`
++ inputs → byte-identical `SimOutput`; two `buildWeeklyIntelligence` calls on the
+same live snapshot → identical `win_probability` and `team_score`.
+
+## II.10 Degradation / confidence (spec §11, §19)
+
+Structured `DegradationVector` — a list of `DegradationReason` codes + a derived
+`overall`. HIGH is unreachable in v1 (the distribution model has never been
+production-certified and the live FI snapshot is a prior) — the ceiling is
+MEDIUM, which is honest. `INSUFFICIENT` on any UNKNOWN starter / incomplete
+lineup / missing distribution model (the matchup is **not simulated** — an
+UNKNOWN starter must not be a numeric 0). Live smoke (`bloodline-bowl/supyo29`
+wk1): `confidence.overall = MEDIUM`, reasons `[QUESTIONABLE_ROLE, PRIOR_ONLY_FI]`,
+opponent view `SUBMITTED`, WP 49% [49–50], explanations `[EXPECTED_SCORE_EDGE,
+TOSS_UP, INJURY_VARIANCE]`, 8 leverage diagnostics, production `matchup.win_probability`
+**unchanged** at 0.483.
+
+## II.11 Opponent-lineup handling (spec §17) — `PLAUSIBLE` default
+
+Three views: `SUBMITTED` (opponent's current starters), `PLAUSIBLE` (SUBMITTED
+with bye/out/empty starters replaced by the best legal bench — a manager will
+fix those), `ASSUMED_OPTIMAL` (opponent's Hungarian best legal lineup). Headline
+WP uses `PLAUSIBLE`; the `lineage.opponent_view` records which was used and a
+`OPPONENT_LINEUP_ASSUMED` degradation reason + explanation fires when it is not
+`SUBMITTED`. Never fabricates a "likely human lineup" beyond the deterministic
+bye/out correction.
+
+## II.12 Decision-leverage (spec §20) — SHADOW diagnostic
+
+`leverage_diagnostics[]` — for legal starter↔bench swaps (screened to
+close-or-worse candidates), Δ win probability with per-swap seeds. Records
+current/alternative player, expected-point diff, baseline/alternative WP, ΔWP,
+model confidence, `resolution` (`UNRESOLVED` on unknown projections).
+**Never alters production lineup selection.** This dataset will accumulate the
+evidence needed to eventually decide whether `MAX_WIN_PROBABILITY` differs
+materially from `MAX_EXPECTED` in real decisions.
+
+## II.13 K / DST (spec §5, §20) — validated as special distributions
+
+K: empirical z-grid, cv sd, near-symmetric, pit_ks 0.046, pi80 0.80.
+DEF: empirical z-grid, **bucketed** sd (DST variance is not monotone in the
+projection), pit_ks 0.055, pi80 0.80. DST↔opposing-QB residual corr = **−0.36**
+(measured, in the correlation model). Neither is forced into the WR/RB Gaussian.
+Both fall back cleanly to Sleeper `pts_std` when the weekly feed omits K XP /
+DST sacks (the certified projection path is untouched).
+
+## II.14 Theoretical sanity checks (spec §17, §22) — pass
+
+`test/matchup-intelligence.test.ts` (19 tests):
+- equal lineups → WP within 4pp of 0.5
+- overwhelming favorite → WP > 0.90; underdog → WP < 0.10 with a labelled upset prob
+- **equal mean / higher variance: as FAVORITE lowers WP, as UNDERDOG raises WP** (both directions, monotone)
+- higher projections → wider absolute score sd, WP still ≈ 0.5 for a symmetric matchup
+- quantiles ordered; WP ∈ [0,1]; determinism; analytic Φ within 8pp of the MC
+- unknown/null projection → dropped, not modeled as 0
+- unknown position → heuristic fallback, no crash
+- deployment SHADOW_ONLY; `matchupMayInfluenceProduction()` = false; lifecycle forbids skipping
+
+## II.15 Isolation (spec §21, §V, §28)
+
+- production `matchup.ts` does **not** import `matchup-intelligence`
+- `lib/trades/**` imports neither `matchup-intelligence` nor the distribution model
+- `lineup.ts` / `start-sit-fi/**` untouched
+- `matchup-intelligence/**` imports no recommendation-ranking code
+- `buildOptimalLineup` / `maxSlotMatching` byte-identical (existing `weekly-lineup` suite passes)
+
+## II.16 Regression (spec §29)
+
+`tsc` clean · `eslint app lib test` 0 errors, 29 warnings (**0 new**) ·
+`npm test` **1519 pass / 0 fail / 4 skipped** (+19 matchup-intelligence; 0
+existing tests changed) · Phase 1C cross-surface certification **0 discrepancies**
+· Phase 4 start-sit-fi + isolation + remediation suites pass · Phase 3 R
+invariants 24 + adversarial 15 · weekly + trade regression pass ·
+**production recommendation behavior change = 0** (live-verified).
+
+## II.17 Findings (Part II)
+
+| ID | Sev | Finding | Disposition |
+| --- | --- | --- | --- |
+| P5-1 | P1 (from audit) | current MC under-dispersed 55–70% for RB/WR/TE | **RESOLVED** — calibrated empirical marginals; cal slope 0.66 → 1.08, Brier −0.0035 |
+| P5-3 | P2 (from audit) | MC seed ignored snapshot + model identity | **RESOLVED** — seed bound to `league_snapshot_id` + model versions (II.9) |
+| P5-5 | P2 (from audit) | QB projection −2.9 pt bias | **RESOLVED (partial)** — −2.06 correction from clean-provenance rows; residual bias documented, pre-2023 flagged `BASELINE_PROVENANCE_DEGRADED` |
+| P5-11 | P2 | 2-factor dependence adds no incremental WP calibration value | **RESOLVED (honest)** — REJECTED for headline WP, retained as diagnostic (spec §6 explicitly allows this outcome) |
+| P5-12 | P2 | game context + FI add no incremental residual-variance information | **RESOLVED (honest)** — both EXCLUDED; v1 is calibrated marginals + independent draws only |
+| P5-2 | P2 (from audit) | no real Bloodline matchups; real cross-check is 98 devoted matchups without pregame projections | **DOCUMENTED** — synthetic is the sole calibration vehicle; real is a model-free anchor only; never merged; certification is of *mathematical calibration*, not a lineup policy |
+| P5-13 | P3 | K/DST correlation with game environment is real but unused (dependence rejected) | Measured, in the correlation model as a diagnostic; not in headline WP |
+| P5-14 | P3 | degradation ceiling is MEDIUM in v1 | Deliberate — the model is uncertified and FI is a prior; honest |
+
+No P0. All P1 resolved. The two "honest null" findings (P5-11, P5-12) are the
+spec-sanctioned legitimate outcome.
+
+## II.18 Deferred (`DEFERRED_FEATURES`)
+
+`MAX_WIN_PROBABILITY` / `HIGH_FLOOR` / `HIGH_CEILING` / `LATE_SWAP_SAFE` lineup
+objectives (need real-matchup decision-value evidence — impossible until 2026
+matchups accumulate); in-game / partial-lock late-swap; a true
+inactive-probability model; the 2-factor dependence in headline WP (rejected —
+revisit only if a stacking-specific decision use-case emerges); game-context and
+FI variance terms (no incremental value); `decision_leverage` as a production
+output; probabilistic `position_edges`. A future re-evaluation follows the Phase
+4 pattern (dormant, evidence-gated, versioned `ri-matchup-2026.2`, no
+auto-promotion) once real 2026 matchups exist.
+
+---
+
+## II.19 Freeze criteria (spec §28) — check
+
+1 residual distributions chronology-safe ✓ · 2 uncertainty materially better
+calibrated than `weeklyBand` ✓ (slope 0.66→1.08) · 3 calibrated independent
+model beats current MC ✓ (Brier −0.0035) · 4 2-factor either improves or is
+rejected ✓ (**rejected**, documented) · 5 game-context either adds value or
+excluded ✓ (**excluded**) · 6 FI variance/corr either adds value or excluded ✓
+(**excluded**) · 7 synthetic and real always separate ✓ · 8 WP precision
+conservative ✓ (whole %) · 9 simulation deterministic ✓ · 10 simulation
+converges ✓ (N=10k) · 11 K/DST special treatment validated ✓ · 12 degradation
+explicit ✓ · 13 production recommendation behavior change = 0 ✓ · 14 P0/P1
+resolved ✓.
+
+## II.20 VERDICT
+
+The Phase 5 Scope 2 shadow engine is built: **calibrated per-position empirical
+residual distributions that materially fix the current Monte Carlo's
+overconfidence** (calibration slope 0.66 → 1.08, Brier −0.0035, log loss −0.016
+on 7,152 chronology-safe synthetic matchups), a seeded deterministic simulator
+bound to snapshot + model identity, a structured degradation vector, evidence-
+mapped scenario explanations, three opponent-lineup views, K/DST as validated
+non-Gaussian distributions, and shadow decision-leverage diagnostics. The
+2-factor dependence model and every game-context / Football-Intelligence
+variance term were tested and **honestly rejected** for adding no incremental
+calibration value — the spec-sanctioned legitimate outcome. Production
+`buildMatchup`, `buildOptimalLineup`, `maxSlotMatching`, Start/Sit, waivers, and
+trades are byte-unchanged; there is no `MAX_WIN_PROBABILITY` objective; the
+deployment contract is `SHADOW_ONLY` with no auto-promotion. Calibration is
+certified against synthetic matchups only (Bloodline has no real history yet)
+with a model-free real anchor from the `devoted` chain — sufficient to certify
+the distribution mathematics and probability calibration, not a lineup policy,
+exactly as scoped.
+
+# PHASE 5 CERTIFIED — SHADOW MATCHUP INTELLIGENCE FREEZE
+
+Do not begin Phase 6.

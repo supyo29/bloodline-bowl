@@ -26,3 +26,5 @@ supabase/.env
 lib/projections/data/rookie-draft-2026.json
 
 /analysis/football_intel_startsit/cache
+
+/analysis/football_intel_matchup/cache

@@ -1,0 +1,76 @@
+{
+  "correlation_model_version": "ri-matchup-corr-2026.1",
+  "matchup_model_version": "ri-matchup-2026.1",
+  "generated_at": "2026-09-08T12:16:28-0500",
+  "archetype": "ppr",
+  "structure": "two_factor (team_passing + game_scoring)",
+  "min_games_for_full_loading": 40,
+  "team_passing_factor": {
+    "qb_loading": 1,
+    "catcher_loadings": {
+      "RB": 0.0524,
+      "TE": 0.2645,
+      "WR": 0.3048
+    },
+    "catcher_corr": {
+      "RB": 0.0452,
+      "TE": 0.224,
+      "WR": 0.2641
+    },
+    "n": {
+      "RB": 4917,
+      "TE": 3501,
+      "WR": 7107
+    }
+  },
+  "game_scoring_factor": {
+    "qb_qb_residual_corr": 0.1871,
+    "qb_loading": 0.4325,
+    "bringback_catcher_oppqb_corr": 0.0832,
+    "dst_oppqb_corr": -0.367
+  },
+  "pairwise_control": [
+    {
+      "relationship": "QB~WR_same_team",
+      "n": 7192,
+      "corr": 0.2624
+    },
+    {
+      "relationship": "QB~TE_same_team",
+      "n": 3540,
+      "corr": 0.2224
+    },
+    {
+      "relationship": "QB~RB_same_team",
+      "n": 4979,
+      "corr": 0.0426
+    },
+    {
+      "relationship": "WR~WR_same_team",
+      "n": 19510,
+      "corr": -0.0094
+    },
+    {
+      "relationship": "RB~RB_same_team",
+      "n": 7746,
+      "corr": -0.0571
+    },
+    {
+      "relationship": "QB~oppQB",
+      "n": 2060,
+      "corr": 0.1868
+    },
+    {
+      "relationship": "QB~oppWR",
+      "n": 7180,
+      "corr": 0.0753
+    },
+    {
+      "relationship": "DEF~oppQB",
+      "n": 1984,
+      "corr": -0.3628
+    }
+  ],
+  "deployment": "SHADOW_ONLY",
+  "note": "Two-factor loadings; NOT auto-certified. calibration_backtest.R ablates independent vs pairwise vs twofactor and retains the factor structure only if it improves OOS matchup calibration (spec §6)."
+}
