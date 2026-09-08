@@ -432,6 +432,67 @@ export function tierCManifest(): TierCManifest | null {
   return (psi?.manifest as { tier_c?: TierCManifest })?.tier_c ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Tier D — interaction RESEARCH results. SHADOW_ONLY. adjustment == 0 always.
+// ---------------------------------------------------------------------------
+export type InteractionClass =
+  | "PREDICTIVE_INCREMENTAL" | "EXPLANATORY_ONLY" | "UNSTABLE" | "REJECTED" | "INSUFFICIENT_DATA";
+
+export interface InteractionResult {
+  position: string;
+  family: string;
+  interaction_target: string;
+  n_test_rows: number | null;
+  delta_mae_vs_naive_baseline: number | null;
+  delta_mae_vs_production_like_baseline: number | null;
+  p_value: number | null;
+  fdr_reject: boolean | null;
+  sign_stable: boolean | null;
+  calibration_monotone: boolean | null;
+  validation_status: InteractionClass;
+  live_capability: string;
+  numeric_fantasy_adjustment: 0;
+  deployment: "SHADOW_ONLY";
+  future_production_eligibility: "CANDIDATE" | "NONE";
+}
+
+export function playerSchemeInteractions(): InteractionResult[] {
+  return readCsv("player_scheme_interactions.csv").map((r) => ({
+    position: S(r.position),
+    family: S(r.family),
+    interaction_target: S(r.interaction_target),
+    n_test_rows: num(r.n_test_rows),
+    delta_mae_vs_naive_baseline: num(r.delta_mae_vs_naive_baseline),
+    delta_mae_vs_production_like_baseline: num(r.delta_mae_vs_production_like_baseline),
+    p_value: num(r.p_value),
+    fdr_reject: r.fdr_reject === "" || r.fdr_reject === "NA" ? null : r.fdr_reject === "TRUE",
+    sign_stable: r.sign_stable === "" ? null : r.sign_stable === "TRUE",
+    calibration_monotone: r.calibration_monotone === "" ? null : r.calibration_monotone === "TRUE",
+    validation_status: (S(r.validation_status) as InteractionClass) || "INSUFFICIENT_DATA",
+    live_capability: S(r.live_capability) || "PRIOR_ONLY_CURRENT_SEASON",
+    numeric_fantasy_adjustment: 0,
+    deployment: "SHADOW_ONLY",
+    future_production_eligibility: r.future_production_eligibility === "CANDIDATE" ? "CANDIDATE" : "NONE",
+  }));
+}
+
+export interface TierDManifest {
+  interaction_version: string;
+  lane: "SHADOW_ONLY";
+  numeric_fantasy_adjustment: 0;
+  hard_invariant: string;
+  test_seasons: number[];
+  baseline: Record<string, unknown>;
+  fdr: { method: string; alpha: number };
+  outcome_summary: Record<string, number>;
+  reconciliation_all_pass: boolean;
+  notes: string[];
+}
+export function tierDManifest(): TierDManifest | null {
+  const psi = loadPlayerSchemeIntelligence();
+  return (psi?.manifest as { tier_d?: TierDManifest })?.tier_d ?? null;
+}
+
 export function leagueBaselines(): Array<Record<string, string | number | null>> {
   return readCsv("league_baselines.csv").map((r) => {
     const o: Record<string, string | number | null> = {};

@@ -486,3 +486,43 @@ the running production system matches the documented architecture. 1 × P2 (fixe
 Real-world 2026 outcome validation remains `NOT_YET_AVAILABLE` by design.
 
 STOP. No new football modeling.
+
+---
+
+# Addendum — Phase 9 (Player × Scheme Intelligence) trust-registry extension
+
+Added 2026-09-08 alongside `player-scheme-intelligence-2026.1` (spec §31). Phase 9
+is **additive** and does not change any finding above; the frozen surfaces this
+audit certified are byte-identical.
+
+## Phase 9 utilization vector
+
+| Layer | Version | INSTALLED | INVOKED | OUTPUT_VALID | CONSUMED | INFLUENTIAL | PRODUCTION_AUTHORITATIVE |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Tier A spatial profiles | `qb-spatial-2026.1` | ✅ | ✅ (`build_tierA.R`) | ✅ (`tierA_reconciliation.json` all_pass) | `/api/player-scheme/*` read-only | ✗ | **✗** |
+| Tier B charting profiles | `player-tendency-2026.1` | ✅ | ✅ (`build_tierB.R`) | ✅ (`tierB_reconciliation.json` all_pass) | `/api/player-scheme/*` read-only | ✗ | **✗** |
+| Tier C team + archetype | `defense-scheme-2026.1` | ✅ | ✅ (`build_tierC.R`) | ✅ (`tierC_reconciliation.json` all_pass) | `/api/player-scheme/*` read-only | ✗ | **✗** |
+| Tier D interaction research | `player-scheme-interaction-2026.1` | ✅ | ✅ (`build_tierD.R`) | ✅ (`tierD_reconciliation.json` all_pass) | `/api/player-scheme/matchups/*` research metadata | **✗** | **✗** |
+
+## Forbidden-influence check
+
+- `player_scheme_interactions.csv`: `numeric_fantasy_adjustment` is a literal
+  `0` on every row; `deployment = SHADOW_ONLY` on every row.
+- No code path reads any Phase 9 value into a projection, lineup, Start/Sit,
+  waiver, trade, matchup, Roster Health, Schedule Planning, or Orchestrator
+  ACTION. Grep-asserted in `test/player-scheme-isolation.test.ts` and
+  `test/player-scheme-tierd.test.ts` across
+  `lib/{weekly,trades,roster-health,schedule-planning,orchestrator,team-state,canonical,projections,football-intel}`.
+- Football Intelligence artifacts are not modified by Phase 9
+  (`tier_c.does_not_modify_football_intel = true`; FI manifest byte-identical,
+  asserted).
+- `npm test` 1643 / 1639 pass / 0 fail / 4 skipped — **0 existing tests changed**.
+
+## Deployment states
+
+`SHARED_DESCRIPTIVE` for Tiers A/B/C (current availability `PRIOR_ONLY` — no 2026
+cache); `SHADOW_ONLY` with `numeric_fantasy_adjustment = 0` for Tier D. Tier D
+research finding: **no player × scheme family beats the production-like baseline
+out-of-sample** — a clean null, preserved (spec §27).
+
+**PHASE 9 TRUST-REGISTRY EXTENSION — DESCRIPTIVE UTILIZATION CERTIFIED, SHADOW BOUNDARY ENFORCED.**

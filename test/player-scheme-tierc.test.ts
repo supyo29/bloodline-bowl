@@ -25,7 +25,8 @@ const OUT = join(process.cwd(), "outputs", "player-scheme-intelligence-2026");
 test("tierC: manifest lists tiers A,B,C and per-column availability", () => {
   __resetPlayerSchemeCache();
   const psi = loadPlayerSchemeIntelligence()!;
-  assert.deepEqual((psi.manifest as { tiers?: string[] }).tiers, ["A", "B", "C"]);
+  const tiers = (psi.manifest as { tiers?: string[] }).tiers ?? [];
+  assert.ok(["A", "B", "C"].every((t) => tiers.includes(t)), "manifest lists tiers A,B,C");
   const tc = tierCManifest()!;
   assert.equal(tc.does_not_modify_football_intel, true);
   assert.equal(tc.offense_column_availability.live, "LIVE_CAPABLE");
@@ -58,7 +59,6 @@ test("tierC §16: offense target-area shares sum to 1 in each direction/depth", 
 
 test("tierC §21/§22: archetype numeric vectors ship; labels withheld when unstable", () => {
   const stab = JSON.parse(readFileSync(join(OUT, "tierC_archetype_stability.json"), "utf8"));
-  const v = qbArchetypeVector(loadPlayerSchemeIntelligence()!.directory.find((d) => d.position === "QB")!.gsis_id);
   // a vector exists for at least one QB with complete features
   const anyQb = loadPlayerSchemeIntelligence()!.directory
     .filter((d) => d.position === "QB")

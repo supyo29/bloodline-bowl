@@ -38,6 +38,8 @@ export {
   qbArchetypeVector,
   defenseArchetypeVector,
   tierCManifest,
+  playerSchemeInteractions,
+  tierDManifest,
 } from "./read";
 export type {
   PlayerSchemeIntelligence,
@@ -50,6 +52,9 @@ export type {
   TierBAvailability,
   TierBManifest,
   TierCManifest,
+  TierDManifest,
+  InteractionResult,
+  InteractionClass,
 } from "./read";
 export {
   buildQbProfile,

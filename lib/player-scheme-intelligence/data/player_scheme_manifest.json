@@ -35,7 +35,7 @@
   "reconciliation_all_pass": true,
   "determinism": "seeded; pure aggregation; identical cache -> identical version",
   "notes": ["Tier A is PBP-only and LIVE_CAPABLE. No participation / FTN / NGS input.", "Cells are built ONLY from plays with a charted pass_location AND air_yards (or run_location). Uncharted plays are counted in *_total, never assigned to a cell (spec §41).", "depth bins: BEHIND_LOS air_yards<0 | SHORT 0-9 | INTERMEDIATE 10-19 | DEEP 20+. air_yards==0 -> SHORT (documented).", "run_location / run_gap are offense-perspective as shipped by nflverse; no mirroring (spec §42).", "Scrambles + sacks + spikes + kneels + 2-pt are excluded from the designed-play universes; sacks are NOT pass attempts.", "current_season_status=PRIOR_ONLY: newest data is a prior season; NOT a current-season observation (spec §3)."],
-  "tiers": ["A", "B", "C"],
+  "tiers": ["A", "B", "C", "D"],
   "tier_b": {
     "built_at": "2026-09-08T17:11:19-0500",
     "spatial_version": "qb-spatial-2026.1",
@@ -167,5 +167,34 @@
     "does_not_modify_football_intel": true,
     "files": ["offense_team_profile.csv", "defense_team_profile.csv", "qb_archetype_vector.csv", "defense_archetype_vector.csv", "scheme_era.csv"],
     "notes": ["Team profiles are DESCRIPTIVE TENDENCY primitives; the opponent-adjusted MODELED EPA/PROE/pace/pressure/explosive/RZ ratings remain owned by the frozen Football Intelligence engine (not duplicated, not rewired).", "Per-COLUMN availability (offense_column_availability / defense_column_availability): a team profile mixes LIVE_CAPABLE (pbp) with PRIOR_ONLY (participation) and DESCRIPTIVE_ONLY (FTN) columns (spec §16).", "Archetype numeric vectors ship regardless of label stability; cluster labels are withheld when unstable (spec §22).", "Coordinator identity is not available (coordinators.yaml empty) — scheme-era handling uses a starting-QB-change breakpoint and documents the limitation (spec §20)."]
+  },
+  "tier_d": {
+    "built_at": "2026-09-08T18:05:48-0500",
+    "interaction_version": "player-scheme-interaction-2026.1",
+    "lane": "SHADOW_ONLY",
+    "numeric_fantasy_adjustment": 0,
+    "hard_invariant": "numeric_fantasy_adjustment == 0 for the entire Phase 9 regardless of results (spec §22)",
+    "test_seasons": [2022, 2023, 2024, 2025],
+    "baseline": {
+      "b0": "player self-form expanding mean, shifted (naive)",
+      "b1": "b0 + league-centered opponent-position-allowed (reconstructable production-like)",
+      "note": "NOT certified against the historical production projection (provenance not trustworthy 2019-2025; Phase 4 lesson)."
+    },
+    "shrinkage": "z-scored single-family interaction term in an OLS baseline; ridge/EB comparison deferred — single-term OLS is the simplest form and no family cleared the incremental bar to warrant more (spec §11/§27).",
+    "fdr": {
+      "method": "Benjamini-Hochberg",
+      "alpha": 0.1
+    },
+    "outcome_summary": {
+      "predictive_incremental": 0,
+      "explanatory_only": 5,
+      "unstable": 0,
+      "rejected": 2,
+      "insufficient": 0
+    },
+    "reconciliation_all_pass": true,
+    "served_content_sha256": "37bd7bc3770cb1ce88f4642c42e2bf727dadd9d3d4f105086d01caa112d74dea",
+    "files": "player_scheme_interactions.csv",
+    "notes": ["SHADOW_ONLY research layer. numeric_fantasy_adjustment == 0 for every family, always.", "Chronology-safe walk-forward: profiles use seasons <= S-1; coefficients train on seasons < S.", "Certification baseline is a RECONSTRUCTABLE production-like estimate, not the live production projection.", "A null result (no family beats the production-like baseline OOS) is a SUCCESSFUL research outcome (spec §27)."]
   }
 }

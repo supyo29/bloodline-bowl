@@ -1,0 +1,8 @@
+"position","family","interaction_target","n_test_rows","delta_mae_vs_naive_baseline","delta_mae_vs_production_like_baseline","p_value","fdr_reject","sign_stable","calibration_monotone","validation_status","live_capability","numeric_fantasy_adjustment","deployment","future_production_eligibility"
+"QB","qb_spatial","fantasy_points_residual_vs_production_like_baseline",2272,0.0696,0.0074,0.0385,FALSE,TRUE,FALSE,"EXPLANATORY_ONLY","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"
+"QB","qb_coverage","fantasy_points_residual_vs_production_like_baseline",2310,0.0603,6e-04,0.143,FALSE,TRUE,FALSE,"EXPLANATORY_ONLY","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"
+"QB","qb_pressure","fantasy_points_residual_vs_production_like_baseline",2317,0.0539,2e-04,0.3162,FALSE,TRUE,FALSE,"EXPLANATORY_ONLY","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"
+"WR","wr_spatial","fantasy_points_residual_vs_production_like_baseline",6097,0.0681,0.0053,0.034,FALSE,TRUE,TRUE,"EXPLANATORY_ONLY","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"
+"TE","te_spatial","fantasy_points_residual_vs_production_like_baseline",2830,-0.0014,-0.0033,0.8697,FALSE,TRUE,TRUE,"REJECTED","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"
+"RB","rb_direction","fantasy_points_residual_vs_production_like_baseline",4064,0.0571,-0.0024,0.7876,FALSE,TRUE,TRUE,"EXPLANATORY_ONLY","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"
+"RB","rb_box","fantasy_points_residual_vs_production_like_baseline",4677,0.0321,-3e-04,0.836,FALSE,FALSE,TRUE,"REJECTED","PRIOR_ONLY_CURRENT_SEASON",0,"SHADOW_ONLY","NONE"

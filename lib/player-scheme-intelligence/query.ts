@@ -41,6 +41,8 @@ import {
   defenseArchetypeVector,
   tierBFamilyMeta,
   tierCManifest,
+  playerSchemeInteractions,
+  tierDManifest,
   type ChartingSplitRow,
   type DefensePassCell,
   type ProfileWindow,
@@ -396,6 +398,29 @@ export function buildMatchupAlignment(rawPlayer: string, opponent: string, windo
       caveat:
         "Tendency overlap only. NOT the Tier D validated player x scheme interaction model. Does not account for role, opponent strength, or the production projection baseline. No production influence.",
     },
+    interaction_research: (() => {
+      const td = tierDManifest();
+      const pos = (ref.position ?? "").toUpperCase();
+      const families = playerSchemeInteractions().filter((x) => x.position === pos);
+      return {
+        // Tier D result for this position's interaction families (spec §23, §24).
+        lane: "SHADOW_ONLY" as const,
+        numeric_fantasy_adjustment: 0 as const,
+        hard_invariant: td?.hard_invariant ??
+          "numeric_fantasy_adjustment == 0 for the entire Phase 9 regardless of results",
+        families: families.map((f) => ({
+          family: f.family,
+          validation_status: f.validation_status,
+          delta_mae_vs_production_like_baseline: f.delta_mae_vs_production_like_baseline,
+          fdr_reject: f.fdr_reject,
+          future_production_eligibility: f.future_production_eligibility,
+          numeric_fantasy_adjustment: 0 as const,
+        })),
+        outcome_summary: td?.outcome_summary ?? null,
+        note:
+          "Tier D research finding: no player x scheme family beat the reconstructable production-like baseline out-of-sample. EXPLANATORY_ONLY families carry a real matchup relationship that is subsumed by opponent strength. REJECTED families carry none. Zero production influence in Phase 9.",
+      };
+    })(),
     lineage: {
       player_source: isQb ? "qb_spatial_matrix.csv" : "receiver_spatial_matrix.csv",
       defense_source: "defense_pass_vulnerability.csv",

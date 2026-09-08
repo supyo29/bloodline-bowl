@@ -552,12 +552,246 @@ structured served fields:
 **Descriptive system → `SHARED_DESCRIPTIVE`, certified.** Proceeding to Tier D
 (the interaction research model, `SHADOW_ONLY`).
 
+## Tier D — Player × Scheme Interaction Research ✅ COMPLETE
+
+**Lane:** `SHADOW_ONLY`. **`numeric_fantasy_adjustment ≡ 0`** for every family,
+always. Additive; no production import.
+
+### Files added
+| File | Role |
+| --- | --- |
+| `analysis/player_scheme_intelligence/lib_interaction.R` | player-week PPR points from pbp; chronology-safe as-of player/defense profiles; interaction overlap features; BH-FDR |
+| `analysis/player_scheme_intelligence/build_tierD.R` | walk-forward, baselines, per-(position × family) classification, ablation, calibration, manifest merge |
+| `analysis/player_scheme_intelligence/tests/test_tierD_synthetic.R` | 8 synthetic-mechanics assertions |
+| `lib/player-scheme-intelligence/data/player_scheme_interactions.csv` | 7 rows — one per (position × family) with class + effects + hard zeros |
+| `test/player-scheme-tierd.test.ts` | 7 hard-invariant + contract tests |
+
+### Method
+- **Target:** `fantasy_points_residual` vs a **reconstructable production-like
+  pregame baseline** (spec §3, §24). The historical production projection's
+  provenance is not trustworthy for 2019–2025, so it is **not** the
+  certification baseline (Phase 4 lesson) — a clean reconstructable control is
+  used and labelled.
+  - **Baseline 0** (naive): per-player expanding mean of fantasy points, shifted
+    one game, seeded by the position-season mean.
+  - **Baseline 1** (production-like): Baseline 0 + league-centered
+    opponent-position-points-allowed (expanding, shifted).
+  - **Candidate:** Baseline 1 + one z-scored interaction overlap feature.
+- **Chronology:** player + defense profiles for season *S* use only seasons
+  **≤ S−1**; interaction coefficients train on seasons **< S**; week-*S* actuals
+  are target-only. Walk-forward test seasons **2022–2025**.
+- **Interaction features** (interpretable, one per family): `ix_qb_spatial`
+  (Σ cell attempt-share × defense cell vulnerability), `ix_qb_coverage`
+  (man/zone EPA delta × defense man-rate deviation), `ix_qb_pressure` (pressure
+  EPA delta × defense pressure-rate deviation), `ix_wr_spatial`, `ix_rb_direction`,
+  `ix_rb_box`.
+- **FDR:** Benjamini-Hochberg at α = 0.10 across the tested (position × family)
+  hypotheses; a `PREDICTIVE_INCREMENTAL` that fails FDR is downgraded.
+- **Shrinkage:** single z-scored interaction term in an OLS baseline — the
+  simplest form; a ridge / empirical-Bayes escalation was **not** warranted
+  because no family cleared even the incremental-improvement bar (spec §11, §27).
+
+### Walk-forward results (test seasons 2022–2025)
+
+| Position | Family | n test | MAE B1 | MAE cand | ΔMAE vs **naive** | ΔMAE vs **production-like** | p | FDR | class |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| QB | qb_spatial | 2,272 | 6.500 | 6.493 | +0.070 | **+0.0074** | 0.039 | ✗ | EXPLANATORY_ONLY |
+| QB | qb_coverage | 2,310 | 6.478 | 6.477 | +0.060 | **+0.0006** | 0.143 | ✗ | EXPLANATORY_ONLY |
+| QB | qb_pressure | 2,317 | 6.467 | 6.467 | +0.054 | **+0.0002** | 0.316 | ✗ | EXPLANATORY_ONLY |
+| WR | wr_spatial | 6,097 | 5.588 | 5.583 | +0.068 | **+0.0053** | 0.034 | ✗ | EXPLANATORY_ONLY |
+| TE | te_spatial | 2,830 | 4.227 | 4.230 | −0.001 | **−0.0033** | 0.870 | ✗ | REJECTED |
+| RB | rb_direction | 4,064 | 5.463 | 5.466 | +0.057 | **−0.0024** | 0.788 | ✗ | EXPLANATORY_ONLY |
+| RB | rb_box | 4,677 | 5.139 | 5.139 | +0.032 | **−0.0003** | 0.836 | ✗ | REJECTED |
+
+### Finding — a clean null (spec §27: this is a successful research outcome)
+
+> **No player × scheme interaction family adds robust incremental fantasy
+> predictive value beyond the reconstructable production-like baseline
+> out-of-sample.**
+
+- Every family's improvement over Baseline 1 is within **±0.008 MAE** on an MAE
+  of 5–6.5 fantasy points — indistinguishable from noise.
+- **0** families are FDR-significant.
+- 5 families are `EXPLANATORY_ONLY`: they beat the *naive* baseline by 0.05–0.07
+  MAE — i.e. the overlap feature carries a real matchup relationship — but that
+  signal is **entirely subsumed by generic opponent strength** (already in
+  Baseline 1). This is precisely the Phase 4/5 double-counting pattern.
+- 2 families are `REJECTED` (no relationship even vs naive, or sign-unstable).
+- **0** `PREDICTIVE_INCREMENTAL`. **0** `future_production_eligibility = CANDIDATE`.
+
+### Hard invariant (spec §22) — enforced + tested
+`player_scheme_interactions.csv`: `numeric_fantasy_adjustment = 0` and
+`deployment = SHADOW_ONLY` on **every** row. `tierD_reconciliation.json`:
+`numeric_fantasy_adjustment_all_zero = true`, `all_shadow_only = true`,
+`every_family_classified = true`. TS test asserts the matchup API's
+`interaction_research` block returns `numeric_fantasy_adjustment: 0` per family.
+No production module imports the interactions artifact or the Phase 9 lib
+(grep-asserted).
+
+### Synthetic sanity (spec §25) — 8 assertions pass
+BH recovers a true signal / rejects pure noise; perfect player↔defense overlap
+→ strongly positive feature, anti-alignment → strongly negative; a scheme
+feature absent from the DGP shrinks toward a ~0 coefficient; an **inserted fake
+interaction is recovered** (coef > 1.0). Mechanics validated.
+
+### API (spec §23)
+`GET /api/player-scheme/matchups/{player}/{opponent}` now returns an
+`interaction_research` block: per-family `validation_status`,
+`delta_mae_vs_production_like_baseline`, `fdr_reject`,
+`future_production_eligibility`, and `numeric_fantasy_adjustment: 0`. Rejected /
+explanatory families are **not** surfaced as positive matchup edges — the
+descriptive `alignment.tendency_overlap_score` remains separate and also carries
+the hard zero.
+
+### Findings
+| ID | Sev | Finding |
+| --- | --- | --- |
+| P9-D-1 | INFO | Null result — no interaction family beats the production-like baseline OOS. Successful research outcome per spec §27; preserved, not discarded. |
+| P9-D-2 | P3 | Certification uses a *reconstructed* production-like baseline (self-form + opponent-position strength), not the live production projection, because historical projection provenance is not trustworthy 2019–2025. Documented; a future re-eval with trustworthy historical projections could revisit. |
+| P9-D-3 | P3 | Interaction features are `PRIOR_ONLY_CURRENT_SEASON` (need participation/FTN). Even if a future signal emerged, it could not be a *live* 2026 predictor until participation ships in-season. |
+
+No P0/P1/P2.
+
+### Runtime
+Tier D build ≈ 53 s (7 as-of profile cohorts + walk-forward).
+
+### Tier D gate → Tier E
+**PASSED** (spec §27): no P0/P1 leakage/accounting defect; pipeline
+chronology-safe; FDR + classification deterministic; production-baseline
+comparison complete; `SHADOW_ONLY` boundary enforced + tested; **null findings
+preserved**. Tier D did not need to find a positive interaction to pass.
+
 ---
 
-## 7. Verdict
+## Tier E — Full Phase 9 Certification
 
-**PART I COMPLETE. TIERS A, B & C COMPLETE & GATES PASSED. DESCRIPTIVE SYSTEM CERTIFIED.**
-No Section 47 verdict is issued until Part II implementation + validation +
-regression are complete. Phase 9 is **not** wired into Orchestrator ACTION
-generation or production projection adjustments, and will not be without a
-separate integration/certification decision.
+### E.1 Descriptive correctness — ✅
+All A/B/C reconciliation artifacts `all_pass = TRUE`. Spatial cells sum to
+charted denominators; charting splits reconcile to charted plays; team profiles
+2×32 with shares summing to 1; missing-field handling asserted (no fabricated
+MIDDLE/SHORT/MAN/ZONE/FALSE/box-bucket); evidence gates deterministic and
+sample+coverage+opponent-diversity aware.
+
+### E.2 Source freshness — ✅
+No `PRIOR_ONLY` / `DESCRIPTIVE_ONLY` field is presented as a 2026 observation:
+manifest `tier_b.families[].current_season_observed = false`, API `charting.*`
+blocks `is_current_season_observation: false`, Tier C per-column availability
+map. `LIVE_CAPABLE` correctly identified (pbp spatial + team pbp tendencies).
+FTN preserved as `DESCRIPTIVE_ONLY` (registry `predictive_eligible: false`).
+Per-source cutoffs explicit in the manifest.
+
+### E.3 Research correctness — ✅
+Chronology-safe (profiles ≤ S−1, coefficients < S); BH-FDR; league-centered
+opponent adjustment; production-like-baseline comparison complete; classification
+deterministic + reproducible (seeded); **null preservation** (5 EXPLANATORY_ONLY
++ 2 REJECTED recorded verbatim).
+
+### E.4 API — ✅
+Dedicated `/api/player-scheme/*` namespace (never overloads Phase 2 /
+`/intelligence`):
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/player-scheme` | manifest + surface index |
+| `GET /api/player-scheme/players/{id}?view=summary\|qb\|receiving\|rushing` | spatial (Tier A) + `charting.*` per-family provenance (Tier B) + `archetype_vector` (Tier C) |
+| `GET /api/player-scheme/teams/{team}/defense` | vulnerability map (A) + tendency (C) + archetype + scheme era |
+| `GET /api/player-scheme/teams/{team}/offense` | tendency primitives (C), per-column availability |
+| `GET /api/player-scheme/matchups/{id}/{opp}?window=…` | descriptive overlap + `interaction_research` (Tier D), all with `numeric_fantasy_adjustment: 0` |
+
+Provenance, evidence class, and deployment are visible on every surface.
+
+### E.5 Isolation — ✅ (spec §29, §32, §44)
+- **`npm test` 1643 / 1639 pass / 0 fail / 4 skipped** — +40 Phase 9 tests, **0
+  existing test changed or weakened**.
+- `tsc --noEmit` clean; `eslint app lib test` clean.
+- **Zero changes to any frozen surface** (`git status` clean for
+  `lib/{weekly,trades,roster-health,schedule-planning,orchestrator,team-state,canonical,projections,football-intel}`).
+- **Football Intelligence manifest byte-identical** (asserted by test).
+- No production module imports `lib/player-scheme-intelligence` or the served
+  artifacts (grep-asserted in `player-scheme-isolation.test.ts` +
+  `player-scheme-tierd.test.ts`).
+- **Production recommendation behaviour change = 0** — Phase 9 is consumed only
+  by its own additive read-only API namespace.
+- R suites: `test_tierA.R` (20), `test_tierB.R` covered by build reconciliation,
+  `test_tierD_synthetic.R` (8) — all pass.
+
+### E.6 Trust-audit integration (spec §31)
+`docs/TEAM_MANAGEMENT_SYSTEM_TRUST_AUDIT.md` extension — Phase 9 utilization
+vector:
+
+| Layer | INSTALLED | INVOKED | OUTPUT_VALID | CONSUMED | INFLUENTIAL | PRODUCTION_AUTHORITATIVE |
+| --- | --- | --- | --- | --- | --- | --- |
+| Tier A spatial (`SHARED_DESCRIPTIVE`) | ✅ | ✅ | ✅ | API/context | ✗ | **✗** |
+| Tier B charting (`SHARED_DESCRIPTIVE`, PRIOR_ONLY) | ✅ | ✅ | ✅ | API/context | ✗ | **✗** |
+| Tier C team/archetype (`SHARED_DESCRIPTIVE`) | ✅ | ✅ | ✅ | API/context | ✗ | **✗** |
+| Tier D interaction (`SHADOW_ONLY`) | ✅ | ✅ | ✅ | API research metadata | **✗** | **✗** |
+
+Forbidden-influence check: `numeric_fantasy_adjustment` is a literal `0` in the
+served artifact and in every API path; there is no code path that reads a
+Phase 9 value into a projection, lineup, start/sit, waiver, trade, matchup,
+Roster Health, Schedule Planning, or Orchestrator ACTION.
+
+### E.7 Deployment matrix (spec §30)
+
+| Component | Deployment | Current availability | Structural availability |
+| --- | --- | --- | --- |
+| Tier A spatial profiles | `SHARED_DESCRIPTIVE` | `PRIOR_ONLY` (no 2026 cache) | `LIVE_CAPABLE` |
+| Tier B charting profiles | `SHARED_DESCRIPTIVE` | `PRIOR_ONLY` / `DESCRIPTIVE_ONLY` | `PRIOR_ONLY_CURRENT_SEASON` / `RETROSPECTIVE_ONLY` |
+| Tier C team + archetype vectors | `SHARED_DESCRIPTIVE` | per-column (`LIVE_CAPABLE` + `PRIOR_ONLY` + `DESCRIPTIVE_ONLY`) | same |
+| Tier D interactions | **`SHADOW_ONLY`, `numeric_fantasy_adjustment = 0`** | `PRIOR_ONLY_CURRENT_SEASON` | `RETROSPECTIVE_ONLY` for research |
+
+### E.8 Re-evaluation conditions
+- nflverse publishes 2026 participation / FTN in-season → Tier B/C families flip
+  `current_season_observed = true`; rebuild re-stamps availability.
+- A trustworthy historical production projection becomes available → Tier D
+  anti-double-counting can re-certify against it (P9-D-2).
+- Any Tier D promotion requires a **separate** integration/certification phase
+  (none is eligible today — 0 `CANDIDATE`).
+
+### E.9 Findings ledger (all tiers)
+
+| ID | Sev | Status |
+| --- | --- | --- |
+| P9-I-1, P9-C-2 | P2/P3 | Coordinator registry empty — documented, QB-change breakpoint mechanism in place |
+| P9-A-1 | P3 | QB depth-bin level sensitivity — standard bins frozen, raw matrix served |
+| P9-A-2, P9-B-2 | P3 | Served data 20 MB — acceptable; revisit gzip/split if it grows |
+| P9-B-1 | P3 | RB box-bucket cut sensitivity — CAVEAT, raw `mean_box_faced` served |
+| P9-B-3 | P3 | `route` is targeted-only (no YPRR) — upstream limitation, documented |
+| P9-C-1 | INFO | Archetype clustering unstable — labels withheld, numeric vectors shipped |
+| P9-D-1 | INFO | Null interaction result — successful research outcome, preserved |
+| P9-D-2, P9-D-3 | P3 | Tier D baseline + feature-timeliness caveats — documented |
+
+**No P0 / P1. No P2 that is not already mitigated.**
+
+---
+
+## 7. Section 47 verdict
+
+All of Part II is complete: Tier A (spatial descriptive), Tier B (charting
+descriptive), Tier C (team tendency + archetype vectors), Tier D (interaction
+research). Every internal gate passed. The full Phase 1–8 regression is green
+with zero existing tests changed. Frozen surfaces are byte-identical.
+`numeric_fantasy_adjustment ≡ 0` across the entire phase, enforced and tested.
+
+### Deployment states (final)
+- **Tier A / B / C descriptive profiles → `SHARED_DESCRIPTIVE`** (certified).
+  Current availability `PRIOR_ONLY` (no 2026 cache); Tier A structurally
+  `LIVE_CAPABLE`.
+- **Tier D interaction research → `SHADOW_ONLY`, `numeric_fantasy_adjustment = 0`.**
+  Finding: **no player × scheme family adds incremental out-of-sample fantasy
+  value beyond the production-like baseline** — a clean null, preserved. 0
+  families `PRODUCTION_AUTHORITATIVE`; 0 `CANDIDATE` for future promotion.
+- **No** Phase 9 output influences production projections, lineup, Start/Sit,
+  waivers, trades, matchup, Roster Health, Schedule Planning, or Orchestrator
+  ACTION. Consumed only by the additive read-only `/api/player-scheme/*`
+  namespace.
+
+### Verdict
+
+> ## PHASE 9 CERTIFIED — PLAYER × SCHEME INTELLIGENCE SHARED/SHADOW FREEZE
+
+**STOP.** Do not wire Tier D into production projection adjustment, lineup,
+Start/Sit, Matchup, waiver, trade, Roster Health, Schedule Planning, or
+Orchestrator ACTION generation. Any future promotion of a Tier D family
+requires a separate integration/certification decision — none is eligible
+today.
