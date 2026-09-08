@@ -17,6 +17,7 @@ export {
   type ManagerAnalysisSlice,
 } from "./context";
 export { orchestrateManager, buildManagerOrchestration, buildLeagueOrchestration } from "./build";
+export { buildOrchestratorTrace, type OrchestratorTrace } from "./trace";
 export { deriveConditions, aggregateConditions } from "./conditions";
 export { lineupCandidates, waiverCandidates, tradeExplorationCandidates } from "./candidates";
 export { applyHardGates } from "./gates";

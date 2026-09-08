@@ -174,12 +174,19 @@ export async function orchestrateManager(mac: ManagementAnalysisContext, manager
 export async function buildManagerOrchestration(
   leagueSlug: string,
   managerSlug: string,
-  options: ManagementAnalysisOptions = {},
-): Promise<{ ok: true; result: OrchestratorResult } | { ok: false; status: number; code: string; detail: string }> {
+  options: ManagementAnalysisOptions & { includeTrace?: boolean } = {},
+): Promise<
+  | { ok: true; result: OrchestratorResult; trace?: import("./trace").OrchestratorTrace }
+  | { ok: false; status: number; code: string; detail: string }
+> {
   const ctxRes = await buildManagementAnalysisContext(leagueSlug, options);
   if (!ctxRes.ok) return ctxRes;
   const result = await orchestrateManager(ctxRes.context, managerSlug);
   if (!result) return { ok: false, status: 404, code: "manager_not_in_league", detail: `Manager "${managerSlug}" has no state in "${leagueSlug}".` };
+  if (options.includeTrace) {
+    const { buildOrchestratorTrace } = await import("./trace");
+    return { ok: true, result, trace: buildOrchestratorTrace(ctxRes.context, result) };
+  }
   return { ok: true, result };
 }
 

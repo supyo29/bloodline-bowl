@@ -440,8 +440,29 @@ function toEvData(facts: Record<string, unknown>): EvidenceRef["data"] {
   return out;
 }
 
+/**
+ * How many places the Phase 4 SHADOW model's FI-adjusted lineup/start-sit
+ * differs from the production baseline. Reads the actual
+ * `StartSitShadowComparison` shape (`lineup_differs` / `lineup_deltas` /
+ * `start_sit_deltas`) — NOT a hypothetical `reversals`/`summary` shape.
+ * (System Trust Audit finding TA-1: the old field names never matched, so this
+ * diagnostic was dead.)
+ */
 function extractShadowDisagreements(shadow: unknown): number {
-  const s = shadow as { reversals?: unknown[]; disagreements?: unknown[]; summary?: { reversal_count?: number; disagreement_count?: number } };
+  const s = shadow as {
+    lineup_differs?: boolean;
+    lineup_deltas?: unknown[];
+    start_sit_deltas?: unknown[];
+    // tolerate older/other shapes too
+    reversals?: unknown[];
+    disagreements?: unknown[];
+    summary?: { reversal_count?: number; disagreement_count?: number };
+  };
+  const deltas =
+    (Array.isArray(s?.lineup_deltas) ? s.lineup_deltas.length : 0) +
+    (Array.isArray(s?.start_sit_deltas) ? s.start_sit_deltas.length : 0);
+  if (deltas > 0) return deltas;
+  if (s?.lineup_differs === true) return 1;
   if (Array.isArray(s?.reversals)) return s.reversals.length;
   if (Array.isArray(s?.disagreements)) return s.disagreements.length;
   return s?.summary?.reversal_count ?? s?.summary?.disagreement_count ?? 0;

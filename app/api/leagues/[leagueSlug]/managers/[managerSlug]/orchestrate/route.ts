@@ -27,15 +27,17 @@ export async function GET(
   if (!resolved.ok) return resolved.response;
   const { manager } = resolved;
 
-  const includeTradeSearch = ["1", "true", "yes"].includes(
-    (new URL(request.url).searchParams.get("include_trade_search") ?? "").toLowerCase(),
-  );
+  const sp = new URL(request.url).searchParams;
+  const flag = (k: string) => ["1", "true", "yes"].includes((sp.get(k) ?? "").toLowerCase());
+  const includeTradeSearch = flag("include_trade_search");
+  // audit-only trace: which models contributed to this answer (System Trust Audit §14/§37)
+  const includeTrace = flag("include_trace");
 
   try {
-    const res = await buildManagerOrchestration(manager.league_slug, manager.manager_slug, { includeTradeSearch });
+    const res = await buildManagerOrchestration(manager.league_slug, manager.manager_slug, { includeTradeSearch, includeTrace });
     if (!res.ok) return errorResponse(res.status, res.code, res.detail);
     return jsonResponse(
-      { context: managerContext(manager), deployment: "ADVISORY_ONLY", ...res.result },
+      { context: managerContext(manager), deployment: "ADVISORY_ONLY", ...res.result, ...(res.trace ? { trace: res.trace } : {}) },
       {
         headers: {
           "Cache-Control": cacheHeader(30, 120),

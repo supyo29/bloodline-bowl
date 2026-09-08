@@ -1,0 +1,965 @@
+{
+  "audit": "team-management-system-trust",
+  "audit_timestamp": "2026-09-08T21:25:05.999Z",
+  "main_sha": "f9b8717c1923be6746756ca383ad604ab181a2bb",
+  "branch": "team-management-system-trust-audit",
+  "frozen_surfaces_unchanged": "UNCHANGED",
+  "model_registry": [
+    {
+      "component_name": "canonical_league_state",
+      "model_version": "schema_v3",
+      "deployment_state": "PRODUCTION_FOUNDATION",
+      "artifact": "lib/canonical/*",
+      "output_contract": "CanonicalLeagueSnapshot",
+      "expected_callers": "buildCanonicalLeagueState",
+      "forbidden_callers_or_note": "every layer",
+      "may_influence_production": true,
+      "may_influence_note": "n/a",
+      "current_horizon": "live_request_snapshot",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "team_state",
+      "model_version": "team-state-2026.1",
+      "deployment_state": "SHARED_FOUNDATION",
+      "artifact": "lib/team-state/*",
+      "output_contract": "TeamManagementState",
+      "expected_callers": "buildLeagueManagementContext",
+      "forbidden_callers_or_note": "roster_health, schedule_planning, orchestrator",
+      "may_influence_production": false,
+      "may_influence_note": "no evaluative/recommendation logic",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "football_intelligence",
+      "model_version": "ri-football-intel-2026.1 (fi:2025:w18)",
+      "deployment_state": "SHARED_RESEARCH_ROUTED",
+      "artifact": "lib/football-intel/data/*, analysis/football_intel/*",
+      "output_contract": "FootballIntelligenceSnapshot",
+      "expected_callers": "start-sit-fi/{translate,shadow,production-gate}",
+      "forbidden_callers_or_note": "start_sit_fi shadow only",
+      "may_influence_production": false,
+      "may_influence_note": "NOT_PREDICTIVE / DESCRIPTIVE_ONLY fields barred from numeric production",
+      "current_horizon": "as_of_2025_w18 (frozen)",
+      "re_evaluation_status": "manual R pipeline"
+    },
+    {
+      "component_name": "start_sit_fi",
+      "model_version": "ri-startsit-2026.1",
+      "deployment_state": "SHADOW_ONLY",
+      "artifact": "lib/weekly/data/start_sit_model.json",
+      "output_contract": "StartSitShadowComparison",
+      "expected_callers": "lib/weekly/intelligence.ts",
+      "forbidden_callers_or_note": "any production lineup/start-sit/waiver/trade/matchup score",
+      "may_influence_production": false,
+      "may_influence_note": "false (fiMayInfluenceProduction ≡ false)",
+      "current_horizon": "current_week (shadow)",
+      "re_evaluation_status": "ri-startsit-2026.2, gated on >=4 genuine 2026 weeks"
+    },
+    {
+      "component_name": "matchup_intelligence",
+      "model_version": "ri-matchup-2026.1",
+      "deployment_state": "SHADOW_ONLY",
+      "artifact": "lib/weekly/data/matchup_distribution_model.json + matchup_correlation_model.json",
+      "output_contract": "MatchupIntelligence",
+      "expected_callers": "lib/weekly/intelligence.ts",
+      "forbidden_callers_or_note": "any production lineup/matchup score; no MAX_WIN_PROBABILITY objective",
+      "may_influence_production": false,
+      "may_influence_note": "false (matchupMayInfluenceProduction ≡ false)",
+      "current_horizon": "current_week pregame (shadow)",
+      "re_evaluation_status": "ri-matchup-2026.2, live calibration capture"
+    },
+    {
+      "component_name": "roster_health",
+      "model_version": "roster-health-2026.1",
+      "deployment_state": "SHARED_CONTEXT",
+      "artifact": "lib/roster-health/*",
+      "output_contract": "RosterHealthLeagueContext",
+      "expected_callers": "orchestrator context, 2 API routes",
+      "forbidden_callers_or_note": "trade/waiver scoring (needs dedicated integration phase)",
+      "may_influence_production": false,
+      "may_influence_note": "false (evidence, not a remedy)",
+      "current_horizon": "weekly + rest_of_season (separate)",
+      "re_evaluation_status": "roster-health-2026.2"
+    },
+    {
+      "component_name": "schedule_planning",
+      "model_version": "schedule-planning-2026.1",
+      "deployment_state": "SHARED_CONTEXT",
+      "artifact": "lib/schedule-planning/*",
+      "output_contract": "SchedulePlanningLeagueContext",
+      "expected_callers": "orchestrator context, 2 API routes",
+      "forbidden_callers_or_note": "trade/waiver/lineup/streaming recs (needs dedicated integration phase)",
+      "may_influence_production": false,
+      "may_influence_note": "false (evidence, not a remedy)",
+      "current_horizon": "full remaining season, STRUCTURE vs VALUE confidence separate",
+      "re_evaluation_status": "schedule-planning-2026.2"
+    },
+    {
+      "component_name": "orchestrator",
+      "model_version": "team-management-orchestrator-2026.1",
+      "deployment_state": "ADVISORY_ONLY",
+      "artifact": "lib/orchestrator/*",
+      "output_contract": "OrchestratorResult",
+      "expected_callers": "2 /orchestrate API routes",
+      "forbidden_callers_or_note": "autonomous transaction execution (orchestratorMayExecuteTransactions ≡ false)",
+      "may_influence_production": false,
+      "may_influence_note": "advisory only — recommends, never executes",
+      "current_horizon": "current + horizon-graded",
+      "re_evaluation_status": "orchestrator-2026.2, gated on durable decision capture"
+    },
+    {
+      "component_name": "production_lineup",
+      "model_version": "post-draft-intel-2026.1 (buildOptimalLineup)",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/weekly/lineup.ts",
+      "output_contract": "LineupResult",
+      "expected_callers": "weekly intelligence, matchup, waivers, roster-health, schedule-planning, orchestrator",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "production_start_sit",
+      "model_version": "post-draft-intel-2026.1 (compareStartSit, MAX_EXPECTED)",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/weekly/start-sit.ts",
+      "output_contract": "StartSitComparison[]",
+      "expected_callers": "weekly intelligence, orchestrator",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "waiver_engine",
+      "model_version": "post-draft-intel-2026.1 (buildWaiverRecommendations)",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/weekly/waivers.ts",
+      "output_contract": "WaiverResult",
+      "expected_callers": "weekly intelligence, orchestrator (USED_FOR_ACTION)",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true",
+      "current_horizon": "current + ROS blend",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "production_matchup",
+      "model_version": "post-draft-intel-2026.1 (buildMatchup)",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/weekly/matchup.ts",
+      "output_contract": "MatchupResult",
+      "expected_callers": "weekly intelligence, orchestrator (context)",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true (win_probability is the production field)",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "trade_engine",
+      "model_version": "ri-trade-foundation-2026.2 / contextual / calibrated / data / discovery ri-trade-discovery-2026.2 / negotiation ri-trade-negotiation-2026.2 / strategy ri-trade-strategy-2026.2",
+      "deployment_state": "PRODUCTION (calibration deferred: 1 real trade vs 50 floor)",
+      "artifact": "lib/trades/*",
+      "output_contract": "TradeAnalysis / TradeDiscoveryResponse",
+      "expected_callers": "trade API routes, orchestrator (strategy profile only, TRADE_EXPLORATION pointer)",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true for trade recs; Phase 3 calibrated weights all 0",
+      "current_horizon": "current + ROS + playoff windows",
+      "re_evaluation_status": "trade calibration reopen at 50 real trades"
+    },
+    {
+      "component_name": "trade_depth",
+      "model_version": "lib/trades/depth.ts (frozen)",
+      "deployment_state": "PRODUCTION (frozen)",
+      "artifact": "lib/trades/depth.ts",
+      "output_contract": "depth eval",
+      "expected_callers": "trade engine",
+      "forbidden_callers_or_note": "Roster Health must not replace it",
+      "may_influence_production": true,
+      "may_influence_note": "true within trade scope",
+      "current_horizon": "current + ROS",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "trade_ros",
+      "model_version": "lib/trades/ros.ts (frozen)",
+      "deployment_state": "PRODUCTION (frozen)",
+      "artifact": "lib/trades/ros.ts",
+      "output_contract": "RosRosterValue",
+      "expected_callers": "trade engine; Schedule Planning must NOT repoint it",
+      "forbidden_callers_or_note": "Schedule Planning must not modify weekly_totals / bye_hole_slot_weeks / windows",
+      "may_influence_production": true,
+      "may_influence_note": "true within trade scope",
+      "current_horizon": "rest of season + playoff window",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "weekly_projections",
+      "model_version": "sleeper-weekly-rotowire",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/weekly/projections/sleeper-weekly.ts",
+      "output_contract": "WeeklyProjectionBatch",
+      "expected_callers": "lineup, start-sit, matchup, waivers, roster-health, schedule-planning",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "ros_projections",
+      "model_version": "ri-structural-2026.3 (ordinal) + sleeper season prorated (absolute)",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE (ordinal use)",
+      "artifact": "lib/weekly/projections-ri.ts, lib/weekly/ros.ts",
+      "output_contract": "RosSignal",
+      "expected_callers": "waivers, trade ROS, roster-health, schedule-planning",
+      "forbidden_callers_or_note": "RI used ORDINALLY only (absolute-level calibration caveat)",
+      "may_influence_production": true,
+      "may_influence_note": "true (ordinal)",
+      "current_horizon": "rest of season",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "replacement_framework",
+      "model_version": "nth_best_available(n=1) weekly / position_rank_theoretical ROS",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/weekly/replacement.ts",
+      "output_contract": "WeeklyReplacement",
+      "expected_callers": "lineup VOR, waivers, roster-health",
+      "forbidden_callers_or_note": "n/a",
+      "may_influence_production": true,
+      "may_influence_note": "true",
+      "current_horizon": "current + ROS",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "scoring_model",
+      "model_version": "scoring:v1:<fingerprint> (per league)",
+      "deployment_state": "PRODUCTION_AUTHORITATIVE",
+      "artifact": "lib/scoring/*",
+      "output_contract": "CanonicalScoringRule[]",
+      "expected_callers": "projections, all value-producing layers",
+      "forbidden_callers_or_note": "no component may assume default PPR",
+      "may_influence_production": true,
+      "may_influence_note": "true",
+      "current_horizon": "n/a",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "k_path",
+      "model_version": "buildOptimalLineup K slot + waiver K + Sleeper standard pts fallback",
+      "deployment_state": "PRODUCTION (no dedicated model)",
+      "artifact": "lib/weekly/lineup.ts, waivers.ts, projections/sleeper-weekly.ts",
+      "output_contract": "slot fill / waiver eval",
+      "expected_callers": "lineup, waivers, orchestrator (K_DST reason code)",
+      "forbidden_callers_or_note": "no dedicated K streaming model in Phase 8",
+      "may_influence_production": true,
+      "may_influence_note": "true (as a normal slot/add)",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    },
+    {
+      "component_name": "dst_path",
+      "model_version": "buildOptimalLineup DEF slot + waiver DEF; excluded from Phase 6 core fragility/SPOF",
+      "deployment_state": "PRODUCTION (no dedicated model)",
+      "artifact": "lib/weekly/lineup.ts, waivers.ts, roster-health/evaluate.ts",
+      "output_contract": "slot fill / waiver eval",
+      "expected_callers": "lineup, waivers, orchestrator (K_DST reason code)",
+      "forbidden_callers_or_note": "no dedicated D/ST streaming model; Phase 6 excludes from core fragility",
+      "may_influence_production": true,
+      "may_influence_note": "true (as a normal slot/add)",
+      "current_horizon": "current_week",
+      "re_evaluation_status": "n/a"
+    }
+  ],
+  "artifact_identity": [
+    {
+      "name": "football_intelligence",
+      "path": "lib/football-intel/data/football_intelligence_manifest.json",
+      "exists": true,
+      "loadable": true,
+      "bytes": 1518,
+      "content_sha256": "2976f8e628e3243b172d6f31b25240bbf23b00da50f55fdad911d3a67b57d48b",
+      "model_version": "ri-football-intel-2026.1",
+      "deployment": null,
+      "data_cutoff": {
+        "ftn_charting": 18,
+        "ngs_passing": 18,
+        "ngs_receiving": 18,
+        "ngs_rushing": 18,
+        "participation": 18,
+        "pbp": 18,
+        "pfr_def": 18,
+        "pfr_pass": 18,
+        "snap_counts": 18
+      },
+      "seasons_used": {
+        "prior": [
+          2021,
+          2022,
+          2023,
+          2024
+        ],
+        "current": 2025
+      }
+    },
+    {
+      "name": "start_sit_fi_model",
+      "path": "lib/weekly/data/start_sit_model.json",
+      "exists": true,
+      "loadable": true,
+      "bytes": 14815,
+      "content_sha256": "85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293",
+      "model_version": "ri-startsit-2026.1",
+      "deployment": "SHADOW_ONLY",
+      "data_cutoff": null,
+      "seasons_used": null
+    },
+    {
+      "name": "start_sit_fi_manifest",
+      "path": "lib/weekly/data/start_sit_manifest.json",
+      "exists": true,
+      "loadable": true,
+      "bytes": 344,
+      "content_sha256": "ba40538f576a71f1f3b0c256931f91551249eb20c2d41f3d25671174812e5def",
+      "model_version": "ri-startsit-2026.1",
+      "deployment": null,
+      "data_cutoff": null,
+      "seasons_used": null
+    },
+    {
+      "name": "start_sit_reevaluation_manifest",
+      "path": "lib/weekly/data/start_sit_reevaluation_manifest.json",
+      "exists": true,
+      "loadable": true,
+      "bytes": 1208,
+      "content_sha256": "2fb6a06498f6466690c3378b9ee510f14d1dfa79f5117a4ea23a6952ba6fe67b",
+      "model_version": null,
+      "deployment": "SHADOW_ONLY",
+      "data_cutoff": null,
+      "seasons_used": null
+    },
+    {
+      "name": "matchup_distribution_model",
+      "path": "lib/weekly/data/matchup_distribution_model.json",
+      "exists": true,
+      "loadable": true,
+      "bytes": 6785,
+      "content_sha256": "be14e7e3bc97b8e5aad19dbdd6504c259de7205549f85d528819ef71942930e0",
+      "model_version": "ri-matchup-2026.1",
+      "deployment": "SHADOW_ONLY",
+      "data_cutoff": null,
+      "seasons_used": null
+    },
+    {
+      "name": "matchup_correlation_model",
+      "path": "lib/weekly/data/matchup_correlation_model.json",
+      "exists": true,
+      "loadable": true,
+      "bytes": 1729,
+      "content_sha256": "31350200017ee34fa9404f9ddf02c2f3a4efb3f955145dbda365235357022aa8",
+      "model_version": "ri-matchup-2026.1",
+      "deployment": "SHADOW_ONLY",
+      "data_cutoff": null,
+      "seasons_used": null
+    }
+  ],
+  "deployment_state_assertions": {
+    "start_sit_fi": {
+      "served_deployment": "SHADOW_ONLY",
+      "fiMayInfluenceProduction": {
+        "QB": false,
+        "RB": false,
+        "WR": false,
+        "TE": false,
+        "K": false,
+        "DEF": false
+      },
+      "anyFiProductionInfluence": false
+    },
+    "matchup_intelligence": {
+      "served_deployment": "SHADOW_ONLY",
+      "matchupMayInfluenceProduction": false
+    }
+  },
+  "utilization_matrix": [
+    {
+      "league": "bloodline-bowl",
+      "status": "OK",
+      "managers": 12,
+      "context_assembly_ms": 1705,
+      "canonical_provider_reads": 1,
+      "snapshot_ids_seen": [
+        "snap:bloodline-bowl:2026:w1:ddd4c4cb71506ad5"
+      ],
+      "snapshot_coherent": true,
+      "stage_ms": {
+        "canonical": 390,
+        "team_state": 24,
+        "roster_health": 665,
+        "schedule_planning": 474,
+        "trade_context": 152,
+        "weekly[supyo29]": 859,
+        "weekly[bijimac]": 724,
+        "weekly[msamuel4]": 748,
+        "weekly[rsamuel1013]": 620,
+        "weekly[nightfallfox]": 578,
+        "weekly[theberserkfury]": 452,
+        "weekly[jerin117]": 637,
+        "weekly[ezs4415]": 473,
+        "weekly[rojan765]": 613,
+        "weekly[hammy535]": 602,
+        "weekly[bijoy2theworld]": 587,
+        "weekly[shitalkers]": 626
+      },
+      "availability": {
+        "team_state": true,
+        "roster_health": true,
+        "schedule_planning": true,
+        "strategy": true
+      },
+      "forbidden_influence_ok": true
+    },
+    {
+      "league": "devoted-to-the-game",
+      "status": "OK",
+      "managers": 12,
+      "context_assembly_ms": 1117,
+      "canonical_provider_reads": 1,
+      "snapshot_ids_seen": [
+        "snap:devoted-to-the-game:2026:w1:e934f1a7c594aa0d"
+      ],
+      "snapshot_coherent": true,
+      "stage_ms": {
+        "canonical": 163,
+        "team_state": 22,
+        "roster_health": 299,
+        "schedule_planning": 460,
+        "trade_context": 173,
+        "weekly[shbarnes]": 649,
+        "weekly[darthmarker]": 701,
+        "weekly[rawb21]": 659,
+        "weekly[shaunspinstar]": 689,
+        "weekly[mbarnes18]": 707,
+        "weekly[ryangoodspeed]": 677,
+        "weekly[bearowl]": 708,
+        "weekly[snyperduck]": 597,
+        "weekly[ahacopian]": 807,
+        "weekly[shawnb555]": 652,
+        "weekly[emanu2026]": 639,
+        "weekly[billytheskink]": 671
+      },
+      "availability": {
+        "team_state": true,
+        "roster_health": true,
+        "schedule_planning": true,
+        "strategy": true
+      },
+      "forbidden_influence_ok": true
+    },
+    {
+      "league": "sportys-alumni",
+      "status": "OK",
+      "managers": 14,
+      "context_assembly_ms": 789,
+      "canonical_provider_reads": 1,
+      "snapshot_ids_seen": [
+        "snap:sportys-alumni:2026:w1:ea1e2881667db890"
+      ],
+      "snapshot_coherent": true,
+      "stage_ms": {
+        "canonical": 124,
+        "team_state": 19,
+        "roster_health": 231,
+        "schedule_planning": 240,
+        "trade_context": 175,
+        "weekly[dusty22k]": 194,
+        "weekly[stausa]": 168,
+        "weekly[tylershreve]": 203,
+        "weekly[battmurwinkle]": 192,
+        "weekly[schroyjd]": 173,
+        "weekly[siegy007]": 176,
+        "weekly[dbaker4141]": 184,
+        "weekly[trogdog1894]": 160,
+        "weekly[ktmize]": 235,
+        "weekly[wiehoffnw]": 201,
+        "weekly[dallyboy99]": 176,
+        "weekly[nickk376]": 187,
+        "weekly[rspata2]": 176,
+        "weekly[mallermb]": 167
+      },
+      "availability": {
+        "team_state": true,
+        "roster_health": true,
+        "schedule_planning": true,
+        "strategy": true
+      },
+      "forbidden_influence_ok": true
+    }
+  ],
+  "production_sample": [
+    {
+      "league": "bloodline-bowl",
+      "manager": "supyo29",
+      "verdict": "WATCH",
+      "confidence": "MEDIUM",
+      "primary": null,
+      "watch": [
+        "ROSTER_FRAGILITY",
+        "WEEK_7_UNCOVERED_SLOT",
+        "SHADOW_STARTSIT_DISAGREEMENT",
+        "QB_DEPTH_VULNERABILITY"
+      ],
+      "snapshot_id": "snap:bloodline-bowl:2026:w1:ddd4c4cb71506ad5",
+      "scoring_fingerprint": "scoring:v1:29acc6bcd911df090b5b9b9c",
+      "specialists": {
+        "canonical": {
+          "version": "schema_v3",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "team_state": {
+          "version": "team-state-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "football_intelligence": {
+          "version": "not_used",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "start_sit_shadow": {
+          "version": "ri-startsit-2026.1",
+          "usage": "SHADOW_CONTEXT_ONLY"
+        },
+        "matchup_shadow": {
+          "version": "ri-matchup-2026.1",
+          "usage": "NOT_USED"
+        },
+        "roster_health": {
+          "version": "roster-health-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "schedule_planning": {
+          "version": "schedule-planning-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "strategy": {
+          "version": "ri-trade-strategy-2026.2",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "weekly_engine": {
+          "version": "post-draft-intel-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        }
+      },
+      "trace_components": {
+        "canonical": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "team_state": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "football_intelligence": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "start_sit_shadow": {
+          "role": "SHADOW_CONTEXT_ONLY",
+          "production_influence": false
+        },
+        "matchup_shadow": {
+          "role": "NOT_USED",
+          "production_influence": false
+        },
+        "roster_health": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "schedule_planning": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "strategy": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "weekly_engine": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        }
+      },
+      "forbidden_influence_ok": true
+    },
+    {
+      "league": "devoted-to-the-game",
+      "manager": "shbarnes",
+      "verdict": "ACTION",
+      "confidence": "LOW",
+      "primary": {
+        "class": "LINEUP",
+        "priority": "LOW",
+        "urgency": "THIS_WEEK",
+        "target": "IR_MOVE_OPPORTUNITY"
+      },
+      "watch": [
+        "ROSTER_FRAGILITY"
+      ],
+      "snapshot_id": "snap:devoted-to-the-game:2026:w1:e934f1a7c594aa0d",
+      "scoring_fingerprint": "scoring:v1:d4795fa723cdd12d9ba3bfb1",
+      "specialists": {
+        "canonical": {
+          "version": "schema_v3",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "team_state": {
+          "version": "team-state-2026.1",
+          "usage": "USED_FOR_ACTION"
+        },
+        "football_intelligence": {
+          "version": "not_used",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "start_sit_shadow": {
+          "version": "ri-startsit-2026.1",
+          "usage": "NOT_USED"
+        },
+        "matchup_shadow": {
+          "version": "ri-matchup-2026.1",
+          "usage": "NOT_USED"
+        },
+        "roster_health": {
+          "version": "roster-health-2026.1",
+          "usage": "USED_FOR_ACTION"
+        },
+        "schedule_planning": {
+          "version": "schedule-planning-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "strategy": {
+          "version": "ri-trade-strategy-2026.2",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "weekly_engine": {
+          "version": "post-draft-intel-2026.1",
+          "usage": "USED_FOR_ACTION"
+        }
+      },
+      "trace_components": {
+        "canonical": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "team_state": {
+          "role": "USED_FOR_ACTION",
+          "production_influence": false
+        },
+        "football_intelligence": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "start_sit_shadow": {
+          "role": "NOT_USED",
+          "production_influence": false
+        },
+        "matchup_shadow": {
+          "role": "NOT_USED",
+          "production_influence": false
+        },
+        "roster_health": {
+          "role": "USED_FOR_ACTION",
+          "production_influence": false
+        },
+        "schedule_planning": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "strategy": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "weekly_engine": {
+          "role": "USED_FOR_ACTION",
+          "production_influence": true
+        }
+      },
+      "forbidden_influence_ok": true
+    },
+    {
+      "league": "sportys-alumni",
+      "manager": "dusty22k",
+      "verdict": "ACTION",
+      "confidence": "LOW",
+      "primary": {
+        "class": "WAIVER",
+        "priority": "HIGH",
+        "urgency": "BEFORE_WAIVERS",
+        "target": "WAIVER_UPGRADE_AVAILABLE"
+      },
+      "watch": [
+        "WEEK_2_UNCOVERED_SLOT",
+        "WEEK_3_UNCOVERED_SLOT",
+        "WEEK_4_UNCOVERED_SLOT",
+        "WEEK_5_UNCOVERED_SLOT",
+        "WEEK_7_UNCOVERED_SLOT"
+      ],
+      "snapshot_id": "snap:sportys-alumni:2026:w1:ea1e2881667db890",
+      "scoring_fingerprint": "scoring:v1:d4795fa723cdd12d9ba3bfb1",
+      "specialists": {
+        "canonical": {
+          "version": "schema_v3",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "team_state": {
+          "version": "team-state-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "football_intelligence": {
+          "version": "not_used",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "start_sit_shadow": {
+          "version": "ri-startsit-2026.1",
+          "usage": "NOT_USED"
+        },
+        "matchup_shadow": {
+          "version": "ri-matchup-2026.1",
+          "usage": "NOT_USED"
+        },
+        "roster_health": {
+          "version": "roster-health-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "schedule_planning": {
+          "version": "schedule-planning-2026.1",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "strategy": {
+          "version": "ri-trade-strategy-2026.2",
+          "usage": "USED_AS_CONTEXT"
+        },
+        "weekly_engine": {
+          "version": "post-draft-intel-2026.1",
+          "usage": "USED_FOR_ACTION"
+        }
+      },
+      "trace_components": {
+        "canonical": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "team_state": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "football_intelligence": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "start_sit_shadow": {
+          "role": "NOT_USED",
+          "production_influence": false
+        },
+        "matchup_shadow": {
+          "role": "NOT_USED",
+          "production_influence": false
+        },
+        "roster_health": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "schedule_planning": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "strategy": {
+          "role": "USED_AS_CONTEXT",
+          "production_influence": false
+        },
+        "weekly_engine": {
+          "role": "USED_FOR_ACTION",
+          "production_influence": true
+        }
+      },
+      "forbidden_influence_ok": true
+    }
+  ],
+  "league_wide_counts": {
+    "bloodline-bowl": {
+      "verdicts": {
+        "HOLD": 0,
+        "WATCH": 3,
+        "ACTION": 9,
+        "INSUFFICIENT_EVIDENCE": 0
+      },
+      "action_classes": {
+        "LINEUP": 5,
+        "WAIVER": 8,
+        "TRADE_EXPLORATION": 0
+      },
+      "model_utilization": {
+        "roster_health_context": 12,
+        "schedule_planning_context": 12,
+        "start_sit_shadow_context": 10,
+        "matchup_shadow_context": 2,
+        "waiver_used_for_action": 8,
+        "lineup_used_for_action": 5,
+        "strategy_context": 12
+      }
+    },
+    "devoted-to-the-game": {
+      "verdicts": {
+        "HOLD": 0,
+        "WATCH": 0,
+        "ACTION": 12,
+        "INSUFFICIENT_EVIDENCE": 0
+      },
+      "action_classes": {
+        "LINEUP": 5,
+        "WAIVER": 13,
+        "TRADE_EXPLORATION": 0
+      },
+      "model_utilization": {
+        "roster_health_context": 12,
+        "schedule_planning_context": 12,
+        "start_sit_shadow_context": 10,
+        "matchup_shadow_context": 2,
+        "waiver_used_for_action": 13,
+        "lineup_used_for_action": 5,
+        "strategy_context": 12
+      }
+    },
+    "sportys-alumni": {
+      "verdicts": {
+        "HOLD": 0,
+        "WATCH": 0,
+        "ACTION": 14,
+        "INSUFFICIENT_EVIDENCE": 0
+      },
+      "action_classes": {
+        "LINEUP": 0,
+        "WAIVER": 14,
+        "TRADE_EXPLORATION": 0
+      },
+      "model_utilization": {
+        "roster_health_context": 14,
+        "schedule_planning_context": 14,
+        "start_sit_shadow_context": 0,
+        "matchup_shadow_context": 0,
+        "waiver_used_for_action": 14,
+        "lineup_used_for_action": 0,
+        "strategy_context": 14
+      }
+    }
+  },
+  "lineage_coherence": [
+    {
+      "league": "bloodline-bowl",
+      "manager": "supyo29",
+      "weekly_snapshot": "snap:bloodline-bowl:2026:w1:ddd4c4cb71506ad5",
+      "roster_health_snapshot": "snap:bloodline-bowl:2026:w1:ddd4c4cb71506ad5",
+      "schedule_planning_snapshot": "snap:bloodline-bowl:2026:w1:ddd4c4cb71506ad5",
+      "orchestrator_snapshot": "snap:bloodline-bowl:2026:w1:ddd4c4cb71506ad5",
+      "all_equal": true,
+      "scoring_fingerprint": "scoring:v1:29acc6bcd911df090b5b9b9c",
+      "weekly_projection": {
+        "source": "sleeper_weekly",
+        "model_version": "sleeper-weekly-rotowire"
+      },
+      "ros_projection": {
+        "source": "roster_intel_season",
+        "ri_model_version": "ri-structural-2026.3"
+      }
+    },
+    {
+      "league": "devoted-to-the-game",
+      "manager": "darthmarker",
+      "weekly_snapshot": "snap:devoted-to-the-game:2026:w1:e934f1a7c594aa0d",
+      "roster_health_snapshot": "snap:devoted-to-the-game:2026:w1:e934f1a7c594aa0d",
+      "schedule_planning_snapshot": "snap:devoted-to-the-game:2026:w1:e934f1a7c594aa0d",
+      "orchestrator_snapshot": "snap:devoted-to-the-game:2026:w1:e934f1a7c594aa0d",
+      "all_equal": true,
+      "scoring_fingerprint": "scoring:v1:d4795fa723cdd12d9ba3bfb1",
+      "weekly_projection": {
+        "source": "sleeper_weekly",
+        "model_version": "sleeper-weekly-rotowire"
+      },
+      "ros_projection": {
+        "source": "roster_intel_season",
+        "ri_model_version": "ri-structural-2026.3"
+      }
+    }
+  ],
+  "calibration_registry": {
+    "football_intelligence": "OBSERVED/MODELED CERTIFIED (walk-forward) + DESCRIPTIVE_ONLY subset; def-EPA-allowed NOT_PREDICTIVE",
+    "start_sit_fi": "SHADOW_ONLY / NULL_FINDING_REPRODUCED (acc_delta ~0, reversal win-rate ~0.50) / REQUIRES_2026_REEVALUATION",
+    "matchup_intelligence": "MATHEMATICALLY_CALIBRATED_ONLY (empirical marginals fix current-MC overconfidence) / SHADOW_ONLY / 2-factor dependence REJECTED / REQUIRES_2026_LIVE_CAPTURE",
+    "roster_health": "DETERMINISTIC_CERTIFIED / REAL_PREDICTIVE_VALUE_UNPROVEN",
+    "schedule_planning": "STRUCTURAL_MATH_CERTIFIED (schedule/bye/coverage HIGH) / FUTURE_VALUE_DEGRADED (ROS_PROJECTION)",
+    "orchestrator": "POLICY_CORRECTNESS_CERTIFIED / STRATEGIC_OUTCOME_UNPROVEN / REQUIRES_DURABLE_DECISION_CAPTURE",
+    "weekly_projections": "PRODUCTION (RotoWire-backed); K/DST use Sleeper standard-points fallback",
+    "ros_projections": "RI ORDINAL_ONLY (absolute-level calibration caveat) + Sleeper season prorated absolute"
+  },
+  "reevaluation_readiness": {
+    "start_sit_fi": {
+      "current_status": "NOT_ELIGIBLE",
+      "completed_2026_weeks": 0,
+      "minimum_required": 4,
+      "next_candidate_version": "ri-startsit-2026.2",
+      "eligible": false
+    },
+    "matchup_intelligence": "live-calibration capture path documented (Phase 5); 0 completed 2026 weeks",
+    "roster_health": "roster-health-2026.2 documented; deterministic v1 frozen",
+    "schedule_planning": "schedule-planning-2026.2 documented; structural v1 frozen",
+    "orchestrator": "orchestrator-2026.2 gated on durable decision capture; NullCaptureStore default (schema + MemoryCaptureStore adapter tested)"
+  },
+  "trust_vector": {
+    "canonical_integrity": "SEE_phase1c_certify (cross_surface_discrepancies=0, null_required_fields=0, identity_unresolved=0 — all 3 leagues)",
+    "identity_integrity": "SEE_phase1c_certify (identity_unresolved=0)",
+    "lineage_integrity": "PASS",
+    "model_loading": "PASS",
+    "expected_utilization": "PASS",
+    "forbidden_influence": "PASS",
+    "shared_context_read_fan_out": "PASS",
+    "calibration_reproduction": "PASS (Phase 3: 24 invariant + 15 adversarial; Phase 4: 12 adversarial + null-finding artifact; Phase 5: FI/context ablation noise-level)",
+    "failure_degradation": "PASS (test/system-trust-audit.test.ts — 14 causal / forbidden / failure / stale assertions)",
+    "production_parity": "SEE_live_prod_smoke (post-deploy)",
+    "real_2026_outcome_validation": "NOT_YET_AVAILABLE"
+  },
+  "findings": [
+    {
+      "id": "TA-1",
+      "severity": "P2",
+      "area": "observability / dead diagnostic",
+      "finding": "Orchestrator `extractShadowDisagreements` read `reversals`/`summary.reversal_count` — fields that do not exist on `StartSitShadowComparison` (`lineup_differs`/`lineup_deltas`/`start_sit_deltas`). The Phase-4 SHADOW disagreement condition (`SHADOW_STARTSIT_DISAGREEMENT`) was therefore unreachable — INVOKED + OUTPUT_VALID but never CONSUMED even as a diagnostic.",
+      "disposition": "FIXED in this audit (conditions.ts). Post-fix: start_sit_shadow surfaced as SHADOW_CONTEXT_ONLY for 10/12 managers in bloodline + devoted. Still architecturally barred from ACTION (unchanged)."
+    },
+    {
+      "id": "TA-2",
+      "severity": "P3",
+      "area": "semantics / naming",
+      "finding": "A WAIVER OrchestratorAction inherits the waiver engine's `priority` (HIGH/MEDIUM/LOW), which the certified waiver `DecisionScore` derives from current-week impact + ROS value + scarcity + bye-coverage + injury-hedge. So a `HIGH`-priority WAIVER action can carry a small current-week `expected_weekly_effect` (~0.3-0.7 pts). This is transparent (the dimension shows the small number) and correct (deferring to the certified `PRODUCTION_AUTHORITATIVE` waiver gate per §18), NOT activity bias.",
+      "disposition": "Documented as a semantic note. The Orchestrator could additionally annotate 'high ROS value, low current-week impact' — a 2026.2 nicety, not a defect."
+    },
+    {
+      "id": "TA-3",
+      "severity": "INFO",
+      "area": "live utilization",
+      "finding": "0 HOLD across devoted-to-the-game (12) and sportys-alumni (14) in the current week-1 snapshot; bloodline-bowl is 3 WATCH / 9 ACTION. Investigated: this reflects unset preseason lineups — nearly every manager has a material (>1.25 pt) best-legal-lineup gain OR a HIGH-priority waiver available. The mechanism produces HOLD when the roster is actually optimal (test/orchestrator.test.ts §28 + test/system-trust-audit.test.ts §28) and produced WATCH for the 3 bloodline managers whose lineup gain was below materiality.",
+      "disposition": "Not a defect. HOLD is reachable and demonstrated; the live 0-HOLD rate is a property of the preseason snapshot, not an activity bias in the policy. Preserve."
+    },
+    {
+      "id": "TA-4",
+      "severity": "P3",
+      "area": "artifact metadata",
+      "finding": "`start_sit_reevaluation_manifest.json` carries `current_model_version` but not a bare `model_version` key; `football_intelligence_manifest.json` carries `model_tag` not `deployment` (FI has no single deployment state — it is routed). The audit's generic key-scan reports `deployment: null` for these — a scan limitation, not a model defect.",
+      "disposition": "Documented. Deployment states are asserted programmatically (deploymentContract / matchupDeploymentContract) not scanned; those assertions PASS."
+    }
+  ]
+}
