@@ -499,17 +499,38 @@ async function reportLeague(leagueSlug: string) {
     if (r.reasons[0]) console.log(`  ${r.reasons[0]}`);
   };
 
+  // Part A §12 — participant-set reconciliation
+  {
+    const { buildCompetitiveTradeEvaluationContext: mkEc } = await import("../lib/trades/competitive/eval-context");
+    const ec = mkEc(ctx);
+    const ps = ec.participant_set;
+    const canonicalOwners = new Set<string>();
+    for (const r of ctx.snapshot.rosters) {
+      const team = ctx.snapshot.teams.find((t) => t.canonical_team_id === r.canonical_team_id);
+      for (const m of team?.canonical_manager_ids ?? []) canonicalOwners.add(ctx.snapshot.managers.find((mm) => mm.canonical_manager_id === m)?.manager_slug ?? m);
+    }
+    console.log(`\n--- Part A §12 participant-set reconciliation ---`);
+    console.log(`  canonical roster count = ${ps.canonical_participant_count}   threat participant count = ${ps.threat_participant_count}   exact_match = ${ps.exact_match}   mismatch = ${ec.participant_set_mismatch}`);
+    console.log(`  missing = [${ps.missing_participant_ids.join(", ")}]   unexpected = [${ps.unexpected_participant_ids.join(", ")}]`);
+    console.log(`  managers (${canonicalOwners.size}, co-managers resolve to one roster): ${[...canonicalOwners].sort().join(", ")}`);
+    const distinctZ = new Set([...ec.league_threat.by_manager.values()].map((t) => t.components.blended_strength_z));
+    console.log(`  distinct team-level threat records = ${distinctZ.size} (expect = canonical roster count)`);
+  }
+
   // §33/§35 discover
   const tD = performance.now();
   const disc = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: meSlug, mode: "discover" });
   show(`discover (${meSlug}) — ${(performance.now() - tD).toFixed(0)} ms`, disc);
-  console.log(`  structural candidates evaluated=${disc.discovery?.structural_candidates_evaluated} competitively certified=${disc.discovery?.competitively_certified}`);
+  console.log(`  structural evaluated=${disc.discovery?.structural_candidates_evaluated}  analytical candidates=${disc.discovery?.analytical_candidate_count}  negotiation-worth=${disc.discovery?.negotiation_worth_exploring_count}  transaction-ready=${disc.discovery?.transaction_ready_count}`);
+  for (const t of disc.discovery?.direct_trade_candidates ?? []) {
+    console.log(`    give ${t.give.join("+")} <- ${t.receive.join("+")} from ${t.counterparty_manager_slug}: permΔ=${t.permanent_rest_of_season_impact?.toFixed(2)} class=${t.competitive_classification} acc=${t.overall_acceptance_likelihood} conf=${t.confidence} → ${t.transaction_readiness}`);
+  }
 
   // §34 — a second manager, to prove perspective isolation at the API boundary
   const otherSlug = firstMgr.manager_slug === meSlug ? (ctx.snapshot.managers[1]?.manager_slug ?? meSlug) : firstMgr.manager_slug;
   if (otherSlug !== meSlug) {
     const disc2 = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: otherSlug, mode: "discover" });
-    console.log(`  discover (${otherSlug}): status=${disc2.status} certified=${disc2.discovery?.competitively_certified} (independent per-requester result)`);
+    console.log(`  discover (${otherSlug}): status=${disc2.status} recommended=${disc2.recommended_strategy} analytical=${disc2.discovery?.analytical_candidate_count} transaction-ready=${disc2.discovery?.transaction_ready_count} (independent per-requester result)`);
   }
 
   // §33 strategy path
@@ -556,13 +577,14 @@ async function reportLeague(leagueSlug: string) {
         });
         if (r.evaluation?.result.actionable && (r.evaluation.private_trade.permanent_rest_of_season_impact ?? 0) > 0.5) {
           control = { me: meM.manager_slug, cp: cpM.manager_slug, give: worst.name, receive: best.name };
-          show(`§37 clean-positive control: ${meM.manager_slug} sends ${worst.name} → ${cpM.manager_slug} for ${best.name}`, r);
-          console.log(`  → actionable=${r.evaluation.result.actionable} classification=${r.evaluation.result.classification} — the route CAN return a positive actionable trade when evidence supports one.`);
+          show(`§37 positive control: ${meM.manager_slug} sends ${worst.name} → ${cpM.manager_slug} for ${best.name}`, r);
+          console.log(`  → competitively actionable=${r.evaluation.result.actionable} classification=${r.evaluation.result.classification} transaction_readiness=${r.evaluation.result.transaction_readiness}`);
+          console.log(`  NOTE (§37): at Week ${ctx.week} the record is 0-0 so opponent-threat context is PARTIAL → confidence is capped at LOW → even a STRONG_COMPETITIVE_BUY resolves to NEGOTIATION_WORTH_EXPLORING, not TRANSACTION_READY. A TRANSACTION_READY result is structurally impossible this early; the synthetic mid-season control in test/competitive-trade-api.test.ts proves the ready path exists.`);
           break outerG;
         }
       }
     }
-    if (!control) console.log(`\n--- §37 clean-positive control: no lopsided-but-ready proposal found in the sampled space at Week ${ctx.week} (reported honestly; the synthetic API test covers this contract deterministically) ---`);
+    if (!control) console.log(`\n--- §37 positive control: no lopsided-but-actionable proposal found in the sampled space at Week ${ctx.week} (reported honestly; the synthetic API test covers this contract deterministically) ---`);
   }
 
   // §38 perspective isolation — evaluate the SAME counterparty from two requesters

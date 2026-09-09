@@ -105,9 +105,84 @@ function zscores(values: Array<number | null>): Array<number | null> {
   return values.map((x) => (x == null || !Number.isFinite(x) ? null : round4((x - mean) / sd)));
 }
 
+/**
+ * Pre-merge certification fix (Part A) — the authoritative participant set for
+ * every league-wide competitive calculation.
+ *
+ * The canonical set is the roster identities (`canonical_team_id`) that own a
+ * roster in the CURRENT snapshot — NOT the manager list. Bloodline Bowl is a
+ * 12-team league with 14 managers because two teams are co-managed; the manager
+ * list would double-count those two rosters and contaminate every z-score
+ * standardization built over the distribution.
+ */
+export interface ThreatParticipants {
+  /** canonical_team_id -> the manager ids that resolve to that roster */
+  managers_by_team: Map<string, string[]>;
+  /** manager id -> canonical_team_id */
+  team_by_manager: Map<string, string>;
+  /** the teams the threat model will actually compute over (from rosters_by_manager) */
+  threat_team_ids: string[];
+  /** the authoritative set — roster identities present in the current snapshot */
+  canonical_team_ids: string[];
+}
+
+export function resolveThreatParticipants(ctx: TradeAnalysisContext): ThreatParticipants {
+  const managers_by_team = new Map<string, string[]>();
+  const team_by_manager = new Map<string, string>();
+  for (const [managerId, roster] of ctx.rosters_by_manager) {
+    const tid = roster.canonical_team_id;
+    team_by_manager.set(managerId, tid);
+    managers_by_team.set(tid, [...(managers_by_team.get(tid) ?? []), managerId]);
+  }
+  const canonical_team_ids = [...new Set(ctx.snapshot.rosters.map((r) => r.canonical_team_id))];
+  return {
+    managers_by_team,
+    team_by_manager,
+    threat_team_ids: [...managers_by_team.keys()],
+    canonical_team_ids,
+  };
+}
+
+export interface LeagueParticipantSet {
+  /** roster identities in the current snapshot (authoritative) */
+  canonical_participant_count: number;
+  /** roster identities the threat model actually covered */
+  threat_participant_count: number;
+  /** the authoritative roster identities (sorted) */
+  canonical_participant_ids: string[];
+  /** the roster identities the threat model covered (sorted) */
+  threat_participant_ids: string[];
+  /** canonical identities the threat model failed to cover */
+  missing_participant_ids: string[];
+  /** identities the threat model covered that are NOT in the canonical set */
+  unexpected_participant_ids: string[];
+  /** true only when both sets are identical (cardinality AND membership) */
+  exact_match: boolean;
+}
+
 export interface LeagueThreat {
   by_manager: Map<string, OpponentThreat>;
   my_blended_strength_z: number | null;
+  participant_set: LeagueParticipantSet;
+  /** §6 — when true, opponent threat was NOT computed; fail closed downstream */
+  participant_set_mismatch: boolean;
+}
+
+function mismatchThreat(managerId: string, ps: LeagueParticipantSet): OpponentThreat {
+  return {
+    owner_manager_id: managerId,
+    score: 0,
+    band: "MODERATE",
+    components: { projected_strength_z: 0, projected_strength_horizon: "CURRENT_WEEK", results_strength_z: null, results_weight: 0, blended_strength_z: 0, balance_penalty: 0 },
+    league_strength_percentile: null,
+    relative_to_us: null,
+    contender_band: "UNKNOWN",
+    readiness: "NO_THREAT_CONTEXT",
+    calibration_status: "HEURISTIC",
+    reasons: [
+      `LEAGUE_PARTICIPANT_SET_MISMATCH — opponent threat was not computed. The threat participant set (${ps.threat_participant_count}) does not exactly match the current snapshot roster set (${ps.canonical_participant_count}). missing=[${ps.missing_participant_ids.join(", ")}] unexpected=[${ps.unexpected_participant_ids.join(", ")}].`,
+    ],
+  };
 }
 
 export function buildLeagueThreat(
@@ -117,8 +192,33 @@ export function buildLeagueThreat(
   ownerCache?: (id: string) => OwnerContext,
 ): LeagueThreat {
   const cache = ownerCache ?? makeOwnerContextCache(ctx);
-  const managerIds = [...ctx.rosters_by_manager.keys()];
-  const raw = managerIds.map((id) => rawStrengthFor(ctx, cache(id)));
+
+  // ---- participant-set integrity (Part A, §4–§6) ----
+  const parts = resolveThreatParticipants(ctx);
+  const canonicalSet = new Set(parts.canonical_team_ids);
+  const threatSet = new Set(parts.threat_team_ids);
+  const missing = [...canonicalSet].filter((t) => !threatSet.has(t)).sort();
+  const unexpected = [...threatSet].filter((t) => !canonicalSet.has(t)).sort();
+  const participant_set: LeagueParticipantSet = {
+    canonical_participant_count: canonicalSet.size,
+    threat_participant_count: threatSet.size,
+    canonical_participant_ids: [...canonicalSet].sort(),
+    threat_participant_ids: [...threatSet].sort(),
+    missing_participant_ids: missing,
+    unexpected_participant_ids: unexpected,
+    exact_match: missing.length === 0 && unexpected.length === 0,
+  };
+
+  if (!participant_set.exact_match) {
+    const by_manager = new Map<string, OpponentThreat>();
+    for (const managerId of ctx.rosters_by_manager.keys()) by_manager.set(managerId, mismatchThreat(managerId, participant_set));
+    return { by_manager, my_blended_strength_z: null, participant_set, participant_set_mismatch: true };
+  }
+
+  // ---- one raw-strength computation PER TEAM (co-managers share a roster) ----
+  const teamIds = [...parts.threat_team_ids].sort();
+  const repManagerByTeam = new Map(teamIds.map((tid) => [tid, [...parts.managers_by_team.get(tid)!].sort()[0]!]));
+  const raw = teamIds.map((tid) => rawStrengthFor(ctx, cache(repManagerByTeam.get(tid)!)));
 
   // projected-strength composite — PRIMARILY ROS (D.5 §22): ROS starting-lineup
   // value + a fraction of ROS depth; the current-week optimal total is only a
@@ -141,26 +241,28 @@ export function buildLeagueThreat(
   );
   const resultsZ = zscores(resultsComposite);
 
-  const blended: Array<{ id: string; z: number }> = [];
-  const byManager = new Map<string, OpponentThreat>();
+  // one threat record PER TEAM, keyed by canonical_team_id
+  const blended: Array<{ team_id: string; z: number }> = [];
+  const byTeam = new Map<string, OpponentThreat>();
 
   for (let i = 0; i < raw.length; i += 1) {
     const s = raw[i]!;
+    const teamId = teamIds[i]!;
     const pZ = projZ[i] ?? 0;
     const rZ = resultsZ[i];
     const weeksPlayed = s.games_played;
     const resultsWeight =
       rZ == null ? 0 : Math.min(config.threat.results_weight_cap, 1 - Math.exp(-config.threat.results_maturity_lambda * weeksPlayed));
     const blendZ = round4((1 - resultsWeight) * pZ + resultsWeight * (rZ ?? 0) - balancePenalty[i]!);
-    blended.push({ id: s.manager_id, z: blendZ });
+    blended.push({ team_id: teamId, z: blendZ });
 
     const reasons: string[] = [];
     if (weeksPlayed === 0) reasons.push("week 1 — 0-0 record contributes nothing; threat is projected roster strength only");
     else reasons.push(`results weight ${resultsWeight.toFixed(2)} (${weeksPlayed} weeks played), projected weight ${(1 - resultsWeight).toFixed(2)}`);
     if (balancePenalty[i]! > 0.05) reasons.push(`positional bottleneck: ${s.balance_holes} unfilled startable slot(s) → −${balancePenalty[i]!.toFixed(2)} z`);
 
-    byManager.set(s.manager_id, {
-      owner_manager_id: s.manager_id,
+    byTeam.set(teamId, {
+      owner_manager_id: s.manager_id, // overwritten per-manager in the fan-out below
       score: blendZ,
       band: bandFor(blendZ, config),
       components: {
@@ -180,11 +282,12 @@ export function buildLeagueThreat(
     });
   }
 
-  // percentiles + relative-to-us + contender band
+  // percentiles + relative-to-us + contender band — computed over the TEAM set
   const sorted = [...blended].sort((a, b) => a.z - b.z);
-  const myZ = byManager.get(myManagerId)?.components.blended_strength_z ?? null;
-  for (const [id, t] of byManager) {
-    const rank = sorted.findIndex((x) => x.id === id);
+  const myTeamId = parts.team_by_manager.get(myManagerId) ?? null;
+  const myZ = myTeamId ? byTeam.get(myTeamId)?.components.blended_strength_z ?? null : null;
+  for (const [teamId, t] of byTeam) {
+    const rank = sorted.findIndex((x) => x.team_id === teamId);
     const pct = blended.length > 1 ? round4(rank / (blended.length - 1)) : 0.5;
     t.league_strength_percentile = pct;
     t.relative_to_us = myZ == null ? null : round4(t.components.blended_strength_z - myZ);
@@ -198,7 +301,16 @@ export function buildLeagueThreat(
             : "BOTTOM_TIER";
   }
 
-  return { by_manager: byManager, my_blended_strength_z: myZ };
+  // fan out to EVERY manager — co-managers of one roster resolve to the same
+  // team's threat record (their own manager id on the copy).
+  const by_manager = new Map<string, OpponentThreat>();
+  for (const [managerId, roster] of ctx.rosters_by_manager) {
+    const teamThreat = byTeam.get(roster.canonical_team_id);
+    if (!teamThreat) continue;
+    by_manager.set(managerId, { ...teamThreat, components: { ...teamThreat.components }, reasons: [...teamThreat.reasons], owner_manager_id: managerId });
+  }
+
+  return { by_manager, my_blended_strength_z: myZ, participant_set, participant_set_mismatch: false };
 }
 
 function normalizePf(pf: number | null, raw: RawStrength[]): number {

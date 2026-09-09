@@ -41,6 +41,14 @@ export interface CompetitiveTradeEvaluationContext {
   dynamic_edges: Map<string, MarketEdge>;
   /** forward-looking opponent threat for every manager (Checkpoint D / D.5) */
   league_threat: LeagueThreat;
+  /**
+   * Pre-merge fix Part A — the authoritative league participant set (roster
+   * identities in THIS snapshot) and whether the threat model covered it
+   * exactly. Pinned to `snapshot_identity`; a mismatch fails competitive
+   * recommendations closed downstream.
+   */
+  participant_set: LeagueThreat["participant_set"];
+  participant_set_mismatch: boolean;
   /** memoized per-manager roster context (starters, draft anchors, needs) */
   owner_context: (managerId: string) => OwnerContext;
   /** shared structural resolver for evaluateCandidate */
@@ -103,6 +111,8 @@ export function buildCompetitiveTradeEvaluationContext(
     market_table,
     dynamic_edges: dyn.by_player,
     league_threat,
+    participant_set: league_threat.participant_set,
+    participant_set_mismatch: league_threat.participant_set_mismatch,
     owner_context,
     discovery_eval_context: buildDiscoveryEvalContext(ctx),
     market_consensus,

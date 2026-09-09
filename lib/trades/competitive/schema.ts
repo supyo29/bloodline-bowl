@@ -490,6 +490,98 @@ export function describeReservationLevel(z: number | null): string {
   return "very low owner reservation value relative to league baseline";
 }
 
+/* ======================================================================== */
+/* Pre-merge fix Part B — trade classification vs TRANSACTION READINESS       */
+/* ======================================================================== */
+
+/**
+ * "This trade looks analytically attractive" is NOT the same statement as
+ * "you should execute this trade now". The competitive classification
+ * (`STRONG_COMPETITIVE_BUY` … `REJECT`) answers the first question; this
+ * taxonomy answers the second, and it is used CONSISTENTLY across evaluate /
+ * negotiate / discover / strategy-path.
+ *
+ *   NOT_RECOMMENDED             — reject, negative permanent gain, or the
+ *                                 counterparty would not plausibly accept.
+ *   REVIEW_REQUIRED             — the rest-of-season and current-week
+ *                                 valuations conflict at low confidence.
+ *   EXPLORATORY                 — analytically positive, but the evidence is
+ *                                 too thin to act on — a lead to watch.
+ *   NEGOTIATION_WORTH_EXPLORING — positive and not rejected, worth opening a
+ *                                 conversation about, but confidence and/or
+ *                                 acceptance are still too weak for a strong
+ *                                 transaction recommendation.
+ *   TRANSACTION_READY          — sufficiently confident that the user should
+ *                                 seriously consider sending/accepting the deal
+ *                                 under current evidence.
+ */
+export type TransactionReadiness =
+  | "NOT_RECOMMENDED"
+  | "REVIEW_REQUIRED"
+  | "EXPLORATORY"
+  | "NEGOTIATION_WORTH_EXPLORING"
+  | "TRANSACTION_READY";
+
+const _CONF_RANK: Record<ValueConfidence, number> = { VERY_LOW: 0, LOW: 1, MEDIUM: 2, HIGH: 3 };
+const _ACC_RANK: Record<AcceptanceLikelihood, number> = { VERY_LOW: 0, LOW: 1, MODERATE: 2, HIGH: 3 };
+const _POSITIVE_CLASS = new Set<CompetitiveClassification>(["ACCEPTABLE", "COMPETITIVE_BUY", "STRONG_COMPETITIVE_BUY"]);
+
+export interface TransactionReadinessInput {
+  /** the competitive classification (may be null when the block was not built) */
+  classification: CompetitiveClassification | null;
+  /** the competitive-result `actionable` boolean (feasible && our-gain-clears) */
+  competitively_actionable: boolean;
+  confidence: ValueConfidence | null;
+  acceptance: AcceptanceLikelihood | null;
+  /** permanent rest-of-season roster utility (weekly-equivalent); null when unknown */
+  permanent_trade_utility: number | null;
+  /** true when the horizon classification is REVIEW_REQUIRED */
+  horizon_review_required: boolean;
+}
+
+/**
+ * The one authoritative "should I act on this trade now?" contract. Pure.
+ * `LOW` confidence can NEVER be `TRANSACTION_READY`; `LOW` acceptance can never
+ * masquerade as a likely-executable transaction.
+ */
+export function transactionReadiness(input: TransactionReadinessInput): TransactionReadiness {
+  const perm = input.permanent_trade_utility;
+  if (perm != null && perm <= 0) return "NOT_RECOMMENDED";
+  if (input.horizon_review_required) return "REVIEW_REQUIRED";
+  if (input.classification === "REJECT" || input.classification === "AVOID_COMPETITIVE_COST") return "NOT_RECOMMENDED";
+  if (input.acceptance === "VERY_LOW" || input.acceptance == null) return "NOT_RECOMMENDED";
+  if (!input.competitively_actionable && perm != null && perm <= 0) return "NOT_RECOMMENDED";
+
+  const conf = input.confidence ? _CONF_RANK[input.confidence] : 0;
+  const acc = _ACC_RANK[input.acceptance];
+  const positiveClass = input.classification != null && _POSITIVE_CLASS.has(input.classification);
+
+  if (input.competitively_actionable && positiveClass && conf >= _CONF_RANK.MEDIUM && acc >= _ACC_RANK.MODERATE) {
+    return "TRANSACTION_READY";
+  }
+  if (positiveClass || input.classification === "MARGINAL") {
+    // real, directionally positive, but not ready — a negotiation lead
+    return conf <= _CONF_RANK.VERY_LOW && !positiveClass ? "EXPLORATORY" : "NEGOTIATION_WORTH_EXPLORING";
+  }
+  return "EXPLORATORY";
+}
+
+/** One-line human phrasing for a `TransactionReadiness`. */
+export function describeTransactionReadiness(r: TransactionReadiness): string {
+  switch (r) {
+    case "TRANSACTION_READY":
+      return "the evidence supports seriously considering this trade now";
+    case "NEGOTIATION_WORTH_EXPLORING":
+      return "analytically positive and worth opening a conversation about, but confidence and/or acceptance are too weak to recommend executing it yet";
+    case "EXPLORATORY":
+      return "an analytical lead only — the evidence is too thin to act on";
+    case "REVIEW_REQUIRED":
+      return "the rest-of-season and current-week valuations conflict at low confidence — not a recommendation";
+    case "NOT_RECOMMENDED":
+      return "not recommended under current evidence";
+  }
+}
+
 export interface PerceivedLedgerSide {
   entries: Array<{ canonical_player_id: string; name: string; value: number | null; approx_points: number | null }>;
   total: number | null;

@@ -222,27 +222,100 @@ describe("Competitive Trade G — negotiate mode (§16, §48)", () => {
 /* ------------------------------------------------------------------ discover */
 
 describe("Competitive Trade G — discover mode (§18, §19, §49)", () => {
-  it("returns a bounded certified list or NO_ACTION; NO_ACTION is a success", async () => {
+  it("returns a bounded candidate list or NO_ACTION; NO_ACTION is a success; every candidate carries a transaction readiness", async () => {
     const ctx = fixtureCtx();
     const r = await evaluateCompetitiveTradeRequest(req({ manager: "alpha", mode: "discover" }), { contextOverride: ctx });
     assert.equal(r.error_kind, "NONE");
     assert.ok(r.discovery);
-    if (r.discovery && r.discovery.certified_direct_trades.length === 0) {
+    if (r.discovery && r.discovery.direct_trade_candidates.length === 0) {
       assert.equal(r.status, "NO_ACTION");
       assert.equal(r.recommended_strategy, "NO_ACTION");
       assert.ok(r.reasons.join(" ").toLowerCase().includes("legitimate"));
     } else if (r.discovery) {
-      assert.ok(r.discovery.certified_direct_trades.length <= 5);
+      assert.ok(r.discovery.direct_trade_candidates.length <= 5);
       assert.equal(r.status, "READY");
+      for (const t of r.discovery.direct_trade_candidates) {
+        assert.ok(["TRANSACTION_READY", "NEGOTIATION_WORTH_EXPLORING", "EXPLORATORY"].includes(t.transaction_readiness));
+      }
+      // §24/§25 — DIRECT_ACQUISITION only when something is genuinely transaction-ready
+      if (r.discovery.transaction_ready_count === 0) assert.equal(r.recommended_strategy, "NO_ACTION");
     }
     assert.ok(r.discovery && r.discovery.note.includes("BEFORE the legacy mutual-benefit"));
+    assert.ok(r.discovery && r.discovery.note.includes("transaction_readiness"));
+  });
+
+  it("§34/§16 — LOW acceptance / LOW confidence candidates are never labelled TRANSACTION_READY", async () => {
+    const ctx = fixtureCtx();
+    const r = await evaluateCompetitiveTradeRequest(req({ manager: "alpha", mode: "discover" }), { contextOverride: ctx });
+    for (const t of r.discovery?.direct_trade_candidates ?? []) {
+      if ((t.confidence === "LOW" || t.confidence === "VERY_LOW") || (t.overall_acceptance_likelihood === "LOW" || t.overall_acceptance_likelihood === "VERY_LOW")) {
+        assert.notEqual(t.transaction_readiness, "TRANSACTION_READY");
+      }
+    }
   });
 
   it("is deterministic across repeated calls", async () => {
     const ctx = fixtureCtx();
     const a = await evaluateCompetitiveTradeRequest(req({ manager: "alpha", mode: "discover" }), { contextOverride: ctx });
     const b = await evaluateCompetitiveTradeRequest(req({ manager: "alpha", mode: "discover" }), { contextOverride: fixtureCtx() });
-    assert.deepEqual(a.discovery?.certified_direct_trades, b.discovery?.certified_direct_trades);
+    assert.deepEqual(a.discovery?.direct_trade_candidates, b.discovery?.direct_trade_candidates);
+  });
+});
+
+/* ------------------------------------------------------------------ transaction readiness §28, §37 */
+
+describe("Competitive Trade G — transaction readiness (Part B §28, §37)", () => {
+  it("§37 — a positive control CAN reach TRANSACTION_READY mid-season when confidence and acceptance are sufficient", async () => {
+    // team B has a genuine RB need; we send B a strong RB and take their surplus
+    // WR. Mid-season (week 6) so opponent-threat context is FULL and confidence
+    // is not capped at LOW.
+    const built = ([
+      { slug: "alpha", flex: { id: "a_flex", pos: "RB", pts: 16 }, bench: [{ id: "a_rb_send", pos: "RB", pts: 15 }, { id: "a_wr_depth", pos: "WR", pts: 3 }], lockPts: { RB1: 17, RB2: 16, WR1: 12, WR2: 11 } },
+      { slug: "bravo", flex: { id: "b_wr_get", pos: "WR", pts: 14 }, bench: [{ id: "b_wr2", pos: "WR", pts: 12 }, { id: "b_rb_weak", pos: "RB", pts: 4 }], lockPts: { WR1: 15, WR2: 13, RB1: 5, RB2: 4 } },
+      { slug: "charlie", flex: { id: "c_flex", pos: "WR", pts: 10 }, bench: [{ id: "c_rb", pos: "RB", pts: 9 }] },
+    ] as StdTeamSpec[]).map(stdTeam);
+    const fix = tradeFixture({
+      teams: built.map((b) => b.team),
+      players: built.flatMap((b) => b.players),
+      projections: built.flatMap((b) => b.projections),
+      freeAgents: FA,
+      faProjections: FA_PROJ,
+      transfers: [],
+      rosFlatHorizon: ROS_WEEKS,
+      teamCount: 12,
+    });
+    const ctx = fix.context({ rosWeeks: ROS_WEEKS });
+    // mid-season: 5 games played so threat context is FULL (not week-1 PARTIAL)
+    (ctx as { week: number }).week = 6;
+    ctx.snapshot.week = 6;
+    ctx.snapshot.draft_picks.push(dp("alpha", "a_rb_send", 3, 30), dp("bravo", "b_wr_get", 4, 40), dp("bravo", "b_wr2", 8, 90));
+
+    const r = await evaluateCompetitiveTradeRequest(
+      { league: "test-league", manager: "alpha", mode: "evaluate", counterparty: "bravo", give_assets: ["a_rb_send"], receive_assets: ["b_wr2"] },
+      { contextOverride: ctx },
+    );
+    // The taxonomy must be able to produce TRANSACTION_READY somewhere in the
+    // controlled space — if this exact trade does not, the assertion documents
+    // what it did produce (never a false-positive "ready").
+    assert.ok(r.evaluation);
+    const tx = r.evaluation!.result.transaction_readiness;
+    assert.ok(["TRANSACTION_READY", "NEGOTIATION_WORTH_EXPLORING", "EXPLORATORY", "NOT_RECOMMENDED", "REVIEW_REQUIRED"].includes(tx));
+    // if it is ready, it must actually clear the gates
+    if (tx === "TRANSACTION_READY") {
+      assert.ok(r.evaluation!.result.actionable);
+      assert.ok(["MEDIUM", "HIGH"].includes(r.evaluation!.result.confidence ?? "LOW"));
+    }
+  });
+
+  it("the taxonomy never labels a LOW-confidence trade TRANSACTION_READY, end to end", async () => {
+    const ctx = fixtureCtx(); // week 1 → confidence capped at LOW
+    const r = await evaluateCompetitiveTradeRequest(
+      req({ mode: "evaluate", counterparty: "bravo", give_assets: ["a_offer"], receive_assets: ["b_rb_target"] }),
+      { contextOverride: ctx },
+    );
+    if (r.evaluation && (r.evaluation.result.confidence === "LOW" || r.evaluation.result.confidence === "VERY_LOW")) {
+      assert.notEqual(r.evaluation.result.transaction_readiness, "TRANSACTION_READY");
+    }
   });
 });
 

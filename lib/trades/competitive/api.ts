@@ -37,13 +37,19 @@ import {
 import { evaluateCompetitiveTrade } from "./evaluate";
 import { evaluateNegotiationEnvelopeInner } from "./negotiation-eval";
 import { buildStrategyPathComparison } from "./path-search";
-import { describeReservationLevel, COMPETITIVE_TRADE_VERSION } from "./schema";
+import {
+  describeReservationLevel,
+  transactionReadiness,
+  describeTransactionReadiness,
+  COMPETITIVE_TRADE_VERSION,
+} from "./schema";
 import type { TradeAnalysisContext } from "../context";
 import type {
   AcceptanceLikelihood,
   CompetitiveBlock,
   NegotiationAggressiveness,
   StrategyPathComparison,
+  TransactionReadiness,
   ValueConfidence,
 } from "./schema";
 
@@ -106,6 +112,13 @@ export interface CompetitiveTradeApiResponse {
   snapshot: SnapshotLineage | null;
   readiness: string;
   confidence: ValueConfidence | null;
+  /**
+   * Part B — the one authoritative "should I act on this trade now?" contract,
+   * distinct from the competitive classification. Present for evaluate /
+   * negotiate; for discover / strategy_path it is the best available across the
+   * surfaced candidates.
+   */
+  transaction_readiness?: TransactionReadiness;
   /** for discover / strategy_path */
   recommended_strategy?: string;
   evaluation?: EvaluateView;
@@ -159,7 +172,15 @@ interface EvaluateView {
   buy_and_hold: CompetitiveBlock["hold"];
   result: {
     classification: string | null;
+    /**
+     * `actionable` = COMPETITIVELY actionable: the trade passes the competitive
+     * score + acceptance-feasibility gate. This is NOT the same as "you should
+     * execute this trade now" — see `transaction_readiness`.
+     */
     actionable: boolean;
+    /** the "should I act on this now?" contract (Part B) */
+    transaction_readiness: TransactionReadiness;
+    transaction_readiness_explanation: string;
     confidence: ValueConfidence | null;
     readiness: string | null;
     reasons: string[];
@@ -168,6 +189,7 @@ interface EvaluateView {
 
 interface NegotiationView {
   base_trade_certified: boolean;
+  base_transaction_readiness: TransactionReadiness;
   extraction_band: string;
   opening_offer: unknown;
   target_settlement: unknown;
@@ -178,20 +200,28 @@ interface NegotiationView {
   raw_vs_overall_acceptance_note: string;
 }
 
+interface DiscoveryCandidate {
+  counterparty_manager_slug: string;
+  give: string[];
+  receive: string[];
+  permanent_rest_of_season_impact: number | null;
+  overall_acceptance_likelihood: AcceptanceLikelihood | null;
+  competitive_classification: string | null;
+  /** COMPETITIVELY actionable (passes the competitive gate) — NOT the same as transaction-ready */
+  competitively_actionable: boolean;
+  transaction_readiness: TransactionReadiness;
+  competitive_externality: number | null;
+  confidence: ValueConfidence | null;
+  reasons: string[];
+}
+
 interface DiscoveryView {
-  certified_direct_trades: Array<{
-    counterparty_manager_slug: string;
-    give: string[];
-    receive: string[];
-    permanent_rest_of_season_impact: number | null;
-    overall_acceptance_likelihood: AcceptanceLikelihood | null;
-    competitive_classification: string | null;
-    competitive_externality: number | null;
-    confidence: ValueConfidence | null;
-    reasons: string[];
-  }>;
+  /** analytically positive direct trades — each labelled with its own transaction readiness */
+  direct_trade_candidates: DiscoveryCandidate[];
   structural_candidates_evaluated: number;
-  competitively_certified: number;
+  analytical_candidate_count: number;
+  negotiation_worth_exploring_count: number;
+  transaction_ready_count: number;
   note: string;
 }
 
@@ -426,6 +456,18 @@ function runEvaluate(
   const acc = c.acceptance ?? null;
   const res = c.competitive_result ?? null;
 
+  const horizonReview =
+    c.our_trade_horizons?.horizon_classification === "REVIEW_REQUIRED" ||
+    c.appreciation?.some((a) => a.classification === "REVIEW_REQUIRED") === true;
+  const txReadiness = transactionReadiness({
+    classification: res?.classification ?? null,
+    competitively_actionable: res?.actionable ?? false,
+    confidence: res?.confidence ?? null,
+    acceptance: acc?.overall_acceptance_likelihood ?? acc?.likelihood ?? null,
+    permanent_trade_utility: c.our_trade_horizons?.permanent_trade_utility ?? null,
+    horizon_review_required: horizonReview,
+  });
+
   const view: EvaluateView = {
     proposal: { give: giveIds.map(nameOf), receive: receiveIds.map(nameOf), counterparty_manager_slug: cp.manager_slug },
     private_trade: {
@@ -463,6 +505,8 @@ function runEvaluate(
     result: {
       classification: res?.classification ?? null,
       actionable: res?.actionable ?? false,
+      transaction_readiness: txReadiness,
+      transaction_readiness_explanation: describeTransactionReadiness(txReadiness),
       confidence: res?.confidence ?? null,
       readiness: res?.readiness ?? null,
       reasons: res?.reasons ?? [],
@@ -470,9 +514,7 @@ function runEvaluate(
   };
 
   // ---- status derivation — preserves the engine's judgment, never inflates it ----
-  const reviewRequired =
-    c.our_trade_horizons?.horizon_classification === "REVIEW_REQUIRED" ||
-    c.appreciation?.some((a) => a.classification === "REVIEW_REQUIRED") === true;
+  const reviewRequired = horizonReview;
   const readiness = c.readiness.overall;
   const confidence = res?.confidence ?? c.acceptance?.confidence ?? c.owner_perception?.confidence ?? null;
 
@@ -483,8 +525,10 @@ function runEvaluate(
   else status = "PARTIAL";
 
   const reasons: string[] = [];
-  if (res?.actionable) reasons.push(`Competitive result: ${res.classification} — this trade is actionable for us.`);
-  else if (res) reasons.push(`Competitive result: ${res.classification} — not actionable (${res.reasons[0] ?? "see reasons"}).`);
+  reasons.push(
+    `Competitive classification ${res?.classification ?? "n/a"}; transaction readiness ${txReadiness} — ${describeTransactionReadiness(txReadiness)}. A positive classification does not by itself mean you should execute the trade.`,
+  );
+  if (res && !res.actionable) reasons.push(`Not competitively actionable: ${res.reasons[0] ?? "see reasons"}.`);
   if (reviewRequired) reasons.push("The season-long and current-week valuations conflict at low confidence — REVIEW_REQUIRED, not a recommendation.");
   if (acc?.accepts_despite_negative_value_perception) {
     reasons.push(
@@ -498,6 +542,7 @@ function runEvaluate(
     manager_slug: me.manager_slug,
     readiness,
     confidence,
+    transaction_readiness: txReadiness,
     evaluation: view,
     reasons,
     diagnostics: reviewRequired ? [{ code: "REVIEW_REQUIRED", message: "Conflicting rest-of-season vs current-week valuation at low confidence.", severity: "warning" }] : [],
@@ -541,8 +586,19 @@ function runNegotiate(
       ? "The nominal value balance slightly favours what the counterparty surrenders; any acceptance is driven by roster fit and need relief, not by their believing they win on value."
       : "The counterparty's raw perceived value surplus and their overall acceptance likelihood are reported separately — do not conflate them.";
 
+  const bp = env.base_proposal;
+  const baseTx = transactionReadiness({
+    classification: bp.competitive_classification,
+    competitively_actionable: env.base_trade_certified,
+    confidence: bp.confidence,
+    acceptance: bp.acceptance_likelihood,
+    permanent_trade_utility: bp.our_permanent_utility,
+    horizon_review_required: bp.horizon_classification === "REVIEW_REQUIRED",
+  });
+
   const view: NegotiationView = {
     base_trade_certified: env.base_trade_certified,
+    base_transaction_readiness: baseTx,
     extraction_band: env.extraction.band,
     opening_offer: env.opening_offer,
     target_settlement: env.target_settlement,
@@ -558,6 +614,7 @@ function runNegotiate(
 
   const reasons: string[] = [];
   if (!env.base_trade_certified) reasons.push("The base trade is not certified — no aggressive extraction is offered; only the base deal is analysed.");
+  reasons.push(`Base trade transaction readiness: ${baseTx} — ${describeTransactionReadiness(baseTx)}. An opening offer can still be generated for a trade that is only worth exploring.`);
   reasons.push(...env.reasons.slice(0, 2));
 
   return base({
@@ -566,6 +623,7 @@ function runNegotiate(
     manager_slug: me.manager_slug,
     readiness: env.readiness,
     confidence: env.confidence,
+    transaction_readiness: baseTx,
     negotiation: view,
     reasons,
     diagnostics: env.readiness === "EXTRACTION_GATED" ? [{ code: "EXTRACTION_GATED", message: "The base trade did not certify; extraction/negotiation is not offered.", severity: "warning" }] : [],
@@ -596,7 +654,7 @@ function runDiscover(
   });
 
   const nameOf = (id: string) => ctx.players_by_id.get(id)?.full_name ?? id;
-  const certified: DiscoveryView["certified_direct_trades"] = [];
+  const candidates: DiscoveryCandidate[] = [];
 
   for (const cand of struct.candidates) {
     if (cand.my_utility_delta <= 0) continue; // cheap prune before the competitive eval
@@ -618,31 +676,52 @@ function runDiscover(
     });
     const c = out.competitive;
     const res = c.competitive_result;
-    if (!res?.actionable) continue;
+    if (!res) continue;
+    // keep analytically positive, non-rejected candidates; the transaction
+    // readiness field (not this filter) tells the caller whether to act.
     if (res.classification === "REJECT" || res.classification === "AVOID_COMPETITIVE_COST") continue;
     if (c.our_trade_horizons?.horizon_classification === "REVIEW_REQUIRED") continue;
-    certified.push({
+    if ((c.our_trade_horizons?.permanent_trade_utility ?? 0) <= 0) continue;
+    const acceptance = c.acceptance?.overall_acceptance_likelihood ?? c.acceptance?.likelihood ?? null;
+    const tx = transactionReadiness({
+      classification: res.classification,
+      competitively_actionable: res.actionable,
+      confidence: res.confidence,
+      acceptance,
+      permanent_trade_utility: c.our_trade_horizons?.permanent_trade_utility ?? null,
+      horizon_review_required: false,
+    });
+    if (tx === "NOT_RECOMMENDED") continue;
+    candidates.push({
       counterparty_manager_slug: ctx.snapshot.managers.find((m) => m.canonical_manager_id === cpId)?.manager_slug ?? cpId,
       give: outgoing.map(nameOf),
       receive: incoming.map(nameOf),
       permanent_rest_of_season_impact: c.our_trade_horizons?.permanent_trade_utility ?? null,
-      overall_acceptance_likelihood: c.acceptance?.overall_acceptance_likelihood ?? null,
+      overall_acceptance_likelihood: acceptance,
       competitive_classification: res.classification,
+      competitively_actionable: res.actionable,
+      transaction_readiness: tx,
       competitive_externality: c.competitive_externality?.score ?? null,
       confidence: res.confidence,
       reasons: res.reasons.slice(0, 2),
     });
   }
 
-  certified.sort((a, b) => (b.permanent_rest_of_season_impact ?? 0) - (a.permanent_rest_of_season_impact ?? 0));
-  const top = certified.slice(0, maxResults);
+  const RANK: Record<TransactionReadiness, number> = { TRANSACTION_READY: 3, NEGOTIATION_WORTH_EXPLORING: 2, EXPLORATORY: 1, REVIEW_REQUIRED: 0, NOT_RECOMMENDED: 0 };
+  candidates.sort(
+    (a, b) => RANK[b.transaction_readiness] - RANK[a.transaction_readiness] || (b.permanent_rest_of_season_impact ?? 0) - (a.permanent_rest_of_season_impact ?? 0),
+  );
+  const top = candidates.slice(0, maxResults);
+  const transactionReady = top.filter((t) => t.transaction_readiness === "TRANSACTION_READY");
 
   const view: DiscoveryView = {
-    certified_direct_trades: top,
+    direct_trade_candidates: top,
     structural_candidates_evaluated: struct.evaluated,
-    competitively_certified: certified.length,
+    analytical_candidate_count: candidates.length,
+    negotiation_worth_exploring_count: candidates.filter((t) => t.transaction_readiness === "NEGOTIATION_WORTH_EXPLORING").length,
+    transaction_ready_count: candidates.filter((t) => t.transaction_readiness === "TRANSACTION_READY").length,
     note:
-      "Competitive discovery consumes structurally valid candidates BEFORE the legacy mutual-benefit / partner-acceptance / fairness gate — asymmetric 'we gain more than they perceive' trades are retained. A trade is 'certified' only when our permanent rest-of-season gain clears the threshold, acceptance is feasible, and the competitive result is actionable and not a reject.",
+      "Competitive discovery consumes structurally valid candidates BEFORE the legacy mutual-benefit / partner-acceptance / fairness gate — asymmetric 'we gain more than they perceive' trades are retained. Each candidate carries its own `transaction_readiness`: EXPLORATORY / NEGOTIATION_WORTH_EXPLORING candidates are leads to investigate, NOT deals to execute. Only a TRANSACTION_READY candidate clears full confidence + acceptance gates.",
   };
 
   if (top.length === 0) {
@@ -652,23 +731,24 @@ function runDiscover(
       manager_slug: me.manager_slug,
       readiness: "READY",
       confidence: null,
+      transaction_readiness: "NOT_RECOMMENDED",
       recommended_strategy: "NO_ACTION",
       discovery: view,
       reasons: [
-        `No competitively certified direct trade was found for ${me.manager_slug} from ${struct.evaluated} structurally valid candidates.`,
+        `No analytically positive direct trade was found for ${me.manager_slug} from ${struct.evaluated} structurally valid candidates.`,
         "Doing nothing is a legitimate analytical result — it does not mean the analysis failed. Common causes early in the season: preseason-only market evidence, insufficient permanent rest-of-season gain, weak counterparty acceptance, low confidence, or an unresolved model disagreement.",
       ],
     });
   }
 
-  const reasons = [
-    `${top.length} competitively certified direct trade(s) for ${me.manager_slug}; best permanent rest-of-season impact ${(top[0]!.permanent_rest_of_season_impact ?? 0).toFixed(2)} weekly-equivalent.`,
+  const bestTx = top[0]!.transaction_readiness;
+  const reasons: string[] = [
+    `${candidates.length} analytically positive direct trade candidate(s) for ${me.manager_slug}: ${view.transaction_ready_count} transaction-ready, ${view.negotiation_worth_exploring_count} worth exploring, the rest exploratory leads. Best permanent rest-of-season impact ${(top[0]!.permanent_rest_of_season_impact ?? 0).toFixed(2)} weekly-equivalent.`,
   ];
-  if (top.every((t) => t.overall_acceptance_likelihood === "LOW" || t.overall_acceptance_likelihood === "VERY_LOW")) {
-    reasons.push("Every certified trade clears the feasibility threshold at LOW acceptance — the counterparty might accept, but is not eager. Treat these as opening positions, not deals that are close to done.");
-  }
-  if (top.every((t) => t.confidence === "LOW" || t.confidence === "VERY_LOW")) {
-    reasons.push("All confidence is LOW or lower — this early in the season the market and acceptance evidence is thin.");
+  if (transactionReady.length === 0) {
+    reasons.push(
+      "None of these clears full transaction readiness — confidence and/or counterparty acceptance are too weak to recommend executing a trade now. Use these as negotiation leads (mode 'negotiate') rather than as trades to send.",
+    );
   }
 
   return base({
@@ -677,7 +757,13 @@ function runDiscover(
     manager_slug: me.manager_slug,
     readiness: "READY",
     confidence: top[0]!.confidence,
-    recommended_strategy: "DIRECT_ACQUISITION",
+    transaction_readiness: bestTx,
+    // §24/§25 — the top-level strategy is DIRECT_ACQUISITION only when at least
+    // one candidate is genuinely transaction-ready. Otherwise the best current
+    // strategy is still NO_ACTION and the candidates are leads to investigate,
+    // not deals to execute — this is what keeps discover and strategy_path
+    // consistent.
+    recommended_strategy: transactionReady.length > 0 ? "DIRECT_ACQUISITION" : "NO_ACTION",
     discovery: view,
     reasons,
   });
@@ -694,7 +780,30 @@ function runStrategyPath(
   const ec = buildEc();
   const comparison = buildStrategyPathComparison({ ec, my_manager_id: me.canonical_manager_id });
 
-  const recommended = comparison.recommended;
+  let recommended = comparison.recommended;
+  let recPath = comparison.paths.find((p) => p.strategy === recommended);
+  const reconciledReasons: string[] = [];
+
+  // §17/§25 — the strategy layer is authoritative for a *full action*
+  // recommendation. A trade path that the beam search ranked first but whose
+  // confidence is below MEDIUM or whose path feasibility is below MODERATE is
+  // NOT a transaction-ready recommendation — demote it to NO_ACTION here (the
+  // path itself stays visible in `strategy_paths`).
+  const CONF_RANK: Record<string, number> = { VERY_LOW: 0, LOW: 1, MEDIUM: 2, HIGH: 3 };
+  const FEAS_RANK: Record<string, number> = { VERY_LOW: 0, LOW: 1, MODERATE: 2, HIGH: 3 };
+  const isTrade = recommended === "DIRECT_ACQUISITION" || recommended === "TWO_STEP_UPGRADE" || recommended === "BUY_AND_HOLD" || recommended === "INTERMEDIATE_TRADE";
+  if (isTrade && recPath) {
+    const confOk = (CONF_RANK[recPath.confidence] ?? 0) >= 2;
+    const feasOk = (FEAS_RANK[recPath.aggregate.feasibility] ?? 0) >= 2;
+    if (!confOk || !feasOk) {
+      reconciledReasons.push(
+        `The highest-ranked path (${recommended}) is analytically positive but does not clear full transaction readiness (confidence ${recPath.confidence}, path feasibility ${recPath.aggregate.feasibility}) — the recommended action is NO_ACTION; the path stays visible as a lead.`,
+      );
+      recommended = "NO_ACTION";
+      recPath = comparison.paths.find((p) => p.strategy === "NO_ACTION");
+    }
+  }
+
   const status: CompetitiveApiStatus =
     recommended === "NO_ACTION" || recommended === "HOLD_CURRENT_ASSET"
       ? "NO_ACTION"
@@ -702,7 +811,22 @@ function runStrategyPath(
         ? "REVIEW_REQUIRED"
         : "READY";
 
-  const recPath = comparison.paths.find((p) => p.strategy === recommended);
+  const txReadiness: TransactionReadiness =
+    recommended === "NO_ACTION" || recommended === "HOLD_CURRENT_ASSET"
+      ? "NOT_RECOMMENDED"
+      : recommended === "REVIEW_REQUIRED"
+        ? "REVIEW_REQUIRED"
+        : "TRANSACTION_READY";
+
+  const reasons = [...reconciledReasons, ...comparison.reasons.slice(0, 3)];
+  if (status === "NO_ACTION") {
+    // §25/§30 — reconcile with discover: a NO_ACTION recommendation does not
+    // mean there are no analytically positive direct trades, only that none
+    // clears full transaction readiness.
+    reasons.push(
+      "This does not mean no attractive trade candidates exist. Positive direct-trade candidates may still be surfaced by mode 'discover' — they just do not clear full transaction readiness (confidence and/or counterparty acceptance are too weak) to be recommended as an action now.",
+    );
+  }
 
   return base({
     status,
@@ -710,12 +834,13 @@ function runStrategyPath(
     manager_slug: me.manager_slug,
     readiness: comparison.readiness,
     confidence: recPath?.confidence ?? null,
+    transaction_readiness: txReadiness,
     recommended_strategy: recommended,
     strategy_paths: comparison,
-    reasons: comparison.reasons.slice(0, 3),
+    reasons,
     diagnostics:
       status === "NO_ACTION"
-        ? [{ code: "NO_ACTION_IS_A_RESULT", message: "The strongest strategy is to make no trade (or hold a current asset). This is a valid analytical outcome.", severity: "info" }]
+        ? [{ code: "NO_ACTION_IS_A_RESULT", message: "The strongest strategy is to make no trade (or hold a current asset). Analytically positive candidates may still exist under mode 'discover'; they are leads, not transaction-ready recommendations.", severity: "info" }]
         : [],
   });
 }

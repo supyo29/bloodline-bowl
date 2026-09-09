@@ -129,12 +129,25 @@ export function evaluateCompetitiveDimension(input: CompetitiveDInput): Competit
   const ourGain = mine ? our_horizon.permanent_trade_utility : null;
 
   // ---- readiness ----
+  // Pre-merge fix Part A §6/§7 — a league participant-set mismatch means the
+  // league-wide standardized threat distribution is contaminated. Fail CLOSED
+  // for anything that depends on threat (competitive_result becomes a
+  // not-actionable REJECT) without breaking the threat-independent components
+  // (market edge, permanent trade utility, owner-perceived value) which are
+  // still returned by the caller.
   const readiness: CompetitiveReadinessState =
-    mine == null || !league.by_manager.has(input.counterparty_manager_id)
-      ? "PARTIAL_COMPETITIVE_CONTEXT"
-      : opponent_threat.readiness === "PARTIAL_COMPETITIVE_CONTEXT"
+    league.participant_set_mismatch
+      ? "UNAVAILABLE"
+      : mine == null || !league.by_manager.has(input.counterparty_manager_id)
         ? "PARTIAL_COMPETITIVE_CONTEXT"
-        : "FULL_COMPETITIVE_CONTEXT";
+        : opponent_threat.readiness === "PARTIAL_COMPETITIVE_CONTEXT"
+          ? "PARTIAL_COMPETITIVE_CONTEXT"
+          : "FULL_COMPETITIVE_CONTEXT";
+  if (league.participant_set_mismatch) {
+    opponent_impact.reasons.push(
+      `LEAGUE_PARTICIPANT_SET_MISMATCH — opponent threat / competitive externality are not trustworthy (threat covered ${league.participant_set.threat_participant_count} rosters vs ${league.participant_set.canonical_participant_count} in the snapshot). The competitive recommendation fails closed.`,
+    );
+  }
 
   const competitive_result = buildCompetitiveResult({
     our_private_gain: ourGain,

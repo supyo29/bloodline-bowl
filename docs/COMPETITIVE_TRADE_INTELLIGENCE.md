@@ -2081,6 +2081,158 @@ legacy `/api/trades/*` routes NOT touched.
 
 ---
 
+# Part XII — Pre-Merge Certification Fix: Participant Integrity + Transaction Readiness
+
+Two narrow certification issues found in final review, fixed without redesigning
+the engine or changing any valuation formula.
+
+## XII.1 League participant-set integrity (Part A)
+
+**Root cause of the "14-manager threat table".** Bloodline Bowl is a **12-team**
+league with **14 managers** — two teams are co-managed ("Slim Pickens":
+rsamuel1013 + zzzerena; "A Shot of Jameson W/Lemon": rojan765 + erg725).
+`buildTradeAnalysisContext` puts an entry in `rosters_by_manager` for **every**
+manager on **every** team, so the two co-managed rosters each appeared twice.
+`buildLeagueThreat` iterated the manager keys, so it standardized the
+projected-strength z-distribution over **14 rows, two pairs identical** — the
+mean and standard deviation were pulled by the double-counted rosters. Every
+team's projected-strength z was shifted by roughly **+0.08 to +0.11** (a
+systematic *upward* threat bias, because one duplicated roster was the league's
+strongest). It was a real contamination of the core "is this trade good for us
+competitively" judgment even though this particular Week-1 snapshot's
+recommendations happened to stay stable; near a band boundary a ~0.1 z shift
+flips `ELITE`/`HIGH` classifications that carry extra externality caps.
+
+**Fix.** The authoritative participant set is now the roster identities
+(`canonical_team_id`) present in the current snapshot — `resolveThreatParticipants(ctx)`.
+`buildLeagueThreat` computes raw strength **once per team**, z-scores over the
+team set, then fans the result out to every manager id (co-managers resolve to
+their shared team's threat, with their own `owner_manager_id`). `LeagueThreat`
+now carries `participant_set` (`canonical_participant_ids`,
+`threat_participant_ids`, `missing_participant_ids`, `unexpected_participant_ids`,
+`exact_match`) and `participant_set_mismatch`.
+
+**Fail-closed (§6, §7).** If the threat participant set does not **exactly**
+match the canonical set — cardinality *and* identity — opponent threat is not
+computed: every entry gets `readiness: NO_THREAT_CONTEXT` with a
+`LEAGUE_PARTICIPANT_SET_MISMATCH` reason, and `competitive-d-eval` propagates
+`readiness: UNAVAILABLE` so the competitive *recommendation* fails closed
+(`competitive_result.actionable = false`). The threat-independent components —
+current market value, permanent trade utility, owner-perceived value — are still
+returned. Nothing is hard-coded to 12; a 10-, 12-, or 14-team league works
+automatically, and a snapshot membership change naturally produces the new set
+(no cross-snapshot participant cache).
+
+**Live Bloodline reconciliation:** canonical roster count 12, threat participant
+count 12, `missing = []`, `unexpected = []`, `exact_match = true`; 12 distinct
+team-level threat records; co-managers share identical threat. The one visibly
+material before/after change: rsamuel1013's team blended strength z moved from
+~1.31 (double-counted) to ~1.39 (correct); `relative_to_us` figures barely moved
+(a difference of two z's that both shifted by ≈ the same amount).
+
+## XII.2 Trade classification vs transaction readiness (Part B)
+
+**Root cause of the apparent contradiction.** `discover` reported "5
+competitively certified `COMPETITIVE_BUY` trades" for supyo29 while
+`strategy_path` said "no certified first step / NO_ACTION". Both were technically
+true — "certified" meant *passes the competitive score + acceptance-feasibility
+gate* in `discover`, and *the beam search's market-sell-seeded first steps
+didn't pass* in `strategy_path` (a narrower **search**, not a stricter **gate**).
+But the API wording implied a stronger claim than the engine was making.
+
+**Fix — one authoritative "should I act?" contract.** New pure function
+`transactionReadiness(...)` and type `TransactionReadiness`, used consistently
+across all four modes:
+
+| value | meaning |
+| --- | --- |
+| `NOT_RECOMMENDED` | reject, negative permanent gain, or the counterparty would not plausibly accept |
+| `REVIEW_REQUIRED` | rest-of-season vs current-week valuations conflict at low confidence |
+| `EXPLORATORY` | analytically positive but the evidence is too thin to act on — a lead to watch |
+| `NEGOTIATION_WORTH_EXPLORING` | positive and not rejected, worth opening a conversation, but confidence and/or acceptance are still too weak to recommend executing |
+| `TRANSACTION_READY` | the evidence supports seriously considering the trade now |
+
+Hard rules: **`LOW` confidence can never be `TRANSACTION_READY`**; **`LOW`
+acceptance can never masquerade as likely-executable** (acceptance stays a
+feasibility constraint); `REVIEW_REQUIRED` and negative permanent gain always
+dominate. `TRANSACTION_READY` requires `actionable` + confidence ≥ `MEDIUM` +
+acceptance ≥ `MODERATE` + a positive classification + no review-required.
+
+- **evaluate / negotiate** — every response carries a top-level
+  `transaction_readiness` and `evaluation.result.transaction_readiness` +
+  `_explanation`. The `actionable` boolean is retained but documented as
+  *competitively* actionable (passes the competitive gate) — not the same as
+  "you should execute this now".
+- **discover** — `certified_direct_trades` → `direct_trade_candidates`, each
+  labelled with its own `transaction_readiness`; the view exposes
+  `analytical_candidate_count`, `negotiation_worth_exploring_count`,
+  `transaction_ready_count`. `recommended_strategy` is `DIRECT_ACQUISITION`
+  **only** when at least one candidate is genuinely `TRANSACTION_READY`;
+  otherwise it is `NO_ACTION` and the candidates are explicitly leads to
+  investigate, not deals to execute.
+- **strategy_path** — a `NO_ACTION` recommendation now says plainly that
+  analytically positive direct candidates may still exist under `discover` and
+  are leads, not transaction-ready recommendations; and a beam-ranked trade path
+  whose confidence < `MEDIUM` or path feasibility < `MODERATE` is demoted to
+  `NO_ACTION` (the path stays visible).
+
+**No contradiction now.** For supyo29 at Week 1: `discover` → `status: READY`,
+`recommended_strategy: NO_ACTION`, "5 analytically positive candidates: 0
+transaction-ready, 5 worth exploring"; `strategy_path` → `NO_ACTION`. Both agree:
+here are leads, but the best current move is no trade.
+
+**§37 finding.** Under the unified semantics, the previously demonstrated live
+"clean-positive control" (bijimac → nightfallfox for Jadarian Price,
+`STRONG_COMPETITIVE_BUY`) resolves to `NEGOTIATION_WORTH_EXPLORING`, not
+`TRANSACTION_READY` — at Week 1 the 0-0 record means opponent-threat context is
+partial, which caps confidence at `LOW`, and the acceptance model is
+`INSUFFICIENT_TRADE_HISTORY`. A `TRANSACTION_READY` end-to-end result requires
+either calibration data the league does not have yet or a mid-season record; the
+taxonomy's reachability is proven by the deterministic unit control
+(`test/competitive-trade-readiness.test.ts` §28). This is the engine's existing,
+correct confidence conservatism surfacing honestly — not a downgrade of
+everything.
+
+## XII.3 Trade Classification vs Transaction Readiness — for consumers
+
+A trade can be analytically attractive without being ready to execute:
+
+```
+Competitive classification : COMPETITIVE_BUY
+Confidence                 : LOW
+Acceptance                 : LOW
+Transaction readiness      : NEGOTIATION_WORTH_EXPLORING
+```
+
+and, at the same time:
+
+```
+Strategy recommendation    : NO_ACTION
+```
+
+legitimately means: *explore the price / gather information, but do not treat
+this as a recommended transaction yet.*
+
+## XII.4 Regression (Part A + B)
+
+New: `test/competitive-trade-participants.test.ts` (9 — Tests A–G plus fail-closed
+and `resolveThreatParticipants`), `test/competitive-trade-readiness.test.ts`
+(11 — the taxonomy, §28–§34). `test/competitive-trade-api.test.ts` +3.
+Full competitive + AI-discovery suite **176 pass**. Full repository suite
+**1809 pass / 0 fail / 4 skipped** (0 previously-passing tests changed).
+`tsc --noEmit` clean; `eslint lib app` 0 errors.
+
+## XII.5 Files changed (Part A + B)
+
+New: `test/competitive-trade-participants.test.ts`,
+`test/competitive-trade-readiness.test.ts`.
+Modified (all additive): `lib/trades/competitive/{threat,competitive-d-eval,eval-context,schema,api,index}.ts`,
+`lib/discovery.ts` (capability description only), `scripts/competitive-trade-smoke.ts`,
+this doc. No valuation formula changed. `evaluateTrade` NOT touched;
+`lib/orchestrator/` NOT touched; legacy `/api/trades/*` routes NOT touched.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
@@ -2092,9 +2244,11 @@ legacy `/api/trades/*` routes NOT touched.
 - [x] **E — Value extraction & negotiation envelope** — CERTIFIED
 - [x] **F — Trade liquidity + market appreciation + buy-and-hold + multi-step paths + performance** — CERTIFIED
 - [x] **G — API integration, snapshot safety, live end-to-end** — CERTIFIED
+- [x] **Pre-merge fix — participant integrity + transaction readiness** — CERTIFIED
 
 **Freeze verdict: the competitive trade intelligence stack is engineering-complete
-and internally certified end to end. It has NOT been merged, tagged, deployed, or
-released** — that is a separate, explicit review-and-merge decision. Orchestrator
-integration is deferred (G.9). Checkpoint G gate: **CERTIFIED — READY FOR
-REVIEW / MERGE.**
+and internally certified end to end, including the two pre-merge certification
+issues (participant-set integrity, transaction-readiness semantics). It has NOT
+been merged, tagged, deployed, or released** — that is a separate, explicit
+review-and-merge decision. Orchestrator integration is deferred (G.9).
+Pre-merge certification gate: **PASSED — READY TO MERGE (review).**
