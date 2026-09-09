@@ -52,6 +52,7 @@ export function buildReservationPrice(input: BuildReservationInput): Reservation
       reservation_price: null,
       perceived_value: null,
       components: { owner_perceived_value: 0, replacement_cost: 0, positional_scarcity_cost: 0, surplus_discount: 0, bundle_nonadditivity: 0 },
+      sanity_floor_applied: false,
       readiness: owner.available ? "GLOBAL_MARKET_ONLY" : "UNAVAILABLE",
       confidence: "VERY_LOW",
       reasons: [...reasons, owner.available ? "no owner-rostered assets in the outgoing bundle" : "owner context unavailable"],
@@ -116,10 +117,34 @@ export function buildReservationPrice(input: BuildReservationInput): Reservation
     }
   }
 
-  const reservation =
+  // ---- sanity bounds (Checkpoint D §36) ----
+  // (a) the summed surplus discount is bounded so stacked discounts can't
+  //     collapse a valuable player's reservation arbitrarily.
+  const sb = config.reservation_sanity;
+  const boundedSurplusDiscount = Math.max(surplusDiscount, -sb.max_surplus_discount);
+  if (boundedSurplusDiscount > surplusDiscount + 1e-6) {
+    reasons.push(`surplus discount clamped from ${surplusDiscount.toFixed(2)} to ${boundedSurplusDiscount.toFixed(2)} z (max ${sb.max_surplus_discount})`);
+  }
+
+  let reservation =
     anyPerceivedMissing && ids.length === 1
       ? null
-      : round4(perceivedSum + replacementCostZ + scarcityCost + surplusDiscount + bundleNonAdd);
+      : round4(perceivedSum + replacementCostZ + scarcityCost + boundedSurplusDiscount + bundleNonAdd);
+
+  // (b) reservation may fall BELOW owner-perceived value for an expendable
+  //     player, but not below a floor: for a positively-perceived bundle it
+  //     stays ≥ floor_fraction · perceived; everything is bounded below by an
+  //     absolute z floor so it never becomes a meaningless / large-negative number.
+  let sanityFloorApplied = false;
+  if (reservation != null && !anyPerceivedMissing) {
+    const posFloor = perceivedSum > 0 ? sb.floor_fraction_of_perceived * perceivedSum : -Infinity;
+    const floor = Math.max(sb.absolute_floor_z, posFloor);
+    if (reservation < floor) {
+      reservation = round4(floor);
+      sanityFloorApplied = true;
+      reasons.push(`reservation floored at ${reservation.toFixed(2)} z (RESERVATION_SANITY_FLOOR_APPLIED — stacked discounts would otherwise drive it below a defensible minimum)`);
+    }
+  }
 
   // ---- readiness / confidence ----
   const readiness: OwnerContextReadiness = perceived.get(ids[0]!)?.readiness ?? "PARTIAL_OWNER_CONTEXT";
@@ -137,9 +162,10 @@ export function buildReservationPrice(input: BuildReservationInput): Reservation
       owner_perceived_value: round4(perceivedSum),
       replacement_cost: replacementCostZ,
       positional_scarcity_cost: round4(scarcityCost),
-      surplus_discount: round4(surplusDiscount),
+      surplus_discount: round4(boundedSurplusDiscount),
       bundle_nonadditivity: bundleNonAdd,
     },
+    sanity_floor_applied: sanityFloorApplied,
     readiness,
     confidence: LEVEL_CONF[Math.max(0, Math.min(3, level))]!,
     reasons,

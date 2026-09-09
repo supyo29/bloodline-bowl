@@ -33,6 +33,7 @@ import { buildMarketEdges, type MarketEdgeTable } from "./market-edge";
 import { assessCompetitiveTradeReadiness } from "./readiness";
 import { buildDynamicMarketEdges } from "./dynamic";
 import { evaluateOwnerPerception } from "./owner-perception-eval";
+import { evaluateCompetitiveDimension } from "./competitive-d-eval";
 
 export function pprModeOf(rawScoring: Record<string, number>): PprMode {
   const rec = rawScoring.rec ?? 0;
@@ -124,6 +125,7 @@ export interface EvaluateCompetitiveTradeInput {
    */
   counterparty_manager_id?: string;
   owner_perception_config?: import("./config").PartialOwnerPerceptionConfig;
+  competitive_d_config?: import("./config").PartialCompetitiveDConfig;
 }
 
 const CONF_LEVEL: Record<ValueConfidence, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, VERY_LOW: 0 };
@@ -208,7 +210,31 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
     competitive.owner_perception = owner_perception;
     competitive.acceptance = acceptance;
     competitive.notes.push(
-      "Checkpoint C — acceptance is modeled from the COUNTERPARTY's perceived economics (what they believe they receive vs their reservation price), NOT from our private valuation. It is heuristic (1 real trade exists). No extraction / opponent-cost / negotiation yet.",
+      "Checkpoint C — acceptance is modeled from the COUNTERPARTY's perceived economics (what they believe they receive vs their reservation price), NOT from our private valuation. It is heuristic (1 real trade exists).",
+    );
+
+    // ---- Checkpoint D: opponent actual impact + threat + externality + result ----
+    const cpManager = ctx.snapshot.managers.find((m) => m.canonical_manager_id === input.counterparty_manager_id);
+    const myManager = ctx.snapshot.managers.find((m) => m.canonical_manager_id === input.my_manager_id);
+    const d = evaluateCompetitiveDimension({
+      ctx,
+      baseline,
+      my_manager_id: input.my_manager_id,
+      my_manager_slug: myManager?.manager_slug ?? input.my_manager_id,
+      counterparty_manager_id: input.counterparty_manager_id,
+      counterparty_manager_slug: cpManager?.manager_slug ?? input.counterparty_manager_id,
+      received_by_counterparty: outgoing_player_ids,
+      acceptance,
+      aggregate_edge,
+      owner_perception_confidence: owner_perception.confidence,
+      config: input.competitive_d_config,
+    });
+    competitive.opponent_impact = d.opponent_impact;
+    competitive.opponent_threat = d.opponent_threat;
+    competitive.competitive_externality = d.competitive_externality;
+    competitive.competitive_result = d.competitive_result;
+    competitive.notes.push(
+      "Checkpoint D — competitive_result is OUR gain net of the cost of strengthening (or benefit of weakening) this counterparty, acceptance-gated. Our own gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility constraint. The engine does NOT optimize for opponent harm. Threat weighting is HEURISTIC. No extraction / negotiation / liquidity / multi-hop yet.",
     );
   }
 

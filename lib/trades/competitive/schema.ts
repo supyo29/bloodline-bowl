@@ -465,6 +465,8 @@ export interface ReservationPrice {
   /** Σ owner_perceived_value of the assets (for the perceived ledger) */
   perceived_value: number | null;
   components: ReservationPriceComponents;
+  /** Checkpoint D §36 — true when a sanity bound clamped the reservation */
+  sanity_floor_applied: boolean;
   readiness: OwnerContextReadiness;
   confidence: ValueConfidence;
   reasons: string[];
@@ -517,6 +519,156 @@ export interface OwnerPerceptionBlock {
   perceived_outgoing_reservation: number | null; // they give
   perceived_surplus: number | null;
   confidence: ValueConfidence;
+  reasons: string[];
+}
+
+/* ======================================================================== */
+/* Checkpoint D — opponent actual impact, threat, externality, competitive    */
+/* result                                                                     */
+/* ======================================================================== */
+
+export type WeaknessRepair =
+  | "CRITICAL_WEAKNESS_REPAIRED"
+  | "HIGH_NEED_REPAIRED"
+  | "STARTER_HOLE_FILLED"
+  | "DEPTH_ADDED"
+  | "SURPLUS_REINFORCED"
+  | "NONE";
+
+/**
+ * The COUNTERPARTY's ACTUAL roster delta according to OUR private models
+ * (`evaluateTrade`) — NOT their perceived value, NOT their acceptance. Positive
+ * `private_delta` ⇒ the trade improves them; negative ⇒ it weakens them.
+ */
+export interface OpponentImpact {
+  owner_manager_id: string;
+  /** authoritative per-participant utility delta from evaluateTrade (weekly pts) */
+  private_delta: number | null;
+  /** optimal starting-lineup points delta */
+  starter_delta: number | null;
+  /** bench / usable-depth value delta */
+  bench_delta: number | null;
+  /** rest-of-season usable-value delta (Phase 2) */
+  ros_delta: number | null;
+  /** roster fragility improvement (Phase 2) — positive = less fragile */
+  fragility_delta: number | null;
+  /** positional needs that IMPROVED for them */
+  needs_improved: string[];
+  /** positional needs that WORSENED for them */
+  needs_worsened: string[];
+  weakness_repair: WeaknessRepair;
+  /** the position(s) where our outgoing asset repairs a hole for them */
+  weakness_repair_positions: string[];
+  reason_codes: CompetitiveReasonCode[];
+  reasons: string[];
+}
+
+export type ThreatBand = "LOW" | "MODERATE" | "HIGH" | "ELITE";
+
+export interface ThreatComponents {
+  /** projected roster strength z (optimal lineup + starter VOR + depth + balance) */
+  projected_strength_z: number;
+  /** current-season results strength z (win% + points-for percentile) — null pre-games */
+  results_strength_z: number | null;
+  /** weight on results vs projection — grows with weeks played (season maturity) */
+  results_weight: number;
+  /** blended forward-looking strength z */
+  blended_strength_z: number;
+  /** positional balance / bottleneck penalty (a catastrophic hole lowers threat) */
+  balance_penalty: number;
+}
+
+export interface OpponentThreat {
+  owner_manager_id: string;
+  score: number; // normalized internal threat score
+  band: ThreatBand;
+  components: ThreatComponents;
+  /** 0..1 percentile of this roster's strength across the league */
+  league_strength_percentile: number | null;
+  /** their blended strength z minus OUR blended strength z (positive ⇒ stronger than us) */
+  relative_to_us: number | null;
+  contender_band: "BOTTOM_TIER" | "MID_TIER" | "CONTENDER" | "TOP_CONTENDER" | "UNKNOWN";
+  readiness: CompetitiveReadinessState;
+  /** always HEURISTIC — no trade-to-title outcome data */
+  calibration_status: "HEURISTIC";
+  reasons: string[];
+}
+
+export interface CompetitiveExternalityComponents {
+  /** opponent starter improvement × starter weight (≥ 0 when they improve) */
+  starter_cost: number;
+  /** opponent depth improvement × depth weight */
+  depth_cost: number;
+  /** multiplier from the threat band (LOW ≈ small, ELITE ≈ large) */
+  threat_multiplier: number;
+  /** multiplier from weakness repair (repairing a hole > reinforcing a surplus) */
+  weakness_repair_multiplier: number;
+  /** multiplier from relative strength (strengthening someone above us costs more) */
+  relative_strength_multiplier: number;
+}
+
+export interface CompetitiveExternality {
+  /** ≥ 0 ⇒ helping a rival (a COST to us); < 0 ⇒ we weakened them (FAVORABLE) */
+  score: number;
+  components: CompetitiveExternalityComponents;
+  reason_codes: CompetitiveReasonCode[];
+  reasons: string[];
+}
+
+export type CompetitiveClassification =
+  | "STRONG_COMPETITIVE_BUY"
+  | "COMPETITIVE_BUY"
+  | "ACCEPTABLE"
+  | "MARGINAL"
+  | "AVOID_COMPETITIVE_COST"
+  | "REJECT";
+
+export type CompetitiveReadinessState =
+  | "FULL_COMPETITIVE_CONTEXT"
+  | "PARTIAL_COMPETITIVE_CONTEXT"
+  | "NO_THREAT_CONTEXT"
+  | "UNAVAILABLE";
+
+export type CompetitiveReasonCode =
+  | "OPPONENT_STARTER_GAIN"
+  | "OPPONENT_DEPTH_GAIN"
+  | "OPPONENT_ACTUALLY_WEAKENED"
+  | "CRITICAL_WEAKNESS_REPAIRED"
+  | "HIGH_NEED_REPAIRED"
+  | "STARTER_HOLE_FILLED"
+  | "SURPLUS_REINFORCED"
+  | "ELITE_RIVAL_STRENGTHENED"
+  | "LOW_THREAT_COUNTERPARTY"
+  | "STRONGER_THAN_US"
+  | "WEAKER_THAN_US"
+  | "OUR_GAIN_DOMINATES_EXTERNALITY"
+  | "EXTERNALITY_TOO_HIGH"
+  | "OUR_GAIN_INSUFFICIENT"
+  | "ACCEPTANCE_BELOW_THRESHOLD"
+  | "ASYMMETRIC_TRADE"
+  | "MARKET_EDGE_SUPPORTS"
+  | "WEEK1_RECORD_IGNORED"
+  | "THREAT_CONTEXT_PARTIAL";
+
+export interface CompetitiveResultComponents {
+  our_private_gain: number;
+  market_edge_bonus: number;
+  competitive_externality: number;
+  uncertainty_penalty: number;
+}
+
+export interface CompetitiveResult {
+  /** decomposed final competitive value — our gain minus the cost of helping them */
+  score: number;
+  classification: CompetitiveClassification;
+  /** true only when acceptance clears the feasibility threshold (§19, §33) */
+  actionable: boolean;
+  components: CompetitiveResultComponents;
+  /** the staged decision flow outcome (§18) */
+  gate_trace: Array<{ stage: string; pass: boolean; note: string }>;
+  confidence: ValueConfidence;
+  readiness: CompetitiveReadinessState;
+  reason_codes: CompetitiveReasonCode[];
   reasons: string[];
 }
 
@@ -625,9 +777,18 @@ export interface CompetitiveBlock {
   /** how likely the counterparty is to accept — from THEIR perceived economics, heuristic */
   acceptance?: AcceptanceEstimate;
 
+  // ---- Checkpoint D (present only when a counterparty was supplied) ----
+  /** the counterparty's ACTUAL roster delta per OUR private models (not their perception) */
+  opponent_impact?: OpponentImpact;
+  /** forward-looking opponent roster strength + threat band */
+  opponent_threat?: OpponentThreat;
+  /** decomposed competitive cost of strengthening (or benefit of weakening) this counterparty */
+  competitive_externality?: CompetitiveExternality;
+  /** final competitive desirability — our gain net of the externality, acceptance-gated */
+  competitive_result?: CompetitiveResult;
+
   // ---- reserved for later checkpoints; ABSENT until implemented:
-  //   extraction?        (Checkpoint C+ / negotiation)
-  //   competitive_cost?  (Checkpoint D)
+  //   extraction?        (Checkpoint E / negotiation)
   //   liquidity?         (Checkpoint F)
   //   appreciation?      (Checkpoint F)
   //   negotiation?       (Checkpoint E)

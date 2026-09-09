@@ -108,6 +108,29 @@ export type {
   CounterpartyPerceivedLedger,
 } from "./schema";
 
+// ---- Checkpoint D: opponent impact, threat, externality, competitive result ----
+export { buildOpponentImpact } from "./opponent-impact";
+export { buildLeagueThreat, type LeagueThreat } from "./threat";
+export { buildCompetitiveExternality } from "./externality";
+export { buildCompetitiveResult } from "./competitive-result";
+export { evaluateCompetitiveDimension, type CompetitiveDInput, type CompetitiveDResult } from "./competitive-d-eval";
+export {
+  DEFAULT_COMPETITIVE_D_CONFIG,
+  resolveCompetitiveDConfig,
+  type CompetitiveDConfig,
+  type PartialCompetitiveDConfig,
+} from "./config";
+export type {
+  OpponentImpact,
+  OpponentThreat,
+  ThreatBand,
+  CompetitiveExternality,
+  CompetitiveResult,
+  CompetitiveClassification,
+  CompetitiveReadinessState,
+  WeaknessRepair,
+} from "./schema";
+
 import type { TradeAnalysisContext } from "../context";
 import { buildLeagueMarketEdgeTable } from "./evaluate";
 import { buildBoards, type Boards } from "./boards";

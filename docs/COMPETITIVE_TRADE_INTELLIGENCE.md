@@ -1025,16 +1025,217 @@ Modified: `lib/trades/competitive/{schema,config,calibration,dynamic-edge,evalua
 
 ---
 
+---
+
+# Part VII — Checkpoint D: Opponent Impact, Rival Threat, Competitive Externality
+
+Status: **CHECKPOINT D CERTIFIED — READY FOR CHECKPOINT E.**
+Branch `competitive-trade-intelligence`, built on `b26eb89`.
+
+## D.1 Reservation sanity-bound audit (§36)
+
+C's `reservation_price = Σ owner_perceived + replacement_cost + scarcity_cost +
+surplus_discount(≤0) + bundle_nonadditivity`. Stacked surplus discounts (e.g. a
+6-startable-RB owner: `extra = 3`, discount `−0.84`) could drive a valuable
+player's reservation to a meaningless / large-negative z. Added
+`config.reservation_sanity`:
+
+| bound | default | effect |
+|---|---|---|
+| `max_surplus_discount` | 0.6 | the summed surplus discount magnitude is capped |
+| `floor_fraction_of_perceived` | 0.5 | a positively-perceived bundle's reservation stays ≥ 50 % of Σ perceived |
+| `absolute_floor_z` | −0.75 | reservation never falls below this regardless of perceived value |
+
+`ReservationPrice.sanity_floor_applied` flags a clamp;
+`RESERVATION_SANITY_FLOOR_APPLIED` reason. Regression added. C math otherwise
+unchanged.
+
+## D.2 The seven distinct concepts (§1) — none collapsed
+
+```
+OUR PRIVATE GAIN          evaluateTrade — our participant's utility delta
+THEIR ACTUAL PRIVATE GAIN evaluateTrade — the counterparty's participant delta   (opponent_impact)
+THEIR PERCEIVED GAIN      Checkpoint C perceived ledger
+THEIR ACCEPTANCE          Checkpoint C likelihood band
+THEIR THREAT LEVEL        forward-looking roster strength                         (opponent_threat)
+COMPETITIVE EXTERNALITY   opponent gain × threat × weakness-repair                (competitive_externality)
+FINAL COMPETITIVE DESIRABILITY  our gain net of the externality, acceptance-gated (competitive_result)
+```
+
+`opponent_impact` is read from `evaluateTrade`, **not** from owner perception (§1).
+
+## D.3 Opponent actual impact (`opponent-impact.ts`)
+
+Reads the counterparty's `ParticipantTradeResult` off the canonical
+`evaluateTrade` output — `private_delta` (= `contextual_utility_delta`),
+`starter_delta` (`starter_points_delta`), `bench_delta` (`bench_value_delta`),
+`ros_delta`, `fragility_delta`, needs improved / worsened. No second football
+model.
+
+**Starter vs bench (§4):** kept separate — the externality weights
+`starter_gain_weight = 1.0` vs `depth_gain_weight = 0.35`.
+
+**Weakness repair (§5, §6, §45):** our OUTGOING asset lands at a position where
+the counterparty's `positional_need_changes` shows `IMPROVES_NEED` from a
+`critical`/`weak` before-severity → `CRITICAL_WEAKNESS_REPAIRED` /
+`HIGH_NEED_REPAIRED`; entering their starting lineup at a needed spot →
+`STARTER_HOLE_FILLED`; landing on a deep position → `SURPLUS_REINFORCED`.
+
+## D.4 Threat model (`threat.ts`) — forward-looking, not standings
+
+```
+projected_strength_z = z( optimal_total + 0.35·Σ starter_VOR + 0.15·Σ bench_VOR )
+results_strength_z    = z( 2·win% + points_for_z )          — null before any games
+results_weight        = min(0.6, 1 − e^(−0.16·weeks_played))  — saturating, capped
+blended_strength_z    = (1 − results_weight)·projected_z + results_weight·results_z − balance_penalty
+band                  = LOW / MODERATE / HIGH / ELITE
+```
+
+- **Week 1 (§23, §41):** `weeks_played = 0` ⇒ `results_weight = 0`,
+  `results_strength_z = null` ⇒ threat is **projected roster strength only**.
+  A 1-0 record never makes a team ELITE.
+- **Season maturity (§8):** `results_weight` grows on a saturating curve,
+  **capped at 0.6** (§43 — a hot record never fully overrides the roster).
+- **Fluky record (§43):** a 5-1 team with a weak roster + low points-for stays
+  below the real contender (tested).
+- **Underperforming contender (§44):** a 2-4 team with an elite roster keeps a
+  meaningful threat (tested).
+- **Balance / bottleneck (§25):** a position with no startable option → threat
+  penalty (a catastrophic hole makes a team less threatening).
+
+**Relative strength (§10, §16):** `league_strength_percentile`, `relative_to_us`
+(their blended z − ours), `contender_band` (`BOTTOM_TIER` … `TOP_CONTENDER`).
+`calibration_status: "HEURISTIC"` — no trade-to-title outcome data; no fabricated
+championship probabilities (§17, §22).
+
+## D.5 Competitive externality (`externality.ts`)
+
+```
+FAVORABLE  (opponent private_delta < −0.25):
+  score = private_delta · 0.5 · threat_band_multiplier          ≤ 0  (a competitive BENEFIT)
+
+COST  (opponent improves):
+  score = ( starter_gain_weight·max(0, starter_delta)
+          + depth_gain_weight·max(0, bench_delta + 0.5·ros_delta) )
+          × threat_band_multiplier          LOW 0.35 → ELITE 1.6
+          × weakness_repair_multiplier       SURPLUS 0.55 → CRITICAL 1.7
+          × relative_strength_multiplier     1 + 0.4·max(0, their_z − our_z)
+```
+
+`≥ 0` ⇒ we helped a rival (a cost); `< 0` ⇒ we weakened them (favorable, driven
+directly by a negative opponent delta — §14, §46). Decomposed, not the literal
+§11 formula, scaling tested.
+
+## D.6 Competitive result (`competitive-result.ts`) — staged flow (§18)
+
+```
+1. readiness            → UNAVAILABLE ⇒ REJECT
+2. our_private_gain ≥ min_our_gain (0.25)   → else REJECT (OUR_GAIN_INSUFFICIENT)
+3. acceptance ≥ min_acceptance (LOW)        → sets `actionable`; a fail caps the
+                                              classification at MARGINAL (§19, §33)
+4. score = our_private_gain
+         + market_edge_bonus  (≤ 1.5)
+         − capped_externality
+         − uncertainty_penalty  (0.35 per confidence band below HIGH)
+5. classification from score bands + gates
+```
+
+**Our gain dominates (§2, §15, §30):** a POSITIVE externality is capped at
+`0.7·|our_gain| + threat_extra` (`threat_extra` = 1.5 ELITE / 0.8 HIGH / 0) so a
+modest elite-rival improvement can't swamp an overwhelming our-gain, while a
+weak our-gain + large rival improvement still gets rejected (§31, both tested).
+A NEGATIVE externality is never capped by our gain — it can only help (§14).
+`EXTERNALITY_TOO_HIGH` + low score ⇒ `AVOID_COMPETITIVE_COST`.
+
+Classifications: `STRONG_COMPETITIVE_BUY` / `COMPETITIVE_BUY` / `ACCEPTABLE` /
+`MARGINAL` / `AVOID_COMPETITIVE_COST` / `REJECT`. `confidence` is separate from
+the classification (§35). `gate_trace` exposes every stage.
+
+## D.7 Output contract
+
+`evaluateCompetitiveTrade({ …, counterparty_manager_id })` attaches, additively:
+`competitive.opponent_impact`, `.opponent_threat`, `.competitive_externality`,
+`.competitive_result`. All absent without a counterparty (tested).
+
+## D.8 Bloodline Bowl live diagnostics (week 1)
+
+**League threat bands** — every `results_weight = 0` (0-0 records contribute
+nothing, §41). Projected-roster-driven: `rsamuel1013` / `zzzerena` ELITE,
+`bijoy2theworld` / `hammy535` LOW.
+
+**Rhamondre Stevenson → Chuba Hubbard** (perspective: `supyo29`, who owns
+Rhamondre):
+| | |
+|---|---|
+| our private delta (supyo29) | **−4.28 pts/wk** — the swap *loses* value for the Rhamondre owner |
+| BijiMac ACTUAL impact | **+5.01** (`STARTER_HOLE_FILLED`) |
+| BijiMac perceived surplus (C) | +0.37 · acceptance **MODERATE** |
+| BijiMac threat | **MODERATE**, `relative_to_us −0.46` (weaker than supyo29) |
+| competitive externality | **+3.58** (`OPPONENT_STARTER_GAIN`) |
+| **competitive_result** | **REJECT**, score −7.68, `actionable = false` — stage-2 `our_gain` gate fails |
+
+An honest negative: this specific swap is bad for the Rhamondre owner *and*
+helps a rival. Not forced favorable (§39).
+
+**§40 — `hammy535` (RB need) acquires an RB, same bench asset offered, different
+counterparties:** because hammy535 gives a scrub, every counterparty is
+*weakened* (`opp_impact` negative) so externalities are favorable. Illustrative
+rows:
+| counterparty | our_gain | threat | opp_impact | externality | result | actionable |
+|---|---|---|---|---|---|---|
+| supyo29 | +4.59 | HIGH | −1.39 | −0.80 | `STRONG_COMPETITIVE_BUY` | yes |
+| rsamuel1013 | +1.66 | **ELITE** | −1.15 | −0.92 | `COMPETITIVE_BUY` | yes |
+| bijimac | +1.49 | MODERATE | −0.23 | 0.00 | `ACCEPTABLE` | yes |
+| **msamuel4 (David Montgomery)** | **+7.50** | LOW | −4.55 | −0.80 | **`MARGINAL`** | **no** |
+
+The msamuel4 row is the §33 case: high score (7.26) but capped at `MARGINAL` /
+`actionable=false` because msamuel4 would never accept a real RB for a scrub —
+acceptance is a **feasibility gate**, not a reward.
+
+Week-8 threat behavior (fluky record, underperforming contender, results-weight
+cap) is covered by `test/competitive-trade-competitive-cost.test.ts` §42–§44.
+
+## D.9 Known limitations (D)
+
+1. **Threat is HEURISTIC** — no trade→title outcome data; bands and multipliers
+   are reasoned defaults, not fitted.
+2. **No 2026 results data** — `results_weight = 0` live; threat is 100 %
+   projected roster strength (correct for week 1).
+3. **Projected strength uses the current optimal lineup**, not an ROS-projected
+   one — a bye-week or injury dip could momentarily distort a team's threat.
+4. **Balance penalty is coarse** — counts unfilled startable slots, not
+   severity-weighted.
+5. No extraction / negotiation / liquidity / multi-hop (E–F).
+
+## D.10 Regression (D)
+
+- `tsc --noEmit` clean; `eslint app lib test` 0 errors, 29 pre-existing warnings.
+- `npm test`: **1728 tests, 1724 pass, 0 fail, 4 skipped**. +21 new D tests
+  (`test/competitive-trade-competitive-cost.test.ts`). Zero existing
+  expectations changed.
+- Performance: league threat (14 teams) ~7 ms; full competitive eval with a
+  counterparty ~10 ms (threat + owner perception + externality + result);
+  per-manager owner context memoized.
+
+## D.11 Files changed (D)
+
+New: `lib/trades/competitive/{opponent-impact,threat,externality,competitive-result,competitive-d-eval}.ts`;
+`test/competitive-trade-competitive-cost.test.ts`.
+Modified: `lib/trades/competitive/{schema,config,reservation,evaluate,index}.ts`;
+`scripts/competitive-trade-smoke.ts`; the doc.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
 - [x] **B — Market edge layer** — CERTIFIED
 - [x] **B.5 — Dynamic market & evidence maturation** — CERTIFIED
 - [x] **C — Owner perception + reservation + acceptance** — CERTIFIED
-- [ ] D — Competitive optimizer (opponent cost, threat weight, final ranking)
-- [ ] E — Negotiation engine
+- [x] **D — Opponent impact + threat + competitive externality + result** — CERTIFIED
+- [ ] E — Negotiation engine (extraction, offer ladders)
 - [ ] F — Multi-hop + hold-for-appreciation
 - [ ] G — Integration / live smoke
 
-**Freeze verdict: NOT READY TO FREEZE** (Checkpoints D–G outstanding; do not
-merge/tag/deploy). Checkpoint C gate: **CERTIFIED — READY FOR CHECKPOINT D.**
+**Freeze verdict: NOT READY TO FREEZE** (Checkpoints E–G outstanding; do not
+merge/tag/deploy). Checkpoint D gate: **CERTIFIED — READY FOR CHECKPOINT E.**

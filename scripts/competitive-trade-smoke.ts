@@ -18,8 +18,41 @@ import {
   buildDynamicMarketEdges,
   evaluateOwnerPerception,
   buildOwnerContext,
+  buildLeagueThreat,
+  resolveCompetitiveDConfig,
 } from "../lib/trades/competitive";
+import { evaluateCompetitiveTrade } from "../lib/trades/competitive/evaluate";
+import { evaluateTrade } from "../lib/trades/evaluate";
+import { resolveTradeConfig } from "../lib/trades/config";
 import type { MarketEdge } from "../lib/trades/competitive/schema";
+
+type Ctx = NonNullable<Awaited<ReturnType<typeof buildTradeAnalysisContext>>["context"]>;
+
+function competitiveTradeResult(ctx: Ctx, myMgrId: string, cpMgrId: string, weSend: string, weReceive: string) {
+  const myTeam = ctx.snapshot.teams.find((t) => t.canonical_manager_ids.includes(myMgrId))!;
+  const cpTeam = ctx.snapshot.teams.find((t) => t.canonical_manager_ids.includes(cpMgrId))!;
+  const norm = {
+    league_slug: ctx.league_slug,
+    participant_manager_ids: [myMgrId, cpMgrId],
+    transfers: [
+      { from_manager_id: myMgrId, to_manager_id: cpMgrId, canonical_player_id: weSend, input_player_id: weSend },
+      { from_manager_id: cpMgrId, to_manager_id: myMgrId, canonical_player_id: weReceive, input_player_id: weReceive },
+    ],
+  };
+  const participants = [
+    { manager: ctx.snapshot.managers.find((m) => m.canonical_manager_id === myMgrId)! as never, team: myTeam as never, roster: ctx.rosters_by_manager.get(myMgrId)! },
+    { manager: ctx.snapshot.managers.find((m) => m.canonical_manager_id === cpMgrId)! as never, team: cpTeam as never, roster: ctx.rosters_by_manager.get(cpMgrId)! },
+  ];
+  const baseline = evaluateTrade({
+    normalized: norm, week: ctx.week, constraints: ctx.constraints, team_count: ctx.team_count,
+    projections: ctx.projections, replacement: ctx.replacement, players_by_id: ctx.players_by_id,
+    participants, config: resolveTradeConfig(), projections_status: "READY", context: ctx,
+  });
+  return evaluateCompetitiveTrade({
+    baseline, ctx, my_manager_id: myMgrId, incoming_player_ids: [weReceive], outgoing_player_ids: [weSend],
+    counterparty_manager_id: cpMgrId,
+  });
+}
 
 const WATCH = ["Rhamondre Stevenson", "Rome Odunze", "Chuba Hubbard"];
 
@@ -176,7 +209,76 @@ async function reportLeague(leagueSlug: string) {
   console.log(`\n--- RB roster context across the league (drives reservation-price differences) ---`);
   for (const o of rbOwners) console.log(`  ${o.slug.padEnd(16)} RB rostered=${o.rbCount}  RB need=${o.rbNeed}`);
 
-  console.log(`\nSTATUS: Checkpoint C — owner perception + heuristic acceptance modeled. NO extraction, NO opponent-cost, NO negotiation (D–E).`);
+  // ---- Checkpoint D: opponent impact, threat, externality, competitive result ----
+  console.log(`\n================ CHECKPOINT D — opponent impact, threat, competitive result ================`);
+  const myMgr = ctx.snapshot.managers[0]!; // arbitrary "us" perspective for the hypothetical
+  const lt = buildLeagueThreat(ctx, resolveCompetitiveDConfig(), myMgr.canonical_manager_id);
+  console.log(`\n--- league threat bands (week ${ctx.week}, projected-roster-driven) ---`);
+  for (const [mid, t] of [...lt.by_manager].sort((a, b) => b[1].score - a[1].score)) {
+    const slug = ctx.snapshot.managers.find((m) => m.canonical_manager_id === mid)?.manager_slug ?? mid;
+    console.log(`  ${slug.padEnd(16)} band=${t.band.padEnd(9)} score=${t.score.toFixed(2)} percentile=${t.league_strength_percentile?.toFixed(2)} contender=${t.contender_band} results_weight=${t.components.results_weight}`);
+  }
+
+  if (chuba?.owner_id && rham?.owner_id) {
+    console.log(`\n--- Rhamondre Stevenson  →  Chuba Hubbard  (perspective: ${rham.owner_slug} sends Rhamondre, receives Chuba) ---`);
+    const cr = competitiveTradeResult(ctx, rham.owner_id, chuba.owner_id, rham.player.canonical_player_id, chuba.player.canonical_player_id);
+    const c = cr.competitive;
+    const usSlug = ctx.snapshot.managers.find((m) => m.canonical_manager_id === rham.owner_id)?.manager_slug;
+    const usResult = cr.baseline.participants[usSlug ?? ""] ?? Object.values(cr.baseline.participants).find((p) => p.manager_slug === usSlug);
+    console.log(`  our private delta (${usSlug}): ${usResult ? (usResult.phase2?.contextual_utility_delta ?? usResult.roster_utility_delta).toFixed(2) : "n/a"} pts/wk`);
+    console.log(`  opponent (${chuba.owner_slug}) ACTUAL impact: private_delta=${c.opponent_impact?.private_delta} starter_delta=${c.opponent_impact?.starter_delta} bench_delta=${c.opponent_impact?.bench_delta} weakness_repair=${c.opponent_impact?.weakness_repair}`);
+    console.log(`  opponent perceived surplus (C): ${c.owner_perception?.perceived_surplus?.toFixed(2)} | acceptance=${c.acceptance?.likelihood} (conf ${c.acceptance?.confidence})`);
+    console.log(`  opponent threat: band=${c.opponent_threat?.band} score=${c.opponent_threat?.score.toFixed(2)} relative_to_us=${c.opponent_threat?.relative_to_us} contender=${c.opponent_threat?.contender_band}`);
+    console.log(`  competitive externality: ${c.competitive_externality?.score.toFixed(2)}  [${c.competitive_externality?.reason_codes.join(",")}]`);
+    console.log(`  competitive_result: classification=${c.competitive_result?.classification} score=${c.competitive_result?.score.toFixed(2)} actionable=${c.competitive_result?.actionable} confidence=${c.competitive_result?.confidence}`);
+    console.log(`    components: ${JSON.stringify(c.competitive_result?.components)}`);
+    console.log(`    gates: ${c.competitive_result?.gate_trace.map((g) => `${g.stage}=${g.pass ? "✓" : "✗"}`).join("  ")}`);
+  }
+
+  // §40 — same our-side asset, RB acquired from counterparties of DIFFERENT threat.
+  // "us" = a manager with a real RB need, so our_gain is positive and D's
+  // threat/externality logic actually drives the classification.
+  const rbNeedyMgr = ctx.snapshot.managers
+    .map((m) => ({ m, oc: buildOwnerContext(ctx, m.canonical_manager_id) }))
+    .find(({ oc }) => oc.profile.needs.some((n) => n.position === "RB" && (n.severity === "CRITICAL" || n.severity === "HIGH")));
+  if (rbNeedyMgr) {
+    const usId = rbNeedyMgr.m.canonical_manager_id;
+    // our most expendable non-RB bench asset to offer
+    const offer = [...rbNeedyMgr.oc.by_player.values()]
+      .filter((p) => p.position !== "RB" && (p.starter_importance === "BENCH_DEPTH" || p.starter_importance === "ROTATIONAL"))
+      .sort((a, b) => (a.vor ?? 0) - (b.vor ?? 0))[0];
+    const rbTargets = ctx.snapshot.rosters
+      .flatMap((r) => {
+        const team = ctx.snapshot.teams.find((t) => t.canonical_team_id === r.canonical_team_id)!;
+        const mid = team.canonical_manager_ids[0]!;
+        if (mid === usId) return [];
+        const oc = buildOwnerContext(ctx, mid);
+        return [...oc.by_player.values()]
+          .filter((p) => p.position === "RB" && (p.starter_importance === "ROTATIONAL" || p.starter_importance === "FLEX_STARTER"))
+          .slice(0, 1)
+          .map((p) => ({ mid, slug: oc.manager_slug, pid: p.canonical_player_id, name: p.name, threat: lt.by_manager.get(mid)?.band }));
+      });
+    console.log(`\n--- §40: ${rbNeedyMgr.m.manager_slug} (RB need) acquires an RB — same asset offered, counterparties of different threat ---`);
+    if (offer) {
+      const seen = new Set<string>();
+      for (const tgt of rbTargets) {
+        if (seen.has(tgt.slug)) continue;
+        seen.add(tgt.slug);
+        try {
+          const cr = competitiveTradeResult(ctx, usId, tgt.mid, offer.canonical_player_id, tgt.pid);
+          const c = cr.competitive;
+          const usSlug = rbNeedyMgr.m.manager_slug;
+          const usR = Object.values(cr.baseline.participants).find((p) => p.manager_slug === usSlug);
+          const ourGain = usR ? (usR.phase2?.contextual_utility_delta ?? usR.roster_utility_delta) : null;
+          console.log(`  vs ${tgt.slug.padEnd(14)} (${tgt.name.padEnd(18)}) our_gain=${ourGain?.toFixed(2).padStart(6)} threat=${(c.opponent_threat?.band ?? "?").padEnd(9)} opp_impact=${c.opponent_impact?.private_delta?.toFixed(2).padStart(6)} ext=${c.competitive_externality?.score.toFixed(2).padStart(6)} result=${(c.competitive_result?.classification ?? "?").padEnd(22)} score=${c.competitive_result?.score.toFixed(2).padStart(6)} actionable=${c.competitive_result?.actionable}`);
+        } catch (e) {
+          console.log(`  vs ${tgt.slug}: ${(e as Error).message}`);
+        }
+      }
+    }
+  }
+
+  console.log(`\nSTATUS: Checkpoint D — opponent impact + threat + competitive externality + selfish trade ranking modeled. Our gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility gate. NO extraction / negotiation / liquidity / multi-hop (E–F).`);
 }
 
 // ---------------------------------------------------------------------------

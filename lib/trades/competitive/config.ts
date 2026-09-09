@@ -173,6 +173,15 @@ export interface OwnerPerceptionConfig {
   slot_pressure_per_forced_drop: number;
   /** readiness → owner-perception confidence ceiling */
   readiness_confidence_ceiling: Record<OwnerContextReadiness, ValueConfidence>;
+  /** Checkpoint D §36 — reservation-price sanity bounds */
+  reservation_sanity: {
+    /** total surplus discount cannot exceed this magnitude (z) */
+    max_surplus_discount: number;
+    /** for a positively-perceived bundle, reservation stays ≥ this fraction of Σ perceived */
+    floor_fraction_of_perceived: number;
+    /** absolute z floor — reservation never falls below this regardless of perceived value */
+    absolute_floor_z: number;
+  };
 }
 
 export const DEFAULT_OWNER_PERCEPTION_CONFIG: OwnerPerceptionConfig = deepFreeze({
@@ -216,9 +225,126 @@ export const DEFAULT_OWNER_PERCEPTION_CONFIG: OwnerPerceptionConfig = deepFreeze
     STALE: "LOW",
     UNAVAILABLE: "VERY_LOW",
   },
+  reservation_sanity: {
+    max_surplus_discount: 0.6,
+    floor_fraction_of_perceived: 0.5,
+    absolute_floor_z: -0.75,
+  },
 });
 
 export type PartialOwnerPerceptionConfig = { [K in keyof OwnerPerceptionConfig]?: Partial<OwnerPerceptionConfig[K]> };
+
+/* ---- Checkpoint D: opponent threat / competitive externality / result ---- */
+
+export interface CompetitiveDConfig {
+  threat: {
+    /** projected-strength composite weights */
+    starter_vor_weight: number;
+    bench_vor_weight: number;
+    /** balance penalty per position with no startable option */
+    balance_penalty_per_hole: number;
+    /** results-vs-projection season-maturity: results_weight = 1 − exp(−lambda·weeksPlayed) */
+    results_maturity_lambda: number;
+    /** cap on results_weight so a hot record never fully overrides projected strength */
+    results_weight_cap: number;
+    /** blended-strength z thresholds → threat band */
+    band_thresholds: { elite: number; high: number; moderate: number };
+    /** contender-band thresholds on league strength percentile */
+    contender_thresholds: { top: number; contender: number; mid: number };
+  };
+  externality: {
+    /** opponent starter-points delta → cost weight */
+    starter_gain_weight: number;
+    /** opponent depth/bench delta → cost weight */
+    depth_gain_weight: number;
+    /** threat band → externality multiplier */
+    threat_band_multiplier: Record<"LOW" | "MODERATE" | "HIGH" | "ELITE", number>;
+    /** weakness-repair → externality multiplier */
+    weakness_repair_multiplier: Record<
+      "CRITICAL_WEAKNESS_REPAIRED" | "HIGH_NEED_REPAIRED" | "STARTER_HOLE_FILLED" | "DEPTH_ADDED" | "SURPLUS_REINFORCED" | "NONE",
+      number
+    >;
+    /** relative-strength multiplier: 1 + relative_strength_weight·max(0, their_z − our_z) */
+    relative_strength_weight: number;
+  };
+  result: {
+    /** minimum our-private-gain (weekly pts) for a trade to clear stage 3 */
+    min_our_gain: number;
+    /** our-gain below this ⇒ MARGINAL even if positive */
+    marginal_our_gain: number;
+    /** acceptance likelihood at/above this is "feasible" (actionable) */
+    min_acceptance: "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
+    /** market-edge bonus = min(cap, market_edge_bonus_weight·net_actionable_edge) */
+    market_edge_bonus_weight: number;
+    market_edge_bonus_cap: number;
+    /** externality is capped at this fraction of |our_private_gain| so our gain always dominates (§15, §30) */
+    externality_cap_fraction_of_our_gain: number;
+    /** extra externality headroom (weekly pts) allowed against a HIGH/ELITE threat so a rival-strengthening deal with weak our-gain can still be rejected (§31) */
+    elite_threat_extra_cap: number;
+    high_threat_extra_cap: number;
+    /** absolute externality cap regardless of our gain */
+    externality_abs_cap: number;
+    /** uncertainty penalty per confidence band below HIGH */
+    uncertainty_penalty_per_band: number;
+    /** competitive_result.score thresholds → classification */
+    classification_thresholds: { strong_buy: number; buy: number; acceptable: number; marginal: number };
+  };
+}
+
+export const DEFAULT_COMPETITIVE_D_CONFIG: CompetitiveDConfig = deepFreeze({
+  threat: {
+    starter_vor_weight: 0.35,
+    bench_vor_weight: 0.15,
+    balance_penalty_per_hole: 0.4,
+    results_maturity_lambda: 0.16, // slower than season-maturity: record informs threat gradually
+    results_weight_cap: 0.6, // record never more than 60% of the blend
+    band_thresholds: { elite: 1.0, high: 0.35, moderate: -0.35 },
+    contender_thresholds: { top: 0.85, contender: 0.6, mid: 0.35 },
+  },
+  externality: {
+    starter_gain_weight: 1.0,
+    depth_gain_weight: 0.35,
+    threat_band_multiplier: { LOW: 0.35, MODERATE: 0.7, HIGH: 1.15, ELITE: 1.6 },
+    weakness_repair_multiplier: {
+      CRITICAL_WEAKNESS_REPAIRED: 1.7,
+      HIGH_NEED_REPAIRED: 1.35,
+      STARTER_HOLE_FILLED: 1.15,
+      DEPTH_ADDED: 0.8,
+      SURPLUS_REINFORCED: 0.55,
+      NONE: 1.0,
+    },
+    relative_strength_weight: 0.4,
+  },
+  result: {
+    min_our_gain: 0.25,
+    marginal_our_gain: 1.0,
+    min_acceptance: "LOW",
+    market_edge_bonus_weight: 0.5,
+    market_edge_bonus_cap: 1.5,
+    externality_cap_fraction_of_our_gain: 0.7,
+    elite_threat_extra_cap: 1.5,
+    high_threat_extra_cap: 0.8,
+    externality_abs_cap: 6.0,
+    uncertainty_penalty_per_band: 0.35,
+    classification_thresholds: { strong_buy: 4.0, buy: 1.75, acceptable: 0.5, marginal: -0.5 },
+  },
+});
+
+export type PartialCompetitiveDConfig = {
+  threat?: Partial<CompetitiveDConfig["threat"]>;
+  externality?: Partial<CompetitiveDConfig["externality"]>;
+  result?: Partial<CompetitiveDConfig["result"]>;
+};
+
+export function resolveCompetitiveDConfig(override?: PartialCompetitiveDConfig): CompetitiveDConfig {
+  const d = DEFAULT_COMPETITIVE_D_CONFIG;
+  if (!override) return d;
+  return deepFreeze({
+    threat: { ...d.threat, ...(override.threat ?? {}) },
+    externality: { ...d.externality, ...(override.externality ?? {}) },
+    result: { ...d.result, ...(override.result ?? {}) },
+  });
+}
 
 export function resolveOwnerPerceptionConfig(override?: PartialOwnerPerceptionConfig): OwnerPerceptionConfig {
   const d = DEFAULT_OWNER_PERCEPTION_CONFIG;
@@ -238,6 +364,7 @@ export function resolveOwnerPerceptionConfig(override?: PartialOwnerPerceptionCo
     acceptance_weights: { ...d.acceptance_weights, ...(override.acceptance_weights ?? {}) },
     slot_pressure_per_forced_drop: (override.slot_pressure_per_forced_drop as number) ?? d.slot_pressure_per_forced_drop,
     readiness_confidence_ceiling: { ...d.readiness_confidence_ceiling, ...(override.readiness_confidence_ceiling ?? {}) },
+    reservation_sanity: { ...d.reservation_sanity, ...(override.reservation_sanity ?? {}) },
   });
 }
 
