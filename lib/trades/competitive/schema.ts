@@ -256,8 +256,28 @@ export type EvidenceReadiness =
 
 export type CalibrationStatus =
   | "CALIBRATED"
+  | "PARTIALLY_CALIBRATED"
   | "DEFAULT_PRIOR"
   | "INSUFFICIENT_CALIBRATION_DATA";
+
+/**
+ * Per-component calibration honesty (Checkpoint C §1 correction): the top-level
+ * status must NOT imply every dynamic-market component is empirically fitted.
+ *   CALIBRATED            — fitted to historical outcomes, beat the baseline OOS
+ *   CALIBRATION_UNRESOLVED — attempted, inconclusive (e.g. grid saturated)
+ *   HEURISTIC             — a reasoned rule, never fitted
+ *   DEFAULT_PRIOR         — the documented fallback parameters
+ */
+export type ComponentCalibrationStatus =
+  | "CALIBRATED"
+  | "CALIBRATION_UNRESOLVED"
+  | "HEURISTIC"
+  | "DEFAULT_PRIOR";
+
+export interface CalibrationComponent {
+  status: ComponentCalibrationStatus;
+  note: string;
+}
 
 /* ---- evidence families (role / efficiency / result / context) ---- */
 
@@ -346,6 +366,156 @@ export interface PrivateForwardValue {
   /** the blended forward value on the same within-position z-scale as `NormalizedValue` */
   projected_ros_value: NormalizedValue;
   breakout_credibility: BreakoutCredibility;
+  confidence: ValueConfidence;
+  reasons: string[];
+}
+
+/* ======================================================================== */
+/* Checkpoint C — owner-perceived value, reservation price, acceptance        */
+/* ======================================================================== */
+
+/**
+ * THE Checkpoint C value chain — four DISTINCT concepts:
+ *   our private value        (evaluateTrade — what the roster is actually worth to us)
+ *   global current market    (B.5 current_market_proxy — what the market appears to think)
+ *   owner-perceived value    (global market + this owner's modifiers)
+ *   owner reservation price   (owner-perceived + roster-consequence costs of losing him)
+ */
+
+export type OwnerContextReadiness =
+  | "FULL_OWNER_CONTEXT"
+  | "PARTIAL_OWNER_CONTEXT"
+  | "GLOBAL_MARKET_ONLY"
+  | "STALE"
+  | "UNAVAILABLE";
+
+export type DraftAnchorState =
+  | "STRONG_ANCHOR"
+  | "MODERATE_ANCHOR"
+  | "WEAK_ANCHOR"
+  | "MINIMAL_ANCHOR"
+  | "UNKNOWN";
+
+export type StarterImportance =
+  | "LOCKED_STARTER"
+  | "REGULAR_STARTER"
+  | "FLEX_STARTER"
+  | "ROTATIONAL"
+  | "BENCH_DEPTH"
+  | "IR"
+  | "UNKNOWN";
+
+export type AcceptanceLikelihood = "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
+
+export interface DraftAnchorInfo {
+  /** the pick THIS manager spent — round / overall / slot */
+  league_draft_round: number | null;
+  league_draft_pick: number | null;
+  draft_position_z: number | null; // the draft cost as a within-position z (better pick = higher)
+  /** consensus ADP-implied positional rank at draft time */
+  market_adp_position_rank_at_draft: number | null;
+  /** draft_position_z − market-implied z. positive ⇒ reached (drafted ahead of market) */
+  draft_reach_delta: number | null;
+  anchor_state: DraftAnchorState;
+  /** 0..1 — current weight on the personal anchor, decayed by meaningful games */
+  anchor_weight: number;
+  calibration_status: ComponentCalibrationStatus; // always HEURISTIC / DEFAULT_PRIOR at Checkpoint C
+}
+
+export interface OwnerPerceivedValueComponents {
+  global_market_baseline: number;
+  personal_draft_anchor_adjustment: number;
+  starter_importance_adjustment: number;
+  recent_performance_salience: number;
+  name_salience_adjustment: number;
+  behavioral_adjustment: number | null; // null ⇒ insufficient transaction history
+}
+
+export interface OwnerPerceivedValue {
+  canonical_player_id: string;
+  owner_manager_id: string;
+  /** starting point — the B.5 dynamic global market value (z within position) */
+  global_market_value: number | null;
+  /** what this owner likely believes the player is worth (z within position) */
+  owner_perceived_value: number | null;
+  components: OwnerPerceivedValueComponents;
+  starter_importance: StarterImportance;
+  draft_anchor: DraftAnchorInfo;
+  readiness: OwnerContextReadiness;
+  confidence: ValueConfidence;
+  reasons: string[];
+}
+
+export interface ReservationPriceComponents {
+  owner_perceived_value: number;
+  /** OUR estimate of the lineup damage if they lose the player — a behavioral proxy, NOT their perceived value */
+  replacement_cost: number;
+  positional_scarcity_cost: number;
+  surplus_discount: number; // ≤ 0
+  /** bundle-only: extra cost beyond the sum of individual reservations */
+  bundle_nonadditivity: number;
+}
+
+export interface ReservationPrice {
+  /** one or more outgoing assets from the SAME owner */
+  canonical_player_ids: string[];
+  owner_manager_id: string;
+  /** minimum perceived value the owner would likely need to give these up (z within position, summed) */
+  reservation_price: number | null;
+  /** Σ owner_perceived_value of the assets (for the perceived ledger) */
+  perceived_value: number | null;
+  components: ReservationPriceComponents;
+  readiness: OwnerContextReadiness;
+  confidence: ValueConfidence;
+  reasons: string[];
+}
+
+export interface PerceivedLedgerSide {
+  entries: Array<{ canonical_player_id: string; name: string; value: number | null; approx_points: number | null }>;
+  total: number | null;
+}
+
+export interface CounterpartyPerceivedLedger {
+  owner_manager_id: string;
+  /** what they perceive they RECEIVE (our outgoing) — owner-perceived value */
+  received: PerceivedLedgerSide;
+  /** what they perceive they SURRENDER (our incoming) — reservation value */
+  surrendered: PerceivedLedgerSide;
+  /** received.total − surrendered.total */
+  perceived_surplus: number | null;
+}
+
+export interface AcceptanceComponents {
+  perceived_surplus: number;
+  need_relief: number; // ≥ 0 — incoming assets fill their startable gaps
+  roster_slot_pressure: number; // ≤ 0 — net asset gain forces drops
+  structure_fit: number; // ± — consolidation vs fragmentation given their depth
+  market_trajectory_adjustment: number;
+}
+
+export interface AcceptanceEstimate {
+  owner_manager_id: string;
+  perceived_ledger: CounterpartyPerceivedLedger;
+  likelihood: AcceptanceLikelihood;
+  /** internal, deterministic, decomposed — NOT a probability, never shown as % */
+  internal_score: number;
+  components: AcceptanceComponents;
+  /** distinct from `likelihood` (§33): how much we trust this estimate */
+  confidence: ValueConfidence;
+  readiness: OwnerContextReadiness;
+  /** heuristic, not calibrated — only 1 real trade exists */
+  calibration_status: "INSUFFICIENT_TRADE_HISTORY";
+  reasons: string[];
+}
+
+export interface OwnerPerceptionBlock {
+  counterparty_id: string;
+  readiness: OwnerContextReadiness;
+  perceived_asset_values: OwnerPerceivedValue[]; // our OUTGOING (they receive) + our INCOMING (they give)
+  reservation: ReservationPrice[]; // bundled by the incoming (their-side) assets
+  perceived_incoming_value: number | null; // they receive
+  perceived_outgoing_reservation: number | null; // they give
+  perceived_surplus: number | null;
   confidence: ValueConfidence;
   reasons: string[];
 }
@@ -448,10 +618,15 @@ export interface CompetitiveBlock {
     aggregate_edge: AggregateEdge | null; // null when readiness.overall === UNAVAILABLE
   };
   notes: string[];
+
+  // ---- Checkpoint C (present only when a counterparty was supplied) ----
+  /** what THIS counterparty likely believes each traded player is worth + their reservation price */
+  owner_perception?: OwnerPerceptionBlock;
+  /** how likely the counterparty is to accept — from THEIR perceived economics, heuristic */
+  acceptance?: AcceptanceEstimate;
+
   // ---- reserved for later checkpoints; ABSENT until implemented:
-  //   owner_perception?  (Checkpoint C)
-  //   acceptance?        (Checkpoint C)
-  //   extraction?        (Checkpoint C)
+  //   extraction?        (Checkpoint C+ / negotiation)
   //   competitive_cost?  (Checkpoint D)
   //   liquidity?         (Checkpoint F)
   //   appreciation?      (Checkpoint F)

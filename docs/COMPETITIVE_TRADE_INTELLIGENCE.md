@@ -794,16 +794,247 @@ Modified: `lib/trades/competitive/{schema,index}.ts` (additive types + exports),
 
 ---
 
+---
+
+# Part VI — Checkpoint C: Owner-Perceived Value, Reservation Price, Acceptance
+
+Status: **CHECKPOINT C CERTIFIED — READY FOR CHECKPOINT D.**
+Branch `competitive-trade-intelligence`, built on `36ff309`.
+
+## C.1 B.5 calibration metadata correction (§1)
+
+The R backtest fits only **season maturity**. The artifact and the TS loader now
+carry per-component honesty:
+
+| component | status | note |
+|---|---|---|
+| `season_maturity` | `CALIBRATED` | grid-searched λ per position; accepted only where the blend beat prior-only OOS RMSE |
+| `recency_decay` | `CALIBRATION_UNRESOLVED` | half-life grid saturated at the tested ceiling |
+| `opponent_adjustment` | `HEURISTIC` | k = 0.6 matchup elasticity, never fitted |
+| `market_response_weights` | `HEURISTIC` | RESULT-dominant market / ROLE-dominant private split |
+
+Top-level `status` is now **`PARTIALLY_CALIBRATED`** — DERIVED by the loader
+(`deriveStatus`): `CALIBRATED` only when **every** component is `CALIBRATED`; a
+doctored artifact claiming `CALIBRATED` while a component is `HEURISTIC` is
+downgraded. Downstream confidence caps call `isFullyCalibrated(cal)` — which is
+`false` for `PARTIALLY_CALIBRATED` — so a partially-fitted model can **never**
+unlock the fully-calibrated HIGH-confidence ceiling. Regression: `test/competitive-trade-owner-perception.test.ts` §1 block.
+
+## C.2 Manager-data audit
+
+| signal | availability (bloodline-bowl, live) |
+|---|---|
+| roster / starters / bench / IR / slots | **READY** |
+| optimal lineup / slot matching | **READY** (`buildOptimalLineup`) |
+| positional need / surplus | **READY** (`computePositionalNeeds`, `buildTradeSearchProfile`) |
+| per-player draft pick / round / slot / **drafting manager** | **READY** — 180 picks |
+| preseason ADP at draft (consensus) | **READY** (`buildMarketConsensus`) |
+| replacement quality | **READY** (`weeklyVOR` + frontier) |
+| standings / team strength | present but 0-0 at week 1 |
+| current-season realized performance (2026) | **NONE** — 0 games played |
+| transaction history | 7 rows — **too sparse** ⇒ `behavioral_adjustment = null` |
+| trade-offer history / rejected offers | **NONE** |
+| manager behavioral tendencies | **UNAVAILABLE** (1 real trade, other league) |
+
+## C.3 The four distinct value concepts (§ core principle)
+
+```
+our private value        evaluateTrade — what the roster is worth to US
+   ≠
+global current market    B.5 current_market_proxy — what the market appears to think
+   ≠
+owner-perceived value    global market + THIS owner's modifiers
+   ≠
+owner reservation price   owner-perceived + roster-consequence costs of losing him
+```
+
+## C.4 Owner-perceived value (`owner-perception.ts`)
+
+```
+owner_perceived_value = global_current_market
+  + personal_draft_anchor_adjustment   (their pick vs ADP-implied rank, decayed by games)
+  + starter_importance_adjustment       (LOCKED_STARTER → +, BENCH_DEPTH → −)
+  + recent_performance_salience         (B.5 market_trajectory; ≈ 0 at week 1)
+  + name_salience_adjustment            (top-of-position → small +)
+  + behavioral_adjustment               (null — insufficient transaction history)
+```
+
+Every component is capped (z units) and exposed. For a **prospective** incoming
+asset (they'd RECEIVE it, don't own it) there is no draft anchor — the perceived
+value is `global market + would-he-start premium`, readiness
+`PARTIAL_OWNER_CONTEXT`.
+
+## C.5 Draft anchoring + decay (§6–§8)
+
+`draft_reach_delta` = the player's draft-cost z (within this owner's roster)
+minus his ADP-implied z. Positive ⇒ reached (drafted ahead of market) ⇒
+`STRONG/MODERATE_ANCHOR`; negative ⇒ bargain ⇒ `MINIMAL_ANCHOR` (§8: less
+sunk-cost resistance, a small negative adjustment, never an inflation).
+
+`draftAnchorWeight(state, g) = base_weight(state) · e^(−λ_anchor·g)` with
+**`λ_anchor = 0.09` — deliberately slower than every season-maturity λ
+(0.08–0.5)** (§7: a manager stays attached longer than the market re-prices).
+`calibration_status: "HEURISTIC"` always at Checkpoint C.
+
+## C.6 Starter importance (§9)
+
+From the owner's **actual optimal lineup** (not roster order):
+`LOCKED_STARTER` (in the optimal lineup, no bench player within 3 pts VOR) /
+`REGULAR_STARTER` / `FLEX_STARTER` / `ROTATIONAL` (startable-VOR bench) /
+`BENCH_DEPTH` / `IR`.
+
+## C.7 Reservation price (`reservation.ts`)
+
+```
+reservation_price(bundle) = Σ owner_perceived_value
+  + replacement_cost           OUR estimate of the owner's optimal-lineup loss
+                               (leave-all-out `buildOptimalLineup`) ÷ 6 → z.
+                               A behavioral proxy for resistance — NOT their perceived value.
+  + positional_scarcity_cost   z per startable-option gap at the position after the loss
+  + surplus_discount           ≤ 0 — z per extra startable option beyond need+1
+  + bundle_nonadditivity       ≥ 0 — combined leave-all-out loss BEYOND the sum of
+                               individual losses (§28: losing RB3+RB4 together hurts
+                               more than either alone)
+```
+
+`need_relief` is deliberately **not** a per-asset reservation discount — it is a
+trade-level acceptance factor (§11, §29). The literal §5 formula is adapted, not
+copied.
+
+## C.8 Acceptance model (`acceptance.ts`) — counterparty economics, heuristic
+
+```
+their perceived ledger:
+  perceived_incoming_value  = Σ owner_perceived_value of what they RECEIVE
+  perceived_outgoing_reserv. = bundle reservation of what they GIVE
+  perceived_surplus         = incoming − outgoing_reservation
+
+internal_score = 1.0·perceived_surplus + 0.7·need_relief
+              − 1.0·roster_slot_pressure + 0.4·structure_fit
+              + 0.2·market_trajectory_adjustment
+
+likelihood band:  internal_score ≥ 0.5 → HIGH ; ≥ 0.0 → MODERATE ; ≥ −0.6 → LOW ; else VERY_LOW
+```
+
+- **Does NOT consume our private edge.** **Does NOT require opponent actual gain
+  > 0** — a trade where our private model says they lose can still be
+  `MODERATE`/`HIGH` acceptance if their *perceived* ledger is positive (§42, tested).
+- `roster_slot_pressure` (§22, §44): a net asset gain at a full roster forces
+  drops → penalty scaled by how many would be startable-quality.
+- `structure_fit` (§21, §45): consolidation favorable for a deep owner,
+  fragmentation favorable for a fragility-sensitive owner — **not** a universal
+  preference.
+- `likelihood` is a **band, never a %**. `internal_score` is internal,
+  decomposed, deterministic, monotone — never presented as a probability.
+- `calibration_status: "INSUFFICIENT_TRADE_HISTORY"` always.
+- **Acceptance confidence is distinct from likelihood** (§33): "signals suggest
+  they should accept, but we have no behavioral history" ⇒ `HIGH` likelihood /
+  `LOW` confidence is a valid pairing.
+
+## C.9 Readiness (§30–§31)
+
+`FULL_OWNER_CONTEXT` (roster + draft + market) → confidence ceiling **MEDIUM**
+(never HIGH — heuristic acceptance, thin trade history) ·
+`PARTIAL_OWNER_CONTEXT` (roster, no anchor / prospective asset) → LOW ·
+`GLOBAL_MARKET_ONLY` (no roster/owner context at all) → LOW, values explicitly
+**not owner-specific** · `UNAVAILABLE` → VERY_LOW. Missing owner data can only
+lower confidence, never raise it (tested).
+
+## C.10 Output contract
+
+`evaluateCompetitiveTrade({ …, counterparty_manager_id })` attaches, additively:
+
+```
+competitive.owner_perception : { counterparty_id, readiness, perceived_asset_values[],
+                                 reservation[], perceived_incoming_value,
+                                 perceived_outgoing_reservation, perceived_surplus,
+                                 confidence, reasons }
+competitive.acceptance       : { owner_manager_id, perceived_ledger, likelihood,
+                                 internal_score, components, confidence, readiness,
+                                 calibration_status, reasons }
+```
+
+Both **absent** when no counterparty is supplied (tested). `extraction` /
+`competitive_cost` / `negotiation` remain absent from the type.
+
+## C.11 Bloodline Bowl diagnostics (read-only, week 1)
+
+**BijiMac / Chuba Hubbard:** Chuba = `FLEX_STARTER` for BijiMac, drafted R8
+(overall 85, ~ADP RB35 → `WEAK_ANCHOR`, bargain), BijiMac has **5 startable RB**
+(RB need `LOW`, surplus 2). Owner-perceived value ≈ **1.23 z** (global 1.11 +
+flex-starter 0.15 − bargain 0.03). Reservation ≈ **1.09 z** (perceived 1.23 +
+replacement 0.14 + scarcity 0 − **surplus discount 0.28**) — *below* perceived
+value because his RB room is deep. This is exactly the §4 "expendable ⇒
+reservation < perceived value" case.
+
+**Hypothetical Rhamondre Stevenson → Chuba Hubbard** (we send Rhamondre):
+| | |
+|---|---|
+| readiness | `PARTIAL_OWNER_CONTEXT` (Rhamondre is prospective for BijiMac — no anchor) |
+| BijiMac perceives receiving Rhamondre | ≈ **1.46 z** (global + would-start premium) |
+| BijiMac reservation for Chuba | ≈ **1.09 z** |
+| **BijiMac perceived surplus** | **≈ +0.37 z** |
+| **acceptance likelihood** | **MODERATE** (internal 0.37) |
+| acceptance confidence | **MEDIUM** — heuristic, no behavioral history |
+| our private ledger | from `evaluateTrade`, **not shown / not overwritten**; extraction **not** recommended (Checkpoint C boundary) |
+
+**Rome Odunze as outgoing currency:** every sampled counterparty currently has
+WR need `LOW` — his owner-specific need-relief value is similar across managers
+right now (week 1, preseason). The mechanism produces differentiation when
+roster context differs; it does not fabricate it.
+
+**RB roster context across the league** (drives reservation differences):
+`bijoy2theworld` RB need **CRITICAL** (4 rostered), `hammy535` **HIGH** (3), vs
+`supyo29`/`shitalkers`/`nightfallfox` need **NONE** (6 rostered). A mid-value RB
+owned by a 6-RB manager reserves lower than the same RB owned by
+`bijoy2theworld` — the §54 live validation.
+
+## C.12 Known limitations (C)
+
+1. **No 2026 realized data** — `recent_performance_salience` and `meaningful_games`
+   are 0 live; owner perception is materially draft-anchored, as the spec expects
+   at week 1.
+2. **Acceptance is heuristic, uncalibrated** — 1 real trade exists (different
+   league, unmapped managers). `INSUFFICIENT_TRADE_HISTORY` everywhere.
+3. **`behavioral_adjustment` is always `null`** — no usable transaction history.
+4. **z-scale skew** — the RB VOR distribution is right-skewed (many bench players
+   at VOR ≈ 0), so a mid-rank RB's z can look higher than a rank-based intuition.
+   Affects B/B.5/C equally; the *comparative* ledger logic is unaffected.
+5. **Prospective incoming value** is a rough "would-he-start premium", not a full
+   hypothetical-roster re-optimization.
+6. No extraction / opponent competitive cost / negotiation / liquidity /
+   multi-hop — Checkpoints D–F.
+
+## C.13 Regression (C)
+
+- `tsc --noEmit` clean; `eslint app lib test` 0 errors, 29 pre-existing warnings.
+- `npm test`: **1707 tests, 1703 pass, 0 fail, 4 skipped**. +16 new C tests
+  (`test/competitive-trade-owner-perception.test.ts`). Zero existing expectations
+  changed (legacy trade / discovery / weekly / lineup / start-sit / waiver /
+  Phase-9 / orchestrator).
+- Performance: ~1–3 ms per counterparty owner-perception eval after the shared
+  market table is built; per-manager context memoized.
+
+## C.14 Files changed (C)
+
+New: `lib/trades/competitive/{owner-context,owner-perception,reservation,acceptance,owner-perception-eval}.ts`;
+`test/competitive-trade-owner-perception.test.ts`.
+Modified: `lib/trades/competitive/{schema,config,calibration,dynamic-edge,evaluate,index}.ts`;
+`analysis/competitive_market_calibration.R` + its artifact (component metadata);
+`scripts/competitive-trade-smoke.ts`; the doc.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
 - [x] **B — Market edge layer** — CERTIFIED
 - [x] **B.5 — Dynamic market & evidence maturation** — CERTIFIED
-- [ ] C — Owner perception + acceptance
-- [ ] D — Competitive optimizer
+- [x] **C — Owner perception + reservation + acceptance** — CERTIFIED
+- [ ] D — Competitive optimizer (opponent cost, threat weight, final ranking)
 - [ ] E — Negotiation engine
 - [ ] F — Multi-hop + hold-for-appreciation
 - [ ] G — Integration / live smoke
 
-**Freeze verdict: NOT READY TO FREEZE** (Checkpoints C–G outstanding; do not
-merge/tag/deploy). Checkpoint B.5 gate: **CERTIFIED — READY FOR CHECKPOINT C.**
+**Freeze verdict: NOT READY TO FREEZE** (Checkpoints D–G outstanding; do not
+merge/tag/deploy). Checkpoint C gate: **CERTIFIED — READY FOR CHECKPOINT D.**

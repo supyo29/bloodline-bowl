@@ -1,7 +1,25 @@
 {
   "version": "ri-competitive-market-cal-2026.1",
-  "status": "CALIBRATED",
-  "generated_at": "2026-09-09T00:41:53Z",
+  "status": "PARTIALLY_CALIBRATED",
+  "components": {
+    "season_maturity": {
+      "status": "CALIBRATED",
+      "note": "grid-searched lambda per position; accepted only when the blend beat prior-only OOS RMSE"
+    },
+    "recency_decay": {
+      "status": "CALIBRATION_UNRESOLVED",
+      "note": "half-life grid saturated at the tested ceiling (10 games) — inconclusive; position curves carry the ceiling value, family fallbacks keep documented priors"
+    },
+    "opponent_adjustment": {
+      "status": "HEURISTIC",
+      "note": "k=0.6 matchup elasticity — a reasoned rule, never fitted here"
+    },
+    "market_response_weights": {
+      "status": "HEURISTIC",
+      "note": "RESULT-dominant market / ROLE-dominant private split — reasoned, not fitted"
+    }
+  },
+  "generated_at": "2026-09-09T01:13:46Z",
   "training_seasons": [
     2024
   ],

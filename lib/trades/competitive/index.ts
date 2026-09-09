@@ -48,9 +48,12 @@ export {
 // ---- Checkpoint B.5: dynamic in-season market intelligence ----
 export {
   loadCompetitiveMarketCalibration,
+  isFullyCalibrated,
+  componentCalibrated,
   DEFAULT_COMPETITIVE_MARKET_CALIBRATION,
   COMPETITIVE_MARKET_CALIBRATION_VERSION,
   type CompetitiveMarketCalibration,
+  type CalibrationComponentKey,
 } from "./calibration";
 export {
   seasonMaturityWeight,
@@ -73,6 +76,36 @@ export type {
   MarketTrajectory,
   EvidenceReadiness,
   BreakoutCredibility,
+} from "./schema";
+
+// ---- Checkpoint C: owner-perceived value, reservation price, acceptance ----
+export {
+  buildOwnerContext,
+  makeOwnerContextCache,
+  lineupLossFromRemoving,
+  type OwnerContext,
+  type OwnerPlayerContext,
+} from "./owner-context";
+export { buildOwnerPerceivedValues, draftAnchorWeight } from "./owner-perception";
+export { buildReservationPrice } from "./reservation";
+export { buildAcceptanceEstimate } from "./acceptance";
+export { evaluateOwnerPerception, type CounterpartySpec } from "./owner-perception-eval";
+export {
+  DEFAULT_OWNER_PERCEPTION_CONFIG,
+  resolveOwnerPerceptionConfig,
+  type OwnerPerceptionConfig,
+  type PartialOwnerPerceptionConfig,
+} from "./config";
+export type {
+  OwnerPerceivedValue,
+  ReservationPrice,
+  AcceptanceEstimate,
+  AcceptanceLikelihood,
+  OwnerPerceptionBlock,
+  OwnerContextReadiness,
+  DraftAnchorState,
+  StarterImportance,
+  CounterpartyPerceivedLedger,
 } from "./schema";
 
 import type { TradeAnalysisContext } from "../context";

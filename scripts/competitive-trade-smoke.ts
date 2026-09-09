@@ -12,10 +12,27 @@
  */
 
 import { buildTradeAnalysisContext } from "../lib/trades/context";
-import { buildCompetitiveMarketReport } from "../lib/trades/competitive";
+import {
+  buildCompetitiveMarketReport,
+  buildLeagueMarketEdgeTable,
+  buildDynamicMarketEdges,
+  evaluateOwnerPerception,
+  buildOwnerContext,
+} from "../lib/trades/competitive";
 import type { MarketEdge } from "../lib/trades/competitive/schema";
 
 const WATCH = ["Rhamondre Stevenson", "Rome Odunze", "Chuba Hubbard"];
+
+function findPlayer(ctx: Awaited<ReturnType<typeof buildTradeAnalysisContext>>["context"], name: string) {
+  if (!ctx) return null;
+  const p = ctx.snapshot.players.find((pp) => pp.full_name.toLowerCase() === name.toLowerCase());
+  if (!p) return null;
+  const roster = ctx.snapshot.rosters.find((r) => r.all_players.includes(p.canonical_player_id));
+  const team = roster && ctx.snapshot.teams.find((t) => t.canonical_team_id === roster.canonical_team_id);
+  const ownerId = team?.canonical_manager_ids[0] ?? null;
+  const ownerSlug = ownerId ? ctx.snapshot.managers.find((m) => m.canonical_manager_id === ownerId)?.manager_slug ?? null : null;
+  return { player: p, owner_id: ownerId, owner_slug: ownerSlug };
+}
 
 function fmtEdge(e: MarketEdge): string {
   const pr = e.private_value.position_rank != null ? `${e.position}${e.private_value.position_rank}` : `${e.position}?`;
@@ -95,7 +112,71 @@ async function reportLeague(leagueSlug: string) {
       console.log(`  ${name}: not rostered in this league / no snapshot`);
     }
   }
-  console.log(`\nSTATUS: ANALYTICAL_ONLY — owner-perception / acquisition / acceptance model NOT implemented (Checkpoint C+).`);
+  // ---- Checkpoint C: owner perception + acceptance ----
+  console.log(`\n================ CHECKPOINT C — owner perception & acceptance ================`);
+  const cTable = buildLeagueMarketEdgeTable(ctx);
+  const cDyn = buildDynamicMarketEdges({ table: cTable, season: ctx.season, as_of_week: ctx.week, remaining_games_expected: Math.max(1, ctx.ros.weeks.length), config: cTable.config });
+
+  const chuba = findPlayer(ctx, "Chuba Hubbard");
+  const rham = findPlayer(ctx, "Rhamondre Stevenson");
+  const rome = findPlayer(ctx, "Rome Odunze");
+
+  if (chuba?.owner_id) {
+    const oc = buildOwnerContext(ctx, chuba.owner_id);
+    const pc = oc.by_player.get(chuba.player.canonical_player_id);
+    console.log(`\n--- BijiMac(${chuba.owner_slug}) / Chuba Hubbard ---`);
+    console.log(`  Chuba: starter_importance=${pc?.starter_importance} draft=${pc?.draft_round == null ? "n/a" : "R" + pc.draft_round + " (overall " + pc.draft_pick + ")"} startable_RB_on_roster=${pc?.position_startable_count} (without Chuba: ${pc?.position_startable_without})`);
+    const rbNeed = oc.profile.needs.find((n) => n.position === "RB");
+    const rbSurplus = oc.profile.surpluses.find((s) => s.position === "RB");
+    console.log(`  BijiMac RB need=${rbNeed?.severity ?? "NONE"} RB surplus_count=${rbSurplus?.surplus_count ?? 0}`);
+  }
+
+  if (chuba?.owner_id && rham) {
+    console.log(`\n--- hypothetical: Rhamondre Stevenson  →  Chuba Hubbard  (we send Rhamondre, receive Chuba) ---`);
+    const ev = evaluateOwnerPerception({
+      ctx, table: cTable, dynamic_edges: cDyn.by_player,
+      counterparty: { manager_id: chuba.owner_id, receives: [rham.player.canonical_player_id], gives: [chuba.player.canonical_player_id] },
+    });
+    const op = ev.owner_perception;
+    console.log(`  readiness=${op.readiness} confidence=${op.confidence}`);
+    console.log(`  THEIR perceived ledger (${chuba.owner_slug}):`);
+    console.log(`    receive Rhamondre  perceived ≈ ${op.perceived_incoming_value?.toFixed(2)}`);
+    console.log(`    give up  Chuba     reservation ≈ ${op.perceived_outgoing_reservation?.toFixed(2)}  (perceived value ${op.reservation[0]?.perceived_value?.toFixed(2)}; components ${JSON.stringify(op.reservation[0]?.components)})`);
+    console.log(`    perceived surplus ≈ ${op.perceived_surplus?.toFixed(2)}`);
+    console.log(`  acceptance: likelihood=${ev.acceptance.likelihood} internal_score=${ev.acceptance.internal_score} confidence=${ev.acceptance.confidence} (${ev.acceptance.calibration_status})`);
+    console.log(`    ${ev.acceptance.reasons.slice(0, 3).join("\n    ")}`);
+    console.log(`  (our private ledger comes from evaluateTrade — NOT shown here; extraction NOT recommended — Checkpoint C boundary)`);
+  }
+
+  if (rome) {
+    console.log(`\n--- Rome Odunze as outgoing currency to different owners (owner-specific perceived value) ---`);
+    const others = ctx.snapshot.managers.filter((m) => m.canonical_manager_id !== rome.owner_id).slice(0, 4);
+    for (const m of others) {
+      const oc = buildOwnerContext(ctx, m.canonical_manager_id);
+      const wrNeed = oc.profile.needs.find((n) => n.position === "WR")?.severity ?? "NONE";
+      // perceived value if Rome were on THIS owner's roster is not directly computable
+      // (he isn't), but their WR need drives how much need-relief he'd provide
+      console.log(`  ${m.manager_slug.padEnd(16)} WR need=${wrNeed} startable_WR≈${oc.profile.surpluses.find((s) => s.position === "WR")?.surplus_count ?? 0}`);
+    }
+  }
+
+  // multi-owner RB comparison — reservation differs by roster context
+  const rbOwners = ctx.snapshot.rosters
+    .map((r) => {
+      const team = ctx.snapshot.teams.find((t) => t.canonical_team_id === r.canonical_team_id);
+      const mid = team?.canonical_manager_ids[0];
+      if (!mid) return null;
+      const oc = buildOwnerContext(ctx, mid);
+      const rbCount = [...oc.by_player.values()].filter((p) => p.position === "RB").length;
+      const rbNeed = oc.profile.needs.find((n) => n.position === "RB")?.severity ?? "NONE";
+      return { slug: oc.manager_slug, rbCount, rbNeed };
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .sort((a, b) => b.rbCount - a.rbCount);
+  console.log(`\n--- RB roster context across the league (drives reservation-price differences) ---`);
+  for (const o of rbOwners) console.log(`  ${o.slug.padEnd(16)} RB rostered=${o.rbCount}  RB need=${o.rbNeed}`);
+
+  console.log(`\nSTATUS: Checkpoint C — owner perception + heuristic acceptance modeled. NO extraction, NO opponent-cost, NO negotiation (D–E).`);
 }
 
 // ---------------------------------------------------------------------------

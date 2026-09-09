@@ -13,7 +13,7 @@
  */
 
 import type { CompetitiveTradeConfig } from "./config";
-import type { CompetitiveMarketCalibration } from "./calibration";
+import { isFullyCalibrated, type CompetitiveMarketCalibration } from "./calibration";
 import type {
   MarketCorrectionStatus,
   MarketEdge,
@@ -155,8 +155,10 @@ export function applyDynamicMarketToEdge(input: ApplyDynamicMarketInput): Market
     reasons.push("high scoring on thin opportunity — touchdown-driven, not role-driven");
   }
 
-  // never HIGH conviction on default priors (§59) or a week-# fallback
-  if (calibration.status !== "CALIBRATED") level = Math.min(level, 2);
+  // never HIGH conviction unless the calibration is FULLY calibrated (§1, §59):
+  // PARTIALLY_CALIBRATED / DEFAULT_PRIOR / INSUFFICIENT all cap at MEDIUM — a
+  // partially-fitted model must not unlock the fully-calibrated ceiling.
+  if (!isFullyCalibrated(calibration)) level = Math.min(level, 2);
   if (temporal.games_source === "WEEK_NUMBER_FALLBACK") level = Math.min(level, 2);
 
   const confidence = LEVEL_CONF[Math.max(0, Math.min(3, level))]!;

@@ -31,6 +31,8 @@ import { buildPrivateValues } from "./private-value";
 import { buildTradeMarketSnapshot, type PprMode, type PlayerMarketSnapshot } from "./market/snapshot";
 import { buildMarketEdges, type MarketEdgeTable } from "./market-edge";
 import { assessCompetitiveTradeReadiness } from "./readiness";
+import { buildDynamicMarketEdges } from "./dynamic";
+import { evaluateOwnerPerception } from "./owner-perception-eval";
 
 export function pprModeOf(rawScoring: Record<string, number>): PprMode {
   const rec = rawScoring.rec ?? 0;
@@ -115,6 +117,13 @@ export interface EvaluateCompetitiveTradeInput {
   config?: PartialCompetitiveTradeConfig;
   /** reuse a league-wide table instead of rebuilding (discovery sweeps) */
   precomputed?: LeagueMarketEdgeTable;
+  /**
+   * Checkpoint C: when supplied, the counterparty's owner-perceived value,
+   * reservation price and acceptance likelihood are attached. `manager_id` plus
+   * the bilateral routing (they RECEIVE our outgoing, GIVE our incoming).
+   */
+  counterparty_manager_id?: string;
+  owner_perception_config?: import("./config").PartialOwnerPerceptionConfig;
 }
 
 const CONF_LEVEL: Record<ValueConfidence, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, VERY_LOW: 0 };
@@ -175,6 +184,33 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
     },
     notes,
   };
+
+  // ---- Checkpoint C: counterparty owner perception + acceptance ----
+  if (input.counterparty_manager_id) {
+    const dyn = buildDynamicMarketEdges({
+      table,
+      season: ctx.season,
+      as_of_week: ctx.week,
+      remaining_games_expected: Math.max(1, ctx.ros.weeks.length),
+      config: table.config,
+    });
+    const { owner_perception, acceptance } = evaluateOwnerPerception({
+      ctx,
+      table,
+      dynamic_edges: dyn.by_player,
+      counterparty: {
+        manager_id: input.counterparty_manager_id,
+        receives: outgoing_player_ids,
+        gives: incoming_player_ids,
+      },
+      config: input.owner_perception_config,
+    });
+    competitive.owner_perception = owner_perception;
+    competitive.acceptance = acceptance;
+    competitive.notes.push(
+      "Checkpoint C — acceptance is modeled from the COUNTERPARTY's perceived economics (what they believe they receive vs their reservation price), NOT from our private valuation. It is heuristic (1 real trade exists). No extraction / opponent-cost / negotiation yet.",
+    );
+  }
 
   return { baseline, competitive };
 }

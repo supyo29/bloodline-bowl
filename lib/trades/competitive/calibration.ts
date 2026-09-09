@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type {
+  CalibrationComponent,
   CalibrationStatus,
   RecencyFamily,
   SeasonMaturityFamily,
@@ -33,9 +34,23 @@ export interface PositionMetricCalibration {
   recency: CurveParams;
 }
 
+export type CalibrationComponentKey =
+  | "season_maturity"
+  | "recency_decay"
+  | "opponent_adjustment"
+  | "market_response_weights";
+
 export interface CompetitiveMarketCalibration {
   version: string;
+  /**
+   * Top-level status. `CALIBRATED` ONLY when EVERY component below is
+   * `CALIBRATED`. When some components are fitted and others are not, this is
+   * `PARTIALLY_CALIBRATED` — and downstream confidence caps treat that exactly
+   * like `DEFAULT_PRIOR` (never "fully calibrated"). See `isFullyCalibrated()`.
+   */
   status: CalibrationStatus;
+  /** Per-component honesty — the correction from the Checkpoint B.5 review. */
+  components: Record<CalibrationComponentKey, CalibrationComponent>;
   generated_at: string | null;
   training_seasons: number[];
   validation_seasons: number[];
@@ -66,9 +81,17 @@ export interface CompetitiveMarketCalibration {
  *   - one game must not erase the prior (max_weight caps well below 1)
  *   - recency: ~4-game half-life default, position-varied
  */
+const DEFAULT_COMPONENTS: Record<CalibrationComponentKey, CalibrationComponent> = {
+  season_maturity: { status: "DEFAULT_PRIOR", note: "documented prior curves; not fitted" },
+  recency_decay: { status: "DEFAULT_PRIOR", note: "documented prior half-lives; not fitted" },
+  opponent_adjustment: { status: "HEURISTIC", note: "k=0.6 matchup elasticity — a reasoned rule, never fitted" },
+  market_response_weights: { status: "HEURISTIC", note: "RESULT-dominant market / ROLE-dominant private — reasoned, not fitted" },
+};
+
 export const DEFAULT_COMPETITIVE_MARKET_CALIBRATION: CompetitiveMarketCalibration = deepFreeze({
   version: COMPETITIVE_MARKET_CALIBRATION_VERSION,
   status: "DEFAULT_PRIOR",
+  components: DEFAULT_COMPONENTS,
   generated_at: null,
   training_seasons: [],
   validation_seasons: [],
@@ -137,9 +160,17 @@ export function loadCompetitiveMarketCalibration(
       if (fileOverride === undefined) cached = null;
       return DEFAULT_COMPETITIVE_MARKET_CALIBRATION;
     }
+    const components: Record<CalibrationComponentKey, CalibrationComponent> = {
+      ...DEFAULT_COMPONENTS,
+      ...((raw.components ?? {}) as Partial<Record<CalibrationComponentKey, CalibrationComponent>>),
+    };
     const merged: CompetitiveMarketCalibration = {
       ...DEFAULT_COMPETITIVE_MARKET_CALIBRATION,
       ...raw,
+      components,
+      // Top-level status is DERIVED from components — an artifact claiming
+      // `CALIBRATED` while a component is HEURISTIC is downgraded to PARTIALLY.
+      status: deriveStatus(components, raw.status as CalibrationStatus | undefined),
       confidence_thresholds: {
         ...DEFAULT_COMPETITIVE_MARKET_CALIBRATION.confidence_thresholds,
         ...(raw.confidence_thresholds ?? {}),
@@ -151,6 +182,34 @@ export function loadCompetitiveMarketCalibration(
     if (fileOverride === undefined) cached = null;
     return DEFAULT_COMPETITIVE_MARKET_CALIBRATION;
   }
+}
+
+function deriveStatus(
+  components: Record<CalibrationComponentKey, CalibrationComponent>,
+  artifactStatus: CalibrationStatus | undefined,
+): CalibrationStatus {
+  if (artifactStatus === "INSUFFICIENT_CALIBRATION_DATA") return artifactStatus;
+  const vals = Object.values(components).map((c) => c.status);
+  if (vals.every((s) => s === "CALIBRATED")) return "CALIBRATED";
+  if (vals.some((s) => s === "CALIBRATED")) return "PARTIALLY_CALIBRATED";
+  return "DEFAULT_PRIOR";
+}
+
+/**
+ * The ONLY predicate downstream confidence logic should use to decide whether
+ * the calibration is trustworthy enough to permit HIGH conviction.
+ * `PARTIALLY_CALIBRATED` is explicitly NOT fully calibrated.
+ */
+export function isFullyCalibrated(cal: Pick<CompetitiveMarketCalibration, "status">): boolean {
+  return cal.status === "CALIBRATED";
+}
+
+/** True only when the named component was empirically fitted. */
+export function componentCalibrated(
+  cal: CompetitiveMarketCalibration,
+  key: CalibrationComponentKey,
+): boolean {
+  return cal.components[key]?.status === "CALIBRATED";
 }
 
 /** Resolve the curves for a position+metric-family with `*` fallbacks. */

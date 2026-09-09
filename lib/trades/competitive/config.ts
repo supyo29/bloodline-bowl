@@ -7,7 +7,7 @@
  * the market's".
  */
 
-import type { MarketReadiness, ValueConfidence } from "./schema";
+import type { DraftAnchorState, MarketReadiness, OwnerContextReadiness, StarterImportance, ValueConfidence } from "./schema";
 
 export interface CompetitiveTradeConfig {
   edge_bands: {
@@ -126,6 +126,119 @@ export function resolveCompetitiveTradeConfig(
   };
   assertBandOrder(cfg);
   return cfg;
+}
+
+/* ======================================================================== */
+/* Checkpoint C — owner perception / reservation / acceptance config          */
+/* ======================================================================== */
+
+export interface OwnerPerceptionConfig {
+  /** owner-perceived-value component caps (z units) — no component dominates */
+  perceived_component_caps: {
+    draft_anchor: number;
+    starter_importance: number;
+    recent_salience: number;
+    name_salience: number;
+  };
+  /** per-anchor-state base weight, decayed by meaningful games */
+  draft_anchor_base_weight: Record<DraftAnchorState, number>;
+  /** personal-anchor decay per meaningful game — DELIBERATELY < the season-maturity
+   * lambda (a manager stays attached longer than the market re-prices). HEURISTIC. */
+  draft_anchor_decay_lambda: number;
+  /** draft_reach_delta (z) thresholds → anchor state */
+  anchor_state_thresholds: { strong: number; moderate: number; weak: number };
+  /** z gain applied per unit of positive draft reach */
+  draft_reach_gain: number;
+  /** starter-importance → reservation adjustment (z) */
+  starter_importance_reservation: Record<StarterImportance, number>;
+  /** z per "missing startable option" at the position after losing the player */
+  positional_scarcity_cost_per_gap: number;
+  /** z discount per surplus startable option beyond need+1 (≤ 0 applied) */
+  surplus_discount_per_extra: number;
+  /** replacement-cost: weekly-points lineup loss → z (divide by this) */
+  replacement_points_to_z: number;
+  /** bundle: extra reservation as a fraction of the combined lineup loss beyond the summed individual losses */
+  bundle_nonadditivity_gain: number;
+  /** acceptance bands on internal_score */
+  acceptance_bands: { high: number; moderate: number; low: number };
+  /** acceptance component weights */
+  acceptance_weights: {
+    perceived_surplus: number;
+    need_relief: number;
+    roster_slot_pressure: number;
+    structure_fit: number;
+    market_trajectory: number;
+  };
+  /** z penalty per forced drop of a startable-quality player */
+  slot_pressure_per_forced_drop: number;
+  /** readiness → owner-perception confidence ceiling */
+  readiness_confidence_ceiling: Record<OwnerContextReadiness, ValueConfidence>;
+}
+
+export const DEFAULT_OWNER_PERCEPTION_CONFIG: OwnerPerceptionConfig = deepFreeze({
+  perceived_component_caps: { draft_anchor: 0.55, starter_importance: 0.5, recent_salience: 0.4, name_salience: 0.25 },
+  draft_anchor_base_weight: {
+    STRONG_ANCHOR: 0.9,
+    MODERATE_ANCHOR: 0.6,
+    WEAK_ANCHOR: 0.3,
+    MINIMAL_ANCHOR: 0.1,
+    UNKNOWN: 0,
+  },
+  draft_anchor_decay_lambda: 0.09, // slower than the season-maturity lambdas (0.08–0.5)
+  anchor_state_thresholds: { strong: 0.9, moderate: 0.35, weak: -0.35 },
+  draft_reach_gain: 0.35,
+  starter_importance_reservation: {
+    LOCKED_STARTER: 0.9,
+    REGULAR_STARTER: 0.5,
+    FLEX_STARTER: 0.25,
+    ROTATIONAL: 0.05,
+    BENCH_DEPTH: -0.15,
+    IR: -0.35,
+    UNKNOWN: 0,
+  },
+  positional_scarcity_cost_per_gap: 0.5,
+  surplus_discount_per_extra: -0.28,
+  replacement_points_to_z: 6,
+  bundle_nonadditivity_gain: 0.4,
+  acceptance_bands: { high: 0.5, moderate: 0.0, low: -0.6 },
+  acceptance_weights: {
+    perceived_surplus: 1.0,
+    need_relief: 0.7,
+    roster_slot_pressure: 1.0,
+    structure_fit: 0.4,
+    market_trajectory: 0.2,
+  },
+  slot_pressure_per_forced_drop: -0.5,
+  readiness_confidence_ceiling: {
+    FULL_OWNER_CONTEXT: "MEDIUM", // never HIGH — heuristic acceptance, thin trade history
+    PARTIAL_OWNER_CONTEXT: "LOW",
+    GLOBAL_MARKET_ONLY: "LOW",
+    STALE: "LOW",
+    UNAVAILABLE: "VERY_LOW",
+  },
+});
+
+export type PartialOwnerPerceptionConfig = { [K in keyof OwnerPerceptionConfig]?: Partial<OwnerPerceptionConfig[K]> };
+
+export function resolveOwnerPerceptionConfig(override?: PartialOwnerPerceptionConfig): OwnerPerceptionConfig {
+  const d = DEFAULT_OWNER_PERCEPTION_CONFIG;
+  if (!override) return d;
+  return deepFreeze({
+    perceived_component_caps: { ...d.perceived_component_caps, ...(override.perceived_component_caps ?? {}) },
+    draft_anchor_base_weight: { ...d.draft_anchor_base_weight, ...(override.draft_anchor_base_weight ?? {}) },
+    draft_anchor_decay_lambda: (override.draft_anchor_decay_lambda as number) ?? d.draft_anchor_decay_lambda,
+    anchor_state_thresholds: { ...d.anchor_state_thresholds, ...(override.anchor_state_thresholds ?? {}) },
+    draft_reach_gain: (override.draft_reach_gain as number) ?? d.draft_reach_gain,
+    starter_importance_reservation: { ...d.starter_importance_reservation, ...(override.starter_importance_reservation ?? {}) },
+    positional_scarcity_cost_per_gap: (override.positional_scarcity_cost_per_gap as number) ?? d.positional_scarcity_cost_per_gap,
+    surplus_discount_per_extra: (override.surplus_discount_per_extra as number) ?? d.surplus_discount_per_extra,
+    replacement_points_to_z: (override.replacement_points_to_z as number) ?? d.replacement_points_to_z,
+    bundle_nonadditivity_gain: (override.bundle_nonadditivity_gain as number) ?? d.bundle_nonadditivity_gain,
+    acceptance_bands: { ...d.acceptance_bands, ...(override.acceptance_bands ?? {}) },
+    acceptance_weights: { ...d.acceptance_weights, ...(override.acceptance_weights ?? {}) },
+    slot_pressure_per_forced_drop: (override.slot_pressure_per_forced_drop as number) ?? d.slot_pressure_per_forced_drop,
+    readiness_confidence_ceiling: { ...d.readiness_confidence_ceiling, ...(override.readiness_confidence_ceiling ?? {}) },
+  });
 }
 
 function assertBandOrder(cfg: CompetitiveTradeConfig): void {

@@ -42,10 +42,25 @@ LAMBDA_GRID <- c(0.08, 0.12, 0.16, 0.2, 0.25, 0.3, 0.35, 0.42, 0.5, 0.65)
 HALFLIFE_GRID <- c(2, 3, 4, 5, 6, 8, 10)
 MAX_WEIGHT <- 0.85
 
+# Per-component honesty (Checkpoint C §1): only season_maturity is ever
+# empirically fitted by this script; recency saturated at the grid ceiling;
+# opponent adjustment and market-response weights are heuristics.
+components_block <- function(season_maturity_status) list(
+  season_maturity = list(status = season_maturity_status,
+    note = "grid-searched lambda per position; accepted only when the blend beat prior-only OOS RMSE"),
+  recency_decay = list(status = "CALIBRATION_UNRESOLVED",
+    note = "half-life grid saturated at the tested ceiling (10 games) — inconclusive; position curves carry the ceiling value, family fallbacks keep documented priors"),
+  opponent_adjustment = list(status = "HEURISTIC",
+    note = "k=0.6 matchup elasticity — a reasoned rule, never fitted here"),
+  market_response_weights = list(status = "HEURISTIC",
+    note = "RESULT-dominant market / ROLE-dominant private split — reasoned, not fitted")
+)
+
 write_default <- function(reason) {
   message("calibration: ", reason, " — writing INSUFFICIENT_CALIBRATION_DATA artifact")
   art <- list(
     version = VERSION, status = "INSUFFICIENT_CALIBRATION_DATA",
+    components = components_block("DEFAULT_PRIOR"),
     generated_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     training_seasons = list(), validation_seasons = list(),
     sample_sizes = list(), by_position_metric = list(),
@@ -189,9 +204,24 @@ by_pos[["*"]] <- list(
   )
 )
 
+# season_maturity is CALIBRATED when at least one position was accepted; the
+# top-level `status` is DERIVED from components by the TS loader (a mix of
+# CALIBRATED + HEURISTIC ⇒ PARTIALLY_CALIBRATED), so emit it honestly here too.
+sm_status <- if (any_accepted) "CALIBRATED" else "DEFAULT_PRIOR"
+comp <- components_block(sm_status)
+comp_cal <- vapply(comp, function(c) c$status == "CALIBRATED", logical(1))
+top_status <- if (all(comp_cal)) {
+  "CALIBRATED"
+} else if (any(comp_cal)) {
+  "PARTIALLY_CALIBRATED"
+} else {
+  "DEFAULT_PRIOR"
+}
+
 art <- list(
   version = VERSION,
-  status = status,
+  status = top_status,
+  components = comp,
   generated_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   training_seasons = list(PRIOR_SEASON), validation_seasons = list(TARGET_SEASON),
   sample_sizes = samples,
@@ -207,4 +237,4 @@ art <- list(
   )
 )
 write_json(art, OUT, auto_unbox = TRUE, pretty = TRUE)
-message("wrote ", OUT, " (status ", status, ")")
+message("wrote ", OUT, " (status ", top_status, "; season_maturity ", sm_status, ")")
