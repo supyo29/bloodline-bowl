@@ -57,6 +57,12 @@ export interface Capability {
   /** Whether the data is live current-state (true) or historical (false) or both. */
   temporality: "live" | "historical" | "live+historical";
   query_params?: string[];
+  /** HTTP method — omitted means GET (every read-only path route). A few analysis endpoints take a POST body. */
+  method?: "GET" | "POST";
+  /** For a POST endpoint: the request-body `mode` values it accepts. */
+  request_modes?: string[];
+  /** For a POST endpoint: the required request-body fields. */
+  required_body_fields?: string[];
 }
 
 /**
@@ -291,6 +297,19 @@ export const CAPABILITIES: Capability[] = [
     route_template: "/api/providers",
     canonical: true,
     temporality: "live",
+  },
+  {
+    id: "competitive_trade",
+    title: "Competitive trade intelligence",
+    description:
+      "POST endpoint. SEPARATE from legacy mutual-benefit trade discovery: this optimizes the requesting manager's championship equity subject to the deal staying plausibly acceptable to the counterparty — the other manager's improvement is a cost, not an objective. Modes: 'evaluate' (one explicit proposal via give_assets / receive_assets / counterparty), 'negotiate' (base deal plus value-extraction / negotiation envelope), 'discover' (search for competitively certified direct trades for the requester), 'strategy_path' (direct vs hold vs buy-and-hold vs bounded two-step vs no-action). status NO_ACTION is a SUCCESSFUL result (HTTP 200), not an error or a not-ready state; status REVIEW_REQUIRED is preserved and never softened into a recommendation; confidence (VERY_LOW/LOW/MEDIUM/HIGH) and readiness are passed through, never upgraded. Every response carries the source snapshot lineage (league_snapshot_id, generated_at, scoring/roster fingerprints, player-data version). Acceptance likelihood is heuristic (one real league trade exists); opponent threat is heuristic; market appreciation potential is speculative; early-season dynamic market evidence is preseason-only; multi-step trade paths are bounded to a maximum of two completed trades. READ-ONLY analytics — it never submits, accepts, or modifies a trade and never sends a message.",
+    scope: "league",
+    route_template: "/api/trades/competitive",
+    canonical: true,
+    temporality: "live",
+    method: "POST",
+    request_modes: ["evaluate", "negotiate", "discover", "strategy_path"],
+    required_body_fields: ["league", "manager", "mode"],
   },
 ];
 

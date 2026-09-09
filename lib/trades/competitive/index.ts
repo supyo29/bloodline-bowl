@@ -166,6 +166,16 @@ export { buildMarketAppreciation, appreciationIsTrustworthy, type BuildAppreciat
 export { buildHoldEvaluation, type BuildHoldInput } from "./hold";
 export { buildStrategyPathComparison, type BuildStrategyPathsInput } from "./path-search";
 export {
+  evaluateCompetitiveTradeRequest,
+  COMPETITIVE_TRADE_API_VERSION,
+  type CompetitiveTradeApiRequest,
+  type CompetitiveTradeApiResponse,
+  type CompetitiveTradeMode,
+  type CompetitiveApiStatus,
+  type CompetitiveApiErrorKind,
+  type EvaluateCompetitiveTradeRequestOptions,
+} from "./api";
+export {
   DEFAULT_COMPETITIVE_F_CONFIG,
   resolveCompetitiveFConfig,
   type CompetitiveFConfig,

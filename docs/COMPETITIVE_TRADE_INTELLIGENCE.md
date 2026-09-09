@@ -1839,6 +1839,248 @@ production lineup / start-sit / waiver / player-scheme surface touched.
 
 ---
 
+# Part XI — Checkpoint G: API Integration, Snapshot Safety, Live End-to-End
+
+## G.1 Terminology (§0)
+
+Human-facing text in this part spells concepts out: **Roster Intelligence** (the
+private forward-looking player model), **Value Over Replacement**, **rest-of-season**,
+**current market value**, **owner-perceived value**, **permanent trade utility**
+(the rest-of-season-dominant value of a completed trade), **competitive
+externality** (the cost of strengthening a rival). Standard position
+abbreviations (QB/RB/WR/TE/K/DST/FLEX) are used as-is.
+
+## G.2 What changed from the old trade engine (§60)
+
+The legacy trade engine (`POST /api/trades/{analyze,discover,negotiate}`) finds
+structurally plausible, **mutually beneficial** trades using current-week /
+private roster utility, and filters out any deal a partner would not accept.
+
+The competitive engine (`POST /api/trades/competitive`) instead evaluates
+**permanent rest-of-season utility**, current market perception, owner-specific
+reservation price, acceptance feasibility, opponent competitive cost, value
+extraction, trade liquidity, market appreciation potential, and bounded future
+trade paths. The other manager's improvement is a **cost**, not an objective —
+but the deal must still stay plausibly acceptable to them. The legacy engine is
+not disparaged and is unchanged; the competitive engine is the evolution.
+
+## G.3 The endpoint (§3–§5, §43–§46)
+
+`POST /api/trades/competitive` — semantically separate from legacy
+mutual-benefit discovery. Request body:
+
+```
+{ "league": "...", "manager": "...", "mode": "evaluate" | "negotiate" | "discover" | "strategy_path",
+  "counterparty": "...", "give_assets": ["..."], "receive_assets": ["..."],
+  "target_player": "...", "negotiation_aggressiveness": "...", "search_limits": { "max_results": N } }
+```
+
+`league`, `manager`, `mode` are required. Player assets resolve from a canonical
+id, a bare provider id (Sleeper, GSIS, …), or a full name. Ownership is validated
+from the **snapshot**, never from caller assertions: an outgoing player must be on
+the requester's roster and an incoming player on the stated counterparty's — a
+mismatch is rejected, never silently swapped into a different trade.
+
+Library entry point: `evaluateCompetitiveTradeRequest(req)` in
+`lib/trades/competitive/api.ts`. It runs inside `runInLeagueStateScope`, reads
+the league snapshot **once** (`buildTradeAnalysisContext`), and builds **one**
+`CompetitiveTradeEvaluationContext` reused across every proposal the mode
+evaluates (the Checkpoint F performance foundation, preserved end to end). It is
+`READ_ONLY_ANALYTICS`: no trade is ever submitted, accepted, or modified; no
+provider transaction is created; no message is sent.
+
+### Modes
+
+| Mode | Question | Key response fields |
+| --- | --- | --- |
+| `evaluate` | "What happens if I trade X for Y?" | `evaluation.{private_trade, market, counterparty, opponent, liquidity, appreciation, buy_and_hold, result}` |
+| `negotiate` | "What should I ask for, where do I walk away?" | `negotiation.{base_trade_certified, extraction_band, opening_offer, target_settlement, acceptable_deal, walk_away, frontier}` |
+| `discover` | "What trades should I pursue?" | `discovery.certified_direct_trades[]`, or `status: NO_ACTION` |
+| `strategy_path` | "Acquire and flip, or hold, or do nothing?" | `strategy_paths` (the full `StrategyPathComparison`) |
+
+Path search is NOT run for a one-proposal `evaluate` request.
+
+## G.4 Status contract (§11, §12, §20, §21)
+
+Every analytical outcome is **HTTP 200**. The `status` field carries the
+meaning:
+
+| `status` | HTTP | Meaning |
+| --- | --- | --- |
+| `READY` | 200 | full analysis, actionable or not |
+| `PARTIAL` | 200 | analysis produced with degraded readiness |
+| `REVIEW_REQUIRED` | 200 | the rest-of-season and current-week valuations conflict at low confidence — **not** a recommendation |
+| `NO_ACTION` | 200 | doing nothing (or holding a current asset) is the best analytical result — **a success, not a failure** |
+| `VALIDATION_FAILED` | 400 / 404 / 409 | see `error_kind` |
+| `CONTEXT_UNAVAILABLE` | 503 | league snapshot could not be built |
+
+`error_kind` (`MALFORMED` → 400, `NOT_FOUND` → 404, `OWNERSHIP` / `STRUCTURAL` →
+409, `CONTEXT_UNAVAILABLE` → 503, `INTERNAL` → 500) is what the route maps to an
+HTTP code. A bad trade never returns 500. `NO_ACTION` and `REVIEW_REQUIRED`
+never map to an error. Confidence (`VERY_LOW` / `LOW` / `MEDIUM` / `HIGH`) and
+readiness are passed through from the engine and **never upgraded** at the HTTP
+layer.
+
+## G.5 Snapshot lineage + safety (§7–§10, §32)
+
+Every response carries `snapshot`: `league_snapshot_id`, `generated_at`,
+`league_slug`, `season`, `week`, `scoring_fingerprint`, `roster_fingerprint`,
+`content_hash`, `player_data_version` — enough to audit whether the answer is
+stale.
+
+The API constructs one `CompetitiveTradeEvaluationContext` per request from the
+snapshot it will evaluate, and calls `assertContextMatchesSnapshot` before use.
+A context built from snapshot A cannot be reused against snapshot B — the guard
+throws. A concurrent league mutation between the read and the evaluation is
+therefore impossible to serve silently: the request either uses a fresh B
+context or fails loudly. A different snapshot always produces a different
+`content_hash` / `league_snapshot_id`, even when the analytical values coincide.
+
+## G.6 Perspective correctness (§14)
+
+A counterparty's **absolute** forward-looking roster strength
+(`opponent_threat.components.blended_strength_z`, and the `band` derived from it)
+is perspective-independent — it does not depend on who is asking. `relative_to_us`
+is re-derived per requester inside `competitive-d-eval.ts` from the
+perspective-independent per-manager blended z. Verified live: from `supyo29`'s
+perspective a strong rival is `relative_to_us` ≈ +2.16; from `msamuel4`'s ≈ +0.34;
+the rival's absolute z is 1.31 in both.
+
+## G.7 Human-facing value semantics (§41, §42)
+
+- A small **negative normalized reservation** renders as
+  `"very low owner reservation value relative to the league baseline"` in
+  `evaluation.counterparty.reservation_descriptor`; the raw number stays in
+  machine-readable fields.
+- When `raw_perceived_value_surplus < 0` but acceptance is still moderate on
+  roster fit, the response says *"the nominal value balance slightly favours what
+  the counterparty surrenders, but roster-fit benefits keep the proposal
+  moderately attractive"* — never *"they think they won the trade"*.
+
+## G.8 `/api/ai` discovery advertisement (§23, §24)
+
+`CAPABILITIES` gains a `competitive_trade` entry (`method: "POST"`,
+`request_modes`, `required_body_fields`) whose description states plainly: the
+endpoint is separate from legacy mutual-benefit discovery; `NO_ACTION` is a
+success; `REVIEW_REQUIRED` is preserved; acceptance is heuristic; appreciation is
+speculative; early-season evidence is preseason-only; paths are bounded to two
+completed trades; it is read-only. No capability it does not have is advertised.
+Existing (GET) capabilities are untouched; the legacy trade routes are unchanged.
+
+## G.9 Orchestrator integration — DEFERRED (§25, §26, §57)
+
+The Team-Management orchestrator (Phase 8) is certified, merged, deployed, and
+frozen with byte-identical frozen-surface guarantees. The competitive-trade
+branch is not merged. Wiring an unmerged engine into the frozen orchestrator
+would expand Checkpoint G's blast radius past the additive endpoint and risk
+those guarantees, and at the current Week-1 state the competitive engine
+produces `NO_ACTION` for every manager's overall strategy — there is nothing for
+the orchestrator to consume yet.
+
+**Decision: defer.** After the competitive branch is reviewed and merged, a
+separate small change can make `orchestrate?include_trade_search=1` prefer the
+competitive evaluator for concrete packages, behind the orchestrator's existing
+rule that a `TRADE_EXPLORATION` candidate can never become an `ACTION` and that
+`REVIEW_REQUIRED` / `NO_ACTION` / very-low-confidence inputs never drive a trade
+action. Nothing in `lib/orchestrator/` is touched by Checkpoint G.
+
+## G.10 Live Bloodline Bowl end-to-end (§33–§39, §58, §59)
+
+Read-only, against the current Week-1 snapshot
+(`snap:bloodline-bowl:2026:w1:718f5c3ca62ff928`):
+
+- **`evaluate` — Rhamondre Stevenson → Chuba Hubbard (supyo29):** `status:
+  REVIEW_REQUIRED`, competitive result `REJECT`, `actionable: false`, permanent
+  rest-of-season impact −3.39 weekly-equivalent, horizon `REVIEW_REQUIRED`,
+  buy-and-hold `DO_NOTHING`. `negotiate` on the same deal: `EXTRACTION_GATED`,
+  base not certified. The restraint of the underlying engine is preserved through
+  HTTP — no aggressive extraction, no buy-and-hold resurrection.
+- **`strategy_path` (supyo29):** recommended `NO_ACTION` (score 0); the beam
+  search retains no certified first step at Week 1.
+- **`discover` (supyo29):** 5 competitively certified direct trades from 120
+  structurally valid candidates (best permanent rest-of-season impact +2.54
+  weekly-equivalent, competitive classification `COMPETITIVE_BUY`). Every one
+  clears the certified feasibility threshold at **LOW** acceptance and **LOW**
+  confidence — the response says so and calls them opening positions, not
+  near-done deals. `discover` for `msamuel4` returns `NO_ACTION` — an independent
+  per-requester result.
+- **Clean-positive control:** `bijimac` sends Jakobi Meyers → `nightfallfox` for
+  Jadarian Price → `STRONG_COMPETITIVE_BUY`, `actionable: true`, `status: READY`.
+  The route can return a positive actionable trade when the evidence supports one
+  — the live no-action state is not masking a route bug.
+- **Perspective isolation:** the same rival scored from two requesters — absolute
+  strength constant, `relative_to_us` re-derived (see G.6).
+- **Error contract:** unknown manager → `NOT_FOUND` (404); an unresolvable
+  player asset → `NOT_FOUND` (404); an ownership mismatch → `OWNERSHIP` (409).
+
+### Why Week 1 discovery still has near-nothing for most managers (§59)
+
+`strategy_path` (seeded from a manager's top market-**sell** assets) finds no
+certified upgrade path at Week 1: the dynamic in-season market evidence is
+preseason-only, so the private↔market gaps are small and low-confidence, and the
+permanent rest-of-season gain from a like-for-like swap rarely clears the
+threshold. `discover` searches the wider bilateral space and can find asymmetric
+`COMPETITIVE_BUY` trades for some managers, but every one is LOW acceptance /
+LOW confidence — analytically real, not close to done. Both results are honest;
+neither is forced.
+
+## G.11 Performance (§29, §30, §62)
+
+Per-request, live (Week 1 Bloodline Bowl, 14 managers, ~3,300-player market
+table):
+
+| Mode | Total request time | Notes |
+| --- | --- | --- |
+| `evaluate` (one proposal) | ~300 ms | includes the one-time context build |
+| `negotiate` (one envelope) | ~300–400 ms | frontier points reuse the shared context |
+| `discover` | ~0.9–1.1 s | ~100–120 structural candidates, then a competitive eval on each positive one |
+| `strategy_path` | ~0.8 s | staged two-step beam search |
+
+The shared-context build (`market_table`, `dynamic_edges`, `league_threat`,
+`market_consensus`) runs **once** per request — `build_counts` stays
+`{1,1,1,1}` regardless of how many proposals a mode evaluates. This is the §30
+regression guard (a counter, not a wall-clock assertion); the route-level test
+proves a `negotiate` request does not rebuild any league-wide structure per
+frontier point. These are local measurements, not latency guarantees.
+
+## G.12 Known limitations (§63)
+
+- Acceptance likelihood is a heuristic — one real league trade exists to
+  calibrate against.
+- Opponent threat is a heuristic forward-looking roster-strength estimate.
+- Market appreciation potential is speculative and is never counted as
+  guaranteed value.
+- Early in the season the dynamic in-season market evidence is preseason-only;
+  classifications are correspondingly cautious.
+- Multi-step trade paths are bounded to a maximum of two completed trades.
+- No automatic trade submission; no manager-message sending.
+- The free-agent-pool readiness limitation is unrelated and unchanged.
+- Player × Scheme intelligence remains under its own production / shadow rules.
+
+## G.13 Regression (§64)
+
+`test/competitive-trade-api.test.ts` (19 tests): request validation (unknown
+manager / player / ownership mismatch / duplicate / same-manager / no silent
+repair), evaluate / negotiate / discover / strategy_path behaviour, NO_ACTION as
+success, REVIEW_REQUIRED / confidence / readiness serialization, snapshot
+mismatch protection, per-snapshot identity, perspective-correct threat, `/api/ai`
+advertisement. Full competitive + AI-discovery suite: **155 tests pass**. Full
+repository suite: **1786 pass / 0 fail / 4 skipped** (0 existing changed).
+`tsc --noEmit` clean; `eslint lib app` 0 errors. Legacy trade routes and the
+frozen orchestrator surface are unchanged.
+
+## G.14 Files changed (G)
+
+New: `lib/trades/competitive/api.ts`, `app/api/trades/competitive/route.ts`,
+`test/competitive-trade-api.test.ts`.
+Modified (all additive): `lib/trades/competitive/index.ts`, `lib/discovery.ts`
+(a `competitive_trade` capability + a `method` field), `app/api/ai/route.ts`
+(pass the new capability fields through), `scripts/competitive-trade-smoke.ts`,
+this doc. `evaluateTrade` NOT touched; `lib/orchestrator/` NOT touched; the
+legacy `/api/trades/*` routes NOT touched.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
@@ -1849,7 +2091,10 @@ production lineup / start-sit / waiver / player-scheme surface touched.
 - [x] **D.5 — Horizon-aware permanent-trade utility** — CERTIFIED
 - [x] **E — Value extraction & negotiation envelope** — CERTIFIED
 - [x] **F — Trade liquidity + market appreciation + buy-and-hold + multi-step paths + performance** — CERTIFIED
-- [ ] G — Integration / live smoke
+- [x] **G — API integration, snapshot safety, live end-to-end** — CERTIFIED
 
-**Freeze verdict: NOT READY TO FREEZE** (Checkpoint G outstanding; do not
-merge/tag/deploy). Checkpoint F gate: **CERTIFIED — READY FOR CHECKPOINT G.**
+**Freeze verdict: the competitive trade intelligence stack is engineering-complete
+and internally certified end to end. It has NOT been merged, tagged, deployed, or
+released** — that is a separate, explicit review-and-merge decision. Orchestrator
+integration is deferred (G.9). Checkpoint G gate: **CERTIFIED — READY FOR
+REVIEW / MERGE.**

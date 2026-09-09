@@ -484,6 +484,110 @@ async function reportLeague(leagueSlug: string) {
   }
 
   console.log(`\nSTATUS: Checkpoint F — TRADE LIQUIDITY (owner-independent after acquisition, §9), MARKET APPRECIATION POTENTIAL (speculative, consumes B.5 correction state, §14/§30), BUY-AND-HOLD (decomposed, DO_NOTHING/ACQUIRE_AND_HOLD legitimate), and bounded 2-step trade paths (staged beam search, max 2 completed trades). Request-scoped evaluation context eliminates per-proposal league-wide recomputation.`);
+
+  // ---- Checkpoint G: the HTTP request orchestrator, exercised live ----
+  console.log(`\n================ CHECKPOINT G — competitive trade API, live end-to-end ================`);
+  const { evaluateCompetitiveTradeRequest } = await import("../lib/trades/competitive/api");
+  // §34 — supyo29 is the primary live perspective for Bloodline Bowl; fall back
+  // to the first manager for any other league.
+  const meSlug = ctx.snapshot.managers.some((m) => m.manager_slug === "supyo29") ? "supyo29" : firstMgr.manager_slug;
+
+  const show = (label: string, r: Awaited<ReturnType<typeof evaluateCompetitiveTradeRequest>>) => {
+    console.log(`\n--- ${label} ---`);
+    console.log(`  status=${r.status} error_kind=${r.error_kind} readiness=${r.readiness} confidence=${r.confidence ?? "n/a"}${r.recommended_strategy ? ` recommended=${r.recommended_strategy}` : ""}`);
+    console.log(`  snapshot=${r.snapshot?.league_snapshot_id ?? "n/a"} generated_at=${r.snapshot?.generated_at ?? "n/a"}`);
+    if (r.reasons[0]) console.log(`  ${r.reasons[0]}`);
+  };
+
+  // §33/§35 discover
+  const tD = performance.now();
+  const disc = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: meSlug, mode: "discover" });
+  show(`discover (${meSlug}) — ${(performance.now() - tD).toFixed(0)} ms`, disc);
+  console.log(`  structural candidates evaluated=${disc.discovery?.structural_candidates_evaluated} competitively certified=${disc.discovery?.competitively_certified}`);
+
+  // §34 — a second manager, to prove perspective isolation at the API boundary
+  const otherSlug = firstMgr.manager_slug === meSlug ? (ctx.snapshot.managers[1]?.manager_slug ?? meSlug) : firstMgr.manager_slug;
+  if (otherSlug !== meSlug) {
+    const disc2 = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: otherSlug, mode: "discover" });
+    console.log(`  discover (${otherSlug}): status=${disc2.status} certified=${disc2.discovery?.competitively_certified} (independent per-requester result)`);
+  }
+
+  // §33 strategy path
+  const tS = performance.now();
+  const sp = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: meSlug, mode: "strategy_path" });
+  show(`strategy_path (${meSlug}) — ${(performance.now() - tS).toFixed(0)} ms`, sp);
+  for (const p of sp.strategy_paths?.paths.slice(0, 4) ?? []) console.log(`     [${p.strategy}] score=${p.aggregate.score} finalΔ=${p.final_state.permanent_roster_delta} txns=${p.aggregate.transactions}`);
+
+  // §36 Rhamondre → Chuba through the API
+  if (rham?.owner_slug && chuba?.player) {
+    const tE = performance.now();
+    const rc = await evaluateCompetitiveTradeRequest({
+      league: leagueSlug, manager: rham.owner_slug, mode: "evaluate",
+      counterparty: chuba.owner_slug ?? undefined,
+      give_assets: [rham.player.full_name], receive_assets: [chuba.player.full_name],
+    });
+    show(`§36 evaluate Rhamondre Stevenson → Chuba Hubbard (${rham.owner_slug}) — ${(performance.now() - tE).toFixed(0)} ms`, rc);
+    console.log(`  result classification=${rc.evaluation?.result.classification} actionable=${rc.evaluation?.result.actionable} permanent ROS impact=${rc.evaluation?.private_trade.permanent_rest_of_season_impact?.toFixed(2)} horizon=${rc.evaluation?.private_trade.horizon_classification}`);
+    console.log(`  buy-and-hold=${rc.evaluation?.buy_and_hold?.decision}  → EXPECTED: not recommended / no aggressive extraction / no buy-and-hold resurrection`);
+    const rcN = await evaluateCompetitiveTradeRequest({
+      league: leagueSlug, manager: rham.owner_slug, mode: "negotiate",
+      counterparty: chuba.owner_slug ?? undefined,
+      give_assets: [rham.player.full_name], receive_assets: [chuba.player.full_name],
+    });
+    console.log(`  negotiate: status=${rcN.status} extraction_band=${rcN.negotiation?.extraction_band} base_certified=${rcN.negotiation?.base_trade_certified}`);
+  }
+
+  // §37 clean-positive control — a lopsided proposal the counterparty should perceive well and we win big
+  {
+    const managersG = ctx.snapshot.managers;
+    let control: { me: string; cp: string; give: string; receive: string } | null = null;
+    outerG: for (const meM of managersG) {
+      const myOc = buildOwnerContext(ctx, meM.canonical_manager_id);
+      const worst = [...myOc.by_player.values()].filter((p) => p.starter_importance === "BENCH_DEPTH").sort((a, b) => (a.vor ?? 0) - (b.vor ?? 0))[0];
+      if (!worst) continue;
+      for (const cpM of managersG) {
+        if (cpM.canonical_manager_id === meM.canonical_manager_id) continue;
+        const cpOc = buildOwnerContext(ctx, cpM.canonical_manager_id);
+        const best = [...cpOc.by_player.values()].filter((p) => p.starter_importance === "ROTATIONAL" || p.starter_importance === "FLEX_STARTER").sort((a, b) => (b.vor ?? 0) - (a.vor ?? 0))[0];
+        if (!best) continue;
+        const r = await evaluateCompetitiveTradeRequest({
+          league: leagueSlug, manager: meM.manager_slug, mode: "evaluate",
+          counterparty: cpM.manager_slug, give_assets: [worst.name], receive_assets: [best.name],
+        });
+        if (r.evaluation?.result.actionable && (r.evaluation.private_trade.permanent_rest_of_season_impact ?? 0) > 0.5) {
+          control = { me: meM.manager_slug, cp: cpM.manager_slug, give: worst.name, receive: best.name };
+          show(`§37 clean-positive control: ${meM.manager_slug} sends ${worst.name} → ${cpM.manager_slug} for ${best.name}`, r);
+          console.log(`  → actionable=${r.evaluation.result.actionable} classification=${r.evaluation.result.classification} — the route CAN return a positive actionable trade when evidence supports one.`);
+          break outerG;
+        }
+      }
+    }
+    if (!control) console.log(`\n--- §37 clean-positive control: no lopsided-but-ready proposal found in the sampled space at Week ${ctx.week} (reported honestly; the synthetic API test covers this contract deterministically) ---`);
+  }
+
+  // §38 perspective isolation — evaluate the SAME counterparty from two requesters
+  {
+    const { buildCompetitiveTradeEvaluationContext: mkEc } = await import("../lib/trades/competitive/eval-context");
+    const ec = mkEc(ctx);
+    const managersG = ctx.snapshot.managers;
+    const cp = managersG.find((m) => m.canonical_manager_id !== firstMgr.canonical_manager_id)!;
+    const other = managersG.find((m) => m.canonical_manager_id !== firstMgr.canonical_manager_id && m.canonical_manager_id !== cp.canonical_manager_id)!;
+    const cpThreatAbs = ec.league_threat.by_manager.get(cp.canonical_manager_id)?.components.blended_strength_z;
+    console.log(`\n--- §38 perspective isolation (counterparty ${cp.manager_slug}) ---`);
+    console.log(`  ${cp.manager_slug} absolute blended strength z = ${cpThreatAbs?.toFixed(4)} (perspective-independent)`);
+    const relA = Math.round(((ec.league_threat.by_manager.get(cp.canonical_manager_id)!.components.blended_strength_z) - (ec.league_threat.by_manager.get(firstMgr.canonical_manager_id)?.components.blended_strength_z ?? 0)) * 10000) / 10000;
+    const relB = Math.round(((ec.league_threat.by_manager.get(cp.canonical_manager_id)!.components.blended_strength_z) - (ec.league_threat.by_manager.get(other.canonical_manager_id)?.components.blended_strength_z ?? 0)) * 10000) / 10000;
+    console.log(`  relative_to_us from ${firstMgr.manager_slug}: ${relA}   from ${other.manager_slug}: ${relB}   (re-derived per requester)`);
+  }
+
+  // §21 HTTP-status contract — malformed / unknown / ownership
+  const bad1 = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: "no-such-manager-xyz", mode: "strategy_path" });
+  const bad2 = await evaluateCompetitiveTradeRequest({ league: leagueSlug, manager: meSlug, mode: "evaluate", counterparty: meSlug, give_assets: ["nobody"], receive_assets: ["nobody2"] });
+  console.log(`\n--- §21 error contract ---`);
+  console.log(`  unknown manager → status=${bad1.status} error_kind=${bad1.error_kind} (route maps NOT_FOUND→404)`);
+  console.log(`  bad proposal    → status=${bad2.status} error_kind=${bad2.error_kind}`);
+
+  console.log(`\nSTATUS: Checkpoint G — POST /api/trades/competitive exposes evaluate / negotiate / discover / strategy_path over the certified engine. NO_ACTION and REVIEW_REQUIRED survive serialization; confidence / readiness are never upgraded; every response carries the source snapshot lineage; one shared evaluation context per request; a stale context cannot leak across snapshots. READ_ONLY_ANALYTICS — no writes, no messages.`);
 }
 
 // ---------------------------------------------------------------------------

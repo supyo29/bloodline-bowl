@@ -84,9 +84,12 @@ export async function GET(): Promise<Response> {
       scope: c.scope,
       temporality: c.temporality,
       canonical: c.canonical,
+      method: c.method ?? "GET",
       route_template: c.route_template,
       absolute_route_template: absoluteUrl(c.route_template),
       ...(c.query_params ? { query_params: c.query_params } : {}),
+      ...(c.request_modes ? { request_modes: c.request_modes } : {}),
+      ...(c.required_body_fields ? { required_body_fields: c.required_body_fields } : {}),
     })),
     route_templates: {
       canonical: Object.fromEntries(
