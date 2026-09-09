@@ -131,6 +131,29 @@ export type {
   WeaknessRepair,
 } from "./schema";
 
+// ---- Checkpoint E: value extraction & negotiation envelope ----
+export { buildValueExtraction, baseTradeCertified } from "./extraction";
+export { buildNegotiationFrontier, classifyCounteroffer, dominates } from "./negotiation";
+export {
+  evaluateNegotiationEnvelope,
+  evaluateNegotiationEnvelopeInner,
+  type NegotiationEvalInput,
+} from "./negotiation-eval";
+export {
+  DEFAULT_NEGOTIATION_CONFIG,
+  resolveNegotiationConfig,
+  type NegotiationConfig,
+  type PartialNegotiationConfig,
+} from "./config";
+export type {
+  NegotiationEnvelope,
+  NegotiationProposal,
+  ValueExtraction,
+  ExtractionBand,
+  NegotiationAggressiveness,
+  CounterofferAssessment,
+} from "./schema";
+
 import type { TradeAnalysisContext } from "../context";
 import { buildLeagueMarketEdgeTable } from "./evaluate";
 import { buildBoards, type Boards } from "./boards";

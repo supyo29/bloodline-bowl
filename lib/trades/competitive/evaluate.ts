@@ -34,6 +34,8 @@ import { assessCompetitiveTradeReadiness } from "./readiness";
 import { buildDynamicMarketEdges } from "./dynamic";
 import { evaluateOwnerPerception } from "./owner-perception-eval";
 import { evaluateCompetitiveDimension } from "./competitive-d-eval";
+import { evaluateNegotiationEnvelopeInner } from "./negotiation-eval";
+import { makeOwnerContextCache } from "./owner-context";
 
 export function pprModeOf(rawScoring: Record<string, number>): PprMode {
   const rec = rawScoring.rec ?? 0;
@@ -118,6 +120,8 @@ export interface EvaluateCompetitiveTradeInput {
   config?: PartialCompetitiveTradeConfig;
   /** reuse a league-wide table instead of rebuilding (discovery sweeps) */
   precomputed?: LeagueMarketEdgeTable;
+  /** reuse a per-manager owner-context cache across many evaluations (negotiation frontier) */
+  owner_context_cache?: (managerId: string) => import("./owner-context").OwnerContext;
   /**
    * Checkpoint C: when supplied, the counterparty's owner-perceived value,
    * reservation price and acceptance likelihood are attached. `manager_id` plus
@@ -127,6 +131,10 @@ export interface EvaluateCompetitiveTradeInput {
   owner_perception_config?: import("./config").PartialOwnerPerceptionConfig;
   competitive_d_config?: import("./config").PartialCompetitiveDConfig;
   horizon_config?: import("./config").PartialHorizonConfig;
+  /** Checkpoint E — attach the value-extraction + negotiation-envelope block (opt-in; ~10–15 extra evals) */
+  include_negotiation?: boolean;
+  negotiation_aggressiveness?: import("./schema").NegotiationAggressiveness;
+  negotiation_config?: import("./config").PartialNegotiationConfig;
 }
 
 const CONF_LEVEL: Record<ValueConfidence, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, VERY_LOW: 0 };
@@ -190,6 +198,7 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
 
   // ---- Checkpoint C: counterparty owner perception + acceptance ----
   if (input.counterparty_manager_id) {
+    const ownerCache = input.owner_context_cache ?? makeOwnerContextCache(ctx);
     const dyn = buildDynamicMarketEdges({
       table,
       season: ctx.season,
@@ -207,6 +216,7 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
         gives: incoming_player_ids,
       },
       config: input.owner_perception_config,
+      owner_context_cache: ownerCache,
     });
     competitive.owner_perception = owner_perception;
     competitive.acceptance = acceptance;
@@ -228,6 +238,7 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
       received_by_us: incoming_player_ids,
       acceptance,
       aggregate_edge,
+      owner_context_cache: ownerCache,
       owner_perception_confidence: owner_perception.confidence,
       config: input.competitive_d_config,
       horizon_config: input.horizon_config,
@@ -240,8 +251,25 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
     competitive.competitive_result = d.competitive_result;
     competitive.notes.push(
       "Checkpoint D.5 — a PERMANENT trade is valued over the REST OF SEASON, not the current week. our_trade_horizons / opponent_trade_horizons expose immediate vs ROS vs the blended permanent_trade_utility that feeds the competitive scoring. ROS absolute arithmetic uses the external (Sleeper) prorated projection; RI's season model is an ordinal disagreement signal (REVIEW_REQUIRED on a sign conflict).",
-      "Checkpoint D — competitive_result is OUR permanent gain net of the cost of strengthening (or benefit of weakening) this counterparty, acceptance-gated. Our own gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility constraint. Threat is primarily ROS-projected roster strength, HEURISTIC. No extraction / negotiation / liquidity / multi-hop yet.",
+      "Checkpoint D — competitive_result is OUR permanent gain net of the cost of strengthening (or benefit of weakening) this counterparty, acceptance-gated. Our own gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility constraint. Threat is primarily ROS-projected roster strength, HEURISTIC.",
     );
+
+    // ---- Checkpoint E: value extraction + negotiation envelope (opt-in) ----
+    if (input.include_negotiation) {
+      competitive.negotiation = evaluateNegotiationEnvelopeInner({
+        ctx,
+        my_manager_id: input.my_manager_id,
+        counterparty_manager_id: input.counterparty_manager_id,
+        our_assets: outgoing_player_ids,
+        their_assets: incoming_player_ids,
+        aggressiveness: input.negotiation_aggressiveness,
+        config: input.negotiation_config,
+        precomputed: table,
+      });
+      competitive.notes.push(
+        "Checkpoint E — negotiation: we NEGOTIATE using the counterparty's PERCEIVED economics and DECIDE using our private permanent utility. The frontier is only built on a CERTIFIED base trade; a REVIEW_REQUIRED / rejected base is EXTRACTION_GATED. Opening / target / acceptable / walk-away are distinct. Acceptance is a feasibility gate; our gain stays primary. No manager-facing pitch copy yet.",
+      );
+    }
   }
 
   return { baseline, competitive };

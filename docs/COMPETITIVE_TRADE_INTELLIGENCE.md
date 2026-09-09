@@ -1424,6 +1424,179 @@ Modified: `lib/trades/competitive/{schema,config,opponent-impact,threat,competit
 
 ---
 
+---
+
+# Part IX — Checkpoint E: Value Extraction & Negotiation Envelope
+
+Status: **CHECKPOINT E CERTIFIED — READY FOR CHECKPOINT F.**
+Branch `competitive-trade-intelligence`, built on `6c44757`.
+
+## E.1 The information advantage (§3)
+
+We **negotiate** using the counterparty's *perceived* economics (owner-perceived
+value received vs their reservation price) and **decide** using our private
+horizon-aware permanent rest-of-season utility. A trade the counterparty already
+perceives as favourable may contain unclaimed negotiation surplus. We do **not**
+try to make "our private value received = our private value surrendered" — that
+would destroy the point of having better information.
+
+## E.2 Base-trade gate (`extraction.ts::baseTradeCertified`, §14)
+
+Extraction never runs on top of a bad base transaction. The base trade must
+clear: `our_permanent_utility ≥ minimum_private_gain (0.25)` · horizon
+classification ≠ `REVIEW_REQUIRED` · confidence ≠ `VERY_LOW` · competitive
+classification ≠ `REJECT` / `AVOID_COMPETITIVE_COST` · acceptance ≥ `LOW`. A fail
+⇒ `EXTRACTION_GATED`, frontier = just the base.
+
+**Rhamondre → Chuba stays gated (§15):** base permanent utility −3.39,
+`REVIEW_REQUIRED`, competitive `REJECT` ⇒ `EXTRACTION_GATED`, `certified = false`,
+no add-on search. (Verified live.)
+
+## E.3 Value extraction (`extraction.ts::buildValueExtraction`)
+
+```
+base_perceived_surplus          the counterparty's perceived surplus in a straight swap
+maximum_theoretical_extraction  = base_perceived_surplus (their whole surplus)
+recommended_extraction          = base_perceived_surplus · (1 − surplus_left_with_counterparty[aggressiveness])
+remaining_counterparty_surplus  = base_perceived_surplus − recommended_extraction
+```
+
+`surplus_left_with_counterparty`: `AGGRESSIVE_BUT_CREDIBLE` 0.12 / `BALANCED`
+0.22 / `CONSERVATIVE` 0.35 — even aggressive mode leaves the counterparty a
+positive perceived reason to accept (§27).
+
+**Extraction bands** (§29 — not from raw surplus alone; includes the acceptance
+curve and confidence): `EXTRACTION_GATED` · `NO_EXTRACTION_ROOM` (no extractable
+assets, or surplus ≤ 0) · `LIMITED_EXTRACTION` (thin surplus or acceptance only
+LOW — protect the base, don't squeeze) · `MODERATE_EXTRACTION` ·
+`HIGH_EXTRACTION` (large surplus + HIGH acceptance + confidence ≥ MEDIUM —
+`STRAIGHT_SWAP_LEAVES_VALUE_UNCAPTURED`). VERY_LOW / LOW confidence caps the
+band below `HIGH_EXTRACTION` (§53).
+
+**Secondary-asset ranking (§9–§11):** for each counterparty asset NOT in the
+base and expendable (bench / rotational, or a positional surplus): their **owner
+reservation price** (Checkpoint C, roster-context — NOT market value, §31) and
+our private value (Checkpoint B.5). `efficiency = (our_value + 1.5) ÷
+max(0.2, their_reservation + 1.0)` — favours assets **valuable to us + cheap to
+them** (§10). Reason codes: `SECONDARY_ASSET_EXPENDABLE_TO_THEM`,
+`SECONDARY_ASSET_HIGH_VALUE_TO_US`, `SECONDARY_ASSET_WEAKENS_RIVAL` (a starter
+for a HIGH/ELITE-threat counterparty), `SECONDARY_ASSET_POOR_ROSTER_FIT` (we are
+already deep at the position).
+
+## E.4 Negotiation frontier (`negotiation.ts::buildNegotiationFrontier`)
+
+Bounded additive search: base → base + one secondary asset (efficiency order) →
+one bounded two-asset bundle probe. **Every point is a full re-evaluation** via
+`evaluateCompetitiveTrade` (§33–§35): permanent utility, perceived surplus,
+acceptance, opponent actual impact, competitive externality — the base ledger is
+never reused. The search stops when acceptance falls below `LOW`
+(`ACCEPTANCE_COLLAPSES_BEYOND_HERE`) or the next add-on's efficiency is below the
+minimum. `BUNDLE_RESERVATION_RISES_SHARPLY` is flagged when their bundle
+reservation jumps (§32, non-additive from Checkpoint C).
+
+**Dominance pruning (§44):** proposal A dominates B when A is ≥ on
+`our_permanent_utility`, `acceptance`, `−externality` and `confidence`, strictly
+better on one. Dominated points do not survive.
+
+## E.5 The four-level envelope (§17, §46–§49)
+
+| level | selection |
+|---|---|
+| **opening_offer** | highest `our_permanent_utility` non-dominated point still clearing the aggressiveness's opening-acceptance floor (`LOW` for AGGRESSIVE_BUT_CREDIBLE). Aggressive but credible — never an unserious demand (§18). If no add-on clears it ⇒ opening = base + `DO_NOT_BID_AGAINST_SELF` (§50). |
+| **target_settlement** | maximizes `our_permanent_utility − max(0, externality) − uncertainty_cost` subject to acceptance ≥ `MODERATE`. A +6 / MODERATE deal beats a +3 / HIGH deal (§25, §66 — acceptance is a feasibility gate, not a reward). |
+| **acceptable_deal** | the least-favourable non-dominated point still clearing `minimum_private_gain` and not `REJECT`. Usually the base. |
+| **walk_away** | explicit: `min_permanent_utility = minimum_private_gain`, plus a human-readable "walk away if we must add [asset]" / "walk away below +N weekly-equivalent, or if the competitive result turns to REJECT". |
+
+`OVERPAY_DESTROYS_MARKET_EDGE` (§22, config `overpay_edge_retention_floor 0.4`):
+if reshaping our side drops the aggregate market edge below 40 % of the base,
+stop — an undervalued player is not worth any price.
+
+## E.6 Counteroffer evaluation (`negotiation.ts::classifyCounteroffer`, §23–§24)
+
+Same permanent-utility + competitive logic (no separate value system). The
+countered proposal's `our_permanent_utility` vs the envelope: ≥ target ⇒
+`ACCEPT`; between target and walk-away ⇒ `COUNTER`; below the floor or
+`REJECT`-class ⇒ `WALK_AWAY`.
+
+## E.7 Readiness / confidence (§70, §71)
+
+`FULL_EXTRACTION_CONTEXT` / `PARTIAL_EXTRACTION_CONTEXT` / `BASE_TRADE_ONLY` /
+`EXTRACTION_GATED` / `UNAVAILABLE`. Extraction being unavailable never fails the
+whole trade analysis — the base trade stands. Confidence is separate from the
+extraction band.
+
+## E.8 Output contract (§72)
+
+`evaluateCompetitiveTrade({ …, counterparty_manager_id, include_negotiation: true })`
+attaches `competitive.negotiation` — `{ readiness, confidence, aggressiveness,
+base_proposal, base_trade_certified, extraction, frontier[], opening_offer,
+target_settlement, acceptable_deal, walk_away, reason_codes, reasons,
+internal_explanation }`. Opt-in (~8–12 extra evaluations). `internal_explanation`
+(why the base is worth pursuing / why they may accept / why more can be requested
+/ why the frontier stops) is **internal** — no manager-facing pitch copy is
+generated (§42, §56).
+
+## E.9 Bloodline Bowl live diagnostics (week 1)
+
+**Rhamondre → Chuba:** `EXTRACTION_GATED`, `certified = false`, frontier = base
+only, opening = target = base. Reported honestly — no aggressive extraction (§74).
+
+**§75 — "they think they won, we won more, they actually lose":** the search
+found several. Example #3 — **`ezs4415` gives Patrick Mahomes → `nightfallfox`
+for Jadarian Price**:
+| | straight swap | extracted (base + Jonah Coleman) |
+|---|---|---|
+| our permanent utility | +1.91 | **+2.81** |
+| their perceived surplus | +0.11 (they think they won) | −0.04 (still ~neutral) |
+| acceptance | MODERATE | **MODERATE** (unchanged) |
+| their ACTUAL roster impact | −2.74 (they lose) | **−3.95** (they lose more) |
+
+Jonah Coleman's reservation to `nightfallfox` is **−0.41** (a scrub they would
+dump for nothing), so requesting him barely dents their perceived surplus while
+adding +0.90 to our permanent utility **and** weakening them further (§36 — a
+secondary asset improves us twice). This is the entire Checkpoint E thesis on
+live data.
+
+**§76 straight-swap vs extracted package:** shown above — the extracted package
+is strictly better for us on permanent utility and opponent impact at the same
+acceptance likelihood.
+
+Two `LIMITED_EXTRACTION` examples (`bijimac`/Jakobi Meyers, `theberserkfury`/
+Wan'Dale Robinson, both for MarShawn Lloyd): base perceived surplus only ~+0.2 ⇒
+**target settlement stays at the base** — the engine declines to risk a strong
+base trade for a small squeeze (§52), while the *opening* still probes for Woody
+Marks.
+
+## E.10 Known limitations (E)
+
+1. **~700 ms per negotiation envelope** (~8–12 full competitive re-evaluations,
+   each rebuilding the 3304-player dynamic-market table + the 14-team threat
+   model). Opt-in only — **not** enabled per candidate in a discovery sweep.
+2. **Acceptance and reservation are heuristic** (inherited from Checkpoints C/D)
+   — the frontier shape is only as good as those models; `INSUFFICIENT_TRADE_HISTORY`.
+3. **Additive extraction only** — base + counterparty add-ons + one bundle probe.
+   Broad our-side reshaping and multi-step manager chains are out of scope (F).
+4. **Secondary-asset ranking is a pre-filter heuristic**; the full re-evaluation
+   is authoritative, so a mis-ranked asset only wastes a slot, never mis-recommends.
+5. No manager-facing negotiation copy (§42, deferred).
+
+## E.11 Regression (E)
+
+- `tsc --noEmit` clean; `eslint app lib test` 0 errors, 29 pre-existing warnings.
+- `npm test`: full suite green (see final report), +13 new E tests
+  (`test/competitive-trade-negotiation.test.ts`). Zero existing expectations
+  changed.
+
+## E.12 Files changed (E)
+
+New: `lib/trades/competitive/{extraction,negotiation,negotiation-eval}.ts`;
+`test/competitive-trade-negotiation.test.ts`.
+Modified: `lib/trades/competitive/{schema,config,evaluate,index}.ts` (additive
++ a shared owner-context cache threaded through `evaluateCompetitiveTrade`);
+`scripts/competitive-trade-smoke.ts`; the doc. `evaluateTrade` NOT touched.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
@@ -1432,9 +1605,9 @@ Modified: `lib/trades/competitive/{schema,config,opponent-impact,threat,competit
 - [x] **C — Owner perception + reservation + acceptance** — CERTIFIED
 - [x] **D — Opponent impact + threat + competitive externality + result** — CERTIFIED
 - [x] **D.5 — Horizon-aware permanent-trade utility** — CERTIFIED
-- [ ] E — Negotiation engine (extraction, offer ladders)
-- [ ] F — Multi-hop + hold-for-appreciation
+- [x] **E — Value extraction & negotiation envelope** — CERTIFIED
+- [ ] F — Multi-hop + hold-for-appreciation + liquidity
 - [ ] G — Integration / live smoke
 
-**Freeze verdict: NOT READY TO FREEZE** (Checkpoints E–G outstanding; do not
-merge/tag/deploy). Checkpoint D.5 gate: **CERTIFIED — READY FOR CHECKPOINT E.**
+**Freeze verdict: NOT READY TO FREEZE** (Checkpoints F–G outstanding; do not
+merge/tag/deploy). Checkpoint E gate: **CERTIFIED — READY FOR CHECKPOINT F.**

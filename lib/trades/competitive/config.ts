@@ -7,7 +7,7 @@
  * the market's".
  */
 
-import type { DraftAnchorState, MarketReadiness, OwnerContextReadiness, StarterImportance, ValueConfidence } from "./schema";
+import type { DraftAnchorState, MarketReadiness, NegotiationAggressiveness, OwnerContextReadiness, StarterImportance, ValueConfidence } from "./schema";
 
 export interface CompetitiveTradeConfig {
   edge_bands: {
@@ -409,6 +409,76 @@ export const DEFAULT_HORIZON_CONFIG: HorizonConfig = deepFreeze({
 });
 
 export type PartialHorizonConfig = { [K in keyof HorizonConfig]?: Partial<HorizonConfig[K]> };
+
+/* ---- Checkpoint E: value extraction & negotiation envelope ---- */
+
+export interface NegotiationConfig {
+  /** search bounds (§78) */
+  max_secondary_assets_considered: number;
+  max_bundle_size: number;
+  max_frontier_points: number;
+  /** minimum acceptance likelihood an OPENING offer must still clear */
+  minimum_opening_acceptance: "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
+  /** minimum acceptance likelihood a TARGET settlement must clear */
+  minimum_target_acceptance: "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
+  /** minimum our-permanent-utility (weekly-equiv) for the base trade / acceptable deal to clear */
+  minimum_private_gain: number;
+  /**
+   * how much of the counterparty's perceived surplus we intentionally leave
+   * with them by aggressiveness (so the offer keeps a credible reason to accept).
+   */
+  surplus_left_with_counterparty: Record<NegotiationAggressiveness, number>;
+  /** minimum-opening-acceptance override by aggressiveness */
+  opening_acceptance_by_aggressiveness: Record<NegotiationAggressiveness, "VERY_LOW" | "LOW" | "MODERATE" | "HIGH">;
+  /**
+   * OVERPAY_DESTROYS_MARKET_EDGE: if adding our own asset drops the aggregate
+   * market edge below this fraction of the base-deal edge, stop.
+   */
+  overpay_edge_retention_floor: number;
+  /** an added secondary asset must beat this extraction efficiency to be worth requesting */
+  min_extraction_efficiency: number;
+  /** base perceived surplus below this ⇒ NO_EXTRACTION_ROOM / LIMITED_EXTRACTION */
+  limited_extraction_surplus: number;
+  high_extraction_surplus: number;
+}
+
+export const DEFAULT_NEGOTIATION_CONFIG: NegotiationConfig = deepFreeze({
+  max_secondary_assets_considered: 6,
+  max_bundle_size: 3, // base + up to 2 add-ons on their side
+  max_frontier_points: 8,
+  minimum_opening_acceptance: "LOW",
+  minimum_target_acceptance: "MODERATE",
+  minimum_private_gain: 0.25,
+  surplus_left_with_counterparty: { CONSERVATIVE: 0.35, BALANCED: 0.22, AGGRESSIVE_BUT_CREDIBLE: 0.12 },
+  opening_acceptance_by_aggressiveness: { CONSERVATIVE: "MODERATE", BALANCED: "LOW", AGGRESSIVE_BUT_CREDIBLE: "LOW" },
+  overpay_edge_retention_floor: 0.4,
+  min_extraction_efficiency: 0.15,
+  limited_extraction_surplus: 0.25,
+  high_extraction_surplus: 1.0,
+});
+
+export type PartialNegotiationConfig = { [K in keyof NegotiationConfig]?: Partial<NegotiationConfig[K]> } & {
+  aggressiveness?: NegotiationAggressiveness;
+};
+
+export function resolveNegotiationConfig(override?: PartialNegotiationConfig): NegotiationConfig {
+  const d = DEFAULT_NEGOTIATION_CONFIG;
+  if (!override) return d;
+  return deepFreeze({
+    max_secondary_assets_considered: (override.max_secondary_assets_considered as number) ?? d.max_secondary_assets_considered,
+    max_bundle_size: (override.max_bundle_size as number) ?? d.max_bundle_size,
+    max_frontier_points: (override.max_frontier_points as number) ?? d.max_frontier_points,
+    minimum_opening_acceptance: (override.minimum_opening_acceptance as NegotiationConfig["minimum_opening_acceptance"]) ?? d.minimum_opening_acceptance,
+    minimum_target_acceptance: (override.minimum_target_acceptance as NegotiationConfig["minimum_target_acceptance"]) ?? d.minimum_target_acceptance,
+    minimum_private_gain: (override.minimum_private_gain as number) ?? d.minimum_private_gain,
+    surplus_left_with_counterparty: { ...d.surplus_left_with_counterparty, ...(override.surplus_left_with_counterparty ?? {}) },
+    opening_acceptance_by_aggressiveness: { ...d.opening_acceptance_by_aggressiveness, ...(override.opening_acceptance_by_aggressiveness ?? {}) },
+    overpay_edge_retention_floor: (override.overpay_edge_retention_floor as number) ?? d.overpay_edge_retention_floor,
+    min_extraction_efficiency: (override.min_extraction_efficiency as number) ?? d.min_extraction_efficiency,
+    limited_extraction_surplus: (override.limited_extraction_surplus as number) ?? d.limited_extraction_surplus,
+    high_extraction_surplus: (override.high_extraction_surplus as number) ?? d.high_extraction_surplus,
+  });
+}
 
 export function resolveHorizonConfig(override?: PartialHorizonConfig): HorizonConfig {
   const d = DEFAULT_HORIZON_CONFIG;

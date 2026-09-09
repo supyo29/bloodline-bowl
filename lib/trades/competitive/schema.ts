@@ -892,11 +892,163 @@ export interface CompetitiveBlock {
   /** final competitive desirability — our gain net of the externality, acceptance-gated */
   competitive_result?: CompetitiveResult;
 
+  // ---- Checkpoint E (present only when negotiation analysis was requested) ----
+  /** value extraction + the negotiation envelope (opening / target / acceptable / walk-away) */
+  negotiation?: NegotiationEnvelope;
+
   // ---- reserved for later checkpoints; ABSENT until implemented:
-  //   extraction?        (Checkpoint E / negotiation)
   //   liquidity?         (Checkpoint F)
   //   appreciation?      (Checkpoint F)
-  //   negotiation?       (Checkpoint E)
+}
+
+/* ======================================================================== */
+/* Checkpoint E — value extraction & negotiation envelope                     */
+/* ======================================================================== */
+
+/**
+ * The information advantage: we NEGOTIATE using the counterparty's PERCEIVED
+ * economics (owner-perceived value vs their reservation price) and DECIDE using
+ * our private permanent rest-of-season utility. A trade the counterparty already
+ * perceives as favourable may contain unclaimed negotiation surplus.
+ */
+
+export type ExtractionBand =
+  | "NO_EXTRACTION_ROOM"
+  | "LIMITED_EXTRACTION"
+  | "MODERATE_EXTRACTION"
+  | "HIGH_EXTRACTION"
+  | "EXTRACTION_GATED";
+
+export type NegotiationAggressiveness = "CONSERVATIVE" | "BALANCED" | "AGGRESSIVE_BUT_CREDIBLE";
+
+export type ExtractionReadinessState =
+  | "FULL_EXTRACTION_CONTEXT"
+  | "PARTIAL_EXTRACTION_CONTEXT"
+  | "BASE_TRADE_ONLY"
+  | "EXTRACTION_GATED"
+  | "UNAVAILABLE";
+
+export type NegotiationReasonCode =
+  | "BASE_TRADE_FAILS_GATE"
+  | "BASE_TRADE_CERTIFIED"
+  | "EXTRACTION_GATED"
+  | "STRAIGHT_SWAP_LEAVES_VALUE_UNCAPTURED"
+  | "DO_NOT_BID_AGAINST_SELF"
+  | "LIMITED_EXTRACTION_PROTECT_BASE"
+  | "OVERPAY_DESTROYS_MARKET_EDGE"
+  | "ACCEPTANCE_COLLAPSES_BEYOND_HERE"
+  | "BUNDLE_RESERVATION_RISES_SHARPLY"
+  | "SECONDARY_ASSET_WEAKENS_RIVAL"
+  | "SECONDARY_ASSET_HIGH_VALUE_TO_US"
+  | "SECONDARY_ASSET_EXPENDABLE_TO_THEM"
+  | "SECONDARY_ASSET_POOR_ROSTER_FIT"
+  | "ROSTER_SLOT_PRESSURE_ON_US"
+  | "NEED_RELIEF_ASSET"
+  | "ROSTER_BALANCE_ASSET"
+  | "PERCEIVED_VALUE_BRIDGE"
+  | "CONFIDENCE_LIMITS_AGGRESSION";
+
+/** One point on the negotiation frontier — a fully re-evaluated proposal. */
+export interface NegotiationProposal {
+  label: string;
+  /** ids WE give up */
+  our_assets: string[];
+  /** ids WE receive */
+  their_assets: string[];
+  /** our horizon-aware permanent rest-of-season utility (weekly-equivalent) */
+  our_permanent_utility: number | null;
+  /** the counterparty's perceived surplus (owner-perceived received − reservation surrendered) */
+  counterparty_perceived_surplus: number | null;
+  /** the counterparty's reservation burden for what they give up (z within position, summed) */
+  counterparty_reservation_burden: number | null;
+  acceptance_likelihood: AcceptanceLikelihood | null;
+  /** the counterparty's ACTUAL roster impact per our models (permanent) */
+  opponent_actual_impact: number | null;
+  /** Checkpoint D competitive externality (recalculated for this proposal) */
+  competitive_externality: number | null;
+  /** Checkpoint D competitive classification for this proposal */
+  competitive_classification: CompetitiveClassification | null;
+  confidence: ValueConfidence;
+  /** our horizon classification for this proposal (REVIEW_REQUIRED gates extraction) */
+  horizon_classification: HorizonClassification | null;
+  /** dominated by another frontier point (§44) */
+  dominated: boolean;
+  /** additional private value to us vs the base deal ÷ their perceived surplus consumed */
+  extraction_efficiency: number | null;
+  reason_codes: NegotiationReasonCode[];
+  reasons: string[];
+}
+
+export interface ValueExtraction {
+  /** the counterparty's perceived surplus in the BASE deal */
+  base_perceived_surplus: number | null;
+  /** the largest perceived value we could theoretically request (their whole surplus) */
+  maximum_theoretical_extraction: number | null;
+  /** what we actually recommend requesting (leaves the counterparty a credible reason to accept) */
+  recommended_extraction: number | null;
+  /** perceived surplus we intentionally leave with the counterparty */
+  remaining_counterparty_surplus: number | null;
+  band: ExtractionBand;
+  aggressiveness: NegotiationAggressiveness;
+  /** the secondary assets ranked by extraction efficiency (before full evaluation) */
+  ranked_secondary_assets: Array<{
+    canonical_player_id: string;
+    name: string;
+    position: string;
+    our_private_value: number | null;
+    their_reservation: number | null;
+    their_starter_importance: StarterImportance;
+    efficiency: number | null;
+    reason_codes: NegotiationReasonCode[];
+  }>;
+  reason_codes: NegotiationReasonCode[];
+  reasons: string[];
+}
+
+export interface CounterofferAssessment {
+  our_assets: string[];
+  their_assets: string[];
+  our_permanent_utility: number | null;
+  verdict: "ACCEPT" | "COUNTER" | "WALK_AWAY";
+  reasons: string[];
+}
+
+export interface NegotiationEnvelope {
+  readiness: ExtractionReadinessState;
+  confidence: ValueConfidence;
+  aggressiveness: NegotiationAggressiveness;
+
+  /** the certified base trade this envelope is built around */
+  base_proposal: NegotiationProposal;
+  base_trade_certified: boolean;
+
+  extraction: ValueExtraction;
+
+  /** the bounded, dominance-pruned negotiation frontier (opening → walk-away) */
+  frontier: NegotiationProposal[];
+
+  opening_offer: NegotiationProposal | null;
+  target_settlement: NegotiationProposal | null;
+  acceptable_deal: NegotiationProposal | null;
+  /** human-readable walk-away boundary */
+  walk_away: {
+    /** minimum permanent utility (weekly-equivalent) below which we reject */
+    min_permanent_utility: number;
+    /** the first outgoing add-on that would push us below the floor, if any */
+    breaking_asset: { canonical_player_id: string; name: string } | null;
+    explanation: string;
+  };
+
+  reason_codes: NegotiationReasonCode[];
+  reasons: string[];
+
+  /** internal rationale — NOT for external negotiation copy (§42) */
+  internal_explanation: {
+    why_base_worth_pursuing: string[];
+    why_they_may_accept: string[];
+    why_more_can_be_requested: string[];
+    why_the_frontier_stops: string[];
+  };
 }
 
 export interface CompetitiveTradeEvaluation {

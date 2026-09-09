@@ -307,7 +307,71 @@ async function reportLeague(leagueSlug: string) {
     }
   }
 
-  console.log(`\nSTATUS: Checkpoint D — opponent impact + threat + competitive externality + selfish trade ranking modeled. Our gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility gate. NO extraction / negotiation / liquidity / multi-hop (E–F).`);
+  // ---- Checkpoint E: value extraction + negotiation envelope ----
+  console.log(`\n================ CHECKPOINT E — value extraction & negotiation envelope ================`);
+  const { evaluateNegotiationEnvelopeInner } = await import("../lib/trades/competitive");
+
+  if (rham?.owner_id && chuba?.owner_id) {
+    const env = evaluateNegotiationEnvelopeInner({
+      ctx, my_manager_id: rham.owner_id, counterparty_manager_id: chuba.owner_id,
+      our_assets: [rham.player.canonical_player_id], their_assets: [chuba.player.canonical_player_id],
+    });
+    console.log(`\n--- Rhamondre Stevenson → Chuba Hubbard negotiation (perspective ${rham.owner_slug}) ---`);
+    console.log(`  base certified=${env.base_trade_certified} readiness=${env.readiness} extraction band=${env.extraction.band}`);
+    console.log(`  base: our permanent utility=${env.base_proposal.our_permanent_utility?.toFixed(2)}  their perceived surplus=${env.base_proposal.counterparty_perceived_surplus?.toFixed(2)}  acceptance=${env.base_proposal.acceptance_likelihood}  competitive=${env.base_proposal.competitive_classification}`);
+    console.log(`  ${env.reasons[0] ?? env.extraction.reasons[0] ?? ""}`);
+    console.log(`  → EXPECTED: no aggressive extraction (base rejected / review-required).  opening=${env.opening_offer?.label} target=${env.target_settlement?.label}`);
+  }
+
+  // §75 — search current candidate space for a certified base where we win and they perceive a win
+  console.log(`\n--- §75: searching for a real "they think they won, we think we won more" negotiation base ---`);
+  const managersE = ctx.snapshot.managers;
+  let shown = 0;
+  outer: for (const me of managersE) {
+    const myOc = buildOwnerContext(ctx, me.canonical_manager_id);
+    const offers = [...myOc.by_player.values()]
+      .filter((p) => p.starter_importance === "BENCH_DEPTH" || p.starter_importance === "ROTATIONAL")
+      .sort((a, b) => (a.vor ?? 0) - (b.vor ?? 0))
+      .slice(0, 2);
+    if (offers.length === 0) continue;
+    for (const offer of offers) {
+    for (const cp of managersE) {
+      if (cp.canonical_manager_id === me.canonical_manager_id) continue;
+      const cpOc = buildOwnerContext(ctx, cp.canonical_manager_id);
+      const target = [...cpOc.by_player.values()]
+        .filter((p) => (p.starter_importance === "ROTATIONAL" || p.starter_importance === "FLEX_STARTER"))
+        .sort((a, b) => (b.vor ?? 0) - (a.vor ?? 0))[0];
+      if (!target) continue;
+      const env = evaluateNegotiationEnvelopeInner({
+        ctx, my_manager_id: me.canonical_manager_id, counterparty_manager_id: cp.canonical_manager_id,
+        our_assets: [offer.canonical_player_id], their_assets: [target.canonical_player_id],
+      });
+      const b = env.base_proposal;
+      if (env.base_trade_certified && (b.counterparty_perceived_surplus ?? -1) > 0 && (b.our_permanent_utility ?? -1) > 0.5) {
+        shown += 1;
+        console.log(`\n  #${shown}: ${me.manager_slug} gives ${offer.name} → ${cp.manager_slug} for ${target.name}`);
+        console.log(`     our permanent utility=${b.our_permanent_utility?.toFixed(2)}  their perceived surplus=+${b.counterparty_perceived_surplus?.toFixed(2)}  their ACTUAL impact=${b.opponent_actual_impact?.toFixed(2)}  acceptance=${b.acceptance_likelihood}`);
+        console.log(`     extraction band=${env.extraction.band}  recommended extraction≈${env.extraction.recommended_extraction?.toFixed(2)} (leaving them ${env.extraction.remaining_counterparty_surplus?.toFixed(2)})`);
+        console.log(`     top add-ons: ${env.extraction.ranked_secondary_assets.slice(0, 3).map((a) => `${a.name} (efficiency ${a.efficiency?.toFixed(2)}, their reservation ${a.their_reservation?.toFixed(2)}, worth ${a.our_private_value?.toFixed(2)} to us)`).join("; ")}`);
+        console.log(`     OPENING: ${env.opening_offer?.label}  (our permanent utility ${env.opening_offer?.our_permanent_utility?.toFixed(2)}, acceptance ${env.opening_offer?.acceptance_likelihood})`);
+        console.log(`     TARGET SETTLEMENT: ${env.target_settlement?.label}  (our ${env.target_settlement?.our_permanent_utility?.toFixed(2)}, their surplus ${env.target_settlement?.counterparty_perceived_surplus?.toFixed(2)}, acceptance ${env.target_settlement?.acceptance_likelihood})`);
+        console.log(`     ACCEPTABLE DEAL: ${env.acceptable_deal?.label}   WALK-AWAY: ${env.walk_away.explanation}`);
+        // §76 straight-swap vs extracted
+        if (env.target_settlement && env.target_settlement.label !== "base") {
+          const bd = env.base_proposal;
+          const td = env.target_settlement;
+          console.log(`     §76 straight swap vs extracted package:`);
+          console.log(`        straight swap  : our ${bd.our_permanent_utility?.toFixed(2)}  their surplus ${bd.counterparty_perceived_surplus?.toFixed(2)}  acceptance ${bd.acceptance_likelihood}  their actual ${bd.opponent_actual_impact?.toFixed(2)}`);
+          console.log(`        extracted deal : our ${td.our_permanent_utility?.toFixed(2)}  their surplus ${td.counterparty_perceived_surplus?.toFixed(2)}  acceptance ${td.acceptance_likelihood}  their actual ${td.opponent_actual_impact?.toFixed(2)}`);
+        }
+        if (shown >= 3) break outer;
+      }
+    }
+    }
+  }
+  if (shown === 0) console.log(`  no certified "both perceive a win" base trade found in the sampled space — reported honestly`);
+
+  console.log(`\nSTATUS: Checkpoint E — value extraction + negotiation envelope (opening / target settlement / acceptable deal / walk-away) modeled. We negotiate using their perceived economics and decide using our private permanent utility. Base trade must be certified first; Rhamondre→Chuba stays gated. NO multi-step trade paths / appreciation / liquidity (F).`);
 }
 
 // ---------------------------------------------------------------------------
