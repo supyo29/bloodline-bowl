@@ -16,6 +16,7 @@ import { buildDynamicMarketEdges } from "./dynamic";
 import { buildLeagueThreat } from "./threat";
 import { DEFAULT_COMPETITIVE_D_CONFIG } from "./config";
 import { makeOwnerContextCache } from "./owner-context";
+import { buildCompetitiveTradeEvaluationContext } from "./eval-context";
 import {
   buildValueExtraction,
   baseTradeCertified,
@@ -47,6 +48,13 @@ export interface NegotiationEvalInput {
   config?: PartialNegotiationConfig;
   /** reuse the league market-edge table across frontier points */
   precomputed?: LeagueMarketEdgeTable;
+  /**
+   * Checkpoint F: a fully precomputed request-scoped evaluation context. When
+   * present, the whole negotiation envelope reuses ONE league snapshot's
+   * market table, dynamic edges, threat model and owner contexts — no
+   * league-wide structure is rebuilt per frontier point.
+   */
+  eval_context?: import("./eval-context").CompetitiveTradeEvaluationContext;
 }
 
 function toProposal(
@@ -87,20 +95,32 @@ function toProposal(
 }
 
 export function evaluateNegotiationEnvelope(input: NegotiationEvalInput): Promise<NegotiationEnvelope> {
-  return runInLeagueStateScope(() => Promise.resolve(evaluateNegotiationEnvelopeInner(input)));
+  return runInLeagueStateScope(() =>
+    Promise.resolve(
+      evaluateNegotiationEnvelopeInner({
+        ...input,
+        // Checkpoint F: precompute every league-wide, trade-invariant input ONCE
+        // for the whole envelope instead of ~8–12× (one per frontier point).
+        eval_context: input.eval_context ?? buildCompetitiveTradeEvaluationContext(input.ctx),
+      }),
+    ),
+  );
 }
 
 export function evaluateNegotiationEnvelopeInner(input: NegotiationEvalInput): NegotiationEnvelope {
   const { ctx, my_manager_id, counterparty_manager_id } = input;
   const config: NegotiationConfig = resolveNegotiationConfig(input.config);
   const aggressiveness: NegotiationAggressiveness = input.aggressiveness ?? "AGGRESSIVE_BUT_CREDIBLE";
-  const tradeConfig: TradeConfig = resolveTradeConfig();
+  const ec = input.eval_context;
+  const tradeConfig: TradeConfig = ec?.trade_config ?? resolveTradeConfig();
 
-  const table = input.precomputed ?? buildLeagueMarketEdgeTable(ctx);
-  const dyn = buildDynamicMarketEdges({ table, season: ctx.season, as_of_week: ctx.week, remaining_games_expected: Math.max(1, ctx.ros.weeks.length), config: table.config });
-  const evalCtx = buildDiscoveryEvalContext(ctx);
-  const ownerCache = makeOwnerContextCache(ctx);
-  const threat = buildLeagueThreat(ctx, DEFAULT_COMPETITIVE_D_CONFIG, my_manager_id, ownerCache);
+  const table = ec?.market_table ?? input.precomputed ?? buildLeagueMarketEdgeTable(ctx);
+  const dyn = ec
+    ? { by_player: ec.dynamic_edges }
+    : buildDynamicMarketEdges({ table, season: ctx.season, as_of_week: ctx.week, remaining_games_expected: Math.max(1, ctx.ros.weeks.length), config: table.config });
+  const evalCtx = ec?.discovery_eval_context ?? buildDiscoveryEvalContext(ctx);
+  const ownerCache = ec?.owner_context ?? makeOwnerContextCache(ctx);
+  const threat = ec?.league_threat ?? buildLeagueThreat(ctx, DEFAULT_COMPETITIVE_D_CONFIG, my_manager_id, ownerCache);
   const cpThreatBand: ThreatBand = threat.by_manager.get(counterparty_manager_id)?.band ?? "MODERATE";
 
   const evaluateProposal = (ourAssets: string[], theirAssets: string[], label: string): NegotiationProposal | null => {
@@ -119,6 +139,7 @@ export function evaluateNegotiationEnvelopeInner(input: NegotiationEvalInput): N
       counterparty_manager_id,
       precomputed: table,
       owner_context_cache: ownerCache,
+      eval_context: ec,
     });
     return toProposal(label, ourAssets, theirAssets, comp);
   };

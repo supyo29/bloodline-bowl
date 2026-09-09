@@ -18,11 +18,12 @@
 import { lineupLossFromRemoving, type OwnerContext } from "./owner-context";
 import type { OwnerPerceptionConfig } from "./config";
 import type { TradeAnalysisContext } from "../context";
-import type {
-  OwnerContextReadiness,
-  OwnerPerceivedValue,
-  ReservationPrice,
-  ValueConfidence,
+import {
+  describeReservationLevel,
+  type OwnerContextReadiness,
+  type OwnerPerceivedValue,
+  type ReservationPrice,
+  type ValueConfidence,
 } from "./schema";
 
 const CONF_LEVEL: Record<ValueConfidence, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, VERY_LOW: 0 };
@@ -53,6 +54,7 @@ export function buildReservationPrice(input: BuildReservationInput): Reservation
       perceived_value: null,
       components: { owner_perceived_value: 0, replacement_cost: 0, positional_scarcity_cost: 0, surplus_discount: 0, bundle_nonadditivity: 0 },
       sanity_floor_applied: false,
+      reservation_descriptor: describeReservationLevel(null),
       readiness: owner.available ? "GLOBAL_MARKET_ONLY" : "UNAVAILABLE",
       confidence: "VERY_LOW",
       reasons: [...reasons, owner.available ? "no owner-rostered assets in the outgoing bundle" : "owner context unavailable"],
@@ -146,6 +148,13 @@ export function buildReservationPrice(input: BuildReservationInput): Reservation
     }
   }
 
+  // ---- §72: human-facing phrasing (never "negative fantasy value") ----
+  if (reservation != null && reservation < 0) {
+    reasons.push(
+      `${describeReservationLevel(reservation)} (reservation ${reservation.toFixed(2)} on the centered standardized scale — this is a very low bar to trade the player away, NOT a claim that the owner values the player below zero fantasy points).`,
+    );
+  }
+
   // ---- readiness / confidence ----
   const readiness: OwnerContextReadiness = perceived.get(ids[0]!)?.readiness ?? "PARTIAL_OWNER_CONTEXT";
   const ceiling = config.readiness_confidence_ceiling[readiness] ?? "LOW";
@@ -166,6 +175,7 @@ export function buildReservationPrice(input: BuildReservationInput): Reservation
       bundle_nonadditivity: bundleNonAdd,
     },
     sanity_floor_applied: sanityFloorApplied,
+    reservation_descriptor: describeReservationLevel(reservation),
     readiness,
     confidence: LEVEL_CONF[Math.max(0, Math.min(3, level))]!,
     reasons,

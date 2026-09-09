@@ -36,6 +36,9 @@ import { evaluateOwnerPerception } from "./owner-perception-eval";
 import { evaluateCompetitiveDimension } from "./competitive-d-eval";
 import { evaluateNegotiationEnvelopeInner } from "./negotiation-eval";
 import { makeOwnerContextCache } from "./owner-context";
+import { buildTradeLiquidity } from "./liquidity";
+import { buildMarketAppreciation } from "./appreciation";
+import { buildHoldEvaluation } from "./hold";
 
 export function pprModeOf(rawScoring: Record<string, number>): PprMode {
   const rec = rawScoring.rec ?? 0;
@@ -123,6 +126,13 @@ export interface EvaluateCompetitiveTradeInput {
   /** reuse a per-manager owner-context cache across many evaluations (negotiation frontier) */
   owner_context_cache?: (managerId: string) => import("./owner-context").OwnerContext;
   /**
+   * Checkpoint F: a fully precomputed request-scoped context (market table +
+   * dynamic edges + threat + owner contexts). When present, NO league-wide
+   * structure is rebuilt for this proposal. Overrides `precomputed` /
+   * `owner_context_cache`.
+   */
+  eval_context?: import("./eval-context").CompetitiveTradeEvaluationContext;
+  /**
    * Checkpoint C: when supplied, the counterparty's owner-perceived value,
    * reservation price and acceptance likelihood are attached. `manager_id` plus
    * the bilateral routing (they RECEIVE our outgoing, GIVE our incoming).
@@ -135,6 +145,13 @@ export interface EvaluateCompetitiveTradeInput {
   include_negotiation?: boolean;
   negotiation_aggressiveness?: import("./schema").NegotiationAggressiveness;
   negotiation_config?: import("./config").PartialNegotiationConfig;
+  /**
+   * Checkpoint F — attach TRADE LIQUIDITY + MARKET APPRECIATION for the incoming
+   * assets, and the BUY-AND-HOLD case. Owner-independent after acquisition (§9);
+   * appreciation is speculative (§30). Requires `eval_context` for efficiency.
+   */
+  include_liquidity_and_appreciation?: boolean;
+  competitive_f_config?: import("./config").PartialCompetitiveFConfig;
 }
 
 const CONF_LEVEL: Record<ValueConfidence, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, VERY_LOW: 0 };
@@ -142,7 +159,7 @@ const LEVEL_CONF: ValueConfidence[] = ["VERY_LOW", "LOW", "MEDIUM", "HIGH"];
 
 export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): CompetitiveTradeEvaluation {
   const { baseline, ctx, incoming_player_ids, outgoing_player_ids } = input;
-  const table = input.precomputed ?? buildLeagueMarketEdgeTable(ctx, input.config);
+  const table = input.eval_context?.market_table ?? input.precomputed ?? buildLeagueMarketEdgeTable(ctx, input.config);
 
   const focus = [...new Set([...incoming_player_ids, ...outgoing_player_ids])];
 
@@ -198,14 +215,16 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
 
   // ---- Checkpoint C: counterparty owner perception + acceptance ----
   if (input.counterparty_manager_id) {
-    const ownerCache = input.owner_context_cache ?? makeOwnerContextCache(ctx);
-    const dyn = buildDynamicMarketEdges({
-      table,
-      season: ctx.season,
-      as_of_week: ctx.week,
-      remaining_games_expected: Math.max(1, ctx.ros.weeks.length),
-      config: table.config,
-    });
+    const ownerCache = input.eval_context?.owner_context ?? input.owner_context_cache ?? makeOwnerContextCache(ctx);
+    const dyn = input.eval_context
+      ? { by_player: input.eval_context.dynamic_edges }
+      : buildDynamicMarketEdges({
+          table,
+          season: ctx.season,
+          as_of_week: ctx.week,
+          remaining_games_expected: Math.max(1, ctx.ros.weeks.length),
+          config: table.config,
+        });
     const { owner_perception, acceptance } = evaluateOwnerPerception({
       ctx,
       table,
@@ -242,6 +261,7 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
       owner_perception_confidence: owner_perception.confidence,
       config: input.competitive_d_config,
       horizon_config: input.horizon_config,
+      precomputed_threat: input.eval_context?.league_threat,
     });
     competitive.our_trade_horizons = d.our_horizon;
     competitive.opponent_trade_horizons = d.opponent_horizon;
@@ -265,9 +285,36 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
         aggressiveness: input.negotiation_aggressiveness,
         config: input.negotiation_config,
         precomputed: table,
+        eval_context: input.eval_context,
       });
       competitive.notes.push(
         "Checkpoint E — negotiation: we NEGOTIATE using the counterparty's PERCEIVED economics and DECIDE using our private permanent utility. The frontier is only built on a CERTIFIED base trade; a REVIEW_REQUIRED / rejected base is EXTRACTION_GATED. Opening / target / acceptable / walk-away are distinct. Acceptance is a feasibility gate; our gain stays primary. No manager-facing pitch copy yet.",
+      );
+    }
+
+    // ---- Checkpoint F: liquidity + appreciation + buy-and-hold (opt-in) ----
+    if (input.include_liquidity_and_appreciation && input.eval_context) {
+      const ec = input.eval_context;
+      const cpId = input.counterparty_manager_id;
+      const liq = incoming_player_ids.map((id) =>
+        buildTradeLiquidity({ ec, canonical_player_id: id, current_owner_manager_id: cpId, my_manager_id: input.my_manager_id, config: input.competitive_f_config }),
+      );
+      const appr = incoming_player_ids.map((id) =>
+        buildMarketAppreciation({ ec, canonical_player_id: id, config: input.competitive_f_config }),
+      );
+      competitive.liquidity = liq;
+      competitive.appreciation = appr;
+      competitive.hold = buildHoldEvaluation({
+        acquire_ids: incoming_player_ids,
+        permanent_gain: competitive.our_trade_horizons?.permanent_trade_utility ?? null,
+        permanent_confidence: competitive.competitive_result?.confidence ?? "VERY_LOW",
+        liquidity: liq,
+        appreciation: appr,
+        weeks_remaining: Math.max(1, ctx.ros.weeks.length),
+        config: input.competitive_f_config,
+      });
+      competitive.notes.push(
+        "Checkpoint F — TRADE LIQUIDITY is how broadly tradable each acquired player is across the league near current price, estimated owner-independently for US as the hypothetical new owner (§9) — NOT player popularity. MARKET APPRECIATION POTENTIAL is the (speculative, never-guaranteed) chance the market price moves toward our private valuation; it consumes the Checkpoint B.5 market-correction state (§14, §30). The buy-and-hold case is decomposed (no fake expected-dollar value); DO_NOTHING and ACQUIRE_AND_HOLD are legitimate terminal decisions (§17).",
       );
     }
   }

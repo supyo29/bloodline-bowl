@@ -1597,6 +1597,248 @@ Modified: `lib/trades/competitive/{schema,config,evaluate,index}.ts` (additive
 
 ---
 
+# Part X — Checkpoint F: Trade Liquidity, Market Appreciation, Buy-and-Hold, Multi-Step Paths, Performance
+
+## F.1 Terminology (§0)
+
+This part avoids unexplained abbreviations. In full: **Roster Intelligence** (the
+private forward-looking player model), **Value Over Replacement** (a player's
+worth above a freely-available replacement at the position), **rest-of-season**
+(the remaining fantasy weeks including the current one), **current market
+value** (what the outside market prices a player at right now), **permanent
+trade utility** (the rest-of-season-dominant blended value of a completed
+trade), **opponent threat** (a rival's forward-looking roster strength),
+**trade liquidity** (how broadly tradable a player is across the league near his
+current price), **market appreciation potential** (the chance the market price
+moves toward our private valuation). Position abbreviations
+(QB/RB/WR/TE/K/DST/FLEX) are used as-is.
+
+## F.2 Performance foundation — `CompetitiveTradeEvaluationContext` (§2–§4)
+
+Checkpoint E rebuilt, once **per proposal**, the ~3,300-player dynamic market
+table, the 14-manager threat model, every manager's roster context and the
+preseason ADP consensus. A negotiation envelope evaluates 8–15 proposals, so it
+paid that cost 8–15 times (~700 ms in the worst case). Multi-step path search
+would multiply it again.
+
+`lib/trades/competitive/eval-context.ts` precomputes every league-wide,
+**trade-invariant** input exactly once:
+
+| Field | What it is | Build cost |
+| --- | --- | --- |
+| `market_table` | within-position private / current-market edge table | once |
+| `dynamic_edges` | time-aware (Checkpoint B.5) edges, keyed by player | once |
+| `league_threat` | forward-looking opponent threat for every manager | once |
+| `owner_context(id)` | memoized per-manager roster context | once per manager |
+| `discovery_eval_context` | the shared structural resolver for `evaluateCandidate` | once |
+| `market_consensus` | vendored preseason ADP consensus | once |
+| `build_counts` | instrumentation — how many times each build actually ran | — |
+
+It is a pure function of the league **snapshot**; `snapshot_identity` pins it and
+`assertContextMatchesSnapshot` rejects reuse against a different snapshot. There
+is no mutable cross-request global. `relative_to_us` / `my_blended_strength_z`
+are perspective-dependent, so `competitive-d-eval.ts` re-derives them per
+requester from the perspective-independent per-manager blended z when a
+precomputed threat table is supplied.
+
+Measured on the live Bloodline Bowl snapshot (Week 1):
+
+| | Checkpoint E | Checkpoint F (shared context) |
+| --- | --- | --- |
+| context build | — (implicit, per proposal) | **~21 ms, once** |
+| one full competitive proposal eval | ~30–50 ms | **~0.7 ms** |
+| one negotiation envelope | ~700 ms (worst case) | **~8 ms** |
+| staged two-step path search (130 first-step evals) | not feasible | **~0.5 s, interactive** |
+
+`build_counts` stays `{market_table:1, dynamic_edges:1, league_threat:1,
+market_consensus:1}` no matter how many proposals are evaluated — this is the
+§75 regression guard (a counter, never a wall-clock assertion).
+
+## F.3 Trade liquidity (`liquidity.ts`, §5–§9)
+
+Liquidity answers *"how many managers could realistically absorb this player into
+a starting role and plausibly pay for him near his current price?"* — **not**
+player popularity, **not** market value. Inputs per candidate buyer: positional
+need, whether the player enters their optimal lineup (`lineupGainFromAdding`),
+plausible acquisition economics (expendable assets / positional surplus /
+consolidation incentive), roster-slot compatibility, and league-wide positional
+scarcity (startable supply ÷ demand).
+
+**§9 — owner-independent after acquisition.** Liquidity is estimated for a
+*hypothetical* owner: US, post-acquisition. The current owner's reservation
+price is never reused; the current owner is excluded from the buyer scan. The
+field `hypothetical_owner` is always `US_POST_ACQUISITION`.
+
+Output: `potential_buyers` (each `HIGH_FIT` / `MODERATE_FIT` with reasons),
+`buyer_count`, `high_fit_buyers`, `moderate_fit_buyers`, and a classification of
+`VERY_LOW` / `LOW` / `MODERATE` / `HIGH` / `VERY_HIGH`. High liquidity is
+**optionality, not a sell signal** (§31); low liquidity does **not** mean a bad
+player (§33).
+
+## F.4 Market appreciation potential (`appreciation.ts`, §10–§16)
+
+*"How likely is the market price to move toward our private valuation if the
+current evidence continues?"* — explicitly **speculative** (`is_speculative:
+true`), never counted as guaranteed value anywhere downstream (§30).
+
+- **§14** — the Checkpoint B.5 `market_correction` state is **consumed**, not
+  recomputed. `MARKET_CORRECTED` → `MARKET_ALREADY_CORRECTED`; `MARKET_OVERSHOT`
+  → `DEPRECIATION_RISK`.
+- **§13** — a large private↔market gap at `VERY_LOW` confidence or
+  `REVIEW_REQUIRED` data quality → `REVIEW_REQUIRED` (never `HIGH`).
+- **§15 catalysts**: `ROLE_EXPANSION`, `USAGE_PERSISTENCE`, `STARTER_ROLE`,
+  `RETURN_FROM_INJURY`, `TOUCHDOWN_REGRESSION_UPWARD`,
+  `DIFFICULT_SCHEDULE_ENDING`, `PUBLIC_PROJECTION_LAG`,
+  `MARKET_NOT_YET_CORRECTED`.
+- **§16 invalidation conditions**: `ROLE_SHRINKS`, `STARTER_RETURNS`,
+  `INJURY_WORSENS`, `USAGE_SPIKE_PROVES_TEMPORARY`,
+  `PUBLIC_MARKET_ALREADY_REPRICES`, `MODEL_DISAGREEMENT_REMAINS_EXTREME`.
+- **§55–§56** — evidence maturity caps certainty: with preseason-only /
+  early-season evidence, appreciation cannot be `HIGH`. Week 1 therefore
+  produces no high-certainty future repricing (verified live — the diagnostic
+  reports *"NONE"* honestly).
+
+Classifications: `HIGH_APPRECIATION_POTENTIAL`, `MODERATE_APPRECIATION_POTENTIAL`,
+`LIMITED_APPRECIATION_POTENTIAL`, `MARKET_ALREADY_CORRECTED`,
+`DEPRECIATION_RISK`, `REVIEW_REQUIRED`, `UNKNOWN`.
+
+## F.5 Buy-and-hold + future optionality (`hold.ts`, §17–§19, §34)
+
+`DO_NOTHING` and `ACQUIRE_AND_HOLD` are legitimate terminal decisions, not
+passive failure. The hold case is **decomposed** — there are no fabricated
+expected-dollar figures:
+
+```
+hold value ≈  current permanent roster gain
+           +  expected optionality
+           +  appreciation potential (speculative, discounted)
+           −  injury risk  −  market uncertainty  −  time risk
+```
+
+**§34 — `future_optionality`** is distinct from current permanent roster
+utility: it is a function of future buyer count + buyer quality + appreciation +
+positional scarcity + confidence, i.e. how many good things we could later *do*
+with the asset. A **negative permanent roster gain can never be
+`ACQUIRE_AND_HOLD` or `ACQUIRE_AND_FLIP`** — it resolves to `DO_NOTHING` (or
+`REVIEW_REQUIRED` when model disagreement is extreme). `HOLD UNTIL` / `REASSESS
+IF` conditions are qualitative — no fabricated dates (§53–§54).
+
+## F.6 Bounded multi-step trade paths (`path-search.ts`, §20–§54, §77)
+
+Compares `DIRECT_ACQUISITION` (A→C) vs `TWO_STEP_UPGRADE` (A→B→C) vs
+`BUY_AND_HOLD` vs `HOLD_CURRENT_ASSET` vs `NO_ACTION`. **Hard bound: at most 2
+completed trades.** This is a **staged beam search**, not arbitrary-depth graph
+search (§48–§49):
+
+1. seed with our top market-**sell** assets (`max_first_step_states`, default 10);
+2. structurally-plausible + competitively-**certified** first trades
+   (our permanent gain clears the minimum, acceptance is feasible, competitive
+   result is actionable and not `REJECT` / `AVOID_COMPETITIVE_COST`);
+3. retain the top K first-step states;
+4. score liquidity / appreciation of the acquired asset;
+5. second trades **only** from retained states, few targets each
+   (`max_second_step_targets_per_state`, default 8);
+6. prune dominated final states (§50); block circular `A→B→A` (§51) and
+   duplicate-equivalent final states (§52);
+7. always compare against `DIRECT_ACQUISITION`, `NO_ACTION`,
+   `HOLD_CURRENT_ASSET` (§45–§47).
+
+**§38** — path-level private utility is the FINAL roster's permanent value vs the
+INITIAL roster (final-state comparison is authoritative); the two-step final
+delta is evaluated as the synthetic net swap (give A / receive C) because the
+intermediary nets out for us. **§39** — externality is tracked per completed
+trade (`externality_trade_1`, `externality_trade_2`, `aggregate_path_externality`).
+**§40–§42** — path feasibility is qualitative (`edge_feasibility` per edge, path
+feasibility = weakest edge); there are **no multiplied probabilities**; path
+confidence ≤ the weakest critical edge. **§26/§27** — a two-step path must beat
+the best direct path by `min_two_step_improvement` (default 0.5 weekly-equivalent)
+or `DIRECT_PATH_PREFERRED`. **§30** — future market correction is never counted
+as guaranteed value in the ranking.
+
+`strategy_path` result schema (`StrategyPath` / `StrategyPathComparison`):
+`strategy`, `readiness`, `confidence`, `starting_state`, `steps[]` (each:
+`counterparty`, `give`, `receive`, `permanent_trade_utility`, `acceptance`,
+`opponent_externality`, `transaction_friction`), `final_state`
+(`permanent_roster_delta`, `liquidity`, `appreciation`, `future_optionality`),
+`aggregate` (`transactions`, `competitive_externality`, `friction`, `feasibility`,
+`edge_feasibility[]`, `score`), `reasons[]`, plus `search_stats` on the
+comparison.
+
+Transaction friction (§25) is a conservative heuristic per completed trade:
+probability of rejection, time delay, injury/news exposure, strengthening
+another opponent, loss of optionality, roster churn.
+
+## F.7 Human-facing value semantics (§72, §73)
+
+- **§72** — a small **negative reservation** on the centered standardized scale
+  means *"very low owner reservation value relative to the league baseline"*, a
+  low bar to trade the player away — **never** *"the owner assigns negative
+  fantasy value"*. `describeReservationLevel()` produces the safe phrasing; the
+  normalized mathematics is unchanged; `ReservationPrice.reservation_descriptor`
+  carries the string for consumers.
+- **§73** — `AcceptanceEstimate` now exposes `raw_perceived_value_surplus`
+  (owner-perceived value received − reservation surrendered, BEFORE context),
+  `acceptance_context_adjustments` (need relief / roster-slot pressure /
+  structure fit / market trajectory + signed total),
+  `overall_acceptance_likelihood`, and
+  `accepts_despite_negative_value_perception`. When the raw surplus is negative
+  but acceptance is `MODERATE`+, the reasons say so explicitly — we never tell
+  the user *"they think they are winning on value"*.
+
+## F.8 Bloodline Bowl live diagnostics (Week 1)
+
+- **Best direct trade / best two-step / best buy-and-hold**: NONE certified at
+  Week 1 — the our-gain gate and acceptance feasibility are not met from
+  preseason-only evidence. Reported honestly; consistent with §57/§80.
+- **Highest-liquidity intermediate asset**: an elite RB (`VERY_HIGH`, ~12
+  plausible buyers) — high liquidity is optionality, not a sell signal.
+- **Strongest appreciation candidate with sufficient confidence**: NONE — no
+  player clears `MODERATE`+ appreciation at `MEDIUM`+ confidence at Week 1 (§55).
+- **Best no-action case**: `NO_ACTION` is the recommended strategy at Week 1
+  (score 0), ahead of `HOLD_CURRENT_ASSET`.
+- **§57/§80 Rhamondre Stevenson → Chuba Hubbard**: buy-and-hold decision
+  `DO_NOTHING` (permanent gain −3.39 weekly-equivalent, appreciation
+  `LIMITED_APPRECIATION_POTENTIAL` @ `LOW`). It does **not** resurrect as "buy
+  Chuba and hold".
+- **§81 Mahomes / Jadarian Price / Jonah Coleman**: Mahomes liquidity
+  `VERY_LOW` (superflex-thin market), Price `HIGH`, Coleman `LOW`; all
+  appreciation `MARKET_ALREADY_CORRECTED` / `LIMITED` at `VERY_LOW`–`LOW`
+  confidence.
+
+## F.9 Known limitations (F)
+
+- Liquidity / appreciation / friction are HEURISTIC — one real league trade
+  exists; nothing here is calibrated to outcomes.
+- The staged path search uses a single best target per (seed, counterparty) pair
+  for the first step and a private-value ordering for the second — it is a beam,
+  not exhaustive; it can miss a path that only works with a non-obvious
+  intermediary.
+- Two-step final-state utility uses the synthetic net-swap approximation; the
+  per-edge acceptance and externality come from the real edges.
+- Week-1 preseason evidence produces almost no certified paths — the value of
+  this layer will be visible mid-season.
+
+## F.10 Regression (F)
+
+`test/competitive-trade-f.test.ts` (13 tests): shared-context byte-equivalence +
+build counters (§74/§75), liquidity owner-independence + monotonicity (§5–§9),
+appreciation correction-state consumption + §13 review gate + §55 maturity cap,
+buy-and-hold DO_NOTHING vs ACQUIRE_AND_HOLD + decomposition, path bound (≤2
+trades) + always-present terminal options + determinism, §72 phrasing, §73
+field exposure. Full competitive suite: **120 tests pass**. `tsc --noEmit`
+clean; `eslint lib/trades` clean. Legacy trade-engine + weekly + orchestrator
+suites unchanged (459 pass).
+
+## F.11 Files changed (F)
+
+New: `lib/trades/competitive/{eval-context,liquidity,appreciation,hold,path-search}.ts`;
+`test/competitive-trade-f.test.ts`.
+Modified (all additive): `lib/trades/competitive/{schema,config,evaluate,index,acceptance,reservation,competitive-d-eval,negotiation-eval,owner-context}.ts`;
+`scripts/competitive-trade-smoke.ts`; this doc. `evaluateTrade` NOT touched; no
+production lineup / start-sit / waiver / player-scheme surface touched.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
@@ -1606,8 +1848,8 @@ Modified: `lib/trades/competitive/{schema,config,evaluate,index}.ts` (additive
 - [x] **D — Opponent impact + threat + competitive externality + result** — CERTIFIED
 - [x] **D.5 — Horizon-aware permanent-trade utility** — CERTIFIED
 - [x] **E — Value extraction & negotiation envelope** — CERTIFIED
-- [ ] F — Multi-hop + hold-for-appreciation + liquidity
+- [x] **F — Trade liquidity + market appreciation + buy-and-hold + multi-step paths + performance** — CERTIFIED
 - [ ] G — Integration / live smoke
 
-**Freeze verdict: NOT READY TO FREEZE** (Checkpoints F–G outstanding; do not
-merge/tag/deploy). Checkpoint E gate: **CERTIFIED — READY FOR CHECKPOINT F.**
+**Freeze verdict: NOT READY TO FREEZE** (Checkpoint G outstanding; do not
+merge/tag/deploy). Checkpoint F gate: **CERTIFIED — READY FOR CHECKPOINT G.**

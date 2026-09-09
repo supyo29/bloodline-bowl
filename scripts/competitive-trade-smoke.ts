@@ -371,7 +371,119 @@ async function reportLeague(leagueSlug: string) {
   }
   if (shown === 0) console.log(`  no certified "both perceive a win" base trade found in the sampled space — reported honestly`);
 
-  console.log(`\nSTATUS: Checkpoint E — value extraction + negotiation envelope (opening / target settlement / acceptable deal / walk-away) modeled. We negotiate using their perceived economics and decide using our private permanent utility. Base trade must be certified first; Rhamondre→Chuba stays gated. NO multi-step trade paths / appreciation / liquidity (F).`);
+  console.log(`\nSTATUS: Checkpoint E — value extraction + negotiation envelope (opening / target settlement / acceptable deal / walk-away) modeled. We negotiate using their perceived economics and decide using our private permanent utility. Base trade must be certified first; Rhamondre→Chuba stays gated.`);
+
+  // ---- Checkpoint F: liquidity, appreciation, buy-and-hold, multi-step paths ----
+  console.log(`\n================ CHECKPOINT F — liquidity / appreciation / hold / multi-step paths ================`);
+  const F = await import("../lib/trades/competitive");
+
+  // §2–§4 / §83 — performance: build the request-scoped context ONCE, then measure
+  const tBuild = performance.now();
+  const ec = F.buildCompetitiveTradeEvaluationContext(ctx);
+  const buildMs = performance.now() - tBuild;
+  console.log(`\n--- §83 performance: request-scoped evaluation context ---`);
+  console.log(`  context build: ${buildMs.toFixed(0)} ms  (identity ${ec.snapshot_identity})  build_counts=${JSON.stringify(ec.build_counts)}`);
+
+  const ownerOfId = (pid: string): string | null => {
+    const r = ctx.snapshot.rosters.find((rr) => rr.all_players.includes(pid));
+    const team = r && ctx.snapshot.teams.find((t) => t.canonical_team_id === r.canonical_team_id);
+    return team?.canonical_manager_ids[0] ?? null;
+  };
+
+  // one full competitive proposal eval AFTER context construction (target: low ms)
+  if (rham?.owner_id && chuba?.owner_id) {
+    const { buildDiscoveryEvalContext, evaluateCandidate } = await import("../lib/trades/discovery/candidate-eval");
+    const { resolveTradeConfig } = await import("../lib/trades/config");
+    const dctx = buildDiscoveryEvalContext(ctx);
+    const tc = resolveTradeConfig();
+    const transfers = [
+      { from_manager_id: chuba.owner_id, to_manager_id: rham.owner_id, canonical_player_id: chuba.player.canonical_player_id },
+      { from_manager_id: rham.owner_id, to_manager_id: chuba.owner_id, canonical_player_id: rham.player.canonical_player_id },
+    ];
+    const cres = evaluateCandidate([rham.owner_id, chuba.owner_id], transfers, ctx, dctx, tc);
+    if (cres.ok && cres.evaluation) {
+      const t1 = performance.now();
+      for (let i = 0; i < 10; i++)
+        F.evaluateCompetitiveTrade({ baseline: cres.evaluation, ctx, my_manager_id: rham.owner_id, incoming_player_ids: [chuba.player.canonical_player_id], outgoing_player_ids: [rham.player.canonical_player_id], counterparty_manager_id: chuba.owner_id, eval_context: ec });
+      console.log(`  single full competitive proposal eval (shared context): ${((performance.now() - t1) / 10).toFixed(2)} ms  (target: low single-to-double-digit ms)`);
+    }
+  }
+  {
+    const { evaluateNegotiationEnvelopeInner } = F;
+    if (rham?.owner_id && chuba?.owner_id) {
+      const tN = performance.now();
+      evaluateNegotiationEnvelopeInner({ ctx, my_manager_id: rham.owner_id, counterparty_manager_id: chuba.owner_id, our_assets: [rham.player.canonical_player_id], their_assets: [chuba.player.canonical_player_id], eval_context: ec });
+      console.log(`  one negotiation envelope (shared context): ${(performance.now() - tN).toFixed(0)} ms  (Checkpoint E baseline ≈ 700 ms; target: materially below)`);
+    }
+  }
+
+  // §5–§9 liquidity + §10–§16 appreciation — league-wide scan for the diagnostics
+  console.log(`\n--- §79/§82 live Bloodline Bowl diagnostics ---`);
+  const myId = firstMgr.canonical_manager_id;
+  const allPlayerIds = [...new Set(ctx.snapshot.rosters.flatMap((r) => r.all_players))];
+  type LiqRow = ReturnType<typeof F.buildTradeLiquidity>;
+  type ApprRow = ReturnType<typeof F.buildMarketAppreciation>;
+  const liqRows: LiqRow[] = [];
+  const apprRows: ApprRow[] = [];
+  for (const pid of allPlayerIds) {
+    const owner = ownerOfId(pid);
+    if (owner === myId) continue;
+    liqRows.push(F.buildTradeLiquidity({ ec, canonical_player_id: pid, current_owner_manager_id: owner, my_manager_id: myId }));
+    apprRows.push(F.buildMarketAppreciation({ ec, canonical_player_id: pid }));
+  }
+  const liqRank = (c: string) => ["VERY_LOW", "LOW", "MODERATE", "HIGH", "VERY_HIGH"].indexOf(c);
+  const bestLiq = [...liqRows].sort((a, b) => liqRank(b.classification) - liqRank(a.classification) || b.buyer_count - a.buyer_count)[0];
+  console.log(`  highest-liquidity intermediate asset: ${bestLiq?.name} — ${bestLiq?.classification} (${bestLiq?.buyer_count} plausible buyers, ${bestLiq?.high_fit_buyers} high-fit; scarcity ${bestLiq?.positional_scarcity_ratio})`);
+  const trustworthyAppr = apprRows
+    .filter((a) => (a.classification === "HIGH_APPRECIATION_POTENTIAL" || a.classification === "MODERATE_APPRECIATION_POTENTIAL") && (a.confidence === "MEDIUM" || a.confidence === "HIGH"))
+    .sort((a, b) => (b.private_market_gap ?? 0) - (a.private_market_gap ?? 0));
+  if (trustworthyAppr.length > 0) {
+    const a = trustworthyAppr[0]!;
+    console.log(`  strongest appreciation candidate with sufficient confidence: ${a.name} — ${a.classification} @ ${a.confidence} (gap ${a.private_market_gap}, catalysts ${a.catalysts.join("/") || "none"})`);
+  } else {
+    console.log(`  strongest appreciation candidate with sufficient confidence: NONE — no player clears MODERATE+ appreciation at MEDIUM+ confidence at Week ${ctx.week} (reported honestly; §55 caps early-season certainty)`);
+  }
+
+  // §20–§54 staged path search from our roster
+  const paths = F.buildStrategyPathComparison({ ec, my_manager_id: myId });
+  console.log(`\n--- §83 staged path search (perspective ${firstMgr.manager_slug}) ---`);
+  console.log(`  ${paths.reasons[0]}`);
+  console.log(`  recommended=${paths.recommended}  direct_path_preferred=${paths.direct_path_preferred}  elapsed=${paths.search_stats.elapsed_ms} ms`);
+  const byStrat = (s: string) => paths.paths.find((p) => p.strategy === s);
+  for (const s of ["DIRECT_ACQUISITION", "TWO_STEP_UPGRADE", "BUY_AND_HOLD", "HOLD_CURRENT_ASSET", "NO_ACTION"]) {
+    const p = byStrat(s);
+    if (p) console.log(`  [${s}] score=${p.aggregate.score} finalΔ=${p.final_state.permanent_roster_delta} txns=${p.aggregate.transactions} feasibility=${p.aggregate.feasibility} — ${p.reasons[0]}`);
+    else console.log(`  [${s}] not produced (no certified path of this shape at Week ${ctx.week} — honest)`);
+  }
+
+  // §57/§80 — Rhamondre/Chuba must NOT resurrect as BUY-AND-HOLD
+  if (rham?.owner_id && chuba?.owner_id) {
+    const cres2 = competitiveTradeResult(ctx, rham.owner_id, chuba.owner_id, rham.player.canonical_player_id, chuba.player.canonical_player_id);
+    const compF = F.evaluateCompetitiveTrade({
+      baseline: cres2.baseline, ctx, my_manager_id: rham.owner_id,
+      incoming_player_ids: [chuba.player.canonical_player_id], outgoing_player_ids: [rham.player.canonical_player_id],
+      counterparty_manager_id: chuba.owner_id, eval_context: ec, include_liquidity_and_appreciation: true,
+    });
+    const hold = compF.competitive.hold;
+    console.log(`\n--- §57/§80 Rhamondre Stevenson → Chuba Hubbard under Checkpoint F ---`);
+    console.log(`  buy-and-hold decision: ${hold?.decision}  (permanent gain ${hold?.components.current_permanent_roster_gain?.toFixed(2)}, optionality ${hold?.future_optionality.score.toFixed(2)}, hold score ${hold?.hold_score?.toFixed(2)})`);
+    console.log(`  appreciation(Chuba): ${compF.competitive.appreciation?.[0]?.classification} @ ${compF.competitive.appreciation?.[0]?.confidence}`);
+    console.log(`  → EXPECTED: DO_NOTHING or REVIEW_REQUIRED — NOT "BUY CHUBA AND HOLD" (§57).`);
+  }
+
+  // §81 — Mahomes / Jadarian Price / Jonah Coleman follow-up
+  const mahomes = findPlayer(ctx, "Patrick Mahomes");
+  const price = findPlayer(ctx, "Jadarian Price") ?? findPlayer(ctx, "Jaydon Blue");
+  const coleman = findPlayer(ctx, "Jonah Coleman");
+  console.log(`\n--- §81 Mahomes / Price / Coleman follow-up ---`);
+  for (const p of [mahomes, price, coleman]) {
+    if (!p?.owner_id) { console.log(`  (player not rostered in this league — skipped)`); continue; }
+    const liq = F.buildTradeLiquidity({ ec, canonical_player_id: p.player.canonical_player_id, current_owner_manager_id: p.owner_id, my_manager_id: myId });
+    const appr = F.buildMarketAppreciation({ ec, canonical_player_id: p.player.canonical_player_id });
+    console.log(`  ${p.player.full_name.padEnd(20)} liquidity=${liq.classification.padEnd(9)} buyers=${String(liq.buyer_count).padStart(2)}  appreciation=${appr.classification} @ ${appr.confidence}`);
+  }
+
+  console.log(`\nSTATUS: Checkpoint F — TRADE LIQUIDITY (owner-independent after acquisition, §9), MARKET APPRECIATION POTENTIAL (speculative, consumes B.5 correction state, §14/§30), BUY-AND-HOLD (decomposed, DO_NOTHING/ACQUIRE_AND_HOLD legitimate), and bounded 2-step trade paths (staged beam search, max 2 completed trades). Request-scoped evaluation context eliminates per-proposal league-wide recomputation.`);
 }
 
 // ---------------------------------------------------------------------------

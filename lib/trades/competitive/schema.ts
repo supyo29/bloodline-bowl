@@ -467,9 +467,27 @@ export interface ReservationPrice {
   components: ReservationPriceComponents;
   /** Checkpoint D §36 — true when a sanity bound clamped the reservation */
   sanity_floor_applied: boolean;
+  /**
+   * Checkpoint F §72 — human-facing phrasing of the reservation level. The
+   * normalized scale is centered, so a reservation can be a small negative
+   * number; that means "very low owner reservation value relative to the league
+   * baseline", NEVER "the owner assigns this player negative fantasy value".
+   * Consumers rendering text for a human MUST use this string, not the raw z.
+   */
+  reservation_descriptor: string;
   readiness: OwnerContextReadiness;
   confidence: ValueConfidence;
   reasons: string[];
+}
+
+/** §72 — safe human phrasing for a centered-scale reservation value. */
+export function describeReservationLevel(z: number | null): string {
+  if (z == null) return "owner reservation value could not be estimated";
+  if (z >= 1.0) return "very high owner reservation value relative to league baseline";
+  if (z >= 0.35) return "high owner reservation value relative to league baseline";
+  if (z >= -0.15) return "around the league-baseline owner reservation value";
+  if (z >= -0.6) return "low owner reservation value relative to league baseline";
+  return "very low owner reservation value relative to league baseline";
 }
 
 export interface PerceivedLedgerSide {
@@ -502,6 +520,34 @@ export interface AcceptanceEstimate {
   /** internal, deterministic, decomposed — NOT a probability, never shown as % */
   internal_score: number;
   components: AcceptanceComponents;
+  /**
+   * Checkpoint F §73 — raw perceived value surplus BEFORE any acceptance-context
+   * adjustments (owner-perceived value received − reservation surrendered).
+   * A NEGATIVE value here means the counterparty does NOT believe they win on
+   * pure value; any positive acceptance is then driven by the context
+   * adjustments below, not by their thinking they are "winning the trade".
+   */
+  raw_perceived_value_surplus: number | null;
+  /**
+   * Checkpoint F §73 — the non-value factors that move acceptance away from the
+   * raw perceived-value surplus (need relief, roster-slot pressure, structure
+   * fit, market trajectory), and their signed total.
+   */
+  acceptance_context_adjustments: {
+    need_relief: number;
+    roster_slot_pressure: number;
+    structure_fit: number;
+    market_trajectory_adjustment: number;
+    total: number;
+  };
+  /** Checkpoint F §73 — alias of `likelihood`: the blended feasibility after context. */
+  overall_acceptance_likelihood: AcceptanceLikelihood;
+  /**
+   * Checkpoint F §73 — true when raw_perceived_value_surplus < 0 but
+   * overall_acceptance_likelihood is MODERATE or better. Consumers MUST NOT then
+   * say "they think they are winning on value".
+   */
+  accepts_despite_negative_value_perception: boolean;
   /** distinct from `likelihood` (§33): how much we trust this estimate */
   confidence: ValueConfidence;
   readiness: OwnerContextReadiness;
@@ -896,9 +942,238 @@ export interface CompetitiveBlock {
   /** value extraction + the negotiation envelope (opening / target / acceptable / walk-away) */
   negotiation?: NegotiationEnvelope;
 
-  // ---- reserved for later checkpoints; ABSENT until implemented:
-  //   liquidity?         (Checkpoint F)
-  //   appreciation?      (Checkpoint F)
+  // ---- Checkpoint F (present only when the relevant analysis was requested) ----
+  /** how broadly tradable each traded player is across the league near its current price */
+  liquidity?: TradeLiquidity[];
+  /** how likely each traded player's market price is to move toward our private valuation */
+  appreciation?: MarketAppreciation[];
+  /** the buy-and-hold case for the assets WE would acquire */
+  hold?: HoldEvaluation;
+  /** direct vs two-step vs hold vs no-action strategy comparison */
+  strategy_paths?: StrategyPathComparison;
+}
+
+/* ======================================================================== */
+/* Checkpoint F — trade liquidity (§5–§9)                                     */
+/* ======================================================================== */
+
+export type LiquidityClassification =
+  | "VERY_LOW"
+  | "LOW"
+  | "MODERATE"
+  | "HIGH"
+  | "VERY_HIGH";
+
+export type BuyerFit = "HIGH_FIT" | "MODERATE_FIT";
+
+export interface LiquidityBuyer {
+  manager_id: string;
+  manager_slug: string;
+  fit: BuyerFit;
+  /** optimal-lineup points/wk the player would add to this manager's roster */
+  lineup_gain: number | null;
+  /** does the player fill a MODERATE+ positional need for this manager */
+  fills_need: boolean;
+  /** does this manager plausibly have the assets to pay near the current price */
+  plausible_economics: boolean;
+  reasons: string[];
+}
+
+export interface TradeLiquidity {
+  canonical_player_id: string;
+  name: string;
+  position: string;
+  /**
+   * §9 — this is estimated for a HYPOTHETICAL owner (US, post-acquisition), NOT
+   * the player's current owner. It answers "if we acquire this player, how
+   * tradable is he from our roster?". The current owner's reservation price is
+   * NOT reused.
+   */
+  hypothetical_owner: "US_POST_ACQUISITION";
+  classification: LiquidityClassification;
+  potential_buyers: LiquidityBuyer[];
+  buyer_count: number;
+  high_fit_buyers: number;
+  moderate_fit_buyers: number;
+  /** startable supply ÷ demand at the position across the league (low ⇒ scarce ⇒ more liquid) */
+  positional_scarcity_ratio: number | null;
+  /** market perception input — the dynamic-market confidence for this player */
+  market_perception_confidence: ValueConfidence;
+  readiness: "FULL_LIQUIDITY_CONTEXT" | "PARTIAL_LIQUIDITY_CONTEXT" | "UNAVAILABLE";
+  reasons: string[];
+}
+
+/* ======================================================================== */
+/* Checkpoint F — market appreciation potential (§10–§16)                     */
+/* ======================================================================== */
+
+export type AppreciationClassification =
+  | "HIGH_APPRECIATION_POTENTIAL"
+  | "MODERATE_APPRECIATION_POTENTIAL"
+  | "LIMITED_APPRECIATION_POTENTIAL"
+  | "MARKET_ALREADY_CORRECTED"
+  | "DEPRECIATION_RISK"
+  | "REVIEW_REQUIRED"
+  | "UNKNOWN";
+
+export type AppreciationCatalyst =
+  | "ROLE_EXPANSION"
+  | "USAGE_PERSISTENCE"
+  | "STARTER_ROLE"
+  | "RETURN_FROM_INJURY"
+  | "TOUCHDOWN_REGRESSION_UPWARD"
+  | "DIFFICULT_SCHEDULE_ENDING"
+  | "PUBLIC_PROJECTION_LAG"
+  | "MARKET_NOT_YET_CORRECTED";
+
+export type AppreciationInvalidation =
+  | "ROLE_SHRINKS"
+  | "STARTER_RETURNS"
+  | "INJURY_WORSENS"
+  | "USAGE_SPIKE_PROVES_TEMPORARY"
+  | "PUBLIC_MARKET_ALREADY_REPRICES"
+  | "MODEL_DISAGREEMENT_REMAINS_EXTREME";
+
+export interface MarketAppreciation {
+  canonical_player_id: string;
+  name: string;
+  position: string;
+  classification: AppreciationClassification;
+  /** private − current-market gap on the normalized scale (positive ⇒ we're higher) */
+  private_market_gap: number | null;
+  /** reused from Checkpoint B.5 — NOT recomputed here */
+  market_correction_state: MarketCorrectionStatus;
+  market_trajectory: MarketTrajectory;
+  evidence_readiness: EvidenceReadiness;
+  /** confidence that the gap is real and directionally trustworthy */
+  confidence: ValueConfidence;
+  catalysts: AppreciationCatalyst[];
+  invalidation_conditions: AppreciationInvalidation[];
+  /** §30 — this is NOT counted as guaranteed value anywhere downstream */
+  is_speculative: true;
+  reasons: string[];
+}
+
+/* ======================================================================== */
+/* Checkpoint F — future optionality + buy-and-hold (§17–§19, §34)            */
+/* ======================================================================== */
+
+export interface FutureOptionality {
+  /** distinct from current permanent roster utility — this is downstream trade flexibility */
+  score: number;
+  buyer_count: number;
+  buyer_quality: LiquidityClassification;
+  appreciation: AppreciationClassification;
+  positional_scarcity_ratio: number | null;
+  confidence: ValueConfidence;
+  reasons: string[];
+}
+
+export type HoldDecision =
+  | "ACQUIRE_AND_HOLD"
+  | "DO_NOTHING"
+  | "ACQUIRE_AND_FLIP"
+  | "REVIEW_REQUIRED";
+
+export interface HoldEvaluation {
+  decision: HoldDecision;
+  /** decomposed — NO fake expected-dollar value */
+  components: {
+    current_permanent_roster_gain: number | null;
+    expected_optionality: number;
+    appreciation_potential: number;
+    injury_risk: number; // ≥ 0, subtracted
+    market_uncertainty: number; // ≥ 0, subtracted
+    time_risk: number; // ≥ 0, subtracted
+  };
+  /** components combined by the configured weights — a ranking key, not a dollar figure */
+  hold_score: number | null;
+  future_optionality: FutureOptionality;
+  hold_until_conditions: string[];
+  reassess_if_conditions: string[];
+  confidence: ValueConfidence;
+  reasons: string[];
+}
+
+/* ======================================================================== */
+/* Checkpoint F — bounded multi-step trade paths (§20–§54, §77)               */
+/* ======================================================================== */
+
+export type PathStrategy =
+  | "DIRECT_ACQUISITION"
+  | "BUY_AND_HOLD"
+  | "INTERMEDIATE_TRADE"
+  | "TWO_STEP_UPGRADE"
+  | "HOLD_CURRENT_ASSET"
+  | "NO_ACTION"
+  | "REVIEW_REQUIRED";
+
+export type PathReadiness =
+  | "FULL_PATH_CONTEXT"
+  | "PARTIAL_PATH_CONTEXT"
+  | "DIRECT_ONLY"
+  | "UNAVAILABLE";
+
+export interface PathStep {
+  counterparty_manager_id: string;
+  counterparty_slug: string;
+  give: string[];
+  receive: string[];
+  permanent_trade_utility: number | null;
+  acceptance: AcceptanceLikelihood | null;
+  opponent_externality: number | null;
+  transaction_friction: number;
+  reasons: string[];
+}
+
+export interface PathFinalState {
+  permanent_roster_delta: number | null;
+  liquidity: LiquidityClassification | null;
+  appreciation: AppreciationClassification | null;
+  future_optionality: number | null;
+}
+
+export interface PathAggregate {
+  transactions: number;
+  competitive_externality: number;
+  /** externality attributed to each completed trade + the aggregate (§39) */
+  externality_trade_1: number | null;
+  externality_trade_2: number | null;
+  friction: number;
+  /** qualitative composition, NOT a multiplied probability (§40–§42) */
+  feasibility: AcceptanceLikelihood;
+  edge_feasibility: AcceptanceLikelihood[];
+  score: number;
+}
+
+export interface StrategyPath {
+  strategy: PathStrategy;
+  readiness: PathReadiness;
+  confidence: ValueConfidence;
+  starting_state: string;
+  steps: PathStep[];
+  final_state: PathFinalState;
+  aggregate: PathAggregate;
+  reasons: string[];
+}
+
+export interface StrategyPathComparison {
+  readiness: PathReadiness;
+  /** always includes DIRECT_ACQUISITION (if any direct trade is plausible), NO_ACTION and HOLD_CURRENT_ASSET (§45–§47) */
+  paths: StrategyPath[];
+  /** the highest-ranked path after §44 ranking + §26/§27 direct-path preference */
+  recommended: PathStrategy;
+  /** §27 — true when a two-step path was NOT preferred because a direct path is equivalent */
+  direct_path_preferred: boolean;
+  /** search-cost instrumentation (§83) */
+  search_stats: {
+    first_step_states_evaluated: number;
+    second_step_paths_evaluated: number;
+    dominated_paths_pruned: number;
+    circular_paths_blocked: number;
+    elapsed_ms: number;
+  };
+  reasons: string[];
 }
 
 /* ======================================================================== */

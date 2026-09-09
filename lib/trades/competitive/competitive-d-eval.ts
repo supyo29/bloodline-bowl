@@ -44,6 +44,8 @@ export interface CompetitiveDInput {
   config?: PartialCompetitiveDConfig;
   horizon_config?: PartialHorizonConfig;
   owner_context_cache?: (id: string) => OwnerContext;
+  /** Checkpoint F: reuse a precomputed league threat table (snapshot-invariant) */
+  precomputed_threat?: import("./threat").LeagueThreat;
 }
 
 export interface CompetitiveDResult {
@@ -104,9 +106,18 @@ export function evaluateCompetitiveDimension(input: CompetitiveDInput): Competit
   );
 
   // ---- threat ----
-  const league = buildLeagueThreat(input.ctx, config, input.my_manager_id, cache);
-  const opponent_threat: OpponentThreat =
-    league.by_manager.get(input.counterparty_manager_id) ?? noThreat(input.counterparty_manager_id);
+  const league = input.precomputed_threat ?? buildLeagueThreat(input.ctx, config, input.my_manager_id, cache);
+  const rawThreat = league.by_manager.get(input.counterparty_manager_id);
+  // `relative_to_us` and `my_blended_strength_z` are perspective-dependent — a
+  // precomputed league table was built for a fixed "us", so re-derive them for
+  // THIS requester from the (perspective-independent) per-manager blended z.
+  const myZ = league.by_manager.get(input.my_manager_id)?.components.blended_strength_z ?? null;
+  const opponent_threat: OpponentThreat = rawThreat
+    ? {
+        ...rawThreat,
+        relative_to_us: myZ == null ? null : Math.round((rawThreat.components.blended_strength_z - myZ) * 10000) / 10000,
+      }
+    : noThreat(input.counterparty_manager_id);
 
   // ---- externality ----
   const competitive_externality = buildCompetitiveExternality({ opponent_impact, threat: opponent_threat, config });

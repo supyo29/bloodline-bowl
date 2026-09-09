@@ -152,6 +152,18 @@ export function buildAcceptanceEstimate(input: BuildAcceptanceInput): Acceptance
     `their perceived ledger: receive ${fmt(receivedTotal)} · give up ${fmt(surrenderedTotal)} (reservation) · perceived surplus ${fmt(perceivedSurplus)}`,
   );
 
+  // ---- §73: raw perceived value vs total acceptance incentive ----
+  const contextTotal = round4(needRelief + slotPressure + structureFit + trajAdj);
+  const acceptsDespiteNegativeValue =
+    perceivedSurplus != null && perceivedSurplus < 0 && (likelihood === "MODERATE" || likelihood === "HIGH");
+  if (acceptsDespiteNegativeValue) {
+    reasons.push(
+      `NOTE (§73): the counterparty does NOT perceive a pure-value win here — their raw perceived value surplus is ${perceivedSurplus.toFixed(2)}. Acceptance is ${likelihood} because of need relief / roster-structure fit / market trajectory (context total ${contextTotal.toFixed(2)}), NOT because they believe they are winning the trade on value.`,
+    );
+  } else if (perceivedSurplus != null && perceivedSurplus < 0) {
+    reasons.push(`the counterparty's raw perceived value surplus is negative (${perceivedSurplus.toFixed(2)}); acceptance context adjustments total ${contextTotal.toFixed(2)}.`);
+  }
+
   return {
     owner_manager_id: owner.manager_id,
     perceived_ledger: ledger,
@@ -164,6 +176,16 @@ export function buildAcceptanceEstimate(input: BuildAcceptanceInput): Acceptance
       structure_fit: structureFit,
       market_trajectory_adjustment: trajAdj,
     },
+    raw_perceived_value_surplus: perceivedSurplus,
+    acceptance_context_adjustments: {
+      need_relief: needRelief,
+      roster_slot_pressure: slotPressure,
+      structure_fit: structureFit,
+      market_trajectory_adjustment: trajAdj,
+      total: contextTotal,
+    },
+    overall_acceptance_likelihood: likelihood,
+    accepts_despite_negative_value_perception: acceptsDespiteNegativeValue,
     confidence: LEVEL_CONF[Math.max(0, Math.min(3, level))]!,
     readiness,
     calibration_status: "INSUFFICIENT_TRADE_HISTORY",

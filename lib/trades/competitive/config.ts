@@ -480,6 +480,154 @@ export function resolveNegotiationConfig(override?: PartialNegotiationConfig): N
   });
 }
 
+/* ======================================================================== */
+/* Checkpoint F — liquidity, appreciation, hold, multi-step path search      */
+/* ======================================================================== */
+
+export interface CompetitiveFConfig {
+  liquidity: {
+    /** optimal-lineup points/wk a player must add to a manager's roster to "enter the lineup" */
+    lineup_entry_points: number;
+    /** minimum add value (pts/wk) for a manager to be a MODERATE-fit buyer */
+    moderate_fit_points: number;
+    /** buyer_count → classification thresholds (inclusive lower bounds) */
+    bands: { very_high: number; high: number; moderate: number; low: number };
+    /** high_fit fraction that lifts a band by one step */
+    high_fit_fraction_lift: number;
+    /** positional-scarcity (startable supply/demand) below which liquidity is lifted */
+    scarcity_lift_ratio: number;
+  };
+  appreciation: {
+    /** private − market gap (z) below which appreciation is LIMITED regardless of catalysts */
+    min_material_gap: number;
+    /** gap (z) at/above which, WITH catalysts + confidence, appreciation is HIGH */
+    high_gap: number;
+    /** number of supporting catalysts required for MODERATE / HIGH */
+    catalysts_for_moderate: number;
+    catalysts_for_high: number;
+  };
+  hold: {
+    /** weekly-equivalent permanent gain below which a hold is NO_ACTION not ACQUIRE_AND_HOLD */
+    min_hold_permanent_gain: number;
+    /** weights for the decomposed hold score (no fake expected-dollar values) */
+    weights: {
+      permanent_roster_gain: number;
+      future_optionality: number;
+      appreciation_potential: number;
+      injury_risk: number;
+      market_uncertainty: number;
+      time_risk: number;
+    };
+  };
+  path: {
+    /** §20 — hard cap on completed trades in any path */
+    max_completed_trades: number;
+    /** §49 staged-beam-search bounds */
+    max_first_step_states: number;
+    max_second_step_targets_per_state: number;
+    max_depth: number;
+    /** §26 — a two-step path must beat the best direct path by at least this
+     *  (final permanent roster improvement, weekly-equivalent) to be preferred */
+    min_two_step_improvement: number;
+    /** §25 transaction-friction heuristic weights (per completed trade) */
+    friction: {
+      base_per_trade: number;
+      rejection_risk_weight: number;
+      time_delay_weight: number;
+      news_exposure_weight: number;
+      opponent_strengthening_weight: number;
+      optionality_loss_weight: number;
+      roster_churn_weight: number;
+    };
+    /** §44 path-ranking component weights */
+    ranking: {
+      final_permanent_improvement: number;
+      trustworthy_market_inefficiency: number;
+      future_optionality: number;
+      aggregate_externality: number;
+      transaction_friction: number;
+      uncertainty: number;
+    };
+  };
+}
+
+export const DEFAULT_COMPETITIVE_F_CONFIG: CompetitiveFConfig = deepFreeze({
+  liquidity: {
+    lineup_entry_points: 1.5,
+    moderate_fit_points: 0.4,
+    bands: { very_high: 6, high: 4, moderate: 2, low: 1 },
+    high_fit_fraction_lift: 0.5,
+    scarcity_lift_ratio: 0.9,
+  },
+  appreciation: {
+    min_material_gap: 0.4,
+    high_gap: 1.1,
+    catalysts_for_moderate: 1,
+    catalysts_for_high: 2,
+  },
+  hold: {
+    min_hold_permanent_gain: 0.25,
+    weights: {
+      permanent_roster_gain: 1.0,
+      future_optionality: 0.5,
+      appreciation_potential: 0.4,
+      injury_risk: 0.3,
+      market_uncertainty: 0.3,
+      time_risk: 0.2,
+    },
+  },
+  path: {
+    max_completed_trades: 2,
+    max_first_step_states: 10,
+    max_second_step_targets_per_state: 8,
+    max_depth: 2,
+    min_two_step_improvement: 0.5,
+    friction: {
+      base_per_trade: 0.15,
+      rejection_risk_weight: 0.6,
+      time_delay_weight: 0.1,
+      news_exposure_weight: 0.15,
+      opponent_strengthening_weight: 0.5,
+      optionality_loss_weight: 0.3,
+      roster_churn_weight: 0.1,
+    },
+    ranking: {
+      final_permanent_improvement: 1.0,
+      trustworthy_market_inefficiency: 0.5,
+      future_optionality: 0.4,
+      aggregate_externality: 0.7,
+      transaction_friction: 1.0,
+      uncertainty: 0.3,
+    },
+  },
+});
+
+export type PartialCompetitiveFConfig = {
+  liquidity?: Partial<CompetitiveFConfig["liquidity"]>;
+  appreciation?: Partial<CompetitiveFConfig["appreciation"]>;
+  hold?: Partial<CompetitiveFConfig["hold"]> & { weights?: Partial<CompetitiveFConfig["hold"]["weights"]> };
+  path?: Partial<Omit<CompetitiveFConfig["path"], "friction" | "ranking">> & {
+    friction?: Partial<CompetitiveFConfig["path"]["friction"]>;
+    ranking?: Partial<CompetitiveFConfig["path"]["ranking"]>;
+  };
+};
+
+export function resolveCompetitiveFConfig(override?: PartialCompetitiveFConfig): CompetitiveFConfig {
+  const d = DEFAULT_COMPETITIVE_F_CONFIG;
+  if (!override) return d;
+  return deepFreeze({
+    liquidity: { ...d.liquidity, ...(override.liquidity ?? {}), bands: { ...d.liquidity.bands, ...(override.liquidity?.bands ?? {}) } },
+    appreciation: { ...d.appreciation, ...(override.appreciation ?? {}) },
+    hold: { ...d.hold, ...(override.hold ?? {}), weights: { ...d.hold.weights, ...(override.hold?.weights ?? {}) } },
+    path: {
+      ...d.path,
+      ...(override.path ?? {}),
+      friction: { ...d.path.friction, ...(override.path?.friction ?? {}) },
+      ranking: { ...d.path.ranking, ...(override.path?.ranking ?? {}) },
+    },
+  });
+}
+
 export function resolveHorizonConfig(override?: PartialHorizonConfig): HorizonConfig {
   const d = DEFAULT_HORIZON_CONFIG;
   if (!override) return d;

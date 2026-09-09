@@ -228,3 +228,33 @@ export function lineupLossFromRemoving(
   if (full.optimal_total == null || without.optimal_total == null) return null;
   return Math.round((full.optimal_total - without.optimal_total) * 100) / 100;
 }
+
+/**
+ * Checkpoint F — optimal-lineup points/wk a roster would GAIN by adding
+ * `addId` (no drop modeled — an upper bound on the lineup benefit). Used by the
+ * liquidity model to ask "would this player enter manager X's lineup?".
+ */
+export function lineupGainFromAdding(
+  ctx: TradeAnalysisContext,
+  roster: CanonicalRoster,
+  addId: string,
+): number | null {
+  const p = ctx.players_by_id.get(addId);
+  if (!p) return null;
+  const playerMap = new Map<string, CanonicalPlayer>();
+  for (const id of roster.all_players) {
+    const rp = ctx.players_by_id.get(id);
+    if (rp) playerMap.set(id, rp);
+  }
+  const base = buildOptimalLineup({ week: ctx.week, roster, constraints: ctx.constraints, players: playerMap, projections: ctx.projections });
+  if (roster.all_players.includes(addId)) return 0;
+  playerMap.set(addId, p);
+  const augmented: CanonicalRoster = {
+    ...roster,
+    all_players: [...roster.all_players, addId],
+    bench: [...roster.bench, addId],
+  };
+  const withAdd = buildOptimalLineup({ week: ctx.week, roster: augmented, constraints: ctx.constraints, players: playerMap, projections: ctx.projections });
+  if (base.optimal_total == null || withAdd.optimal_total == null) return null;
+  return Math.round((withAdd.optimal_total - base.optimal_total) * 100) / 100;
+}

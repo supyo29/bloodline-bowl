@@ -154,6 +154,41 @@ export type {
   CounterofferAssessment,
 } from "./schema";
 
+// ---- Checkpoint F: liquidity, appreciation, buy-and-hold, multi-step paths ----
+export {
+  buildCompetitiveTradeEvaluationContext,
+  assertContextMatchesSnapshot,
+  type CompetitiveTradeEvaluationContext,
+  type BuildEvalContextOverrides,
+} from "./eval-context";
+export { buildTradeLiquidity, liquidityRank, type BuildLiquidityInput } from "./liquidity";
+export { buildMarketAppreciation, appreciationIsTrustworthy, type BuildAppreciationInput } from "./appreciation";
+export { buildHoldEvaluation, type BuildHoldInput } from "./hold";
+export { buildStrategyPathComparison, type BuildStrategyPathsInput } from "./path-search";
+export {
+  DEFAULT_COMPETITIVE_F_CONFIG,
+  resolveCompetitiveFConfig,
+  type CompetitiveFConfig,
+  type PartialCompetitiveFConfig,
+} from "./config";
+export { describeReservationLevel } from "./schema";
+export type {
+  TradeLiquidity,
+  LiquidityClassification,
+  LiquidityBuyer,
+  MarketAppreciation,
+  AppreciationClassification,
+  AppreciationCatalyst,
+  AppreciationInvalidation,
+  HoldEvaluation,
+  HoldDecision,
+  FutureOptionality,
+  StrategyPath,
+  StrategyPathComparison,
+  PathStrategy,
+  PathStep,
+} from "./schema";
+
 import type { TradeAnalysisContext } from "../context";
 import { buildLeagueMarketEdgeTable } from "./evaluate";
 import { buildBoards, type Boards } from "./boards";
