@@ -48,6 +48,18 @@ export function buildPartnerRationale(partnerResult: { starter_points_delta: num
  * Builds one `TradeDiscoveryResult` from an already-evaluated candidate.
  * Returns `null` if the candidate doesn't meet the mode's acceptance/utility
  * policy — filtering happens HERE, once, in one documented place.
+ *
+ * DISCOVERY BOUNDARY (competitive-trade-intelligence, Checkpoint B): this
+ * function is the LEGACY mutual-benefit gate — it drops any candidate where a
+ * non-requester participant falls below `partnerAcceptanceFloor(mode)` or
+ * `minimum_partner_utility_delta`. That policy is correct for the legacy
+ * "mutually beneficial trade" discovery modes and is unchanged. It is NOT a
+ * structural check: the shared STRUCTURAL stage (real managers, real ownership,
+ * legal roster states, private economics computable) is `evaluateCandidate`
+ * (`candidate-eval.ts`), which the competitive path
+ * (`lib/trades/competitive/candidates.ts`) consumes directly, BEFORE this gate,
+ * so an asymmetric "we gain / opponent loses" candidate survives for
+ * market/perception analysis instead of being pruned here.
  */
 export function buildDiscoveryResult(
   myManagerSlug: string,

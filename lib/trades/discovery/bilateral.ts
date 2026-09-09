@@ -32,7 +32,13 @@ export function emptyCounters(): FunnelCounters {
   return { partners_considered: 0, assets_considered: 0, packages_generated: 0, packages_pruned: 0, packages_evaluated: 0, valid_results: 0 };
 }
 
-function allAssetsFor(profile: TradeSearchProfile, ctx: TradeAnalysisContext): AssetValue[] {
+/**
+ * Every non-reserve roster asset for a manager, as `AssetValue`s. Exported so
+ * the competitive-trade structural candidate generator
+ * (`lib/trades/competitive/candidates.ts`) reuses the EXACT same asset pool the
+ * legacy funnel does — the structural stage is shared, not reimplemented.
+ */
+export function allAssetsFor(profile: TradeSearchProfile, ctx: TradeAnalysisContext): AssetValue[] {
   const roster = ctx.rosters_by_manager.get(profile.manager_id);
   if (!roster) return [];
   const reserve = new Set([...roster.ir, ...roster.taxi]);

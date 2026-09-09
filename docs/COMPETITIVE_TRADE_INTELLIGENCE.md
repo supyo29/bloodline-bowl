@@ -342,14 +342,268 @@ questions — reported, never asserted.
 
 ---
 
+---
+
+# Part IV — Checkpoint B: the Market Edge Layer
+
+Status: **CHECKPOINT B CERTIFIED — READY FOR CHECKPOINT C.**
+Branch `competitive-trade-intelligence`, built on `145849d`.
+
+## B.1 The discovery boundary
+
+The legacy funnel ran two conceptually distinct stages back-to-back:
+
+| Stage | What it decides | Code |
+|---|---|---|
+| **A. Structural** | real managers? real ownership? structurally legal? legal roster states? private roster economics computable? | `evaluateCandidate` (`lib/trades/discovery/candidate-eval.ts`) — **unchanged** |
+| **B. Legacy mutual-benefit viability** | does *every* participant clear the partner acceptance floor / fairness imbalance? | `buildDiscoveryResult` (`rank.ts`) + `classifyViability` (`evaluate.ts`) — **unchanged** |
+
+Finding: stage A was already isolated in `evaluateCandidate`; the mutual-benefit
+gate was already isolated in `buildDiscoveryResult`. So the "refactor" is
+minimal and non-destructive:
+
+- `lib/trades/discovery/bilateral.ts` — `allAssetsFor` gets an `export` keyword
+  (no behavior change) so the competitive generator reuses the **exact** legacy
+  asset pool.
+- `lib/trades/discovery/rank.ts` — doc comment only, marking `buildDiscoveryResult`
+  as the **legacy-path-only** mutual-benefit gate.
+- `lib/trades/competitive/candidates.ts` (new) — `generateStructuralTradeCandidates`
+  reuses `buildTradeSearchProfile` + `allAssetsFor` + `generateBilateralPackages`
+  + `evaluateCandidate` and stops **before** stage B. It returns every
+  structurally-valid, privately-evaluated candidate with **no** acceptance /
+  fairness / opponent-gain filter. `legacyMutualBenefitWouldKeep` is a pure
+  predicate mirroring stage B, used by the regression.
+
+Regression `B11` (`test/competitive-trade-boundary.test.ts`): a synthetic
+`alpha_scrub_wr ↔ bravo_rb_stud` swap — alpha +≈9, bravo −≈9 — is **retained**
+by `generateStructuralTradeCandidates` and **rejected** by
+`legacyMutualBenefitWouldKeep(…, "BEST_AVAILABLE")`. `B11b` asserts at least one
+retained candidate has a **negative** opponent delta. Legacy determinism is
+checked in `B10`; the full 13-file `trade-engine*` suite passes with zero
+expectation changes.
+
+## B.2 Private value (normalized)
+
+`lib/trades/competitive/private-value.ts` — model-agnostic: reads only the
+normalized weekly-projection surface (`projected_points`, `ros`) the trade
+context already produces.
+
+- **Preferred basis `ri_ros_weekly_vor`**: RI's own season projection
+  (`ros.ri_season_points`) ÷ 17 → a weekly rate → `weeklyVOR` against the league
+  replacement frontier. Rest-of-season-oriented (matches the market side) and
+  more dispersed than a single noisy current week. RI's absolute season *level*
+  has a documented calibration caveat, but **within-position z-scoring removes
+  both location and scale** — only ordinal spacing must be right, which is RI's
+  asserted strength. (The first live smoke, on current-week VOR, produced a
+  systematic QB `STRONG_SELL` artefact from week-1 projection compression; the
+  ROS basis fixes it.)
+- **Fallback `weekly_vor`**: current-week `projected_points` → VOR, when a player
+  has no RI season projection.
+- Confidence: `ros.ri_confidence` when present, else inferred from projection
+  availability — never optimistic on missing data.
+- `private_position_rank` is kept for explanation only, never the math input.
+
+## B.3 Market value (normalized) + lineage
+
+`lib/trades/competitive/market/snapshot.ts` — a **normalized trade-market
+abstraction** over sources that already exist. **No network call.**
+
+| `source_type` | Source | Role at Checkpoint B |
+|---|---|---|
+| `provider_benchmark` | Sleeper/RotoWire ROS projection via `RosSignal` (already in league scoring) | **PRIMARY** normalized value: `ros.points ÷ remaining_weeks` → weekly VOR |
+| `draft_market` | `buildMarketConsensus()` — preseason ADP consensus (`lib/draft/market.ts`) | implied positional rank → cross-source **dispersion** only; STALE in-season; never blended into the primary value |
+| `league_draft_value` | `snapshot.draft_picks` — the overall pick a player actually cost in *this* league | distinct lineage-bearing signal; implied rank → dispersion |
+| `owner_draft_anchor` | `snapshot.draft_picks` — *which* manager drafted them, and where | lineage only; consumed by Checkpoint C |
+
+Every `MarketSourceRecord` carries `source`, `source_type`, `as_of`,
+`scoring_format`, `readiness` (`CURRENT|PARTIAL|STALE|UNAVAILABLE`), `raw_value`,
+`raw_unit`, `implied_position_rank`, `notes`. `MarketLineage` adds
+`usable_source_count`, `dispersion` (MAD of implied ranks), `worst_readiness`,
+`scoring_normalization`.
+
+- ADP consensus is Half-PPR/12-team. When the league is not Half-PPR the
+  mismatch is **recorded on the source note and the source is used for rank
+  only** — never silently treated as exact league value (`B9`).
+- Missing provider benchmark ⇒ `primary_basis: "unavailable"`, `primary_raw:
+  null`, `readiness: "UNAVAILABLE"` — **never 0** (`B7`).
+
+## B.4 Normalization methodology
+
+`lib/trades/competitive/normalize.ts` — pure. Within each position group:
+
+```
+normalized_value = (raw − positionMean) / positionStdDev      (z-score)
+percentile       = fraction of the position group ≤ raw
+position_rank    = 1-based rank (best = 1)                     EXPLANATION ONLY
+```
+
+VOR is the basis (not raw points) so the zero point is the league replacement
+frontier and is identical for both sides. The z-score then makes the two sides
+comparable as "how many position standard deviations apart", with **no
+ensembling of incompatible absolute scales**. Because it is a z-score, equal
+positional-rank gaps at different points of the position curve produce
+**different** edges (`B5`).
+
+## B.5 The classifier + confidence gate
+
+`lib/trades/competitive/market-edge.ts`:
+
+```
+edge_score      = (private_z − market_z) × position_scarcity_weight
+actionable_edge = edge_score × confidence_actionability[confidence]     ← rank key
+```
+
+`direction` from `|edge_score|` vs `fair_band` (0.35) / `directional_band` (0.6)
+/ `strong_band` (1.2), sign ⇒ BUY vs SELL, then a **confidence ceiling**:
+`VERY_LOW`/`LOW` can reach at most `BUY`/`SELL` and are labelled
+`SPECULATIVE_LOW_CONFIDENCE`; a raw STRONG magnitude that is capped emits
+`CONFIDENCE_GATE_APPLIED`.
+
+Confidence = worst of {private confidence, market confidence} where market
+confidence is itself capped by `readiness_confidence_ceiling[readiness]`
+(`STALE ⇒ LOW`), then: −1 band on high cross-source dispersion or thin position
+coverage; +1 band (max HIGH) when an **independent** RI↔Sleeper stat-level
+disagreement (`ros.disagreement_pct`) points the same way as the edge
+(`RI_SLEEPER_DISAGREEMENT_CORROBORATES`).
+
+`market_value` is `null` (⇒ `INSUFFICIENT_DATA`, `edge_score: null`) whenever
+either side is missing. `UNAVAILABLE !== 0` throughout.
+
+### STRONG_BUY / BUY / FAIR / SELL / STRONG_SELL semantics
+
+| direction | meaning |
+|---|---|
+| `STRONG_BUY` / `BUY` | our model values the player materially **above** outside-market pricing — a candidate market bargain |
+| `FAIR` | our valuation and the market's are within `fair_band` |
+| `SELL` / `STRONG_SELL` | outside-market prices the player materially **above** our valuation — potential trade **leverage if we own him** |
+| `INSUFFICIENT_DATA` | private or market value missing — no number invented |
+
+**`SELL` ≠ drop. `BUY` ≠ "trade for him now".** A `SELL` says market > private
+enough to create leverage; it does not say the player is bad, that we must move
+him, or that a specific return exists. A `BUY` says we think the market
+undervalues him; it does **not** say the owner will sell or name an acquisition
+price. Every edge carries `analytical_only: true`.
+
+## B.6 Why market edge is ANALYTICAL, not actionable (the fundamental distinction)
+
+> Market edge tells us **where our beliefs differ from market pricing**.
+> It does **not** tell us **what the specific owner will accept**.
+
+Checkpoint B has no owner-perceived-value model, no acquisition-cost inference,
+no acceptance estimate, no opponent competitive cost, no liquidity, no
+appreciation, no negotiation. `evaluateCompetitiveTrade`'s `competitive` block
+contains only `readiness`, `assets`, `market_edge` and `notes` — the later-checkpoint
+keys are **absent from the type**, not stubbed (`B12`). This is the trade
+analogue of the waiver-readiness lesson: *desirable asset ≠ actionable trade
+target*. Nothing here may flow into a finalized trade recommendation.
+
+## B.7 Readiness contract
+
+`lib/trades/competitive/readiness.ts` — `assessCompetitiveTradeReadiness` fails
+closed. Required capabilities: `private_projection`, `market_data`,
+`player_identity`, `ownership`. Any one `UNAVAILABLE` ⇒ `overall: UNAVAILABLE`
+and no fabricated market value / edge (`B` "readiness fails closed" test).
+`PARTIAL` ⇒ edges only where both sides exist; gaps `INSUFFICIENT_DATA`.
+
+## B.8 API contract (settled; wired in Checkpoint G)
+
+Dedicated route, matching the existing trade API's POST-body convention
+(`/api/trades/analyze|discover|negotiate`):
+
+```
+POST /api/trades/competitive
+  { "league": "<registry-slug>", "manager": "<slug-or-id>",
+    "mode": "MARKET_EDGE" | "SELL_BOARD" | "BUY_BOARD",
+    "player_ids"?: string[] }
+```
+
+Not `?competitive=1` on `discover` — the semantics and readiness differ
+materially. `/api/ai` is **not** updated until the route exists (Checkpoint G).
+
+## B.9 Config
+
+`lib/trades/competitive/config.ts` — all bands/weights/ceilings, deep-frozen,
+`resolveCompetitiveTradeConfig(override)` with band-order assertion. No magic
+numbers in the layer logic.
+
+## B.10 Bloodline Bowl diagnostic (read-only, `scripts/competitive-trade-smoke.ts`)
+
+`bloodline-bowl`, season 2026 week 1, `PROJECTIONS_PARTIAL`, Half-PPR, 12 teams,
+3304-player universe. Readiness `PARTIAL` (private + market both PARTIAL in
+week 1). **Nothing reaches HIGH confidence** — correct for preseason data.
+
+| prompt §24 question | current-data answer (diagnostic, not a target) |
+|---|---|
+| 1. Rhamondre a market sell / chip? | `FAIR`, edge −0.43 (market RB25 vs private RB31) — market leans above us, just under the SELL band today. Owner: supyo29. |
+| 2. Rome classified appropriately? | `FAIR`, edge −0.50 (market WR27 vs private WR31) — mild market-over-private, LOW confidence. Owner: supyo29. |
+| 3. Chuba a buy? | **Yes — `BUY`, edge +0.74 (private RB15 vs market RB35)**, LOW confidence. Owner: bijimac. Matches the scenario's premise. |
+| 4–5. Straight Rhamondre↔Chuba leaves value unextracted? secondary asset? | Cannot answer at Checkpoint B — no extraction/perception model. Deferred to C/D by design. |
+| 6. BijiMac roster context? | Ownership resolved (`ownership: READY`); Chuba + De'Von Achane (`BUY` +0.80) on that roster. Perception model deferred to C. |
+| 7. Does the trade improve them per our model vs merely look attractive? | Structural stage computes the private opponent delta; "looks attractive to them" needs Checkpoint C. |
+| 8. Opponent threat effect? | Not modeled at Checkpoint B (Checkpoint D). |
+| 9. Opening/target/acceptable/walk-away? | Not modeled at Checkpoint B (Checkpoint E). |
+| 10. Hold-for-appreciation vs flip Chuba? | Not modeled at Checkpoint B (Checkpoint F). |
+
+Largest MEDIUM-confidence discrepancies surfaced league-wide (examples, not
+recommendations): Evan Engram `STRONG_BUY` (+1.45, TE15 vs TE42), Jerry Jeudy
+`BUY` (+1.14, WR20 vs WR64), Derrick Henry `STRONG_SELL` (−1.28, RB21 vs RB6),
+Isaiah Likely `STRONG_SELL` (−1.79). Josh Jacobs shows an extreme `BUY` (+2.73,
+RB7 vs RB48) at **LOW** confidence — an apparent Sleeper-ROS anomaly the
+confidence gate correctly holds down; see limitations.
+
+## B.11 Known limitations (Checkpoint B)
+
+1. **Everything is MEDIUM/LOW confidence in week 1** — `PROJECTIONS_PARTIAL` +
+   broad RI↔Sleeper disagreement. Correct behavior; limits actionability until
+   in-season data matures.
+2. **Provider-benchmark anomalies pass through** — a bad Sleeper ROS number
+   (e.g. an injury-suppressed line) produces a large raw edge; only the
+   confidence gate + dispersion check dampen it. A sanity clamp against the ADP
+   consensus rank is a candidate follow-up.
+3. **Basis mixing within a position group** — players without an RI season
+   projection fall back to `weekly_vor` while the rest use `ri_ros_weekly_vor`;
+   the two are both weekly-VOR but not identically scaled. Small in practice
+   (fallback is rare); documented.
+4. **ADP consensus is a fixed 2026 preseason snapshot** — flagged STALE
+   in-season and used for dispersion only; there is no live in-season
+   consensus-ranking pipeline in the repo.
+5. **No owner / acquisition / acceptance / cost / liquidity / appreciation /
+   negotiation** — by design; Checkpoints C–F.
+
+## B.12 Files changed (Checkpoint B)
+
+New:
+- `lib/trades/competitive/{schema,config,normalize,private-value,market-edge,readiness,boards,candidates,evaluate,index}.ts`
+- `lib/trades/competitive/market/snapshot.ts`
+- `test/competitive-trade-{market-edge,market-snapshot,boundary}.test.ts`
+- `scripts/competitive-trade-smoke.ts`
+
+Modified (non-behavioral):
+- `lib/trades/discovery/bilateral.ts` — `export` keyword on `allAssetsFor`
+- `lib/trades/discovery/rank.ts` — doc comment on `buildDiscoveryResult`
+- `docs/COMPETITIVE_TRADE_INTELLIGENCE.md` — this section
+
+## B.13 Regression
+
+- `tsc --noEmit`: clean.
+- `eslint app lib test`: 0 errors, 29 warnings (all pre-existing, none in new files).
+- `npm test`: **1676 tests, 1672 pass, 0 fail, 4 skipped** (pre-existing skips).
+  25 new competitive tests. Zero existing trade / discovery / weekly /
+  orchestrator / waiver expectations changed.
+- Performance: full 3304-player league market-edge table builds in ~18–29 ms;
+  discovery sweeps reuse one table via `precomputed`.
+
+---
+
 ## Checkpoint status
 
-- [x] **A — Audit + contracts** (this document)
-- [ ] B — Market edge layer
+- [x] **A — Audit + contracts**
+- [x] **B — Market edge layer** — CERTIFIED
 - [ ] C — Owner perception + acceptance
 - [ ] D — Competitive optimizer
 - [ ] E — Negotiation engine
 - [ ] F — Multi-hop + hold-for-appreciation
 - [ ] G — Integration / live smoke
 
-**Freeze verdict: NOT READY TO FREEZE** (audit only; no implementation yet).
+**Freeze verdict: NOT READY TO FREEZE** (Checkpoints C–G outstanding; do not
+merge/tag/deploy). Checkpoint B gate: **CERTIFIED — READY FOR CHECKPOINT C.**
