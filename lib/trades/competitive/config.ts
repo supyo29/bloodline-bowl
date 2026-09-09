@@ -261,7 +261,13 @@ export interface CompetitiveDConfig {
     threat_band_multiplier: Record<"LOW" | "MODERATE" | "HIGH" | "ELITE", number>;
     /** weakness-repair → externality multiplier */
     weakness_repair_multiplier: Record<
-      "CRITICAL_WEAKNESS_REPAIRED" | "HIGH_NEED_REPAIRED" | "STARTER_HOLE_FILLED" | "DEPTH_ADDED" | "SURPLUS_REINFORCED" | "NONE",
+      | "CRITICAL_WEAKNESS_REPAIRED"
+      | "HIGH_NEED_REPAIRED"
+      | "PREEXISTING_STARTER_HOLE_FILLED"
+      | "STARTER_UPGRADED"
+      | "DEPTH_IMPROVED"
+      | "SURPLUS_REINFORCED"
+      | "NONE",
       number
     >;
     /** relative-strength multiplier: 1 + relative_strength_weight·max(0, their_z − our_z) */
@@ -308,8 +314,9 @@ export const DEFAULT_COMPETITIVE_D_CONFIG: CompetitiveDConfig = deepFreeze({
     weakness_repair_multiplier: {
       CRITICAL_WEAKNESS_REPAIRED: 1.7,
       HIGH_NEED_REPAIRED: 1.35,
-      STARTER_HOLE_FILLED: 1.15,
-      DEPTH_ADDED: 0.8,
+      PREEXISTING_STARTER_HOLE_FILLED: 1.2,
+      STARTER_UPGRADED: 1.0, // a generic upgrade is NOT extra-costly (§21)
+      DEPTH_IMPROVED: 0.8,
       SURPLUS_REINFORCED: 0.55,
       NONE: 1.0,
     },
@@ -343,6 +350,78 @@ export function resolveCompetitiveDConfig(override?: PartialCompetitiveDConfig):
     threat: { ...d.threat, ...(override.threat ?? {}) },
     externality: { ...d.externality, ...(override.externality ?? {}) },
     result: { ...d.result, ...(override.result ?? {}) },
+  });
+}
+
+/* ---- Checkpoint D.5: horizon-aware permanent-trade utility ---- */
+
+export interface HorizonConfig {
+  /** ROS-horizon component weights (all weekly-equivalent) */
+  ros_weights: {
+    starter: number;
+    depth: number;
+    availability: number;
+    playoff_window: number;
+    bye_coverage: number;
+  };
+  /**
+   * Permanent-trade blend: `final = ros_weight·ros_total + immediate_weight·immediate_total`.
+   * ROS dominates for a permanent trade. `immediate_weight` grows slightly through
+   * the season (fewer ROS weeks left) but is capped — a permanent trade is never
+   * mostly a start/sit decision. HEURISTIC.
+   */
+  immediate_weight_base: number;
+  immediate_weight_season_slope: number;
+  immediate_weight_cap: number;
+  /** |delta| below this (weekly-equiv) is "flat" for horizon classification */
+  horizon_flat_band: number;
+  /** |delta| at/above this is "material" for SHORT_TERM_*_LONG_TERM_* classification */
+  horizon_material_band: number;
+  /**
+   * RI ordinal vs external ROS: when RI's VOR-implied direction disagrees in SIGN
+   * with the external ROS direction and the RI/external season disagreement is
+   * at/above this fraction, the horizon classification is REVIEW_REQUIRED and
+   * confidence is knocked down.
+   */
+  ri_external_disagreement_threshold: number;
+  /** confidence ceiling by horizon readiness */
+  readiness_confidence_ceiling: Record<
+    "FULL_ROS_CONTEXT" | "PARTIAL_ROS_CONTEXT" | "CURRENT_WEEK_ONLY" | "HORIZON_MISMATCH" | "UNAVAILABLE",
+    "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW"
+  >;
+}
+
+export const DEFAULT_HORIZON_CONFIG: HorizonConfig = deepFreeze({
+  ros_weights: { starter: 1.0, depth: 0.3, availability: 1.0, playoff_window: 0.35, bye_coverage: 0.2 },
+  immediate_weight_base: 0.15,
+  immediate_weight_season_slope: 0.25,
+  immediate_weight_cap: 0.4,
+  horizon_flat_band: 0.35,
+  horizon_material_band: 1.0,
+  ri_external_disagreement_threshold: 0.3,
+  readiness_confidence_ceiling: {
+    FULL_ROS_CONTEXT: "MEDIUM", // never HIGH — external ROS is a preseason-prorated projection
+    PARTIAL_ROS_CONTEXT: "LOW",
+    CURRENT_WEEK_ONLY: "LOW",
+    HORIZON_MISMATCH: "VERY_LOW",
+    UNAVAILABLE: "VERY_LOW",
+  },
+});
+
+export type PartialHorizonConfig = { [K in keyof HorizonConfig]?: Partial<HorizonConfig[K]> };
+
+export function resolveHorizonConfig(override?: PartialHorizonConfig): HorizonConfig {
+  const d = DEFAULT_HORIZON_CONFIG;
+  if (!override) return d;
+  return deepFreeze({
+    ros_weights: { ...d.ros_weights, ...(override.ros_weights ?? {}) },
+    immediate_weight_base: (override.immediate_weight_base as number) ?? d.immediate_weight_base,
+    immediate_weight_season_slope: (override.immediate_weight_season_slope as number) ?? d.immediate_weight_season_slope,
+    immediate_weight_cap: (override.immediate_weight_cap as number) ?? d.immediate_weight_cap,
+    horizon_flat_band: (override.horizon_flat_band as number) ?? d.horizon_flat_band,
+    horizon_material_band: (override.horizon_material_band as number) ?? d.horizon_material_band,
+    ri_external_disagreement_threshold: (override.ri_external_disagreement_threshold as number) ?? d.ri_external_disagreement_threshold,
+    readiness_confidence_ceiling: { ...d.readiness_confidence_ceiling, ...(override.readiness_confidence_ceiling ?? {}) },
   });
 }
 

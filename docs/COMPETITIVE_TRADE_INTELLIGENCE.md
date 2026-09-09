@@ -1226,6 +1226,204 @@ Modified: `lib/trades/competitive/{schema,config,reservation,evaluate,index}.ts`
 
 ---
 
+---
+
+# Part VIII — Checkpoint D.5: Horizon-Aware Permanent-Trade Utility
+
+Status: **CHECKPOINT D.5 CERTIFIED — READY FOR CHECKPOINT E.**
+Branch `competitive-trade-intelligence`, built on `73822e8`.
+
+## D5.1 Root-cause trace of the −4.28 (the reconciliation ledger)
+
+`supyo29` gives Rhamondre, receives Chuba. Traced through `evaluateTrade`:
+
+| quantity | Chuba | Rhamondre |
+|---|---|---|
+| current-week projection (RotoWire) | **9.63** | **13.89** |
+| external ROS `ros.points` (Sleeper season) | 136.52 | **154.76** |
+| `ros.ri_season_points` (RI model) | **121.23** | 85.05 |
+| `ros.ri_vor` / `ri_position_rank` | 52.87 / **RB15** | 16.69 / RB31 |
+| `ros.disagreement_pct` | −0.11 (`AGREE`) | **−0.45 (`RI_BELOW`)** |
+| `expected_availability` | **0.78** | 1.0 |
+
+`roster_utility_delta = 1.0·Δoptimal_starter_points + 0.25·Δbench_VOR + 1.0·Δpositional_need`.
+For supyo29: `Δstarter = −4.21` (week-1 optimal lineup 117.38 → 113.17 because
+Chuba enters the FLEX at 9.63 where Rhamondre was at 13.89), `Δbench 2.74`,
+`Δneed −0.75` ⇒ **−4.28**. Phase 2's ROS layer *is* computed
+(`ros_usable_value_delta = −18.24` season) but **every Phase 2 weight is 0** so
+`contextual_utility_delta = −4.28` — pure current-week.
+
+**Answer (§5): Case A AND Case B.**
+- **Case B (real horizon defect):** the canonical delta the competitive path
+  consumes is 100 % the next game.
+- **Case A (legitimate roster/model context):** correcting to ROS does **not**
+  flip the sign — the external (Sleeper) ROS projection *also* favors Rhamondre
+  (154.76 > 136.52 season), and Chuba carries injury risk (0.78). Only RI's
+  ordinal season model prefers Chuba, and it disagrees with the external
+  projection by **45 %** on Rhamondre.
+
+Post-fix: supyo29 permanent utility = **−3.39/wk** (immediate −4.28 · ROS −3.24 ·
+0.85 ROS / 0.15 immediate blend), classified **`REVIEW_REQUIRED`** (RI↔external
+sign conflict), confidence **VERY_LOW**. An honest "we can't call this a good
+trade — our two projections disagree" (§16, §47).
+
+## D5.2 Horizon-aware evaluator (`horizon.ts`) — additive, `evaluateTrade` untouched
+
+```
+evaluateTrade()  →  immediate canonical roster economics  (LEGACY, unchanged)
+     +
+Phase 2 ros.ts   →  ROS optimal-lineup delta  (already computed, weight-0)
+     ↓
+evaluateTradeHorizons()  →  { immediate, ros, ri_ordinal, permanent_trade_utility }
+     ↓
+evaluateCompetitiveDimension()  →  consumes permanent_trade_utility for BOTH sides
+```
+
+`TradeHorizonEvaluation`:
+- **`immediate`** — `starter_delta` / `depth_delta` / `positional_need_delta` /
+  `total_delta` (= `roster_utility_delta`), current week.
+- **`ros`** (weekly-equivalent):
+  - `starter_delta` = `phase2.ros.ros_usable_value_delta ÷ remaining_weeks`
+    (external Sleeper prorated, `ros.ts`'s documented basis).
+  - `depth_delta` = stranded (bench) ROS production delta ÷ weeks.
+  - `availability_delta` = `Σ (expected_availability − 1)·ros_weekly_rate` over
+    incoming − outgoing (§9 — `ros.ts` only prorates for *byes*, not injury).
+  - `playoff_window_delta`, `bye_coverage_delta`.
+  - `total_delta` = weighted blend.
+  - `standalone_ros_swing` + `usable_ros_value_delta_season` — the §36 naive-vs-
+    roster-context contrast.
+- **`ri_ordinal`** — `ri_vor_delta`, incoming/outgoing RI ranks (explanatory),
+  `max_disagreement_pct`, **`sign_conflict`** (RI VOR direction contradicts
+  external ROS AND worst season disagreement ≥ 30 %).
+- **`permanent_trade_utility`** = `ros_weight·ros.total + immediate_weight·immediate.total`.
+  `immediate_weight = min(0.4, 0.15 + 0.25·season_progress)` — grows through the
+  season (fewer ROS weeks left) but **capped at 0.4** (a permanent trade is
+  never mostly a start/sit call). HEURISTIC, centralized in `HorizonConfig`.
+
+## D5.3 Horizon classification (§6, §32–§36)
+
+`CONSISTENT_POSITIVE` / `CONSISTENT_NEGATIVE` /
+`SHORT_TERM_GAIN_LONG_TERM_LOSS` / `SHORT_TERM_LOSS_LONG_TERM_GAIN` / `MIXED` /
+**`REVIEW_REQUIRED`** (RI↔external sign conflict — overrides everything). A flat
+immediate + a clear ROS sign resolves to the ROS sign (ROS dominates for a
+permanent trade).
+
+## D5.4 Weakness-repair semantic split (§17–§21, §39–§40)
+
+The D live diagnostic mislabelled a generic RB starter upgrade (adequate→strong)
+as `STARTER_HOLE_FILLED`. New distinct codes:
+
+| code | requires |
+|---|---|
+| `CRITICAL_WEAKNESS_REPAIRED` | pre-trade need severity **critical** at a received position + `IMPROVES_NEED` |
+| `HIGH_NEED_REPAIRED` | pre-trade **weak** + `IMPROVES_NEED` |
+| `PREEXISTING_STARTER_HOLE_FILLED` | our asset entered the lineup AND *some* slot's need was weak/critical before |
+| `STARTER_UPGRADED` | entered the lineup but every relevant position was already adequate/strong — **not a repaired hole** |
+| `DEPTH_IMPROVED` / `SURPLUS_REINFORCED` | value went to the bench / a deep position |
+
+Externality multipliers: `STARTER_UPGRADED` = **1.0** (a generic upgrade is not
+extra-costly, §21); `PREEXISTING_STARTER_HOLE_FILLED` 1.2; `CRITICAL` 1.7.
+
+The Rhamondre→Chuba BijiMac impact is now `PREEXISTING_STARTER_HOLE_FILLED` (the
+FLEX was `weak` before) — a real but mild hole fill, not `CRITICAL`.
+
+## D5.5 Threat ROS baseline (§22–§26, §41–§43)
+
+D's projected strength used the **current-week** optimal lineup — too
+schedule-sensitive for season-long threat. Now:
+
+```
+projected_strength = Σ (ros_weekly_rate of the current optimal starters)
+                   + 0.15·(ROS bench VOR)
+                   + 0.05·(current-week optimal total)   ← small secondary signal only
+```
+
+`ros_weekly_rate = (ros.points ÷ remaining_weeks) · expected_availability`.
+`ThreatComponents.projected_strength_horizon` ∈ `ROS` / `CURRENT_WEEK` / `MIXED`
+(§26 — no hidden temporal basis). The season-maturity `results_weight` logic
+from D is **unchanged**. Regression: quadrupling every current-week projection
+moves a team's threat score by < 0.25 z (§41, tested).
+
+## D5.6 Competitive-result integration (§30, §46)
+
+`evaluateCompetitiveDimension` now feeds `our_private_gain` = our
+`permanent_trade_utility` and `opponent_impact.private_delta` = the
+counterparty's `permanent_trade_utility`. `opponent_impact.starter_delta` is
+blended 75 % ROS / 25 % immediate. Owner perception, acceptance, market edge, D's
+threat season-maturity and staged ranking are **unchanged**.
+`competitive.our_trade_horizons` / `.opponent_trade_horizons` expose the full
+breakdown.
+
+## D5.7 Bloodline Bowl reconciliation (week 1)
+
+**Rhamondre → Chuba** (perspective `supyo29`):
+| | our side (supyo29) | BijiMac side |
+|---|---|---|
+| immediate | −4.28 | +5.01 |
+| ROS (weekly-eq) | −3.24 (starter −1.07, avail −1.77, playoff −1.14) | +3.20 |
+| **permanent utility** | **−3.39** | **+3.47** |
+| horizon class | **`REVIEW_REQUIRED`** (RI RB15 vs external, 45 % conflict) | `REVIEW_REQUIRED` |
+| confidence | VERY_LOW | — |
+| BijiMac perceived surplus (C) | — | +0.37 · acceptance MODERATE |
+| BijiMac threat | LOW (−0.61, horizon `ROS`) | — |
+| weakness repair | — | `PREEXISTING_STARTER_HOLE_FILLED` |
+| competitive externality | +1.11 | — |
+| **competitive_result** | **`REJECT`** (our-gain gate fails: −3.39 < 0.25), not actionable | — |
+
+Not forced to a BUY (§39, §47). The horizon fix reduced the magnitude (−4.28 →
+−3.39) and correctly flagged the model disagreement.
+
+**§48 — three RB targets for `supyo29` (Rhamondre out):**
+| target | RI rank | immediate | ROS | permanent | class |
+|---|---|---|---|---|---|
+| James Cook | RB1 | +1.96 | +7.23 | **+6.44** | `CONSISTENT_POSITIVE` |
+| Kyle Monangai | RB29 | −4.96 | −2.77 | −3.10 | `CONSISTENT_NEGATIVE` |
+| Kaleb Johnson | RB132 | −5.37 | −3.83 | −4.06 | `CONSISTENT_NEGATIVE` |
+
+Chuba is **not** a special case — permanent utility scales monotonically with
+the target's ROS quality. James Cook (an unambiguous ROS upgrade where RI and
+the external projection agree) is `CONSISTENT_POSITIVE` +6.44.
+
+**§40 — `hammy535` acquires an RB, horizon-aware** (the D live diagnostic
+inflated several by `immediate`): `vs supyo29` immediate +4.59 → **permanent
+−0.32 `REJECT`** (a false positive the horizon fix caught); `vs theberserkfury`
+permanent +1.02, weakens them, `ACCEPTABLE / actionable`; `vs msamuel4` permanent
++5.51 but `MARGINAL / not actionable` (acceptance gate).
+
+## D5.8 Known limitations (D.5)
+
+1. **ROS absolute value is the external (Sleeper) preseason projection prorated**
+   — `ros.ts`'s documented basis. It does not yet re-weight for realized 2026
+   games (none played). RI's independent season model is a disagreement signal,
+   not blended.
+2. **`ri_external_disagreement_threshold` and the blend weights are HEURISTIC.**
+3. **Threat's ROS starter set = the *current* optimal starters valued by ROS
+   rate** — not a full ROS re-optimization; a currently-injured starter could
+   skew one team.
+4. **`availability_delta` uses `expected_availability`** which is itself a
+   projection-provider heuristic; missing ⇒ treated as 1.0 (explicit).
+5. Legacy `evaluateTrade` / legacy discovery keep the immediate value — only the
+   competitive path uses `permanent_trade_utility` (§31).
+
+## D5.9 Regression (D.5)
+
+- `tsc --noEmit` clean; `eslint app lib test` 0 errors, 29 pre-existing warnings.
+- `npm test`: **1745 tests, 1741 pass, 0 fail, 4 skipped**. +17 new D.5 tests
+  (`test/competitive-trade-horizon.test.ts`). Zero existing expectations changed
+  (legacy trade, discovery, weekly, lineup, start-sit, waiver, Phase-9,
+  orchestrator).
+- Performance: full competitive eval (B+B.5+C+D+D.5) ~32 ms; two
+  `evaluateTradeHorizons` calls read cached Phase-2 data; `buildLeagueThreat`
+  reuses the memoized owner context.
+
+## D5.10 Files changed (D.5)
+
+New: `lib/trades/competitive/horizon.ts`; `test/competitive-trade-horizon.test.ts`.
+Modified: `lib/trades/competitive/{schema,config,opponent-impact,threat,competitive-d-eval,evaluate}.ts`;
+`scripts/competitive-trade-smoke.ts`; the doc. `evaluateTrade` NOT touched.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
@@ -1233,9 +1431,10 @@ Modified: `lib/trades/competitive/{schema,config,reservation,evaluate,index}.ts`
 - [x] **B.5 — Dynamic market & evidence maturation** — CERTIFIED
 - [x] **C — Owner perception + reservation + acceptance** — CERTIFIED
 - [x] **D — Opponent impact + threat + competitive externality + result** — CERTIFIED
+- [x] **D.5 — Horizon-aware permanent-trade utility** — CERTIFIED
 - [ ] E — Negotiation engine (extraction, offer ladders)
 - [ ] F — Multi-hop + hold-for-appreciation
 - [ ] G — Integration / live smoke
 
 **Freeze verdict: NOT READY TO FREEZE** (Checkpoints E–G outstanding; do not
-merge/tag/deploy). Checkpoint D gate: **CERTIFIED — READY FOR CHECKPOINT E.**
+merge/tag/deploy). Checkpoint D.5 gate: **CERTIFIED — READY FOR CHECKPOINT E.**

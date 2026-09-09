@@ -223,16 +223,46 @@ async function reportLeague(leagueSlug: string) {
     console.log(`\n--- Rhamondre Stevenson  →  Chuba Hubbard  (perspective: ${rham.owner_slug} sends Rhamondre, receives Chuba) ---`);
     const cr = competitiveTradeResult(ctx, rham.owner_id, chuba.owner_id, rham.player.canonical_player_id, chuba.player.canonical_player_id);
     const c = cr.competitive;
-    const usSlug = ctx.snapshot.managers.find((m) => m.canonical_manager_id === rham.owner_id)?.manager_slug;
-    const usResult = cr.baseline.participants[usSlug ?? ""] ?? Object.values(cr.baseline.participants).find((p) => p.manager_slug === usSlug);
-    console.log(`  our private delta (${usSlug}): ${usResult ? (usResult.phase2?.contextual_utility_delta ?? usResult.roster_utility_delta).toFixed(2) : "n/a"} pts/wk`);
-    console.log(`  opponent (${chuba.owner_slug}) ACTUAL impact: private_delta=${c.opponent_impact?.private_delta} starter_delta=${c.opponent_impact?.starter_delta} bench_delta=${c.opponent_impact?.bench_delta} weakness_repair=${c.opponent_impact?.weakness_repair}`);
+    const oh = c.our_trade_horizons!;
+    const ph = c.opponent_trade_horizons!;
+    console.log(`  OUR (${rham.owner_slug}) horizons: immediate=${oh.immediate.total_delta.toFixed(2)} ROS=${oh.ros.total_delta.toFixed(2)} (starter ${oh.ros.starter_delta.toFixed(2)}, avail ${oh.ros.availability_delta.toFixed(2)}, playoff ${oh.ros.playoff_window_delta}) → permanent=${oh.permanent_trade_utility.toFixed(2)}/wk [${oh.horizon_classification}, ${oh.horizon_readiness}, conf ${oh.confidence}]`);
+    console.log(`    RI ordinal: ri_vor_delta=${oh.ri_ordinal.ri_vor_delta} incoming_ri_rank=${oh.ri_ordinal.incoming_ri_ranks.map((x) => x.position + x.ri_position_rank).join(",")} outgoing_ri_rank=${oh.ri_ordinal.outgoing_ri_ranks.map((x) => x.position + x.ri_position_rank).join(",")} sign_conflict=${oh.ri_ordinal.sign_conflict} — ${oh.ri_ordinal.note}`);
+    console.log(`  BIJIMAC(${chuba.owner_slug}) horizons: immediate=${ph.immediate.total_delta.toFixed(2)} ROS=${ph.ros.total_delta.toFixed(2)} → permanent=${ph.permanent_trade_utility.toFixed(2)}/wk [${ph.horizon_classification}]`);
+    console.log(`  opponent ACTUAL impact (permanent): private_delta=${c.opponent_impact?.private_delta} starter_delta=${c.opponent_impact?.starter_delta} weakness_repair=${c.opponent_impact?.weakness_repair}`);
     console.log(`  opponent perceived surplus (C): ${c.owner_perception?.perceived_surplus?.toFixed(2)} | acceptance=${c.acceptance?.likelihood} (conf ${c.acceptance?.confidence})`);
-    console.log(`  opponent threat: band=${c.opponent_threat?.band} score=${c.opponent_threat?.score.toFixed(2)} relative_to_us=${c.opponent_threat?.relative_to_us} contender=${c.opponent_threat?.contender_band}`);
+    console.log(`  opponent threat: band=${c.opponent_threat?.band} score=${c.opponent_threat?.score.toFixed(2)} horizon=${c.opponent_threat?.components.projected_strength_horizon} relative_to_us=${c.opponent_threat?.relative_to_us}`);
     console.log(`  competitive externality: ${c.competitive_externality?.score.toFixed(2)}  [${c.competitive_externality?.reason_codes.join(",")}]`);
     console.log(`  competitive_result: classification=${c.competitive_result?.classification} score=${c.competitive_result?.score.toFixed(2)} actionable=${c.competitive_result?.actionable} confidence=${c.competitive_result?.confidence}`);
-    console.log(`    components: ${JSON.stringify(c.competitive_result?.components)}`);
     console.log(`    gates: ${c.competitive_result?.gate_trace.map((g) => `${g.stage}=${g.pass ? "✓" : "✗"}`).join("  ")}`);
+  }
+
+  // §48 — three materially different RB targets, horizon-aware
+  if (rham?.owner_id) {
+    console.log(`\n--- §48: ${rham.owner_slug} trades Rhamondre for three different RBs — horizon-aware ---`);
+    const cands = ctx.snapshot.rosters
+      .flatMap((rr) => {
+        const team = ctx.snapshot.teams.find((t) => t.canonical_team_id === rr.canonical_team_id)!;
+        const mid = team.canonical_manager_ids[0]!;
+        if (mid === rham.owner_id) return [];
+        return [...buildOwnerContext(ctx, mid).by_player.values()]
+          .filter((p) => p.position === "RB")
+          .map((p) => {
+            const wp = ctx.projections.by_player.get(p.canonical_player_id);
+            return { mid, pid: p.canonical_player_id, name: p.name, riRank: wp?.ros?.ri_position_rank ?? 999, riVor: wp?.ros?.ri_vor ?? 0 };
+          });
+      })
+      .sort((a, b) => a.riRank - b.riRank);
+    const picks = [cands[0], cands[Math.floor(cands.length / 2)], cands[cands.length - 1]].filter((x): x is NonNullable<typeof x> => !!x);
+    for (const pk of picks) {
+      try {
+        const cr = competitiveTradeResult(ctx, rham.owner_id, pk.mid, rham.player.canonical_player_id, pk.pid);
+        const c = cr.competitive;
+        const oh = c.our_trade_horizons!;
+        console.log(`  ${pk.name.padEnd(20)} (RI ${("RB" + pk.riRank).padEnd(6)}) immediate=${oh.immediate.total_delta.toFixed(2).padStart(6)} ROS=${oh.ros.total_delta.toFixed(2).padStart(6)} permanent=${oh.permanent_trade_utility.toFixed(2).padStart(6)} class=${oh.horizon_classification.padEnd(28)} result=${(c.competitive_result?.classification ?? "?").padEnd(22)} actionable=${c.competitive_result?.actionable}`);
+      } catch (e) {
+        console.log(`  ${pk.name}: ${(e as Error).message}`);
+      }
+    }
   }
 
   // §40 — same our-side asset, RB acquired from counterparties of DIFFERENT threat.
@@ -267,10 +297,9 @@ async function reportLeague(leagueSlug: string) {
         try {
           const cr = competitiveTradeResult(ctx, usId, tgt.mid, offer.canonical_player_id, tgt.pid);
           const c = cr.competitive;
-          const usSlug = rbNeedyMgr.m.manager_slug;
-          const usR = Object.values(cr.baseline.participants).find((p) => p.manager_slug === usSlug);
-          const ourGain = usR ? (usR.phase2?.contextual_utility_delta ?? usR.roster_utility_delta) : null;
-          console.log(`  vs ${tgt.slug.padEnd(14)} (${tgt.name.padEnd(18)}) our_gain=${ourGain?.toFixed(2).padStart(6)} threat=${(c.opponent_threat?.band ?? "?").padEnd(9)} opp_impact=${c.opponent_impact?.private_delta?.toFixed(2).padStart(6)} ext=${c.competitive_externality?.score.toFixed(2).padStart(6)} result=${(c.competitive_result?.classification ?? "?").padEnd(22)} score=${c.competitive_result?.score.toFixed(2).padStart(6)} actionable=${c.competitive_result?.actionable}`);
+          const ourPerm = c.our_trade_horizons?.permanent_trade_utility;
+          const ourImm = c.our_trade_horizons?.immediate.total_delta;
+          console.log(`  vs ${tgt.slug.padEnd(14)} (${tgt.name.padEnd(18)}) our_perm=${ourPerm?.toFixed(2).padStart(6)} (imm ${ourImm?.toFixed(2)}) threat=${(c.opponent_threat?.band ?? "?").padEnd(9)} opp_perm=${c.opponent_impact?.private_delta?.toFixed(2).padStart(6)} ext=${c.competitive_externality?.score.toFixed(2).padStart(6)} result=${(c.competitive_result?.classification ?? "?").padEnd(22)} actionable=${c.competitive_result?.actionable}`);
         } catch (e) {
           console.log(`  vs ${tgt.slug}: ${(e as Error).message}`);
         }

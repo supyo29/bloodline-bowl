@@ -13,6 +13,8 @@ import { buildOpponentImpact } from "./opponent-impact";
 import { buildLeagueThreat } from "./threat";
 import { buildCompetitiveExternality } from "./externality";
 import { buildCompetitiveResult } from "./competitive-result";
+import { evaluateTradeHorizons } from "./horizon";
+import type { PartialHorizonConfig } from "./config";
 import type {
   AcceptanceEstimate,
   AggregateEdge,
@@ -32,16 +34,21 @@ export interface CompetitiveDInput {
   counterparty_manager_slug: string;
   /** ids the counterparty RECEIVES (our outgoing) */
   received_by_counterparty: string[];
+  /** ids WE receive (our incoming = what the counterparty gives up) */
+  received_by_us: string[];
   /** Checkpoint C acceptance result (feasibility gate) */
   acceptance: AcceptanceEstimate | null;
   /** competitive block aggregate market edge */
   aggregate_edge: AggregateEdge | null;
   owner_perception_confidence: import("./schema").ValueConfidence | null;
   config?: PartialCompetitiveDConfig;
+  horizon_config?: PartialHorizonConfig;
   owner_context_cache?: (id: string) => OwnerContext;
 }
 
 export interface CompetitiveDResult {
+  our_horizon: import("./schema").TradeHorizonEvaluation;
+  opponent_horizon: import("./schema").TradeHorizonEvaluation;
   opponent_impact: OpponentImpact;
   opponent_threat: OpponentThreat;
   competitive_externality: CompetitiveExternality;
@@ -52,6 +59,25 @@ export function evaluateCompetitiveDimension(input: CompetitiveDInput): Competit
   const config: CompetitiveDConfig = resolveCompetitiveDConfig(input.config);
   const cache = input.owner_context_cache ?? makeOwnerContextCache(input.ctx);
 
+  // ---- horizon-aware permanent-trade utility (D.5) — replaces the immediate-
+  // week-only value for both sides in the competitive scoring (§30, §46) ----
+  const our_horizon = evaluateTradeHorizons({
+    baseline: input.baseline,
+    ctx: input.ctx,
+    manager_slug: input.my_manager_slug,
+    incoming_ids: input.received_by_us,
+    outgoing_ids: input.received_by_counterparty,
+    config: input.horizon_config,
+  });
+  const opponent_horizon = evaluateTradeHorizons({
+    baseline: input.baseline,
+    ctx: input.ctx,
+    manager_slug: input.counterparty_manager_slug,
+    incoming_ids: input.received_by_counterparty,
+    outgoing_ids: input.received_by_us,
+    config: input.horizon_config,
+  });
+
   // ---- opponent actual impact (from OUR private models) ----
   const opponent_impact = buildOpponentImpact({
     baseline: input.baseline,
@@ -60,6 +86,22 @@ export function evaluateCompetitiveDimension(input: CompetitiveDInput): Competit
     received_ids: input.received_by_counterparty,
     players_by_id: input.ctx.players_by_id,
   });
+  // override private_delta / starter_delta with the permanent-horizon values —
+  // starter/depth split is kept (reason codes) but the magnitude that feeds the
+  // externality is the ROS-dominant one.
+  opponent_impact.private_delta = round4(opponent_horizon.permanent_trade_utility);
+  opponent_impact.starter_delta =
+    opponent_impact.starter_delta == null
+      ? round4(opponent_horizon.ros.starter_delta)
+      : round4(0.75 * opponent_horizon.ros.starter_delta + 0.25 * opponent_impact.starter_delta);
+  opponent_impact.ros_delta = round4(opponent_horizon.ros.total_delta);
+  if (opponent_horizon.horizon_classification === "SHORT_TERM_LOSS_LONG_TERM_GAIN") opponent_impact.reason_codes.push("SHORT_TERM_LOSS_LONG_TERM_GAIN");
+  if (opponent_horizon.horizon_classification === "SHORT_TERM_GAIN_LONG_TERM_LOSS") opponent_impact.reason_codes.push("SHORT_TERM_GAIN_LONG_TERM_LOSS");
+  if (opponent_horizon.horizon_classification === "REVIEW_REQUIRED") opponent_impact.reason_codes.push("HORIZON_REVIEW_REQUIRED");
+  opponent_impact.reason_codes.push("ROS_HORIZON_USED");
+  opponent_impact.reasons.push(
+    `permanent-horizon impact: immediate ${opponent_horizon.immediate.total_delta.toFixed(2)} / ROS ${opponent_horizon.ros.total_delta.toFixed(2)} / permanent ${opponent_horizon.permanent_trade_utility.toFixed(2)} (${opponent_horizon.horizon_classification})`,
+  );
 
   // ---- threat ----
   const league = buildLeagueThreat(input.ctx, config, input.my_manager_id, cache);
@@ -69,11 +111,11 @@ export function evaluateCompetitiveDimension(input: CompetitiveDInput): Competit
   // ---- externality ----
   const competitive_externality = buildCompetitiveExternality({ opponent_impact, threat: opponent_threat, config });
 
-  // ---- our private gain (from OUR participant in the baseline) ----
+  // ---- our private gain: the horizon-aware PERMANENT utility (§30) ----
   const mine =
     input.baseline.participants[input.my_manager_slug] ??
     Object.values(input.baseline.participants).find((p) => p.manager_slug === input.my_manager_slug);
-  const ourGain = mine ? (mine.phase2 ? mine.phase2.contextual_utility_delta : mine.roster_utility_delta) : null;
+  const ourGain = mine ? our_horizon.permanent_trade_utility : null;
 
   // ---- readiness ----
   const readiness: CompetitiveReadinessState =
@@ -95,7 +137,12 @@ export function evaluateCompetitiveDimension(input: CompetitiveDInput): Competit
     config,
   });
 
-  return { opponent_impact, opponent_threat, competitive_externality, competitive_result };
+  return { our_horizon, opponent_horizon, opponent_impact, opponent_threat, competitive_externality, competitive_result };
+}
+
+function round4(v: number): number {
+  const x = Math.round(v * 10000) / 10000;
+  return x === 0 ? 0 : x;
 }
 
 function noThreat(id: string): OpponentThreat {
@@ -103,7 +150,7 @@ function noThreat(id: string): OpponentThreat {
     owner_manager_id: id,
     score: 0,
     band: "MODERATE",
-    components: { projected_strength_z: 0, results_strength_z: null, results_weight: 0, blended_strength_z: 0, balance_penalty: 0 },
+    components: { projected_strength_z: 0, projected_strength_horizon: "CURRENT_WEEK", results_strength_z: null, results_weight: 0, blended_strength_z: 0, balance_penalty: 0 },
     league_strength_percentile: null,
     relative_to_us: null,
     contender_band: "UNKNOWN",

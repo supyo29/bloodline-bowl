@@ -72,26 +72,38 @@ export function buildOpponentImpact(input: BuildOpponentImpactInput): OpponentIm
   let weaknessRepair: WeaknessRepair = "NONE";
   const repairPositions: string[] = [];
 
-  // a need that improved AND was critical/weak before AND at a position we sent them
+  // (D.5 §18–§20) A genuine pre-trade deficiency: a need that IMPROVED, was
+  // critical/weak BEFORE, at a position we sent them. Simply being better than
+  // the outgoing player, or simply entering the optimal lineup, is NOT a
+  // repaired hole.
   for (const c of r.positional_need_changes) {
     if (c.kind !== "IMPROVES_NEED") continue;
     if (!receivedPositions.has(c.position)) continue;
-    const beforeBad = c.before_severity === "critical" || c.before_severity === "weak";
-    if (!beforeBad) continue;
+    const beforeCritical = c.before_severity === "critical";
+    const beforeWeak = c.before_severity === "weak";
+    if (!beforeCritical && !beforeWeak) continue;
     repairPositions.push(c.position);
-    if (c.before_severity === "critical" && rankAbove(weaknessRepair, "CRITICAL_WEAKNESS_REPAIRED")) {
-      weaknessRepair = "CRITICAL_WEAKNESS_REPAIRED";
-    } else if (rankAbove(weaknessRepair, "HIGH_NEED_REPAIRED")) {
-      weaknessRepair = "HIGH_NEED_REPAIRED";
+    if (beforeCritical && rankAbove(weaknessRepair, "CRITICAL_WEAKNESS_REPAIRED")) weaknessRepair = "CRITICAL_WEAKNESS_REPAIRED";
+    else if (rankAbove(weaknessRepair, "HIGH_NEED_REPAIRED")) weaknessRepair = "HIGH_NEED_REPAIRED";
+  }
+
+  // a required lineup slot (incl. FLEX) that was materially below acceptable
+  // BEFORE and is now filled by our asset — a hole, even if not a "need" position
+  if (weaknessRepair === "NONE" && receivedEnteredStarting) {
+    const filledABadSlot = r.positional_need_changes.some(
+      (c) => c.kind === "IMPROVES_NEED" && (c.before_severity === "weak" || c.before_severity === "critical"),
+    );
+    if (filledABadSlot && (starterDelta ?? 0) > 1) {
+      weaknessRepair = "PREEXISTING_STARTER_HOLE_FILLED";
+      for (const id of received_ids) if (enteredStarting.has(id)) repairPositions.push(players_by_id.get(id)?.position ?? "?");
+    } else if ((starterDelta ?? 0) > 1) {
+      // entered the lineup, but every relevant position was already adequate/strong
+      weaknessRepair = "STARTER_UPGRADED";
+      for (const id of received_ids) if (enteredStarting.has(id)) repairPositions.push(players_by_id.get(id)?.position ?? "?");
     }
   }
-  if (weaknessRepair === "NONE" && receivedEnteredStarting && (starterDelta ?? 0) > 1) {
-    weaknessRepair = "STARTER_HOLE_FILLED";
-    for (const id of received_ids) if (enteredStarting.has(id)) repairPositions.push(players_by_id.get(id)?.position ?? "?");
-  }
   if (weaknessRepair === "NONE" && (benchDelta > 1 || (privateDelta > 0 && (starterDelta ?? 0) <= 1))) {
-    // they got value but it went to depth, not a starting hole
-    weaknessRepair = (starterDelta ?? 0) <= 0.5 ? "SURPLUS_REINFORCED" : "DEPTH_ADDED";
+    weaknessRepair = (starterDelta ?? 0) <= 0.5 ? "SURPLUS_REINFORCED" : "DEPTH_IMPROVED";
   }
 
   // ---- reason codes ----
@@ -110,7 +122,8 @@ export function buildOpponentImpact(input: BuildOpponentImpactInput): OpponentIm
   }
   if (weaknessRepair === "CRITICAL_WEAKNESS_REPAIRED") { codes.add("CRITICAL_WEAKNESS_REPAIRED"); reasons.push(`fixes ${counterparty_slug}'s CRITICAL hole at ${[...new Set(repairPositions)].join("/")}`); }
   else if (weaknessRepair === "HIGH_NEED_REPAIRED") { codes.add("HIGH_NEED_REPAIRED"); reasons.push(`fixes ${counterparty_slug}'s weak spot at ${[...new Set(repairPositions)].join("/")}`); }
-  else if (weaknessRepair === "STARTER_HOLE_FILLED") { codes.add("STARTER_HOLE_FILLED"); }
+  else if (weaknessRepair === "PREEXISTING_STARTER_HOLE_FILLED") { codes.add("PREEXISTING_STARTER_HOLE_FILLED"); reasons.push(`fills a below-acceptable starting slot for ${counterparty_slug}`); }
+  else if (weaknessRepair === "STARTER_UPGRADED") { codes.add("STARTER_UPGRADED"); reasons.push(`upgrades an already-adequate starter for ${counterparty_slug} (not a repaired hole)`); }
   else if (weaknessRepair === "SURPLUS_REINFORCED") { codes.add("SURPLUS_REINFORCED"); reasons.push(`the asset lands on a position ${counterparty_slug} is already deep at`); }
 
   return {
@@ -130,10 +143,11 @@ export function buildOpponentImpact(input: BuildOpponentImpactInput): OpponentIm
 }
 
 const REPAIR_RANK: Record<WeaknessRepair, number> = {
-  CRITICAL_WEAKNESS_REPAIRED: 5,
-  HIGH_NEED_REPAIRED: 4,
-  STARTER_HOLE_FILLED: 3,
-  DEPTH_ADDED: 2,
+  CRITICAL_WEAKNESS_REPAIRED: 6,
+  HIGH_NEED_REPAIRED: 5,
+  PREEXISTING_STARTER_HOLE_FILLED: 4,
+  STARTER_UPGRADED: 3,
+  DEPTH_IMPROVED: 2,
   SURPLUS_REINFORCED: 1,
   NONE: 0,
 };

@@ -126,6 +126,7 @@ export interface EvaluateCompetitiveTradeInput {
   counterparty_manager_id?: string;
   owner_perception_config?: import("./config").PartialOwnerPerceptionConfig;
   competitive_d_config?: import("./config").PartialCompetitiveDConfig;
+  horizon_config?: import("./config").PartialHorizonConfig;
 }
 
 const CONF_LEVEL: Record<ValueConfidence, number> = { HIGH: 3, MEDIUM: 2, LOW: 1, VERY_LOW: 0 };
@@ -224,17 +225,22 @@ export function evaluateCompetitiveTrade(input: EvaluateCompetitiveTradeInput): 
       counterparty_manager_id: input.counterparty_manager_id,
       counterparty_manager_slug: cpManager?.manager_slug ?? input.counterparty_manager_id,
       received_by_counterparty: outgoing_player_ids,
+      received_by_us: incoming_player_ids,
       acceptance,
       aggregate_edge,
       owner_perception_confidence: owner_perception.confidence,
       config: input.competitive_d_config,
+      horizon_config: input.horizon_config,
     });
+    competitive.our_trade_horizons = d.our_horizon;
+    competitive.opponent_trade_horizons = d.opponent_horizon;
     competitive.opponent_impact = d.opponent_impact;
     competitive.opponent_threat = d.opponent_threat;
     competitive.competitive_externality = d.competitive_externality;
     competitive.competitive_result = d.competitive_result;
     competitive.notes.push(
-      "Checkpoint D — competitive_result is OUR gain net of the cost of strengthening (or benefit of weakening) this counterparty, acceptance-gated. Our own gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility constraint. The engine does NOT optimize for opponent harm. Threat weighting is HEURISTIC. No extraction / negotiation / liquidity / multi-hop yet.",
+      "Checkpoint D.5 — a PERMANENT trade is valued over the REST OF SEASON, not the current week. our_trade_horizons / opponent_trade_horizons expose immediate vs ROS vs the blended permanent_trade_utility that feeds the competitive scoring. ROS absolute arithmetic uses the external (Sleeper) prorated projection; RI's season model is an ordinal disagreement signal (REVIEW_REQUIRED on a sign conflict).",
+      "Checkpoint D — competitive_result is OUR permanent gain net of the cost of strengthening (or benefit of weakening) this counterparty, acceptance-gated. Our own gain is the dominant objective; opponent improvement is a cost; acceptance is a feasibility constraint. Threat is primarily ROS-projected roster strength, HEURISTIC. No extraction / negotiation / liquidity / multi-hop yet.",
     );
   }
 

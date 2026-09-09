@@ -19,29 +19,49 @@ import type { OpponentThreat, ThreatBand } from "./schema";
 
 const BASE_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
 const NEED_TARGET: Record<string, number> = { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DEF: 1 };
+const STARTER_IMPORTANCE = ["LOCKED_STARTER", "REGULAR_STARTER", "FLEX_STARTER"];
 
 interface RawStrength {
   manager_id: string;
-  optimal_total: number | null;
-  starter_vor_sum: number;
-  bench_vor_sum: number;
+  /** ROS-oriented starting-lineup value (Σ ros_weekly points of the current optimal starters) */
+  ros_starter_value: number;
+  /** current-week optimal lineup total — secondary short-term signal only */
+  optimal_total_current_week: number | null;
+  /** ROS VOR of startable depth */
+  ros_bench_value: number;
   balance_holes: number;
   games_played: number;
   win_pct: number | null;
   points_for: number | null;
+  /** how much of the strength baseline is ROS vs current-week */
+  horizon: "ROS" | "MIXED" | "CURRENT_WEEK";
+}
+
+/** ROS weekly rate for a player: external (Sleeper) ROS points ÷ remaining weeks. */
+function rosWeeklyRate(ctx: TradeAnalysisContext, id: string): number | null {
+  const wp = ctx.projections.by_player.get(id);
+  const rosPts = wp?.ros?.points ?? wp?.rest_of_season_points ?? null;
+  if (rosPts == null) return null;
+  const weeks = Math.max(1, ctx.ros.weeks.length);
+  const avail = Math.min(1, Math.max(0, wp?.expected_availability ?? 1));
+  return (rosPts / weeks) * avail;
 }
 
 function rawStrengthFor(ctx: TradeAnalysisContext, owner: OwnerContext): RawStrength {
-  let starterVor = 0;
-  let benchVor = 0;
+  let rosStarterValue = 0;
+  let rosBenchValue = 0;
+  let rosCovered = 0;
+  let rosMissing = 0;
   const startableByPos = new Map<string, number>();
   for (const pc of owner.by_player.values()) {
-    if (["LOCKED_STARTER", "REGULAR_STARTER", "FLEX_STARTER"].includes(pc.starter_importance)) {
-      starterVor += Math.max(0, pc.vor ?? 0);
+    const isStarter = STARTER_IMPORTANCE.includes(pc.starter_importance);
+    const rosRate = rosWeeklyRate(ctx, pc.canonical_player_id);
+    if (isStarter) {
+      if (rosRate != null) { rosStarterValue += rosRate; rosCovered += 1; } else rosMissing += 1;
     } else if (pc.starter_importance === "ROTATIONAL") {
-      benchVor += Math.max(0, pc.vor ?? 0);
+      rosBenchValue += Math.max(0, (rosRate ?? 0) - 6); // rough ROS-VOR: rate over a ~6-pt bench replacement
     }
-    if ((pc.vor ?? -Infinity) >= 0.5 || ["LOCKED_STARTER", "REGULAR_STARTER", "FLEX_STARTER"].includes(pc.starter_importance)) {
+    if ((pc.vor ?? -Infinity) >= 0.5 || isStarter) {
       startableByPos.set(pc.position, (startableByPos.get(pc.position) ?? 0) + 1);
     }
   }
@@ -61,15 +81,19 @@ function rawStrengthFor(ctx: TradeAnalysisContext, owner: OwnerContext): RawStre
   const decided = wins + losses + ties;
   const winPct = decided > 0 ? (wins + 0.5 * ties) / decided : null;
 
+  const horizon: RawStrength["horizon"] =
+    rosCovered === 0 ? "CURRENT_WEEK" : rosMissing > rosCovered ? "MIXED" : "ROS";
+
   return {
     manager_id: owner.manager_id,
-    optimal_total: owner.optimal_total,
-    starter_vor_sum: starterVor,
-    bench_vor_sum: benchVor,
+    ros_starter_value: rosStarterValue,
+    optimal_total_current_week: owner.optimal_total,
+    ros_bench_value: rosBenchValue,
     balance_holes: balanceHoles,
     games_played: gp,
     win_pct: winPct,
     points_for: standing?.points_for ?? null,
+    horizon,
   };
 }
 
@@ -96,14 +120,18 @@ export function buildLeagueThreat(
   const managerIds = [...ctx.rosters_by_manager.keys()];
   const raw = managerIds.map((id) => rawStrengthFor(ctx, cache(id)));
 
-  // projected-strength composite, z-scored across the league
+  // projected-strength composite — PRIMARILY ROS (D.5 §22): ROS starting-lineup
+  // value + a fraction of ROS depth; the current-week optimal total is only a
+  // small secondary short-term signal so one favourable/brutal matchup cannot
+  // swing season threat (§23, §24).
   const projComposite = raw.map(
     (s) =>
-      (s.optimal_total ?? 0) +
-      config.threat.starter_vor_weight * s.starter_vor_sum +
-      config.threat.bench_vor_weight * s.bench_vor_sum,
+      s.ros_starter_value +
+      config.threat.bench_vor_weight * s.ros_bench_value +
+      0.05 * (s.optimal_total_current_week ?? 0),
   );
   const projZ = zscores(projComposite);
+  const projHorizon: RawStrength["horizon"][] = raw.map((s) => s.horizon);
   const balancePenalty = raw.map((s) => s.balance_holes * config.threat.balance_penalty_per_hole);
 
   // results-strength composite (win% + points-for), z-scored — null before any games
@@ -137,6 +165,7 @@ export function buildLeagueThreat(
       band: bandFor(blendZ, config),
       components: {
         projected_strength_z: pZ,
+        projected_strength_horizon: projHorizon[i]!,
         results_strength_z: rZ ?? null,
         results_weight: round4(resultsWeight),
         blended_strength_z: blendZ,

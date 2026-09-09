@@ -34,7 +34,7 @@ function threat(band: ThreatBand, opts: Partial<OpponentThreat> = {}): OpponentT
     owner_manager_id: "opp",
     score: band === "ELITE" ? 1.4 : band === "HIGH" ? 0.6 : band === "MODERATE" ? 0 : -0.8,
     band,
-    components: { projected_strength_z: 0, results_strength_z: null, results_weight: 0, blended_strength_z: 0, balance_penalty: 0 },
+    components: { projected_strength_z: 0, projected_strength_horizon: "ROS", results_strength_z: null, results_weight: 0, blended_strength_z: 0, balance_penalty: 0 },
     league_strength_percentile: band === "ELITE" ? 0.95 : band === "HIGH" ? 0.7 : 0.4,
     relative_to_us: opts.relative_to_us ?? (band === "ELITE" ? 0.8 : 0),
     contender_band: band === "ELITE" ? "TOP_CONTENDER" : band === "HIGH" ? "CONTENDER" : "MID_TIER",
@@ -173,7 +173,7 @@ describe("Competitive Trade D — §47 monotonicity invariants", () => {
     assert.ok(elite.score >= mod.score);
   });
   it("repairing a larger weakness cannot reduce the externality", () => {
-    const order: WeaknessRepair[] = ["SURPLUS_REINFORCED", "DEPTH_ADDED", "STARTER_HOLE_FILLED", "HIGH_NEED_REPAIRED", "CRITICAL_WEAKNESS_REPAIRED"];
+    const order: WeaknessRepair[] = ["SURPLUS_REINFORCED", "DEPTH_IMPROVED", "PREEXISTING_STARTER_HOLE_FILLED", "HIGH_NEED_REPAIRED", "CRITICAL_WEAKNESS_REPAIRED"];
     const scores = order.map((wr) => buildCompetitiveExternality({ opponent_impact: impact({ private_delta: 5, starter_delta: 5, weakness_repair: wr }), threat: threat("HIGH"), config: D }).score);
     for (let i = 1; i < scores.length; i += 1) assert.ok(scores[i]! >= scores[i - 1]!, `${order[i]} >= ${order[i - 1]}`);
   });

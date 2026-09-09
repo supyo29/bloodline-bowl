@@ -523,15 +523,106 @@ export interface OwnerPerceptionBlock {
 }
 
 /* ======================================================================== */
+/* Checkpoint D.5 — horizon-aware permanent-trade utility                     */
+/* ======================================================================== */
+
+/**
+ * A start/sit decision asks "who helps me THIS WEEK?". A permanent trade asks
+ * "which set of player rights gives me the stronger roster over the REMAINING
+ * SEASON?". These are different problems. `evaluateTrade`'s
+ * `roster_utility_delta` measures the immediate week; this block adds the ROS
+ * horizon and the blended permanent-trade utility.
+ */
+
+export type HorizonClassification =
+  | "CONSISTENT_POSITIVE"
+  | "CONSISTENT_NEGATIVE"
+  | "SHORT_TERM_GAIN_LONG_TERM_LOSS"
+  | "SHORT_TERM_LOSS_LONG_TERM_GAIN"
+  | "MIXED"
+  | "REVIEW_REQUIRED";
+
+export type HorizonReadiness =
+  | "FULL_ROS_CONTEXT"
+  | "PARTIAL_ROS_CONTEXT"
+  | "CURRENT_WEEK_ONLY"
+  | "HORIZON_MISMATCH"
+  | "UNAVAILABLE";
+
+export interface ImmediateHorizon {
+  /** current-week optimal-lineup points delta */
+  starter_delta: number | null;
+  /** current-week bench/depth VOR delta */
+  depth_delta: number;
+  positional_need_delta: number;
+  /** = evaluateTrade's roster_utility_delta (weekly) */
+  total_delta: number;
+}
+
+export interface RosHorizon {
+  /** Σ optimal-lineup ROS delta ÷ remaining weeks (weekly-equivalent). External (Sleeper) prorated. */
+  starter_delta: number;
+  /** stranded (bench) ROS production delta ÷ remaining weeks */
+  depth_delta: number;
+  /** adjustment for the traded players' expected availability (injury), weekly-equiv */
+  availability_delta: number;
+  /** playoff-window usable-value delta, per playoff week (null when unavailable) */
+  playoff_window_delta: number | null;
+  /** ROS bye-hole (slot × week) reduction */
+  bye_coverage_delta: number;
+  /** weighted blend of the above (weekly-equivalent) */
+  total_delta: number;
+  /** naive standalone incoming − outgoing ROS points (season total) — for the roster-context contrast */
+  standalone_ros_swing: number;
+  /** season-total optimal-lineup ROS delta (roster-context) */
+  usable_ros_value_delta_season: number;
+}
+
+export interface RiOrdinalReconciliation {
+  /** Σ incoming ri_vor − Σ outgoing ri_vor (RI season model) */
+  ri_vor_delta: number | null;
+  /** incoming/outgoing RI position ranks (explanatory) */
+  incoming_ri_ranks: Array<{ id: string; position: string; ri_position_rank: number | null }>;
+  outgoing_ri_ranks: Array<{ id: string; position: string; ri_position_rank: number | null }>;
+  /** worst RI-vs-external season disagreement among the traded players (fraction) */
+  max_disagreement_pct: number | null;
+  /** true when RI's VOR-implied direction contradicts the external ROS direction */
+  sign_conflict: boolean;
+  note: string;
+}
+
+export interface TradeHorizonEvaluation {
+  manager_slug: string;
+  immediate: ImmediateHorizon;
+  ros: RosHorizon;
+  ri_ordinal: RiOrdinalReconciliation;
+  /** ROS-dominant blend: ros_weight·ros.total_delta + immediate_weight·immediate.total_delta (weekly-equiv) */
+  permanent_trade_utility: number;
+  ros_weight: number;
+  immediate_weight: number;
+  horizon_classification: HorizonClassification;
+  horizon_readiness: HorizonReadiness;
+  confidence: ValueConfidence;
+  reasons: string[];
+}
+
+/* ======================================================================== */
 /* Checkpoint D — opponent actual impact, threat, externality, competitive    */
 /* result                                                                     */
 /* ======================================================================== */
 
+/**
+ * Checkpoint D.5 §18–§20: distinct semantics. A generic starter upgrade is NOT
+ * a repaired hole. `PREEXISTING_STARTER_HOLE_FILLED` / `CRITICAL_WEAKNESS_REPAIRED`
+ * require a genuine pre-trade deficiency (need severity critical/weak AND the
+ * lineup slot materially below the replacement/adequate threshold).
+ */
 export type WeaknessRepair =
-  | "CRITICAL_WEAKNESS_REPAIRED"
-  | "HIGH_NEED_REPAIRED"
-  | "STARTER_HOLE_FILLED"
-  | "DEPTH_ADDED"
+  | "CRITICAL_WEAKNESS_REPAIRED" // pre-trade need CRITICAL + our asset resolves it
+  | "HIGH_NEED_REPAIRED" // pre-trade need weak/HIGH + resolved
+  | "PREEXISTING_STARTER_HOLE_FILLED" // a required slot was below acceptable and is now filled
+  | "STARTER_UPGRADED" // entered the lineup but the position was already adequate/strong
+  | "DEPTH_IMPROVED"
   | "SURPLUS_REINFORCED"
   | "NONE";
 
@@ -566,8 +657,10 @@ export interface OpponentImpact {
 export type ThreatBand = "LOW" | "MODERATE" | "HIGH" | "ELITE";
 
 export interface ThreatComponents {
-  /** projected roster strength z (optimal lineup + starter VOR + depth + balance) */
+  /** projected roster strength z (ROS starting-lineup value + depth + balance) */
   projected_strength_z: number;
+  /** temporal basis of `projected_strength_z` (D.5 §26) */
+  projected_strength_horizon: "ROS" | "CURRENT_WEEK" | "MIXED";
   /** current-season results strength z (win% + points-for percentile) — null pre-games */
   results_strength_z: number | null;
   /** weight on results vs projection — grows with weeks played (season maturity) */
@@ -635,9 +728,15 @@ export type CompetitiveReasonCode =
   | "OPPONENT_ACTUALLY_WEAKENED"
   | "CRITICAL_WEAKNESS_REPAIRED"
   | "HIGH_NEED_REPAIRED"
-  | "STARTER_HOLE_FILLED"
+  | "PREEXISTING_STARTER_HOLE_FILLED"
+  | "STARTER_UPGRADED"
+  | "DEPTH_IMPROVED"
   | "SURPLUS_REINFORCED"
   | "ELITE_RIVAL_STRENGTHENED"
+  | "SHORT_TERM_LOSS_LONG_TERM_GAIN"
+  | "SHORT_TERM_GAIN_LONG_TERM_LOSS"
+  | "HORIZON_REVIEW_REQUIRED"
+  | "ROS_HORIZON_USED"
   | "LOW_THREAT_COUNTERPARTY"
   | "STRONGER_THAN_US"
   | "WEAKER_THAN_US"
@@ -776,6 +875,12 @@ export interface CompetitiveBlock {
   owner_perception?: OwnerPerceptionBlock;
   /** how likely the counterparty is to accept — from THEIR perceived economics, heuristic */
   acceptance?: AcceptanceEstimate;
+
+  // ---- Checkpoint D.5 (present only when a counterparty was supplied) ----
+  /** OUR trade valued over the rest of season: immediate vs ROS vs permanent utility */
+  our_trade_horizons?: TradeHorizonEvaluation;
+  /** the counterparty's trade valued over the rest of season */
+  opponent_trade_horizons?: TradeHorizonEvaluation;
 
   // ---- Checkpoint D (present only when a counterparty was supplied) ----
   /** the counterparty's ACTUAL roster delta per OUR private models (not their perception) */
