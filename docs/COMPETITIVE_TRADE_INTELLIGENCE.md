@@ -595,10 +595,210 @@ Modified (non-behavioral):
 
 ---
 
+---
+
+# Part V — Checkpoint B.5: Dynamic Market & Evidence Maturation
+
+Status: **CHECKPOINT B.5 CERTIFIED — READY FOR CHECKPOINT C.**
+Branch `competitive-trade-intelligence`, built on `0d7f5ef`.
+
+## B5.1 ROS-normalization audit (the reason B.5 exists)
+
+| quantity | what it actually is |
+|---|---|
+| `ros.points` (market, `lib/weekly/ros.ts:60`) | Sleeper/RotoWire **full-season** projection × `weeksLeftFrac = (17 − (week−1))/17`. A **linear time-proration**, not a games-played-aware remaining-season projection. |
+| `ros.ri_season_points` (private, `lib/weekly/projections-ri.ts:33`) | RI's **full-season** projection (`ri-structural-2026.3`, preseason-structural). |
+| Checkpoint B private basis | `ros.ri_season_points ÷ 17` → weekly VOR. |
+| Checkpoint B market basis | `ros.points ÷ remaining_weeks` = `(external × weeksLeftFrac) ÷ remaining_weeks` = `external ÷ 17`. |
+
+**Finding:** at Checkpoint B both sides are the *same* quantity — a full-season
+projection expressed as a **per-game rate** (`fullSeason ÷ 17`). They are
+arithmetically comparable at any week, so B's edge is not temporally distorted.
+But **neither side updates for games already played** — by midseason both are
+stale relative to realized performance, and if RI ever regenerates in-season
+while Sleeper's stays frozen (or vice versa) the horizons silently diverge.
+
+**Correction made:** B.5 adds an explicit `TemporalContext` and a fail-closed
+horizon-comparability check (`private_horizon` / `market_horizon` ∈
+`ROS_WEEKLY_RATE | FULL_SEASON | UNKNOWN`; a genuine mismatch ⇒
+`INSUFFICIENT_DATA` + `PRIVATE_MARKET_HORIZON_MISMATCH`, never a fabricated
+comparison). The B private basis relabels from `ri_ros_weekly_vor` semantics to
+an explicit `ROS_WEEKLY_RATE` horizon.
+
+**Realized 2026 data available live:** essentially none — `player_usage_weekly.csv`
+and `player_schedule_strength_weekly.csv` are **2025 only**; 2026 has played 0
+games. So the live path resolves every player to `PRESEASON_ONLY` and the
+dynamic edge ≈ the Checkpoint-B edge, enriched. The R calibration backtest uses
+the real 2025 data.
+
+## B5.2 Time-aware architecture (new files under `lib/trades/competitive/`)
+
+| file | role |
+|---|---|
+| `calibration.ts` | artifact contract + `DEFAULT_COMPETITIVE_MARKET_CALIBRATION` (documented default priors, `status: DEFAULT_PRIOR`); loads `lib/trades/data/competitive_market_calibration.json` |
+| `temporal.ts` | `seasonMaturityWeight(g, curve)` (nonlinear, capped < 1) and `recencyWeight(age, curve)` — **two separate mechanisms**; `buildTemporalContext` |
+| `evidence.ts` | 4 evidence families (ROLE / EFFICIENCY / RESULT / CONTEXT), recency-weighted; opponent-adjusted residuals; `BreakoutCredibility`; weak-schedule + touchdown-mirage detection |
+| `market-state.ts` | time-indexed `MarketState`: `preseason_market_prior` / `current_public_projection` / `current_performance_signal` / `current_market_proxy` (§7), `market_trajectory`, `proxy_source_tier` (§34) |
+| `private-forward.ts` | `PrivateForwardValue` — ROLE-dominant current-season composite blended into the prior by season maturity; **physically separate module** from `market-state.ts` (§41) |
+| `dynamic-edge.ts` | compares `PrivateForwardValue` vs `current_market_proxy`; `edge_vs_preseason_market` + `edge_vs_current_market` (§43); `market_correction` (§44); anomaly safeguards → `quality_status` (§31–§33); confidence caps |
+| `dynamic.ts` | league-wide orchestrator over the Checkpoint-B table |
+
+`MarketEdge` gains additive optional fields (`temporal`, `quality_status`,
+`edge_vs_preseason_market`, `edge_vs_current_market`, `market_correction`,
+`market_trajectory`) — a plain Checkpoint-B edge has none of them.
+
+## B5.3 Season maturity vs recency (separate, nonlinear, calibrated)
+
+**Season maturity** `w(g) = min(max_weight, 1 − e^(−λ·g))` — weight on
+current-season evidence given `g` **meaningful games observed** (a player in a
+real role, NOT the NFL week; falls back to `week − 1` with reduced confidence).
+Monotonic, diminishing-returns, capped below 1 so the prior is never fully
+erased.
+
+**Recency** `r(age) = 0.5^(age / half_life_games)` — a *different* function with
+*different* parameters, weighting older within-season observations less.
+
+Both curves are `[position][metric_family]` — e.g. RB/ROLE stabilizes faster
+than WR/EFFICIENCY.
+
+## B5.4 Four distinct value concepts (§7), kept physically separate
+
+- **A preseason_market_prior** — ADP consensus implied rank + this-league draft
+  cost, z-scored within position. A *decaying prior*: its influence = `1 − w(g)`.
+- **B current_public_projection** — Sleeper/RotoWire ROS (a *source*, carries its
+  own readiness).  **current_performance_signal** — realized positional finish /
+  recent rank.
+- **C current_market_proxy** — `is_estimate: true`. RESULT-dominant current
+  composite (fantasy managers react to the scoreboard, §14) blended into the
+  prior by season maturity; with no current-season evidence it is simply the
+  freshest market source (Sleeper ROS), never a divergent raw ADP rank.
+  `proxy_source_tier` records which §34 tier drove it.
+- **(private)** **PrivateForwardValue.projected_ros_value** — ROLE-dominant (our
+  model reacts to opportunity), touchdown-mirage-guarded, opponent-adjusted.
+
+`market-state.ts` does **not** import `private-forward.ts` — private model
+knowledge cannot leak into the estimated public price.
+
+## B5.5 Opponent adjustment + schedule quality (§15–§19)
+
+Per game: `opponent_adjusted_expected = baseline × (1 + 0.6·matchup_score)`
+(matchup_score ∈ [−1 hard, +1 easy], from `player_schedule_strength_weekly.csv`).
+`residual_vs_opponent_expectation` is the informative signal. **Repeatedly**
+beating the matchup-adjusted expectation vs tough defenses raises
+`BreakoutCredibility` (→ confidence), **not** raw points (§18). An easy schedule
+to date sets `weak_schedule_inflation` and discounts the realized production in
+the private forward value (§19).
+
+## B5.6 Market proxy vs private: the arbitrage the layer detects
+
+| situation | B.5 output |
+|---|---|
+| market rising fast on scoreboard results not matched by opportunity | `SCORING_BREAKOUT_MOVES_MARKET`, private lags → **SELL-HIGH** |
+| strong role / opportunity, modest scoring, tough opponents | `USAGE_BREAKOUT_SUPPORTS_PRIVATE`, private rises → **BUY-LOW** |
+| current gap ≪ preseason gap | `MARKET_CORRECTED` / `MARKET_PARTIALLY_CORRECTED` — edge shrinks |
+| current edge flips sign vs preseason edge | `MARKET_OVERSHOT` — BUY→SELL |
+| extreme edge, confidence < MEDIUM | `quality_status: REVIEW_REQUIRED` — **not** promoted to STRONG_* |
+| private horizon ≠ market horizon | `INSUFFICIENT_DATA` — fail closed |
+
+## B5.7 R calibration (real backtest)
+
+`analysis/competitive_market_calibration.R` → `lib/trades/data/competitive_market_calibration.json`.
+
+**Method (no leakage):** prior = player's **2024** per-game average; current_N =
+weeks 1..N of **2025**; target = weeks (N+1)..17 of **2025**. Grid-search λ
+(season maturity) per position, minimizing OOS RMSE of the blend
+`w(N)·current_N + (1−w(N))·prior` vs target; **accept only when the blend beats
+both the prior-only and current-only baselines**.
+
+**Result — `status: CALIBRATED`** (all 4 positions beat prior-only OOS):
+
+| pos | n | RMSE prior-only | RMSE current-only | RMSE blend | λ | Spearman |
+|---|---|---|---|---|---|---|
+| QB | 237 | 5.48 | 5.88 | **5.13** | 0.08 | 0.31 |
+| RB | 537 | 4.55 | 3.79 | **3.54** | 0.20 | 0.85 |
+| WR | 946 | 4.03 | 3.99 | **3.44** | 0.12 | 0.79 |
+| TE | 545 | 3.07 | 2.88 | **2.52** | 0.12 | 0.83 |
+
+**λ empirically confirms the spec's qualitative claim**: RB (0.20) matures
+fastest, QB (0.08) slowest / most prior-anchored. The recency half-life grid
+saturated at its ceiling (10) for every position — within-season recency decay
+is **milder than intuition**; documented as a limitation (grid ceiling, and
+family-specific recency curves are not separately backtested — the `*` fallback
+curves keep the qualitative priors).
+
+The TS layer **never runs R** — `loadCompetitiveMarketCalibration()` reads the
+frozen JSON, falling back to `DEFAULT_PRIOR` (labelled) when absent. On
+`DEFAULT_PRIOR` **and** on a `WEEK_NUMBER_FALLBACK` games count, the dynamic
+edge is capped at MEDIUM confidence (§59).
+
+## B5.8 Bloodline Bowl diagnostics
+
+**Live, week 1** (`scripts/competitive-trade-smoke.ts`): calibration `CALIBRATED`;
+every player `PRESEASON_ONLY` (870 with data, 2434 UNAVAILABLE); **20 / 867**
+ranked edges flagged `quality_status: REVIEW_REQUIRED` (the anomaly safeguard
+catching extreme low-confidence divergences — e.g. the Josh Jacobs RB7-vs-RB48
+Sleeper-ROS anomaly the B smoke surfaced). Static B boards unchanged. Watch list:
+
+| player | B edge | B.5 edge_vs_current | B.5 edge_vs_preseason | correction |
+|---|---|---|---|---|
+| Chuba Hubbard | `BUY` +0.74 | +0.74 | +1.93 | `MARKET_PARTIALLY_CORRECTED` (Sleeper ROS already moved ~60% toward our preseason view; +0.74 residual) |
+| Rhamondre Stevenson | `FAIR` −0.43 | −0.43 | +0.62 | `MARKET_OVERSHOT` (we were higher than ADP preseason; Sleeper now above us — sell-lean) |
+| Rome Odunze | `FAIR` −0.50 | −0.50 | +0.86 | `MARKET_OVERSHOT` |
+
+**Synthetic week 6** (`--synthetic-only`, deterministic): A sell-high → `STRONG_SELL`
+(−1.38); B buy-low (strong role, elite opp) → `BUY` +0.74, `HIGH` conf,
+`HIGH_CONFIDENCE` breakout, `MULTI_SOURCE_CORROBORATION`; C market-corrected →
+edge shrinks 2.28 → 1.05, `MARKET_PARTIALLY_CORRECTED`; D TD-mirage → `FAIR`,
+`TOUCHDOWN_MIRAGE_RISK`, market proxy > private forward; E schedule-suppression →
+private favors the tough-schedule player (+0.42), `HIGH_CONFIDENCE` breakout.
+
+## B5.9 Known limitations (B.5)
+
+1. **No 2026 current-season data** — the entire dynamic machinery is exercised
+   live only in `PRESEASON_ONLY`; synthetic tests + the week-6 smoke cover the
+   rest. It activates automatically as 2026 games are played and the R pipelines
+   re-run.
+2. **Recency half-life uncalibrated in practice** — the backtest grid saturated
+   at its ceiling; the artifact carries per-position half-life 10 and the
+   metric-family fallbacks keep documented priors.
+3. **Opponent-adjusted term is heuristic** — `k = 0.6`, not fitted; the R script
+   explicitly does not calibrate a schedule-strength residual.
+4. **`meaningful_games_observed`** falls back to `week − 1` when no per-game
+   role series exists (the live case) — flagged, confidence-capped.
+5. **Market snapshot history not yet persisted** (§22) — `prior_snapshot_proxy_z`
+   is a supported input but nothing writes the per-week artifact yet; trajectory
+   is `UNKNOWN` without a second snapshot.
+6. **ADP consensus is a fixed 2026 preseason vendored snapshot** — a decaying
+   prior by construction; there is no live in-season consensus-ranking feed.
+7. No owner perception / acceptance / extraction / opponent cost / negotiation /
+   liquidity / multi-hop — Checkpoints C–F.
+
+## B5.10 Regression (B.5)
+
+- `tsc --noEmit` clean; `eslint app lib test` 0 errors, 29 pre-existing warnings.
+- `npm test`: **1692 tests, 1688 pass, 0 fail, 4 skipped**. +16 new B.5 tests
+  (`test/competitive-trade-dynamic.test.ts`). Zero existing expectations changed
+  (trade / discovery / weekly / lineup / start-sit / waiver / Phase-9 /
+  orchestrator).
+- Performance: full-league dynamic report ~24–37 ms (867 edges) — ~5–10 ms over
+  Checkpoint B; one shared league table, no per-candidate recomputation.
+
+## B5.11 Files changed (B.5)
+
+New: `lib/trades/competitive/{calibration,temporal,evidence,market-state,private-forward,dynamic-edge,dynamic}.ts`;
+`analysis/competitive_market_calibration.R`; `lib/trades/data/competitive_market_calibration.json`;
+`test/competitive-trade-dynamic.test.ts`.
+Modified: `lib/trades/competitive/{schema,index}.ts` (additive types + exports),
+`lib/trades/competitive/private-value.ts` (basis doc), `scripts/competitive-trade-smoke.ts`,
+`docs/COMPETITIVE_TRADE_INTELLIGENCE.md`.
+
+---
+
 ## Checkpoint status
 
 - [x] **A — Audit + contracts**
 - [x] **B — Market edge layer** — CERTIFIED
+- [x] **B.5 — Dynamic market & evidence maturation** — CERTIFIED
 - [ ] C — Owner perception + acceptance
 - [ ] D — Competitive optimizer
 - [ ] E — Negotiation engine
@@ -606,4 +806,4 @@ Modified (non-behavioral):
 - [ ] G — Integration / live smoke
 
 **Freeze verdict: NOT READY TO FREEZE** (Checkpoints C–G outstanding; do not
-merge/tag/deploy). Checkpoint B gate: **CERTIFIED — READY FOR CHECKPOINT C.**
+merge/tag/deploy). Checkpoint B.5 gate: **CERTIFIED — READY FOR CHECKPOINT C.**

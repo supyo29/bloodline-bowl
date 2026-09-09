@@ -19,7 +19,7 @@ import type { TradeEvaluationOutput } from "../evaluate";
 
 /* ------------------------------------------------------------------ lineage */
 
-export const COMPETITIVE_TRADE_VERSION = "ri-competitive-trade-2026.1" as const;
+export const COMPETITIVE_TRADE_VERSION = "ri-competitive-trade-2026.2" as const;
 
 export type MarketSourceType =
   | "provider_benchmark" // Sleeper / RotoWire weekly+ROS projection (in-season, league scoring)
@@ -116,7 +116,34 @@ export type MarketEdgeReasonCode =
   | "CONFIDENCE_GATE_APPLIED"
   | "SPECULATIVE_LOW_CONFIDENCE"
   | "RI_SLEEPER_DISAGREEMENT_CORROBORATES"
-  | "ANALYTICAL_ONLY_NO_ACQUISITION_MODEL";
+  | "ANALYTICAL_ONLY_NO_ACQUISITION_MODEL"
+  // ---- Checkpoint B.5: dynamic market / evidence maturation ----
+  | "PRIVATE_MARKET_HORIZON_MISMATCH"
+  | "STALE_MARKET_HORIZON"
+  | "ROS_NORMALIZATION_UNAVAILABLE"
+  | "REMAINING_GAMES_UNKNOWN"
+  | "PRESEASON_PRIOR_DOMINATES"
+  | "CURRENT_SEASON_EVIDENCE_THIN"
+  | "CURRENT_SEASON_EVIDENCE_MATURING"
+  | "MARKET_CORRECTED"
+  | "MARKET_PARTIALLY_CORRECTED"
+  | "MARKET_NOT_CORRECTED"
+  | "MARKET_OVERSHOT"
+  | "MARKET_TRAJECTORY_RISING"
+  | "MARKET_TRAJECTORY_FALLING"
+  | "USAGE_BREAKOUT_SUPPORTS_PRIVATE"
+  | "SCORING_BREAKOUT_MOVES_MARKET"
+  | "OPPONENT_ADJUSTED_OUTPERFORMANCE"
+  | "WEAK_SCHEDULE_INFLATION"
+  | "TOUCHDOWN_MIRAGE_RISK"
+  | "PRIVATE_MARKET_DIVERGENCE_EXTREME"
+  | "PROVIDER_ROS_ANOMALY"
+  | "PRIVATE_PROJECTION_ANOMALY"
+  | "SOURCE_DISAGREEMENT_EXTREME"
+  | "INSUFFICIENT_CURRENT_EVIDENCE"
+  | "TEMPORAL_BASIS_MISMATCH"
+  | "MULTI_SOURCE_CORROBORATION"
+  | "REVIEW_REQUIRED_UNSUPPORTED_CONVICTION";
 
 export interface MarketEdge {
   canonical_player_id: string;
@@ -149,6 +176,178 @@ export interface MarketEdge {
 
   /** Always true for Checkpoint B — there is no acquisition/perception model yet. */
   analytical_only: true;
+
+  // ---- Checkpoint B.5 additive fields (absent ⇒ Checkpoint B static edge) ----
+  /**
+   * Data-quality gate on the edge itself. `REVIEW_REQUIRED` means an extreme
+   * discrepancy is not supported by confidence — treat as a possible model /
+   * source problem, NOT an automatic high-conviction trade.
+   */
+  quality_status?: QualityStatus;
+  /** the edge vs the preseason market prior (ADP / league draft cost) */
+  edge_vs_preseason_market?: number | null;
+  /** the edge vs the dynamic current-market proxy (the B.5 primary comparison) */
+  edge_vs_current_market?: number | null;
+  /** has the market already moved toward our earlier private view? */
+  market_correction?: MarketCorrectionStatus;
+  market_trajectory?: MarketTrajectory;
+  /** how mature / recency-weighted the evidence behind this edge is */
+  temporal?: TemporalContext;
+}
+
+/* -------------------------------------------- Checkpoint B.5: time awareness */
+
+export type QualityStatus = "NORMAL" | "CAUTION" | "REVIEW_REQUIRED";
+
+export type MarketCorrectionStatus =
+  | "MARKET_NOT_CORRECTED"
+  | "MARKET_PARTIALLY_CORRECTED"
+  | "MARKET_CORRECTED"
+  | "MARKET_OVERSHOT"
+  | "UNKNOWN";
+
+export type MarketTrajectory =
+  | "RISING_FAST"
+  | "RISING"
+  | "STABLE"
+  | "FALLING"
+  | "FALLING_FAST"
+  | "UNKNOWN";
+
+/**
+ * How far into the season the evidence is, and how much authority current-season
+ * data carries relative to the preseason prior. `meaningful_games_observed` is
+ * NOT the NFL week — it is games the player was actually in a real role.
+ */
+export interface TemporalContext {
+  as_of_week: number;
+  season: number;
+  meaningful_games_observed: number;
+  games_source:
+    | "ROLE_OBSERVED_GAMES"
+    | "SNAP_GAMES"
+    | "GAMES_PLAYED"
+    | "WEEK_NUMBER_FALLBACK";
+  /** 0..1 — weight on current-season evidence vs the preseason prior (nonlinear in games) */
+  season_maturity_weight: number;
+  season_maturity_family: SeasonMaturityFamily;
+  /** within-season recency: half-life in games for weighting older observations */
+  recency_half_life_games: number;
+  recency_family: RecencyFamily;
+  evidence_readiness: EvidenceReadiness;
+  calibration_status: CalibrationStatus;
+  reasons: string[];
+}
+
+export type SeasonMaturityFamily =
+  | "EXPONENTIAL_SATURATION"
+  | "LOGISTIC"
+  | "LINEAR_CAPPED";
+
+export type RecencyFamily = "EXPONENTIAL_DECAY" | "LINEAR_DECAY" | "UNIFORM";
+
+export type EvidenceReadiness =
+  | "PRESEASON_ONLY"
+  | "EARLY_SEASON"
+  | "PARTIAL_CURRENT"
+  | "CURRENT"
+  | "STALE"
+  | "UNAVAILABLE";
+
+export type CalibrationStatus =
+  | "CALIBRATED"
+  | "DEFAULT_PRIOR"
+  | "INSUFFICIENT_CALIBRATION_DATA";
+
+/* ---- evidence families (role / efficiency / result / context) ---- */
+
+export type EvidenceFamily = "ROLE" | "EFFICIENCY" | "RESULT" | "CONTEXT";
+
+export interface EvidenceSignal {
+  family: EvidenceFamily;
+  metric: string;
+  /** normalized to a within-position z-ish scale where possible, else raw with `unit` */
+  value: number | null;
+  unit: string | null;
+  games_contributing: number;
+  /** recency-weighted where a series was available */
+  recency_weighted: boolean;
+  source: string;
+  as_of_week: number | null;
+  notes: string[];
+}
+
+export type BreakoutCredibility =
+  | "NO_BREAKOUT_SIGNAL"
+  | "EARLY_SIGNAL"
+  | "EMERGING"
+  | "SUPPORTED"
+  | "HIGH_CONFIDENCE";
+
+export interface OpponentAdjustedResidual {
+  baseline_expected: number | null;
+  opponent_adjusted_expected: number | null;
+  actual: number | null;
+  residual_vs_baseline: number | null;
+  residual_vs_opponent_expectation: number | null;
+  opponent_difficulty_index: number | null; // −1 (hard) .. +1 (easy), avg over games observed
+  games_vs_tough_defenses: number;
+  outperformed_tough_count: number;
+  notes: string[];
+}
+
+/**
+ * Time-indexed market state — the four distinct concepts kept physically
+ * separate (§7). `current_market_proxy` is an ESTIMATE of current fantasy trade
+ * pricing, NOT a measured price and NOT our private forecast.
+ */
+export interface MarketState {
+  canonical_player_id: string;
+  as_of_week: number;
+  season: number;
+
+  /** A: what the market believed before games (ADP consensus + league draft cost) */
+  preseason_market_prior: { position_rank: number | null; normalized_value: number | null; sources: string[] };
+  /** current public ROS projection (Sleeper/RotoWire) — a source, not the proxy */
+  current_public_projection: { position_rank: number | null; normalized_value: number | null; source: string; readiness: MarketReadiness };
+  /** current realized fantasy standing (positional finish / recent rank) */
+  current_performance_signal: { season_points_rank: number | null; recent_rank: number | null; games: number };
+
+  /** B: derived estimate of current fantasy-manager trade pricing */
+  current_market_proxy: { position_rank: number | null; normalized_value: number | null; components: string[]; is_estimate: true };
+  market_trajectory: MarketTrajectory;
+
+  evidence_readiness: EvidenceReadiness;
+  confidence: ValueConfidence;
+  lineage: MarketLineage;
+  /** which source tier drove `current_market_proxy` (§34 hierarchy) */
+  proxy_source_tier:
+    | "DIRECT_CURRENT_MARKET"
+    | "CURRENT_PUBLIC_ROS_CONSENSUS"
+    | "CURRENT_PROVIDER_PROJECTION"
+    | "CURRENT_PERFORMANCE_PROXY"
+    | "PRESEASON_ADP";
+}
+
+/**
+ * C: our internal forward-looking valuation — physically separate module from
+ * `MarketState` so private model knowledge can never leak into the estimated
+ * public price.
+ */
+export interface PrivateForwardValue {
+  canonical_player_id: string;
+  as_of_week: number;
+  remaining_games_expected: number | null;
+  prior_value: NormalizedValue;
+  /** current-season signals, season-maturity-blended into the prior */
+  current_role_signal: number | null;
+  current_efficiency_signal: number | null;
+  opponent_adjusted_signal: number | null;
+  /** the blended forward value on the same within-position z-scale as `NormalizedValue` */
+  projected_ros_value: NormalizedValue;
+  breakout_credibility: BreakoutCredibility;
+  confidence: ValueConfidence;
+  reasons: string[];
 }
 
 /* --------------------------------------------------------------- readiness */

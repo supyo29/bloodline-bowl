@@ -1,0 +1,212 @@
+{
+  "version": "ri-competitive-market-cal-2026.1",
+  "status": "CALIBRATED",
+  "generated_at": "2026-09-09T00:41:53Z",
+  "training_seasons": [
+    2024
+  ],
+  "validation_seasons": [
+    2025
+  ],
+  "sample_sizes": {
+    "QB": 237,
+    "RB": 537,
+    "WR": 946,
+    "TE": 545
+  },
+  "by_position_metric": {
+    "QB": {
+      "*": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.08
+          },
+          "max_weight": 0.85
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 10
+          }
+        }
+      }
+    },
+    "RB": {
+      "*": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.2
+          },
+          "max_weight": 0.85
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 10
+          }
+        }
+      }
+    },
+    "WR": {
+      "*": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.12
+          },
+          "max_weight": 0.85
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 10
+          }
+        }
+      }
+    },
+    "TE": {
+      "*": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.12
+          },
+          "max_weight": 0.85
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 10
+          }
+        }
+      }
+    },
+    "*": {
+      "*": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.12
+          },
+          "max_weight": 0.85
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 4
+          }
+        }
+      },
+      "ROLE": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.168
+          },
+          "max_weight": 0.9
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 5
+          }
+        }
+      },
+      "EFFICIENCY": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.072
+          },
+          "max_weight": 0.7
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 6
+          }
+        }
+      },
+      "RESULT": {
+        "season_maturity": {
+          "family": "EXPONENTIAL_SATURATION",
+          "params": {
+            "lambda": 0.096
+          },
+          "max_weight": 0.8
+        },
+        "recency": {
+          "family": "EXPONENTIAL_DECAY",
+          "params": {
+            "half_life_games": 3
+          }
+        }
+      }
+    }
+  },
+  "performance_market_weights": {
+    "RESULT": 0.55,
+    "ROLE": 0.2,
+    "EFFICIENCY": 0.15,
+    "CONTEXT": 0.1
+  },
+  "private_evidence_weights": {
+    "ROLE": 0.45,
+    "EFFICIENCY": 0.25,
+    "CONTEXT": 0.2,
+    "RESULT": 0.1
+  },
+  "confidence_thresholds": {
+    "review_required_edge": 1.75,
+    "caution_edge": 1.2
+  },
+  "metrics": {
+    "QB": {
+      "n": 237,
+      "rmse_prior_only": 5.477,
+      "rmse_current_only": 5.879,
+      "rmse_blend": 5.127,
+      "spearman_blend": 0.312,
+      "lambda": 0.08,
+      "half_life": 10,
+      "accepted": true
+    },
+    "RB": {
+      "n": 537,
+      "rmse_prior_only": 4.547,
+      "rmse_current_only": 3.786,
+      "rmse_blend": 3.544,
+      "spearman_blend": 0.851,
+      "lambda": 0.2,
+      "half_life": 10,
+      "accepted": true
+    },
+    "WR": {
+      "n": 946,
+      "rmse_prior_only": 4.031,
+      "rmse_current_only": 3.989,
+      "rmse_blend": 3.437,
+      "spearman_blend": 0.791,
+      "lambda": 0.12,
+      "half_life": 10,
+      "accepted": true
+    },
+    "TE": {
+      "n": 545,
+      "rmse_prior_only": 3.074,
+      "rmse_current_only": 2.88,
+      "rmse_blend": 2.52,
+      "spearman_blend": 0.829,
+      "lambda": 0.12,
+      "half_life": 10,
+      "accepted": true
+    }
+  },
+  "notes": [
+    "Backtest: prior=2024 per-game avg, current=weeks 1..N of 2025, target=weeks (N+1)..17 of 2025. Blend accepted per position only when it beat prior-only OOS RMSE.",
+    "Season maturity family: EXPONENTIAL_SATURATION w(N)=min(0.85, 1-exp(-lambda*N)).",
+    "No opponent-adjusted term is calibrated here — schedule-strength residual value is left to a future pass."
+  ]
+}

@@ -45,11 +45,42 @@ export {
   type StructuralCandidate,
 } from "./candidates";
 
+// ---- Checkpoint B.5: dynamic in-season market intelligence ----
+export {
+  loadCompetitiveMarketCalibration,
+  DEFAULT_COMPETITIVE_MARKET_CALIBRATION,
+  COMPETITIVE_MARKET_CALIBRATION_VERSION,
+  type CompetitiveMarketCalibration,
+} from "./calibration";
+export {
+  seasonMaturityWeight,
+  recencyWeight,
+  recencyWeightedMean,
+  buildTemporalContext,
+  blendWithPrior,
+} from "./temporal";
+export { buildCurrentSeasonEvidence, type GameObservation, type CurrentSeasonEvidence } from "./evidence";
+export { buildMarketState } from "./market-state";
+export { buildPrivateForwardValue } from "./private-forward";
+export { applyDynamicMarketToEdge } from "./dynamic-edge";
+export { buildDynamicMarketEdges, type DynamicMarketInput, type DynamicMarketResult } from "./dynamic";
+export type {
+  TemporalContext,
+  MarketState,
+  PrivateForwardValue,
+  QualityStatus,
+  MarketCorrectionStatus,
+  MarketTrajectory,
+  EvidenceReadiness,
+  BreakoutCredibility,
+} from "./schema";
+
 import type { TradeAnalysisContext } from "../context";
 import { buildLeagueMarketEdgeTable } from "./evaluate";
 import { buildBoards, type Boards } from "./boards";
+import { buildDynamicMarketEdges } from "./dynamic";
 import type { PartialCompetitiveTradeConfig } from "./config";
-import type { CompetitiveReadiness } from "./schema";
+import type { CompetitiveReadiness, MarketEdge } from "./schema";
 import { COMPETITIVE_TRADE_VERSION } from "./schema";
 import { assessCompetitiveTradeReadiness } from "./readiness";
 
@@ -60,7 +91,14 @@ export interface CompetitiveMarketReport {
   readiness: CompetitiveReadiness;
   boards: Boards;
   /** every league-wide edge, ordered by |actionable_edge| desc (analytical). */
-  ranked_edges: import("./schema").MarketEdge[];
+  ranked_edges: MarketEdge[];
+  /** Checkpoint B.5: dynamic (time-aware) edges when `dynamic` requested */
+  dynamic?: {
+    calibration_status: string;
+    evidence_readiness_counts: Record<string, number>;
+    ranked_edges: MarketEdge[];
+    by_player: Map<string, MarketEdge>;
+  };
   notes: string[];
 }
 
@@ -72,6 +110,7 @@ export function buildCompetitiveMarketReport(
   ctx: TradeAnalysisContext,
   myManagerId: string,
   override?: PartialCompetitiveTradeConfig,
+  opts?: { dynamic?: boolean },
 ): CompetitiveMarketReport {
   const table = buildLeagueMarketEdgeTable(ctx, override);
 
@@ -114,6 +153,30 @@ export function buildCompetitiveMarketReport(
         a.canonical_player_id.localeCompare(b.canonical_player_id),
     );
 
+  let dynamic: CompetitiveMarketReport["dynamic"];
+  if (opts?.dynamic) {
+    const dyn = buildDynamicMarketEdges({
+      table,
+      season: ctx.season,
+      as_of_week: ctx.week,
+      remaining_games_expected: Math.max(1, ctx.ros.weeks.length),
+      config: table.config,
+      // no 2026 current-season observations available live — PRESEASON_ONLY expected
+    });
+    dynamic = {
+      calibration_status: dyn.calibration_status,
+      evidence_readiness_counts: dyn.evidence_readiness_counts,
+      by_player: dyn.by_player,
+      ranked_edges: [...dyn.by_player.values()]
+        .filter((e) => e.actionable_edge != null)
+        .sort(
+          (a, b) =>
+            Math.abs(b.actionable_edge ?? 0) - Math.abs(a.actionable_edge ?? 0) ||
+            a.canonical_player_id.localeCompare(b.canonical_player_id),
+        ),
+    };
+  }
+
   return {
     version: COMPETITIVE_TRADE_VERSION,
     as_of: ctx.snapshot.captured_at,
@@ -121,6 +184,7 @@ export function buildCompetitiveMarketReport(
     readiness,
     boards,
     ranked_edges,
+    dynamic,
     notes: [
       "ANALYTICAL_ONLY — market edge shows where our model and outside-market pricing disagree. It does not model owner perception, acquisition price, acceptance, opponent cost, liquidity or appreciation (Checkpoint C+).",
     ],
