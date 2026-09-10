@@ -4,14 +4,17 @@
  * Live, read-only Yahoo league discovery for the authorized account:
  *   - dynamically resolved 2026 NFL game key,
  *   - every NFL league the authenticated account belongs to,
- *   - validation of the two configured leagues (Rogers Park 287140,
+ *   - validation of the configured leagues (Rogers Park 287140,
  *     Maclin on Chick's XVI 82713) against Yahoo's own league names.
  *
- * Returns an explicit degraded body (not fabricated data) when Yahoo is not
- * configured / connected. Never returns tokens.
+ * Fail-closed: when Yahoo returns 403 (or any non-CONNECTED state) this returns
+ * a deterministic, sanitized body with `access_state` set accordingly, empty
+ * league arrays, `game_key: null`, and `Cache-Control: no-store`. It never
+ * fabricates leagues, never guesses a game key, never substitutes Sleeper data.
  */
 
 import { loadYahooSession } from "@/lib/providers/yahoo/session";
+import { accessStateFromSession } from "@/lib/providers/yahoo/access-state";
 import { runLeagueDiscovery } from "@/lib/providers/yahoo/diagnostics";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
@@ -21,16 +24,23 @@ export const maxDuration = 30;
 
 export async function GET(): Promise<Response> {
   const session = await loadYahooSession();
+
   if (session.state !== "READY" || !session.client) {
+    const access = accessStateFromSession(session);
     return jsonResponse(
       {
         provider: "yahoo",
-        status: session.state,
+        access_state: access.state,
+        access_detail: access.detail,
         detail: session.detail,
+        game_key: null,
         discovered_leagues: [],
         configured_leagues: [],
       },
-      { status: session.state === "NOT_CONFIGURED" ? 503 : 409, headers: { "Cache-Control": "no-store" } },
+      {
+        status: session.state === "NOT_CONFIGURED" || session.state === "STORAGE_UNAVAILABLE" ? 503 : 409,
+        headers: { "Cache-Control": "no-store" },
+      },
     );
   }
 
@@ -38,9 +48,14 @@ export async function GET(): Promise<Response> {
     overrideKey: session.config?.game_key_override ?? null,
   });
 
+  const connected = report.access_state === "CONNECTED";
   return jsonResponse(
-    { provider: "yahoo", status: "READY", ...report },
-    { headers: { "Cache-Control": cacheHeader(60, 300) } },
+    { provider: "yahoo", ...report },
+    {
+      // Only a genuine CONNECTED result with resolved data is cacheable; a 403 /
+      // rate-limit / network state must not be cached as league state.
+      headers: { "Cache-Control": connected ? cacheHeader(60, 300) : "no-store" },
+    },
   );
 }
 

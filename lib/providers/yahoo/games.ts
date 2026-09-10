@@ -34,7 +34,15 @@ export interface ResolvedGame {
 
 export type GameKeyResult =
   | { ok: true; game: ResolvedGame }
-  | { ok: false; kind: "NOT_FOUND" | "WRONG_SEASON" | "MALFORMED" | "API_ERROR"; detail: string };
+  | {
+      ok: false;
+      kind: "NOT_FOUND" | "WRONG_SEASON" | "MALFORMED" | "API_ERROR";
+      detail: string;
+      /** For `API_ERROR`: the underlying `YahooApiError.kind` (e.g. "FORBIDDEN"). */
+      api_error_kind?: string;
+      /** For `API_ERROR`: the raw classified error, for taxonomy mapping. Not serialized. */
+      error?: unknown;
+    };
 
 const cache = new Map<string, ResolvedGame>();
 
@@ -105,9 +113,20 @@ export async function resolveNflGameKey(
         };
         return { ok: true, game };
       }
-      return { ok: false, kind: "API_ERROR", detail: `${err.kind}: ${err.message}` };
+      return {
+        ok: false,
+        kind: "API_ERROR",
+        detail: `Yahoo Fantasy API ${err.kind} (HTTP ${err.httpStatus ?? "?"}) resolving the ${season} NFL game key.`,
+        api_error_kind: err.kind,
+        error: err,
+      };
     }
-    return { ok: false, kind: "API_ERROR", detail: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      kind: "API_ERROR",
+      detail: err instanceof Error ? err.message : String(err),
+      error: err,
+    };
   }
 
   const parsed = parseGamesResponse(body, season);
