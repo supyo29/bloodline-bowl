@@ -52,6 +52,7 @@ STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 REPORT_DIR="${EVIDENCE_REPORT_DIR:-artifacts/evidence-loop}"
 REPORT_PATH="$REPORT_DIR/$RUN_ID.json"
 LATEST_PATH="$REPORT_DIR/latest.json"
+FRESHNESS_PATH="$REPORT_DIR/$RUN_ID-freshness.json"
 mkdir -p "$REPORT_DIR"
 
 STAGES_FILE="$(mktemp)"
@@ -111,6 +112,7 @@ finalize_report() {
   FULL_REGRESSION="$FULL_REGRESSION" \
   STAGES_FILE="$STAGES_FILE" \
   BEFORE_AUDIT_FILE="$BEFORE_AUDIT_FILE" \
+  FRESHNESS_PATH="$FRESHNESS_PATH" \
   REPORT_PATH="$REPORT_PATH" \
   LATEST_PATH="$LATEST_PATH" \
   node <<'NODE'
@@ -153,6 +155,7 @@ const report = {
     executes_transactions: false,
   },
   stages,
+  freshness_gate: readJson(env.FRESHNESS_PATH),
   source_audit_before: readJson(env.BEFORE_AUDIT_FILE),
   source_audit_after: readJson('outputs/player-scheme-intelligence-2026/source_audit.json'),
   football_intelligence_manifest: readJson('lib/football-intel/data/football_intelligence_manifest.json'),
@@ -203,6 +206,20 @@ run_stage "player_scheme.tierC" \
 run_stage "player_scheme.tierD_shadow" \
   Rscript analysis/player_scheme_intelligence/build_tierD.R
 
+run_stage "manifest.football_intel_present" \
+  test -s lib/football-intel/data/football_intelligence_manifest.json
+
+run_stage "manifest.player_scheme_present" \
+  test -s lib/player-scheme-intelligence/data/player_scheme_manifest.json
+
+run_stage "freshness.current_season_gate" \
+  node scripts/evidence-freshness-gate.mjs \
+    --audit outputs/player-scheme-intelligence-2026/source_audit.json \
+    --before "$BEFORE_AUDIT_FILE" \
+    --fi lib/football-intel/data/football_intelligence_manifest.json \
+    --psi lib/player-scheme-intelligence/data/player_scheme_manifest.json \
+    --out "$FRESHNESS_PATH"
+
 # Run the child tests directly. Phase 9's convenience runner currently does
 # not propagate system2() child exit codes, so it is not a sufficient fail-
 # closed gate for an automated evidence pipeline.
@@ -211,12 +228,6 @@ run_stage "player_scheme.test_tierA" \
 
 run_stage "player_scheme.test_tierD_synthetic" \
   Rscript analysis/player_scheme_intelligence/tests/test_tierD_synthetic.R
-
-run_stage "manifest.football_intel_present" \
-  test -s lib/football-intel/data/football_intelligence_manifest.json
-
-run_stage "manifest.player_scheme_present" \
-  test -s lib/player-scheme-intelligence/data/player_scheme_manifest.json
 
 if [[ "$FULL_REGRESSION" -eq 1 ]]; then
   run_stage "typescript.test" npm test
