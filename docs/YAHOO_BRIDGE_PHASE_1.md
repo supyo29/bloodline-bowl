@@ -171,21 +171,77 @@ pre-existing, none in Yahoo files).
   enough for game-key + league metadata + discovery. The full flattener is a
   later phase (`lib/providers/yahoo/canonical.ts` already defines the target
   `YahooFlat*` shapes and is tested against a fixture).
-* The migration is written but **not applied** — apply it before the live run.
+* The migration is **applied** to production (§11a). Live OAuth still not run —
+  blocked on operator actions in §11b.
 
-## 11. Running the live smoke test (Phase 1K)
+## 11. Live certification progress
 
-1. Ensure the Vercel project (or a local `.env.local`) has `YAHOO_CLIENT_ID`,
-   `YAHOO_CLIENT_SECRET`, `YAHOO_REDIRECT_URI`, `YAHOO_TOKEN_ENCRYPTION_KEY`,
-   `SUPABASE_*`, `REFRESH_SECRET`.
-2. Apply `supabase/migrations/20260910120000_bridge_yahoo_oauth_connections.sql`.
-3. Visit `…/api/yahoo/auth/start` in a browser, approve on Yahoo.
-4. `GET …/api/yahoo/status` → `authorized: true`, `token_healthy: true`.
-5. `GET …/api/yahoo/leagues` → resolved `game_key`, `discovered_leagues`,
-   `configured_leagues[].name_matches`.
+### 11a. Done (2026-09-10)
+
+* **Supabase migration APPLIED** to prod `ijpfjdzmaztofawhwepf` — table
+  `public.bridge_yahoo_connections` live, RLS enabled + 0 policies (identical to
+  the 5 sibling `bridge_*` tables), anon/authenticated INSERT empirically
+  blocked, 0 rows. Only new advisor delta = 1 INFO `rls_enabled_no_policy`
+  (intended). No unrelated schema/data changed.
+* **Branch built & deployed on Vercel** — preview `dpl_DUWqXnbb2pn1TLT9ufdJZQsQLmTX`
+  (commit `9a03a79`, branch `yahoo-bridge-phase1-oauth`), `READY`, 7 lambdas,
+  turbopack, Node 24 — production-parity runtime.
+* **New routes verified on the deployed preview** (Preview env has no `YAHOO_*`,
+  by the project's standing convention):
+  * `GET /api/yahoo/status` → 200, `session_state: NOT_CONFIGURED`, names the 3
+    missing env vars, `encryption_key_present: false`, `token_storage_backend: none`.
+  * `GET /api/yahoo/auth/start` → 503 `NOT_CONFIGURED` (not a broken redirect).
+  * `GET /api/yahoo/leagues` → 503 `NOT_CONFIGURED`, empty arrays (no fabrication).
+  * `GET /api/auth/yahoo/status` → 308 → `/api/yahoo/status` (deprecated alias).
+  * `GET /api/providers` → Sleeper `READY`, Yahoo `NOT_CONFIGURED`. Sleeper
+    behaviour unchanged.
+* **Production (`main` @ `896e22b`) inspected** — old scaffolding is live;
+  `/api/auth/yahoo/status` reports `configured:true` so `YAHOO_CLIENT_ID` /
+  `YAHOO_CLIENT_SECRET` / `YAHOO_REDIRECT_URI` are already in the Production
+  env; persistence backend `supabase` `READY` so `SUPABASE_*` present;
+  `REFRESH_SECRET` present (prior gate history). `/api/yahoo/*` 404s on prod
+  (branch not deployed there).
+* **Vercel deployment protection:** SSO `all_except_custom_domains` — preview
+  URLs are login-walled, so the OAuth callback must land on the **production
+  domain**, not a preview URL.
+
+### 11b. Blocked on operator actions (cannot be done from this session)
+
+1. **Add `YAHOO_TOKEN_ENCRYPTION_KEY` to the Vercel *Production* environment**
+   (32 bytes: `openssl rand -hex 32`, or a long passphrase). New in this branch;
+   almost certainly not set yet. Without it `/api/yahoo/auth/start` returns 503
+   `STORAGE_UNAVAILABLE` and refuses to start a flow it cannot finish.
+2. **Confirm the Production `YAHOO_REDIRECT_URI` value is exactly**
+   `https://bloodline-bowl-sleeper-bridge.vercel.app/api/yahoo/oauth/callback`
+   (the old scaffolding used `/api/auth/yahoo/callback`; update if so), **and
+   that the identical URI is registered in the Yahoo Developer app**.
+3. **Make `/api/yahoo/*` available on the production domain without merging to
+   `main`:** in Vercel, **Promote** the `yahoo-bridge-phase1-oauth` deployment
+   to Production (Deployments → the `9a03a79` build → ⋯ → *Promote to
+   Production*, or `vercel promote <deployment-url>`). This is precedented in
+   this project (`dpl_CAZUZexaeAqaqkXfZwRUKUBKcUqy` was an `action: promote` from
+   a non-`main` branch). Reversible in one click via *Rollback* to the current
+   `main` production deployment (`dpl_BE3RkchWyrMjjwPgeU2npvbJnnGh`).
+   *Add the env var (step 1) BEFORE promoting so the build binds it.* If the
+   build predates the env var, push an empty commit to the branch (or redeploy)
+   to rebuild, then promote.
+
+### 11c. Then (live smoke — steps 3-6 need one interactive Yahoo consent)
+
+3. Visit `https://bloodline-bowl-sleeper-bridge.vercel.app/api/yahoo/auth/start`
+   in a browser, approve on Yahoo.
+4. `GET …/api/yahoo/status` → `authorized: true`, `token_healthy: true`,
+   `token_storage_backend: supabase`.
+5. `GET …/api/yahoo/leagues` → live-resolved 2026 `game_key`,
+   `discovered_leagues`, and `configured_leagues[].name_matches` for
+   Rogers Park (287140) and Maclin on Chick's XVI (82713).
 6. `POST …/api/yahoo/diagnostics` with `Authorization: Bearer <REFRESH_SECRET>`
    → per-league metadata/settings/standings/scoreboard/teams/draft/transactions
    reachability + the authorized user's team/roster.
+7. Confirm `bridge_yahoo_connections` has exactly one row with non-empty
+   `*_encrypted` values and a future `expires_at`; confirm no Yahoo write
+   occurred. Then persist the resolved `yahoo_league_key`s and update the
+   registry entries (or defer to Phase 2).
 
 ## 12. Recommended Phase 2
 
