@@ -10,6 +10,11 @@
  */
 
 import { loadYahooSession } from "@/lib/providers/yahoo/session";
+import {
+  accessStateFromSession,
+  describeAccessState,
+  refineWithFantasyProbe,
+} from "@/lib/providers/yahoo/access-state";
 import { resolveNflGameKey } from "@/lib/providers/yahoo/games";
 import { probeLeague, readOnlyLeagueProbe, probeUserTeams } from "@/lib/providers/yahoo/discovery";
 import { YAHOO_TARGET_SEASON } from "@/lib/providers/yahoo/config";
@@ -34,9 +39,13 @@ export async function GET(
 
   const session = await loadYahooSession();
   if (session.state !== "READY" || !session.client) {
+    const access = accessStateFromSession(session);
     return jsonResponse(
-      { provider: "yahoo", status: session.state, detail: session.detail },
-      { status: session.state === "NOT_CONFIGURED" ? 503 : 409, headers: { "Cache-Control": "no-store" } },
+      { provider: "yahoo", access_state: access.state, access_detail: access.detail, detail: session.detail },
+      {
+        status: session.state === "NOT_CONFIGURED" || session.state === "STORAGE_UNAVAILABLE" ? 503 : 409,
+        headers: { "Cache-Control": "no-store" },
+      },
     );
   }
 
@@ -44,9 +53,23 @@ export async function GET(
     overrideKey: session.config?.game_key_override ?? null,
   });
   if (!gameKeyResult.ok) {
+    // A 403 here is a Fantasy-API grant problem, NOT an OAuth failure.
+    const access =
+      gameKeyResult.kind === "API_ERROR"
+        ? refineWithFantasyProbe(
+            { state: "CONNECTED", detail: describeAccessState("CONNECTED") },
+            gameKeyResult.error ?? new Error(gameKeyResult.detail),
+          )
+        : { state: "MALFORMED_RESPONSE" as const, detail: gameKeyResult.detail };
     return jsonResponse(
-      { provider: "yahoo", status: "GAME_KEY_UNRESOLVED", detail: `${gameKeyResult.kind}: ${gameKeyResult.detail}` },
-      { status: 502, headers: { "Cache-Control": "no-store" } },
+      {
+        provider: "yahoo",
+        access_state: access.state,
+        access_detail: access.detail,
+        game_key: null,
+        detail: gameKeyResult.detail,
+      },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
     );
   }
 
@@ -55,6 +78,7 @@ export async function GET(
     return jsonResponse(
       {
         provider: "yahoo",
+        access_state: "CONNECTED",
         status: "LEAGUE_INACCESSIBLE",
         league_key: probe.league_key,
         error_kind: probe.error_kind,
@@ -72,6 +96,7 @@ export async function GET(
   return jsonResponse(
     {
       provider: "yahoo",
+      access_state: "CONNECTED",
       status: "READY",
       game_key: gameKeyResult.game.game_key,
       registry_slug: fromRegistry?.key ?? null,

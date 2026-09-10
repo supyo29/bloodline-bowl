@@ -190,11 +190,18 @@ describe("smoke: GET /api/history/{league}/week/{week}", () => {
 
 describe("smoke: Yahoo auth routes in pre-auth state", () => {
   it("/api/yahoo/status reports configured=false with missing env named", async () => {
-    const { GET } = (await import("../app/api/yahoo/status/route")) as NoArgRouteModule;
-    const res = await GET();
-    const body = (await res.json()) as { configured: boolean; missing_env: string[] };
+    const { GET } = (await import("../app/api/yahoo/status/route")) as {
+      GET: (req: Request) => Promise<Response>;
+    };
+    const res = await GET(new Request("https://x/api/yahoo/status"));
+    const body = (await res.json()) as {
+      configured: boolean;
+      missing_env: string[];
+      access_state: string;
+    };
     assert.equal(body.configured, false);
     assert.ok(body.missing_env.includes("YAHOO_CLIENT_ID"));
+    assert.equal(body.access_state, "NOT_CONFIGURED");
   });
 
   it("/api/yahoo/auth/start returns NOT_CONFIGURED (503), not a broken redirect", async () => {

@@ -28,6 +28,10 @@ export interface AuthenticatedIdentity {
   yahoo_guid: string | null;
   nfl_seasons_seen: number[];
   detail: string;
+  /** `YahooApiError.kind` when the probe failed at the Fantasy API layer, else null. */
+  error_kind: string | null;
+  /** The raw classified error, for taxonomy mapping. Never serialized directly. */
+  error: unknown;
 }
 
 export async function verifyAuthenticatedAccess(
@@ -49,13 +53,20 @@ export async function verifyAuthenticatedAccess(
       yahoo_guid: guid,
       nfl_seasons_seen: [...seasons].sort((a, b) => a - b),
       detail: "Authenticated Yahoo Fantasy access confirmed.",
+      error_kind: null,
+      error: null,
     };
   } catch (err) {
     return {
       ok: false,
       yahoo_guid: null,
       nfl_seasons_seen: [],
-      detail: err instanceof YahooApiError ? `${err.kind}: ${err.message}` : String(err),
+      detail:
+        err instanceof YahooApiError
+          ? `${err.kind}: Yahoo Fantasy API ${err.httpStatus ?? "?"} on ${err.resourcePath ?? "?"}`
+          : String(err),
+      error_kind: err instanceof YahooApiError ? err.kind : null,
+      error: err,
     };
   }
 }

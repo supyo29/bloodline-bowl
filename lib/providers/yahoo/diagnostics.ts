@@ -6,6 +6,11 @@
 
 import { YAHOO_TARGET_SEASON } from "./config";
 import type { YahooFantasyClient } from "./client";
+import {
+  describeAccessState,
+  refineWithFantasyProbe,
+  type YahooAccessState,
+} from "./access-state";
 import { buildLeagueKey, resolveNflGameKey } from "./games";
 import {
   discoverUserLeagues,
@@ -28,6 +33,13 @@ export interface ConfiguredLeagueResult extends LeagueProbe {
 export interface YahooLeagueDiscoveryReport {
   generated_at: string;
   season: number;
+  /**
+   * The taxonomy state. `CONNECTED` means OAuth is healthy AND the Fantasy API
+   * answered. `FANTASY_API_FORBIDDEN` etc. mean OAuth is fine but the API layer
+   * refused — NOT an OAuth failure.
+   */
+  access_state: YahooAccessState;
+  access_detail: string;
   authenticated: boolean;
   authenticated_detail: string;
   yahoo_guid: string | null;
@@ -50,18 +62,34 @@ export async function runLeagueDiscovery(
   opts: { season?: number; overrideKey?: string | null; forceRefresh?: boolean } = {},
 ): Promise<YahooLeagueDiscoveryReport> {
   const season = opts.season ?? YAHOO_TARGET_SEASON;
+
+  // Caller only invokes this with a healthy OAuth session, so the baseline is
+  // CONNECTED; a Fantasy-layer failure refines it (FANTASY_API_FORBIDDEN, …).
   const identity = await verifyAuthenticatedAccess(client);
+  let access = refineWithFantasyProbe(
+    { state: "CONNECTED", detail: describeAccessState("CONNECTED") },
+    identity.ok ? null : identity.error,
+  );
 
   const gameKeyResult = await resolveNflGameKey(client, season, {
     overrideKey: opts.overrideKey ?? null,
     forceRefresh: opts.forceRefresh,
   });
+  if (access.state === "CONNECTED" && !gameKeyResult.ok && gameKeyResult.kind === "API_ERROR") {
+    access = refineWithFantasyProbe(access, gameKeyResult.error ?? new Error(gameKeyResult.detail));
+  }
   const gameKey = gameKeyResult.ok ? gameKeyResult.game.game_key : null;
 
-  const discovered = gameKey ? await discoverUserLeagues(client, season) : { ok: false as const, kind: "MALFORMED" as const, detail: "no game key" };
+  // Stop cleanly on any non-CONNECTED state: do NOT hammer discovery / every
+  // configured league with calls that would all fail the same way.
+  const proceed = access.state === "CONNECTED" && gameKey !== null;
+
+  const discovered = proceed
+    ? await discoverUserLeagues(client, season)
+    : { ok: false as const, kind: "MALFORMED" as const, detail: "discovery skipped" };
 
   const configured: ConfiguredLeagueResult[] = [];
-  if (gameKey) {
+  if (proceed && gameKey) {
     for (const entry of configuredYahooLeagues()) {
       const probe = await probeLeague(client, gameKey, entry.id);
       configured.push({
@@ -76,6 +104,8 @@ export async function runLeagueDiscovery(
   return {
     generated_at: new Date().toISOString(),
     season,
+    access_state: access.state,
+    access_detail: access.detail,
     authenticated: identity.ok,
     authenticated_detail: identity.detail,
     yahoo_guid: identity.yahoo_guid,
@@ -83,7 +113,7 @@ export async function runLeagueDiscovery(
     game_key_live: gameKeyResult.ok ? gameKeyResult.game.live : false,
     game_key_detail: gameKeyResult.ok
       ? `Resolved NFL ${season} game key ${gameKeyResult.game.game_key} (game_id ${gameKeyResult.game.game_id}).`
-      : `${gameKeyResult.kind}: ${gameKeyResult.detail}`,
+      : gameKeyResult.detail,
     discovered_leagues: discovered.ok ? discovered.leagues : [],
     configured_leagues: configured,
   };

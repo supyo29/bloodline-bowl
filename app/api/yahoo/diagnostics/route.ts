@@ -13,6 +13,7 @@
 
 import { authorizeSecret } from "@/lib/http-auth";
 import { loadYahooSession } from "@/lib/providers/yahoo/session";
+import { accessStateFromSession } from "@/lib/providers/yahoo/access-state";
 import { runDeepProbe } from "@/lib/providers/yahoo/diagnostics";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
@@ -26,14 +27,20 @@ export async function POST(request: Request): Promise<Response> {
 
   const session = await loadYahooSession();
   if (session.state !== "READY" || !session.client) {
+    const access = accessStateFromSession(session);
     return jsonResponse(
       {
         provider: "yahoo",
-        status: session.state,
+        access_state: access.state,
+        access_detail: access.detail,
         detail: session.detail,
         token: session.token,
       },
-      { status: session.state === "NOT_CONFIGURED" ? 503 : 409, headers: { "Cache-Control": "no-store" } },
+      {
+        status:
+          session.state === "NOT_CONFIGURED" || session.state === "STORAGE_UNAVAILABLE" ? 503 : 409,
+        headers: { "Cache-Control": "no-store" },
+      },
     );
   }
 
@@ -44,7 +51,9 @@ export async function POST(request: Request): Promise<Response> {
   return jsonResponse(
     {
       provider: "yahoo",
-      status: "READY",
+      // Canonical: the Fantasy-API-aware state from the deep probe.
+      access_state: probe.discovery.access_state,
+      access_detail: probe.discovery.access_detail,
       token: session.token,
       ...probe,
     },
