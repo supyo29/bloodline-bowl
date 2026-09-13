@@ -18,6 +18,8 @@ function priorOnlyFixture(): Fixture {
   return {
     audit: {
       current_season: 2026,
+      as_of_note:
+        "As of generation, 0 rows of any of the 3 audited sources are cached for season 2026; every cached source's newest data is a prior season. Every Phase 9 calculation is PRIOR_ONLY for 2026 until 2026 games are played and ingested.",
       sources: {
         pbp: {
           current_season_rows: 0,
@@ -73,6 +75,8 @@ function currentPbpFixture(): Fixture {
     availability_state: "LIVE_CURRENT",
     live_class: "LIVE_CAPABLE",
   };
+  (fixture.audit as Record<string, unknown>).as_of_note =
+    "As of generation, 1 of 3 audited sources carry season 2026 rows: pbp (1450 rows through 2026-w1). 2 source(s) still have no season 2026 rows and remain PRIOR_ONLY: ftn_charting, participation. A source without season 2026 rows is PRIOR_ONLY regardless of the calendar date; only each source's own current_season_rows / availability_state is authoritative.";
   fixture.fi = { season: 2026, through_week: 1 };
   fixture.psi = {
     ...fixture.psi,
@@ -151,6 +155,26 @@ test("freshness gate rejects a source cutoff regression", () => {
   const { child, result } = runGate(fixture);
   assert.equal(child.status, 2);
   assert.ok(result.failures.some((failure) => failure.code === "SOURCE_pbp_NO_CUTOFF_REGRESSION"));
+});
+
+test("freshness gate rejects a stale hard-coded as_of_note once a source has current rows", () => {
+  const fixture = currentPbpFixture();
+  // Regression of the exact Phase 10 metadata debt: the old hard-coded sentence.
+  (fixture.audit as Record<string, unknown>).as_of_note =
+    "As of generation, 0 rows of ANY 2026 source are cached; newest data is 2025.";
+  const { child, result } = runGate(fixture);
+  assert.equal(child.status, 2);
+  assert.equal(result.status, "FAIL");
+  assert.ok(result.failures.some((failure) => failure.code === "AUDIT_AS_OF_NOTE_NOT_STALE"));
+});
+
+test("freshness gate rejects a prior-only audit whose as_of_note does not say so", () => {
+  const fixture = priorOnlyFixture();
+  (fixture.audit as Record<string, unknown>).as_of_note =
+    "As of generation, everything looks current and fresh for 2026.";
+  const { child, result } = runGate(fixture);
+  assert.equal(child.status, 2);
+  assert.ok(result.failures.some((failure) => failure.code === "AUDIT_AS_OF_NOTE_ACKNOWLEDGES_PRIOR_ONLY"));
 });
 
 test("freshness gate rejects accidental Player x Scheme predictive promotion", () => {

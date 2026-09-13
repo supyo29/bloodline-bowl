@@ -90,6 +90,20 @@ function validate({ audit, before, fi, psi }) {
   addCheck(checks, 'AUDIT_SOURCES_PRESENT', Object.keys(sources).length > 0,
     `sources=${Object.keys(sources).join(',') || 'none'}`);
 
+  // --- human-readable `as_of_note` must not contradict the machine row counts.
+  // (Phase 10 metadata-debt regression guard: a hard-coded "0 rows" sentence
+  // becomes a lie the moment any source has current-season rows.)
+  const noteText = typeof audit?.as_of_note === 'string' ? audit.as_of_note : '';
+  const anyCurrentRows = Object.values(sources).some((s) => (sourceRows(s) ?? 0) > 0);
+  const noteClaimsNothingCurrent = /\b0 rows of any\b/i.test(noteText);
+  addCheck(checks, 'AUDIT_AS_OF_NOTE_PRESENT', noteText.trim().length > 0,
+    `as_of_note length=${noteText.length}`);
+  addCheck(checks, 'AUDIT_AS_OF_NOTE_NOT_STALE', !(noteClaimsNothingCurrent && anyCurrentRows),
+    `as_of_note claims "0 rows of any"=${noteClaimsNothingCurrent}; a source has current rows=${anyCurrentRows}`);
+  addCheck(checks, 'AUDIT_AS_OF_NOTE_ACKNOWLEDGES_PRIOR_ONLY',
+    anyCurrentRows || noteClaimsNothingCurrent,
+    `no source has current rows -> as_of_note must state it (contains "0 rows of any"=${noteClaimsNothingCurrent})`);
+
   for (const [name, source] of Object.entries(sources)) {
     const rows = sourceRows(source);
     const state = source?.availability_state;

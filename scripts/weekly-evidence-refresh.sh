@@ -191,6 +191,15 @@ run_stage "football_intel.fetch_raw" \
 run_stage "football_intel.targets" \
   Rscript -e 'targets::tar_make()'
 
+# `_targets.R`'s `fi_snapshot` target publishes via `system2("Rscript",
+# build_snapshot.R)` and does NOT inspect the child exit code (frozen Phase 3),
+# so a crash inside build_snapshot.R leaves a STALE served manifest while the
+# target still reports "complete". Re-run the publish directly here — same
+# fail-closed principle Phase 10 already applies to the R tests (§3.2). It is a
+# no-op rebuild when tar_make already produced a good snapshot.
+run_stage "football_intel.publish_snapshot" \
+  Rscript analysis/football_intel/build_snapshot.R
+
 run_stage "player_scheme.source_audit" \
   Rscript analysis/player_scheme_intelligence/source_audit.R
 
