@@ -27,7 +27,26 @@ export const PROJECTION_MODEL_VERSION = "ri-structural-2026.3";
  * nullable and additive, no existing field was renamed/removed/reinterpreted,
  * and `null` already meant "not modeled" throughout this interface before the
  * change. A v1 reader that ignores unknown fields degrades exactly as it did
- * before. Bump to v2 only for a change that breaks that assumption.
+ * before (see `test/return-game-projection.test.ts`'s "PROJECTION_SCHEMA_VERSION
+ * compatibility" case, which round-trips a pre-change-shaped stats object).
+ *
+ * Audited against every consumer of `PlayerProjection`/`ProjectedFootballStats`
+ * (2026-09, full-repo grep): NOT persisted to Supabase or disk, NOT cached
+ * keyed by this version (the module-scope base-projection cache in `build.ts`
+ * keys on `PROJECTION_VERSION` + `PROJECTION_MODEL_VERSION` only), NOT
+ * validated by any zod/strict schema, NOT read by any R/Python tooling
+ * (`kr_yd`/`pr_yd` appear in zero `analysis/*.R` or `scripts/*` files), NOT
+ * referenced by any fixture/golden-snapshot JSON. It is a descriptive field
+ * stamped on an object built fresh every request and never read back by an
+ * older process. Contrast this with `CANONICAL_SCHEMA_VERSION`
+ * (`lib/canonical/schema.ts`) — the canonical league-SNAPSHOT schema, which
+ * IS a real persisted/gated contract (`hydratePersistedSnapshot` backfill,
+ * `UNSUPPORTED_SCHEMA` rejection, documented in
+ * `docs/TEAM_MANAGEMENT_PHASE_1B1.md`/`PHASE_1B2.md`) — that machinery exists
+ * in this repo precisely because that version DOES need it; this one doesn't.
+ * Bump `PROJECTION_SCHEMA_VERSION` to v2 only for a change that breaks the v1
+ * "unknown/absent field degrades gracefully" assumption above, or that
+ * introduces persistence/validation this constant would then need to gate.
  */
 export const PROJECTION_SCHEMA_VERSION = "projection.v1";
 

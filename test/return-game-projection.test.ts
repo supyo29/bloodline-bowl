@@ -157,6 +157,25 @@ function fullProjection(overrides: Partial<PlayerProjection["stats"]> = {}): Pic
   };
 }
 
+describe("return-game — PROJECTION_SCHEMA_VERSION compatibility (v1 retained, additive)", () => {
+  it("a pre-return-game (v1-vintage) stats object with no kr_yd/pr_yd keys is still a valid ProjectedFootballStats and scores unchanged", () => {
+    // Simulates a payload built before this change: EMPTY_STATS itself never
+    // had kr_yd/pr_yd until now, so spreading it without the new keys is
+    // exactly what an old v1 caller/cache entry would have looked like.
+    const preChangeStats: PlayerProjection["stats"] = { ...EMPTY_STATS, rec: 50, rec_yd: 600, rec_td: 4 };
+    // Accessing the new fields on an old-shaped object reads `undefined`
+    // (not a throw) in plain JS — TS only enforces the type at compile time —
+    // and statLineFromProjection's `put()` guard (`typeof v === "number"`)
+    // already treats that identically to an explicit `null`: omitted, no key.
+    const line = statLineFromProjection({ position: "WR", availability: { games_if_healthy: 17, expected_games: 17, availability_probability: 1, note: null }, stats: preChangeStats });
+    assert.equal(line.kr_yd, undefined);
+    assert.equal(line.pr_yd, undefined);
+    assert.equal(line.rec_yd, 600); // every pre-existing field still present and correct
+    const scored = calculateFantasyPoints(line, { rec: 1, rec_yd: 0.1, rec_td: 6, kr_yd: 0.04 });
+    assert.equal(scored.fantasy_points, round2(50 * 1 + 600 * 0.1 + 4 * 6));
+  });
+});
+
 describe("return-game — Layer 2 league translation (lib/projections/league.ts)", () => {
   it("statLineFromProjection emits kr_yd/pr_yd in Sleeper's own scoring-key namespace", () => {
     const line = statLineFromProjection(fullProjection({ kr_yd: 300, pr_yd: 150 }));

@@ -113,4 +113,65 @@ describe("weekly KR enrichment — real Bloodline Bowl smoke test (live)", () =>
     // 4) this IS the number start-sit/lineup consume.
     assert.equal(after!.projected_points, afterPts);
   });
+
+  it("real punt returners: native Sleeper weekly pr_yd is never stacked with RI enrichment", async (t) => {
+    if (!online) return t.skip("Sleeper offline");
+    clearProjectionCaches();
+
+    const cfg = await loadLeagueConfig("bloodline-bowl", BLOODLINE_BOWL_LEAGUE_ID);
+    const rosters = await getLeagueRosters(BLOODLINE_BOWL_LEAGUE_ID).catch(() => []);
+    const rosteredIds = new Set<string>(rosters.flatMap((r) => r.players ?? []));
+
+    const rgProvider = new RosterIntelReturnGameSeasonProvider();
+    const seasonSignal = await rgProvider.getSeasonSignal(SEASON);
+    const rosteredPrReturners = [...seasonSignal.by_sleeper_id.entries()].filter(
+      ([pid, sig]) => rosteredIds.has(pid) && (sig.pr_yd ?? 0) > 0,
+    );
+    if (rosteredPrReturners.length === 0) return t.skip("no rostered player with a projected PR role this run");
+
+    const provider = new SleeperWeeklyProjectionProvider();
+    const crosswalk = new PlayerCrosswalk(NoCrosswalk);
+    const recentAttempts = await fetchRecentReturnAttempts(SEASON, WEEK);
+
+    // WITHOUT enrichment inputs at all: whatever pr_yd Sleeper natively supplies.
+    const nativeBatch = await provider.getWeeklyProjections({
+      league: { league_slug: "bloodline-bowl", season: SEASON, raw_scoring: cfg.scoring_settings, scoring_rules: [] },
+      week: WEEK, crosswalk, canonical_player_ids: [], want_rest_of_season: false,
+    });
+    // WITH enrichment inputs supplied (the production wiring): pr_yd must be IDENTICAL.
+    const enrichedBatch = await provider.getWeeklyProjections({
+      league: { league_slug: "bloodline-bowl", season: SEASON, raw_scoring: cfg.scoring_settings, scoring_rules: [] },
+      week: WEEK, crosswalk, canonical_player_ids: [], want_rest_of_season: false,
+      return_game_season: seasonSignal.by_sleeper_id,
+      return_game_recent_attempts: recentAttempts,
+    });
+
+    const krRate = cfg.scoring_settings.kr_yd ?? 0;
+    let checked = 0;
+    for (const [pid] of rosteredPrReturners) {
+      const resolved = crosswalk.resolve({ provider: "sleeper", provider_player_id: pid, full_name: null, first_name: null, last_name: null, position: null, nfl_team: null, eligible_positions: null }).player;
+      const native = nativeBatch.by_player.get(resolved.canonical_player_id);
+      const enriched = enrichedBatch.by_player.get(resolved.canonical_player_id);
+      if (!native && !enriched) continue; // bye/no entry this week
+      checked += 1;
+      // A PR-role player may ALSO have a KR role (real players often return
+      // both), so enrichment CAN legitimately change their total points via
+      // kr_yd — that is the feature working, not PR stacking. The actual
+      // no-stacking claim: whatever point delta exists is fully explained by
+      // the KR enrichment warning's own kr_yd value times the league's kr_yd
+      // rate, with NOTHING left over that could only be explained by a
+      // second, duplicated pr_yd contribution.
+      const nativePts = native?.projected_points ?? 0;
+      const enrichedPts = enriched?.projected_points ?? 0;
+      const delta = enrichedPts - nativePts;
+      const krWarning = enriched?.warnings.find((w) => w.includes("weekly_kr_yd_enrichment"));
+      if (Math.abs(delta) < 0.005) continue; // identical — the simple, expected case
+      assert.ok(krWarning, `${pid}: a nonzero delta (${delta}) with no KR-enrichment warning would be unexplained (possible PR stacking)`);
+      const m = krWarning!.match(/kr_yd=([\d.]+)/);
+      assert.ok(m, "expected kr_yd value in the enrichment warning");
+      const expectedDelta = Number(m![1]) * krRate;
+      assert.equal(Math.round(delta * 100) / 100, Math.round(expectedDelta * 100) / 100, `${pid}: entire point delta must be explained by KR alone, not PR`);
+    }
+    if (checked === 0) return t.skip("no rostered PR-role player had a week-2 entry (bye) — nothing to compare");
+  });
 });
