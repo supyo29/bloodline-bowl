@@ -55,9 +55,11 @@ const MIN_ATTEMPTS_FOR_ROLE = 3;
 const RECENCY_WEIGHTS = [1.0, 0.45, 0.18];
 
 /** Sane per-game yard-rate bounds (season/17 will be clamped into this range
- *  before being scaled back up) — guards against small-sample outliers. */
-const KR_YD_PER_GAME_MAX = 32;
-const PR_YD_PER_GAME_MAX = 22;
+ *  before being scaled back up) — guards against small-sample outliers. Also
+ *  reused by `lib/weekly/return-game-weekly.ts` to bound the weekly
+ *  translation the same way. */
+export const KR_YD_PER_GAME_MAX = 32;
+export const PR_YD_PER_GAME_MAX = 22;
 
 const RETURN_ELIGIBLE: ReadonlySet<FantasyPosition> = new Set(["WR", "RB", "TE", "QB"]);
 

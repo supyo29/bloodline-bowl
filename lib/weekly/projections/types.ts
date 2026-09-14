@@ -9,6 +9,7 @@
 
 import type { PlayerCrosswalk } from "@/lib/canonical/players";
 import type { CanonicalLeague } from "@/lib/canonical/schema";
+import type { ReturnGameSeasonSignal } from "../return-game-weekly";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "../schema";
 
 export interface ProjectionRequest {
@@ -20,6 +21,17 @@ export interface ProjectionRequest {
   canonical_player_ids: string[];
   /** Include a rest-of-season points estimate when the source supports one. */
   want_rest_of_season?: boolean;
+  /**
+   * Optional weekly kickoff-return enrichment inputs (`lib/weekly/return-game-weekly.ts`).
+   * Keyed by SLEEPER player_id (the provider's own id space, not canonical).
+   * Absent/omitted entirely -> a provider is free to skip KR enrichment (the
+   * `SleeperWeeklyProjectionProvider` does exactly that when these are unset,
+   * matching its pre-enrichment behavior). Never required by the interface —
+   * additive, optional, best-effort.
+   */
+  return_game_season?: ReadonlyMap<string, ReturnGameSeasonSignal>;
+  /** Most-recent-completed-games-first KR attempt counts, per Sleeper player_id. */
+  return_game_recent_attempts?: ReadonlyMap<string, number[]>;
 }
 
 export interface ProjectionProvider {

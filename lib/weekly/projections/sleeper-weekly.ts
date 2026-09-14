@@ -22,6 +22,7 @@
 import { SLEEPER_ROOT_URL, fetchSleeper } from "@/lib/sleeper/client";
 import { canonicalPosition } from "@/lib/canonical/players";
 import { scoreWeeklyLine, NON_SCORING_KEY } from "../scoring";
+import { enrichWeeklyStatsWithReturnGame } from "../return-game-weekly";
 import { weeklyBand } from "../uncertainty";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch, WeeklyWarning } from "../schema";
@@ -176,7 +177,7 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       const cid = resolved.canonical_player_id;
       resolvedPlayers.set(cid, resolved);
       const pos = canonicalPosition(e.player?.position ?? e.player?.fantasy_positions?.[0] ?? null);
-      const stats = e.stats ?? {};
+      const rawEntryStats = e.stats ?? {};
       const injury = e.player?.injury_status ?? null;
       const nflTeam = (e.team ?? e.player?.team ?? null)?.toUpperCase() ?? null;
       const availability = injuryToAvailability(injury);
@@ -185,6 +186,21 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       let status: WeeklyProjection["projection_status"] = "projected";
       const uncertainty: WeeklyProjection["uncertainty_source"] = "position_volatility_heuristic";
       const pWarnings: string[] = [];
+
+      // Weekly kickoff-return enrichment (lib/weekly/return-game-weekly.ts):
+      // Sleeper's weekly feed never publishes individual kr_yd (live-verified),
+      // so an offensive player with a real KR role otherwise projects as if he
+      // never returns kicks. Provider-first: only fires when `kr_yd` is ABSENT
+      // from the raw entry; punt returns (`pr_yd`) are never touched — Sleeper
+      // already supplies those. No-op (returns `rawEntryStats` unchanged) when
+      // the caller didn't provide `return_game_season` (optional, best-effort).
+      const { stats, warnings: returnGameWarnings } = enrichWeeklyStatsWithReturnGame(
+        rawEntryStats,
+        e.player_id,
+        req.return_game_season,
+        req.return_game_recent_attempts,
+      );
+      pWarnings.push(...returnGameWarnings);
 
       // Projection PRESENCE is decided by whether the source published real
       // stats for this player-week — NOT by the sign of the scored points. A
@@ -195,6 +211,9 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       // carrying only `pts_*` (no yards/TDs/receptions) has no reconstructable
       // league projection -> it is `unavailable`, not a 0. K/DEF is the one
       // documented exception (it has nothing but `pts_std` to fall back on).
+      // `keys`/`hasAnyStatKey`/`hasComponentStats` are computed from the
+      // POST-enrichment `stats` so a pure return specialist with no other
+      // component stats can flip from "unavailable" to a real projection.
       const keys = Object.keys(stats);
       const hasAnyStatKey = keys.some((k) => !NON_SCORING_KEY.test(k));
       const hasComponentStats = keys.some((k) => !NON_SCORING_KEY.test(k) && !/^pts_/.test(k));

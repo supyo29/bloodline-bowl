@@ -27,6 +27,7 @@ import { getWeeklyProjectionProvider } from "./projections/registry";
 import { getScheduleProvider } from "./schedule/registry";
 import type { ScheduleProvider } from "./schedule/types";
 import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
+import { RosterIntelReturnGameSeasonProvider, fetchRecentReturnAttempts, type ReturnGameSeasonSignal } from "./return-game-weekly";
 import { assembleRosSignals, type RosAssemblyResult } from "./ros";
 import { buildLeagueAvailability } from "./availability";
 import { computeWeeklyReplacement, type ReplacementFrontier } from "./replacement";
@@ -68,6 +69,10 @@ export interface BuildWeeklyContextOptions {
   wantRestOfSeason?: boolean;
   /** Skip the RI season signal entirely (default: attempt it best-effort). */
   skipRiSeasonSignal?: boolean;
+  /** Skip weekly kickoff-return enrichment (default: attempt it best-effort). */
+  skipReturnGameEnrichment?: boolean;
+  /** Inject the return-game season provider (tests). `null` disables it. */
+  returnGameSeasonProviderOverride?: RosterIntelReturnGameSeasonProvider | null;
   /** Override the replacement-frontier strategy (default `{nth_best_available, n:1}`). */
   replacementFrontier?: ReplacementFrontier;
   /**
@@ -230,6 +235,30 @@ export async function buildWeeklyTeamContext(
   // Projections for everyone rostered in the league (roster + candidate universe).
   const allRosteredIds = uniq(snap.rosters.flatMap((r) => r.all_players));
   const projProvider = options.projectionProviderOverride ?? getWeeklyProjectionProvider(league.provider);
+
+  // Best-effort weekly kickoff-return enrichment inputs (lib/weekly/return-game-weekly.ts).
+  // Sleeper's weekly feed never publishes individual kr_yd — this sources the
+  // season return-game model plus recent in-season KR usage so the provider
+  // can add a bounded, role-gated weekly kr_yd instead of silently omitting
+  // it. Failure here NEVER blocks weekly projections: it just runs without
+  // KR enrichment, exactly like the RI season ROS signal below.
+  let returnGameSeason: Map<string, ReturnGameSeasonSignal> | undefined;
+  let returnGameRecent: Map<string, number[]> | undefined;
+  if (options.skipReturnGameEnrichment !== true && options.returnGameSeasonProviderOverride !== null) {
+    const rgProvider = options.returnGameSeasonProviderOverride ?? new RosterIntelReturnGameSeasonProvider();
+    try {
+      const rg = await rgProvider.getSeasonSignal(league.season);
+      if (rg.status === "READY") returnGameSeason = rg.by_sleeper_id;
+    } catch {
+      // best-effort — weekly projections proceed without KR enrichment
+    }
+    try {
+      returnGameRecent = await fetchRecentReturnAttempts(league.season, week);
+    } catch {
+      // best-effort — weekly projections proceed without KR enrichment
+    }
+  }
+
   const projections = await projProvider.getWeeklyProjections({
     league: {
       league_slug: league.league_slug,
@@ -241,6 +270,8 @@ export async function buildWeeklyTeamContext(
     crosswalk,
     canonical_player_ids: allRosteredIds,
     want_rest_of_season: options.wantRestOfSeason ?? true,
+    return_game_season: returnGameSeason,
+    return_game_recent_attempts: returnGameRecent,
   });
 
   // ---- Rest-of-season signal: external (Sleeper) absolute + Roster Intel ORDINAL.
