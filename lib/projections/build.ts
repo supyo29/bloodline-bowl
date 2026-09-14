@@ -35,6 +35,7 @@ import { comparePlayer, aggregateDisagreement, foldDisagreementIntoConfidence, t
 import { leagueScoringContext, buildLeagueProjection, type LeagueScoringContext } from "./league";
 import { computeReplacementLevels, applyValueOverReplacement, positionalScarcity, type PositionalScarcity } from "./replacement";
 import { buildManagerProjectionValues, type ManagerRosterState } from "./manager-value";
+import { projectReturnGame, applyReturnGameProjections } from "./return-game";
 
 export const PROJECTION_VERSION = "2026.3.0";
 const HISTORY_SEASONS = [2021, 2022, 2023, 2024, 2025];
@@ -284,6 +285,13 @@ export async function buildBaseProjections(opts: BuildOptions = {}): Promise<Bas
     reconciliationRows.push(...reconcileTeam(env, teamProjs));
     rawReconciliationRows.push(...rawRecs);
   }
+
+  // --- individual return-game enrichment (isolated, additive; see return-game.ts) ---
+  // Runs AFTER team-volume reconciliation/normalization (return yards are not
+  // part of team pass/rush-attempt accounting) and BEFORE the Sleeper
+  // benchmark comparison (so RI-vs-Sleeper stat deltas below can see it).
+  const returnGame = projectReturnGame(seasons);
+  applyReturnGameProjections(projections, returnGame);
 
   const reconciliation = summarizeReconciliation(season, reconciliationRows, opts.normalize !== false);
   const rawReconciliation = summarizeReconciliation(season, rawReconciliationRows, false);

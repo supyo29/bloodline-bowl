@@ -156,6 +156,23 @@ export interface DerivedDefense {
   points_allowed_tiers: Record<string, number>;
 }
 
+/**
+ * Individual (player-level) return-game scoring, derived the same way as
+ * `DerivedPassing`/`DerivedRushing`/etc: `null` when the underlying Sleeper
+ * key (`kr_yd` / `pr_yd`) is unset in this league's `scoring_settings`, never
+ * a fabricated 0. Deliberately scoped to `kr_yd`/`pr_yd` only — team-defense
+ * return yardage (`def_kr_yd`/`def_pr_yd`) is a different namespace and
+ * belongs to the defense-projection surface, not here.
+ */
+export interface DerivedSpecialTeams {
+  kick_return_yard_value: number | null;
+  points_per_25_kick_return_yards: number | null;
+  points_per_100_kick_return_yards: number | null;
+  punt_return_yard_value: number | null;
+  points_per_25_punt_return_yards: number | null;
+  points_per_100_punt_return_yards: number | null;
+}
+
 export interface DerivedBonuses {
   passing_two_point_conversion: number | null;
   rushing_two_point_conversion: number | null;
@@ -188,6 +205,7 @@ export interface ScoringResponse {
     turnovers: DerivedTurnovers;
     kicking: DerivedKicking;
     defense: DerivedDefense;
+    special_teams: DerivedSpecialTeams;
     bonuses: DerivedBonuses;
   };
 

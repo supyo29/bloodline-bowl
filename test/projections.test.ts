@@ -52,6 +52,7 @@ function seasonRow(o: Partial<PlayerSeasonActual> & { player_id: string; season:
     rush_att: o.rush_att ?? 0, rush_yd: o.rush_yd ?? 0, rush_td: o.rush_td ?? 0, rush_rz_att: o.rush_rz_att ?? 0, g2g_att: o.g2g_att ?? 0,
     targets: o.targets ?? 0, rec: o.rec ?? 0, rec_yd: o.rec_yd ?? 0, rec_td: o.rec_td ?? 0, rec_air_yd: o.rec_air_yd ?? 0, rec_rz_tgt: o.rec_rz_tgt ?? 0,
     fum_lost: o.fum_lost ?? 0,
+    kr: o.kr ?? 0, kr_yd: o.kr_yd ?? 0, pr: o.pr ?? 0, pr_yd: o.pr_yd ?? 0,
     fgm: o.fgm ?? 0, fga: o.fga ?? 0, fgm_yds: o.fgm_yds ?? 0, xpm: o.xpm ?? 0, xpa: o.xpa ?? 0,
     def_sack: 0, def_int: 0, def_fum_rec: 0, def_td: 0, def_safety: 0,
     pts_ppr: o.pts_ppr ?? 0,
@@ -111,7 +112,7 @@ function seasonsFixture(): SeasonActuals[] {
 }
 
 function benchStats(o: Record<string, number>) {
-  const keys = ["gp", "pass_att", "pass_cmp", "pass_yd", "pass_td", "pass_int", "pass_2pt", "rush_att", "rush_yd", "rush_td", "rush_2pt", "targets", "rec", "rec_yd", "rec_td", "rec_2pt", "fum_lost", "fgm_40_49", "fgm_50p", "fgm_yds", "fgmiss_40_49", "fgmiss_50p", "xpm", "xpmiss", "def_sack", "def_int", "def_fum_rec", "def_td", "def_blk_kick"] as const;
+  const keys = ["gp", "pass_att", "pass_cmp", "pass_yd", "pass_td", "pass_int", "pass_2pt", "rush_att", "rush_yd", "rush_td", "rush_2pt", "targets", "rec", "rec_yd", "rec_td", "rec_2pt", "fum_lost", "kr", "kr_yd", "pr", "pr_yd", "pr_td", "fgm_40_49", "fgm_50p", "fgm_yds", "fgmiss_40_49", "fgmiss_50p", "xpm", "xpmiss", "def_sack", "def_int", "def_fum_rec", "def_td", "def_blk_kick"] as const;
   const out = {} as Record<(typeof keys)[number], number | null>;
   for (const k of keys) out[k] = k in o ? o[k]! : null;
   return out;
@@ -344,7 +345,7 @@ function emptyStats() {
     pass_att: null, pass_cmp: null, cmp_pct: null, pass_yd: null, pass_ypa: null, pass_td: null, pass_int: null, pass_2pt: null,
     rush_att: null, rush_yd: null, rush_ypa: null, rush_td: null, rush_2pt: null,
     targets: null, rec: null, catch_rate: null, rec_yd: null, yprr: null, yptarget: null, rec_td: null, rec_2pt: null,
-    fum_lost: null, fg_att: null, fg_made: null, fg_made_0_39: null, fg_made_40_49: null, fg_made_50p: null, fg_miss: null, xp_made: null, xp_miss: null,
+    fum_lost: null, kr_yd: null, pr_yd: null, fg_att: null, fg_made: null, fg_made_0_39: null, fg_made_40_49: null, fg_made_50p: null, fg_miss: null, xp_made: null, xp_miss: null,
     def_sack: null, def_int: null, def_fum_rec: null, def_td: null, def_safety: null, def_pts_allowed_per_game: null,
   };
 }

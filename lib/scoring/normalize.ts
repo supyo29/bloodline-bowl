@@ -13,6 +13,7 @@ import type {
   DerivedPassing,
   DerivedReceiving,
   DerivedRushing,
+  DerivedSpecialTeams,
   DerivedTurnovers,
   NormalizedScoringRule,
   ScoringClassification,
@@ -182,6 +183,19 @@ export function buildDerivedDefense(raw: Raw): DerivedDefense {
   };
 }
 
+export function buildDerivedSpecialTeams(raw: Raw): DerivedSpecialTeams {
+  const krYd = nz(raw, "kr_yd");
+  const prYd = nz(raw, "pr_yd");
+  return {
+    kick_return_yard_value: krYd,
+    points_per_25_kick_return_yards: mul(krYd, 25),
+    points_per_100_kick_return_yards: mul(krYd, 100),
+    punt_return_yard_value: prYd,
+    points_per_25_punt_return_yards: mul(prYd, 25),
+    points_per_100_punt_return_yards: mul(prYd, 100),
+  };
+}
+
 export function buildDerivedBonuses(raw: Raw): DerivedBonuses {
   const bigPlay: Record<string, number> = {};
   for (const [key, value] of Object.entries(raw)) {
@@ -296,6 +310,15 @@ export function classifyScoring(
   );
   if (fgFlat !== null && fgFlat !== 0 && !hasFgTiers) {
     features.push("flat field-goal scoring (no distance bonus)");
+  }
+
+  const krYd = nz(raw, "kr_yd");
+  if (krYd !== null && krYd !== 0) {
+    features.push(`individual kickoff return yards score ${krYd} points per yard`);
+  }
+  const prYd = nz(raw, "pr_yd");
+  if (prYd !== null && prYd !== 0) {
+    features.push(`individual punt return yards score ${prYd} points per yard`);
   }
 
   const passSack = nz(raw, "pass_sack");

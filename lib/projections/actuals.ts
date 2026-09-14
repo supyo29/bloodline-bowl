@@ -46,6 +46,19 @@ export interface PlayerSeasonActual {
 
   fum_lost: number;
 
+  /**
+   * Individual return-game production. Distinct football-production
+   * components from rushing/receiving — never folded into `rush_yd`/`rec_yd`.
+   * Sourced from Sleeper's per-player `kr`/`kr_yd`/`pr`/`pr_yd` box-score keys
+   * (verified present on individual rows, separate from the `def_kr_yd`/
+   * `def_pr_yd` team-defense keys). Defaults to 0 like every other counting
+   * stat in this row when the player recorded no returns that season.
+   */
+  kr: number;
+  kr_yd: number;
+  pr: number;
+  pr_yd: number;
+
   /** Kicking */
   fgm: number;
   fga: number;
@@ -88,6 +101,69 @@ function n(v: unknown): number {
 const POS = new Set<FantasyPosition>(["QB", "RB", "WR", "TE", "K", "DEF"]);
 
 /**
+ * Pure row-mapper: one Sleeper box-score entry -> one `PlayerSeasonActual`.
+ * Extracted from `loadSeasonActuals` so the field mapping (in particular
+ * `kr`/`kr_yd`/`pr`/`pr_yd`) is directly unit-testable against a synthetic
+ * stat object, with no network involved.
+ */
+export function normalizePlayerSeasonActual(
+  pid: string,
+  st: Record<string, unknown>,
+  season: number,
+  meta: { position: string | null; team: string | null } | undefined,
+): PlayerSeasonActual {
+  const posRaw = (meta?.position ?? "").toUpperCase();
+  const position = POS.has(posRaw as FantasyPosition) ? (posRaw as FantasyPosition) : null;
+  const team = meta?.team ?? null;
+  const offSnp = n(st.off_snp);
+  const tmOffSnp = n(st.tm_off_snp);
+  return {
+    player_id: pid,
+    season,
+    position,
+    team,
+    gp: n(st.gp),
+    gs: n(st.gs),
+    off_snp: offSnp,
+    tm_off_snp: tmOffSnp,
+    snap_share: tmOffSnp > 0 ? offSnp / tmOffSnp : null,
+    pass_att: n(st.pass_att),
+    pass_cmp: n(st.pass_cmp),
+    pass_yd: n(st.pass_yd),
+    pass_td: n(st.pass_td),
+    pass_int: n(st.pass_int),
+    pass_rz_att: n(st.pass_rz_att),
+    rush_att: n(st.rush_att),
+    rush_yd: n(st.rush_yd),
+    rush_td: n(st.rush_td),
+    rush_rz_att: n(st.rush_rz_att),
+    g2g_att: n(st.g2g_att),
+    targets: n(st.rec_tgt),
+    rec: n(st.rec),
+    rec_yd: n(st.rec_yd),
+    rec_td: n(st.rec_td),
+    rec_air_yd: n(st.rec_air_yd),
+    rec_rz_tgt: n(st.rec_rz_tgt),
+    fum_lost: n(st.fum_lost),
+    kr: n(st.kr),
+    kr_yd: n(st.kr_yd),
+    pr: n(st.pr),
+    pr_yd: n(st.pr_yd),
+    fgm: n(st.fgm),
+    fga: n(st.fga),
+    fgm_yds: n(st.fgm_yds),
+    xpm: n(st.xpm),
+    xpa: n(st.xpa),
+    def_sack: n(st.sack),
+    def_int: n(st.int),
+    def_fum_rec: n(st.fum_rec),
+    def_td: n(st.fum_rec_td) + n(st.int_ret_td) + n(st.def_td),
+    def_safety: n(st.safe),
+    pts_ppr: n(st.pts_ppr),
+  };
+}
+
+/**
  * Load one completed season's actuals. `positionByPlayer` maps player_id ->
  * current position (from the live player index) so we can position-tag rows
  * whose own record lacks a clean position.
@@ -120,54 +196,8 @@ export async function loadSeasonActuals(
     if (pid.startsWith("TEAM_")) continue;
     if (!st || typeof st !== "object") continue;
     const meta = positionByPlayer.get(pid);
-    const posRaw = (meta?.position ?? "").toUpperCase();
-    const position = POS.has(posRaw as FantasyPosition)
-      ? (posRaw as FantasyPosition)
-      : null;
     const team = meta?.team ?? null;
-
-    const offSnp = n(st.off_snp);
-    const tmOffSnp = n(st.tm_off_snp);
-    const row: PlayerSeasonActual = {
-      player_id: pid,
-      season,
-      position,
-      team,
-      gp: n(st.gp),
-      gs: n(st.gs),
-      off_snp: offSnp,
-      tm_off_snp: tmOffSnp,
-      snap_share: tmOffSnp > 0 ? offSnp / tmOffSnp : null,
-      pass_att: n(st.pass_att),
-      pass_cmp: n(st.pass_cmp),
-      pass_yd: n(st.pass_yd),
-      pass_td: n(st.pass_td),
-      pass_int: n(st.pass_int),
-      pass_rz_att: n(st.pass_rz_att),
-      rush_att: n(st.rush_att),
-      rush_yd: n(st.rush_yd),
-      rush_td: n(st.rush_td),
-      rush_rz_att: n(st.rush_rz_att),
-      g2g_att: n(st.g2g_att),
-      targets: n(st.rec_tgt),
-      rec: n(st.rec),
-      rec_yd: n(st.rec_yd),
-      rec_td: n(st.rec_td),
-      rec_air_yd: n(st.rec_air_yd),
-      rec_rz_tgt: n(st.rec_rz_tgt),
-      fum_lost: n(st.fum_lost),
-      fgm: n(st.fgm),
-      fga: n(st.fga),
-      fgm_yds: n(st.fgm_yds),
-      xpm: n(st.xpm),
-      xpa: n(st.xpa),
-      def_sack: n(st.sack),
-      def_int: n(st.int),
-      def_fum_rec: n(st.fum_rec),
-      def_td: n(st.fum_rec_td) + n(st.int_ret_td) + n(st.def_td),
-      def_safety: n(st.safe),
-      pts_ppr: n(st.pts_ppr),
-    };
+    const row = normalizePlayerSeasonActual(pid, st, season, meta);
     players.set(pid, row);
 
     // Fallback team total (player-sum) only for teams with no authoritative row.

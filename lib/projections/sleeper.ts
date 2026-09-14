@@ -69,6 +69,21 @@ export interface SleeperNormalizedProjection {
     rec_td: number | null;
     rec_2pt: number | null;
     fum_lost: number | null;
+    /**
+     * Individual return-game production. `null` means Sleeper did not publish
+     * this field on this feed/entry (missing data) — NOT that the player is
+     * projected for zero returns. Confirmed present on Sleeper's WEEKLY
+     * projection feed for punt returners (`pr`/`pr_yd`/`pr_td`); confirmed
+     * ABSENT from the season-long projection feed and absent for kickoff
+     * returns on both feeds as of 2026-09 (live-verified, see return-game
+     * repair checkpoint). Preserved here regardless so a future Sleeper feed
+     * change is picked up without a code change.
+     */
+    kr: number | null;
+    kr_yd: number | null;
+    pr: number | null;
+    pr_yd: number | null;
+    pr_td: number | null;
     /** Kicking (Sleeper only supplies 40-49 and 50+ buckets + total FG yards). */
     fgm_40_49: number | null;
     fgm_50p: number | null;
@@ -155,6 +170,11 @@ function normalizeEntry(
       rec_td: num(s.rec_td),
       rec_2pt: num(s.rec_2pt),
       fum_lost: num(s.fum_lost),
+      kr: num(s.kr),
+      kr_yd: num(s.kr_yd),
+      pr: num(s.pr),
+      pr_yd: num(s.pr_yd),
+      pr_td: num(s.pr_td),
       fgm_40_49: num(s.fgm_40_49),
       fgm_50p: num(s.fgm_50p),
       fgm_yds: num(s.fgm_yds),

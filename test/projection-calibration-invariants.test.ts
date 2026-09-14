@@ -164,7 +164,7 @@ function seasonRow(o: Partial<PlayerSeasonActual> & { player_id: string; season:
     pass_int: o.pass_int ?? 0, pass_rz_att: o.pass_rz_att ?? 0,
     rush_att: o.rush_att ?? 0, rush_yd: o.rush_yd ?? 0, rush_td: o.rush_td ?? 0, rush_rz_att: o.rush_rz_att ?? 0, g2g_att: 0,
     targets: o.targets ?? 0, rec: o.rec ?? 0, rec_yd: o.rec_yd ?? 0, rec_td: o.rec_td ?? 0, rec_air_yd: 0, rec_rz_tgt: o.rec_rz_tgt ?? 0,
-    fum_lost: 0, fgm: 0, fga: 0, fgm_yds: 0, xpm: 0, xpa: 0,
+    fum_lost: 0, kr: 0, kr_yd: 0, pr: 0, pr_yd: 0, fgm: 0, fga: 0, fgm_yds: 0, xpm: 0, xpa: 0,
     def_sack: 0, def_int: 0, def_fum_rec: 0, def_td: 0, def_safety: 0, pts_ppr: o.pts_ppr ?? 0,
   };
 }

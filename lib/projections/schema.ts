@@ -21,6 +21,14 @@
  */
 
 export const PROJECTION_MODEL_VERSION = "ri-structural-2026.3";
+/**
+ * Kept at v1 deliberately when `kr_yd` / `pr_yd` were added to
+ * `ProjectedFootballStats` (return-game repair, 2026-09): both new fields are
+ * nullable and additive, no existing field was renamed/removed/reinterpreted,
+ * and `null` already meant "not modeled" throughout this interface before the
+ * change. A v1 reader that ignores unknown fields degrades exactly as it did
+ * before. Bump to v2 only for a change that breaks that assumption.
+ */
 export const PROJECTION_SCHEMA_VERSION = "projection.v1";
 
 export type FantasyPosition = "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
@@ -61,6 +69,17 @@ export interface ProjectedFootballStats {
   rec_2pt: number | null;
   /** Misc */
   fum_lost: number | null;
+  /**
+   * Individual return-game production (kickoff/punt return yards for the
+   * PLAYER themselves — never a team-defense aggregate, which lives in
+   * Sleeper's `def_kr_yd` / `def_pr_yd` keys and is not represented here).
+   * Scoring-neutral: these numbers do not feed `pprPoints()` / `neutral_points`
+   * (PPR has no return-yardage component). Populated by
+   * `lib/projections/return-game.ts`, not by the structural offensive model.
+   * `null` = no projected return role (not zero return production).
+   */
+  kr_yd: number | null;
+  pr_yd: number | null;
   /** Kicking */
   fg_att: number | null;
   fg_made: number | null;
@@ -244,6 +263,7 @@ export const EMPTY_STATS: ProjectedFootballStats = {
   targets: null, rec: null, catch_rate: null, rec_yd: null, yprr: null,
   yptarget: null, rec_td: null, rec_2pt: null,
   fum_lost: null,
+  kr_yd: null, pr_yd: null,
   fg_att: null, fg_made: null, fg_made_0_39: null, fg_made_40_49: null,
   fg_made_50p: null, fg_miss: null, xp_made: null, xp_miss: null,
   def_sack: null, def_int: null, def_fum_rec: null, def_td: null,

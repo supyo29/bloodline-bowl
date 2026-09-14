@@ -84,6 +84,8 @@ export function comparePlayer(
     cmp("rec", s.rec, b.rec),
     cmp("rec_yd", s.rec_yd, b.rec_yd),
     cmp("rec_td", s.rec_td, b.rec_td),
+    cmp("kr_yd", s.kr_yd, b.kr_yd),
+    cmp("pr_yd", s.pr_yd, b.pr_yd),
   ].filter((d) => d.ri != null || d.sleeper != null);
 
   const slPpr = bench.sleeper_points.ppr;
@@ -175,6 +177,39 @@ function pickPrimaryDriver(
   const td = get(position === "QB" ? "pass_td" : position === "RB" ? "rush_td" : "rec_td");
   if (td && Math.abs(td.delta ?? 0) >= 1.5) {
     return { driver: `RI ${sign}: ${td.stat} ${fmtDelta(td.delta)} vs Sleeper (touchdowns)`, disagreement: mag };
+  }
+
+  // Return-game: only surfaces as the primary driver once opportunity/
+  // efficiency/TD are ruled out AND the return-yardage gap is materially
+  // large on its own — a return specialist's kr_yd/pr_yd disagreement should
+  // not drown out a genuine offensive-opportunity signal for a non-specialist.
+  // (Return yards do not feed `neutral_points` in Layer 1 — this heuristic
+  // reads the raw stat gap, not a points contribution, because there is no
+  // league-neutral return-yardage point value to compare against.)
+  //
+  // Sleeper's own projection feeds do not carry `kr_yd`/`pr_yd` at the season
+  // grain (live-verified 2026-09 — see return-game repair checkpoint), so
+  // `sleeper` is usually `null` here, not `0`. When RI has return production
+  // Sleeper's benchmark simply doesn't model at all, RI's own value IS the
+  // gap (Sleeper isn't "disagreeing", it has no opinion); when Sleeper DOES
+  // supply a value, the real delta is used.
+  const kr = get("kr_yd");
+  const pr = get("pr_yd");
+  const gapOf = (d: StatComparison | undefined): number =>
+    !d || d.ri == null ? 0 : d.sleeper == null ? d.ri : Math.abs(d.delta ?? 0);
+  const krGap = gapOf(kr);
+  const prGap = gapOf(pr);
+  const RETURN_MIN_ABS = 120;
+  if (krGap >= RETURN_MIN_ABS || prGap >= RETURN_MIN_ABS) {
+    const bigger = krGap >= prGap ? kr : pr;
+    const label = krGap >= prGap ? "kickoff-return" : "punt-return";
+    const unbenchmarked = bigger?.sleeper == null;
+    return {
+      driver: unbenchmarked
+        ? `RI ${sign}: projected ${label} production (${bigger?.ri ?? 0} yd) not modeled in Sleeper's benchmark (return-game)`
+        : `RI ${sign}: ${fmtDelta(bigger?.delta ?? null)} ${label} yards vs Sleeper (return-game)`,
+      disagreement: mag,
+    };
   }
 
   return { driver: `RI ${sign} than Sleeper by ${Math.abs(neutralDeltaPct).toFixed(0)}% (mixed)`, disagreement: mag };

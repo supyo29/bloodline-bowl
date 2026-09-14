@@ -76,6 +76,7 @@ function toActual(pid: string, f: PriorSeasonFixture): PlayerSeasonActual {
     rec_air_yd: f.rec_air_yd,
     rec_rz_tgt: f.rec_rz_tgt,
     fum_lost: f.fum_lost,
+    kr: 0, kr_yd: 0, pr: 0, pr_yd: 0,
     fgm: 0, fga: 0, fgm_yds: 0, xpm: 0, xpa: 0,
     def_sack: 0, def_int: 0, def_fum_rec: 0, def_td: 0, def_safety: 0,
     pts_ppr: f.pts_ppr,

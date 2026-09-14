@@ -155,6 +155,14 @@ export function statLineFromProjection(
   put("rec_tgt", s.targets);
   put("fum_lost", s.fum_lost);
   put("fum", s.fum_lost); // some leagues score all fumbles; harmless if unmapped
+  // Individual return-game production, in Sleeper's own player-scoring
+  // namespace (`kr_yd`/`pr_yd` — never `def_kr_yd`/`def_pr_yd`, which is
+  // team-defense only and is not present on an offensive player's stat line).
+  // calculateFantasyPoints is the sole scoring authority: a league that does
+  // not configure `kr_yd`/`pr_yd` simply never multiplies these, so a league
+  // without return-yardage scoring is unaffected by this projection existing.
+  put("kr_yd", s.kr_yd);
+  put("pr_yd", s.pr_yd);
   return line;
 }
 
