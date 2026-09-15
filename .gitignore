@@ -28,3 +28,8 @@ lib/projections/data/rookie-draft-2026.json
 /analysis/football_intel_startsit/cache
 
 /analysis/football_intel_matchup/cache
+
+# Phase 10 evidence loop: local {targets} metadata store and per-run ledger
+# (reviewed locally / uploaded as CI artifacts, not accumulated in git history)
+/_targets
+/artifacts/evidence-loop
