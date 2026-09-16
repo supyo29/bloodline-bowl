@@ -1,22 +1,21 @@
-name: Football Intelligence Weekly Refresh
+name: Football Intelligence Daily Refresh
 
 # Refreshes upstream nflverse data, rebuilds a candidate Football Intelligence
-# snapshot, validates it, and publishes it (commit to main) only if every
-# gate passes and something actually changed. See
-# docs/FOOTBALL_INTELLIGENCE_WEEKLY_REFRESH.md for the full operational
-# writeup of this pipeline.
+# snapshot (honoring partial NFL weeks -- completed games count immediately,
+# nothing is fabricated for games that haven't happened), validates it, and
+# publishes it (commit to main) only if every gate passes and something
+# materially changed. See docs/FOOTBALL_INTELLIGENCE_REFRESH.md for
+# the full operational writeup of this pipeline.
 #
-# Schedule note (GitHub Actions cron is UTC, NOT timezone-aware, and does
-# not adjust for US DST):
-#   "0 13 * * 3"  = Wednesday 13:00 UTC
-#     = 07:00 US Central during CDT (UTC-6, roughly Mar-Nov)
-#     = 07:00 US Central during CST (UTC-6)... actually CST is UTC-6 too in
-#       winter offset terms below -- see the explicit table in the docs.
-#   We pin 13:00 UTC year-round, which lands at ~07:00-08:00 Central
-#   depending on DST. Exact minute/hour is not critical; see docs.
+# Schedule note (GitHub Actions cron is UTC and does NOT adjust for US DST):
+#   "0 13 * * *"  = every day, 13:00 UTC
+#     = 08:00 US Central during CDT (UTC-5, roughly mid-Mar to early-Nov)
+#     = 07:00 US Central during CST (UTC-6, roughly early-Nov to mid-Mar)
+#   A fixed UTC hour drifts by one Central clock-hour across the two DST
+#   boundaries each year -- that is a property of UTC cron, not a bug here.
 on:
   schedule:
-    - cron: "0 13 * * 3"
+    - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       season:
@@ -33,7 +32,7 @@ on:
         type: boolean
         default: true
       force_publish:
-        description: "Allow publish even if season/week would regress vs currently published (manual history rebuild only)"
+        description: "Allow publish even if season/week/completion would regress vs currently published (manual history rebuild only)"
         required: false
         type: boolean
         default: false
@@ -42,7 +41,7 @@ on:
 # manual runs share this group so they cannot race each other or the
 # candidate/publish steps of a prior run.
 concurrency:
-  group: football-intel-weekly-refresh
+  group: football-intel-daily-refresh
   cancel-in-progress: false
 
 permissions:
@@ -50,6 +49,13 @@ permissions:
 
 env:
   CANDIDATE_ROOT: ${{ github.workspace }}/.fi-candidate
+  SERVED_FILES: >-
+    lib/football-intel/data/team_profile.csv
+    lib/football-intel/data/player_usage_profile.csv
+    lib/football-intel/data/unit_coverage_profile.csv
+    lib/football-intel/data/contextual_matchup_feature.csv
+    lib/football-intel/data/ftn_descriptive.csv
+    lib/football-intel/data/football_intelligence_manifest.json
 
 jobs:
   refresh:
@@ -71,7 +77,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: fi-r-pkgs-${{ runner.os }}-${{ hashFiles('.github/workflows/football-intel-weekly-refresh.yml') }}
+          key: fi-r-pkgs-${{ runner.os }}-${{ hashFiles('.github/workflows/football-intel-daily-refresh.yml') }}
           restore-keys: |
             fi-r-pkgs-${{ runner.os }}-
 
@@ -88,9 +94,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: analysis/football_intel/cache
-          # Season-scoped key: within a week's runs, reuse untouched
-          # historical seasons' fetches; --refresh below still forces every
-          # source to re-check for new rows regardless of cache hit.
+          # Season-scoped key: within a day's runs, reuse untouched historical
+          # seasons' fetches; --refresh below still forces every source to
+          # re-check for new rows regardless of cache hit.
           key: fi-raw-cache-${{ github.run_id }}
           restore-keys: |
             fi-raw-cache-
@@ -109,6 +115,11 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+          # last-known-good fingerprint: proven untouched below unless this
+          # run actually publishes (requirement: LKG survives any failure,
+          # including a failed partial-week build/validate).
+          HASH=$(cat $SERVED_FILES 2>/dev/null | sha256sum | cut -d' ' -f1)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
       # --- refresh -----------------------------------------------------
       - name: Refresh raw sources
@@ -126,7 +137,10 @@ jobs:
           fi
           echo "result=OK" >> "$GITHUB_OUTPUT"
 
-      # --- build candidate (outside the served directory) ---------------
+      # --- build candidate (outside the served directory); through_week
+      # naturally lands on a partial current week the moment any of its
+      # games have pbp data -- see build_snapshot.R's target resolution and
+      # FI$compute_week_completion in config.R for the honesty guarantee.
       - name: Build candidate snapshot
         id: build
         run: |
@@ -159,7 +173,7 @@ jobs:
             exit 1
           fi
 
-      # --- required weekly gates: fast, deterministic, cache-only --------
+      # --- required daily gates: fast, deterministic, cache-only ---------
       - name: Football Intelligence invariant tests (REQUIRED)
         run: Rscript analysis/football_intel/tests/run.R
 
@@ -167,6 +181,11 @@ jobs:
         run: Rscript analysis/football_intel/adversarial_audit.R
 
       # --- decide UPDATED vs NO_CHANGE -----------------------------------
+      # Version is a content hash that explicitly includes
+      # games_completed_in_latest_week (see FI$compute_version in config.R),
+      # so a week that goes from N to N+1 completed games gets a new version
+      # even when season/through_week are unchanged -- season+week equality
+      # is never used as a NO_CHANGE proxy.
       - name: Compare candidate vs published version
         id: compare
         run: |
@@ -178,14 +197,12 @@ jobs:
             echo "outcome=UPDATED" >> "$GITHUB_OUTPUT"
           fi
 
-      # --- publish (only on UPDATED + validation PASS) -------------------
-      - name: Publish candidate
-        id: publish
+      # --- concurrency check happens BEFORE we touch any local served file,
+      # so a stale base aborts without ever mutating the checkout. ---------
+      - name: Check origin/main has not moved
+        id: concurrency
         if: steps.compare.outputs.outcome == 'UPDATED'
         run: |
-          set -euo pipefail
-          # concurrency-safety: verify main hasn't moved to a state where our
-          # base commit is stale before we push a served-data commit onto it.
           git fetch origin main
           BASE_SHA=$(git rev-parse HEAD)
           REMOTE_SHA=$(git rev-parse origin/main)
@@ -194,24 +211,43 @@ jobs:
             echo "result=CONCURRENCY_ABORT" >> "$GITHUB_OUTPUT"
             exit 1
           fi
+          echo "result=OK" >> "$GITHUB_OUTPUT"
 
-          cp "$CANDIDATE_ROOT/lib/football-intel/data/team_profile.csv" lib/football-intel/data/team_profile.csv
-          cp "$CANDIDATE_ROOT/lib/football-intel/data/player_usage_profile.csv" lib/football-intel/data/player_usage_profile.csv
-          cp "$CANDIDATE_ROOT/lib/football-intel/data/unit_coverage_profile.csv" lib/football-intel/data/unit_coverage_profile.csv
-          cp "$CANDIDATE_ROOT/lib/football-intel/data/contextual_matchup_feature.csv" lib/football-intel/data/contextual_matchup_feature.csv
-          cp "$CANDIDATE_ROOT/lib/football-intel/data/ftn_descriptive.csv" lib/football-intel/data/ftn_descriptive.csv
-          cp "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json" lib/football-intel/data/football_intelligence_manifest.json
+      # --- stage the candidate locally (copy only -- no commit/push yet) -
+      - name: Stage candidate into served directory
+        id: stage
+        if: steps.compare.outputs.outcome == 'UPDATED'
+        run: |
+          set -euo pipefail
+          for f in $SERVED_FILES; do
+            name=$(basename "$f")
+            cp "$CANDIDATE_ROOT/lib/football-intel/data/$name" "$f"
+          done
 
+      # --- the Node read-contract test runs against the staged files BEFORE
+      # any commit or push -- a failure here leaves the git repository (the
+      # only thing anyone else ever sees) completely untouched, satisfying
+      # "last known good remains available if a refresh fails" even though
+      # the local checkout has already been overwritten in this job's
+      # ephemeral, never-pushed working tree. -----------------------------
+      - name: Node football-intel read-contract test (REQUIRED before publish)
+        id: node_test
+        if: steps.compare.outputs.outcome == 'UPDATED'
+        run: |
+          npm ci
+          node --import tsx --test test/football-intel-read.test.ts
+
+      # --- publish: only after concurrency check + staging + the Node
+      # read-contract test have all passed -------------------------------
+      - name: Commit and push
+        id: publish
+        if: steps.compare.outputs.outcome == 'UPDATED'
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add \
-            lib/football-intel/data/team_profile.csv \
-            lib/football-intel/data/player_usage_profile.csv \
-            lib/football-intel/data/unit_coverage_profile.csv \
-            lib/football-intel/data/contextual_matchup_feature.csv \
-            lib/football-intel/data/ftn_descriptive.csv \
-            lib/football-intel/data/football_intelligence_manifest.json
+          git add $SERVED_FILES
 
           if git diff --cached --quiet; then
             echo "candidate version differs but served files are byte-identical; nothing to commit"
@@ -221,45 +257,67 @@ jobs:
 
           SEASON=$(jq -r .season lib/football-intel/data/football_intelligence_manifest.json)
           WEEK=$(jq -r .through_week lib/football-intel/data/football_intelligence_manifest.json)
-          MSG="football-intel: refresh ${SEASON} week ${WEEK}"$'\n\n'"Automated weekly Football Intelligence refresh."$'\n'"version: ${{ steps.compare.outputs.candidate_version }}"$'\n'"previous: ${{ steps.published.outputs.version }}"$'\n\n'"Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+          WEEK_STATE=$(jq -r .week_completion.week_state lib/football-intel/data/football_intelligence_manifest.json)
+          GC=$(jq -r .week_completion.games_completed_in_latest_week lib/football-intel/data/football_intelligence_manifest.json)
+          GS=$(jq -r .week_completion.games_scheduled_in_latest_week lib/football-intel/data/football_intelligence_manifest.json)
+          MSG="football-intel: refresh ${SEASON} week ${WEEK} (${WEEK_STATE}, ${GC}/${GS} games)"$'\n\n'"Automated daily Football Intelligence refresh."$'\n'"version: ${{ steps.compare.outputs.candidate_version }}"$'\n'"previous: ${{ steps.published.outputs.version }}"$'\n\n'"Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
           git commit -m "$MSG"
 
           git push origin HEAD:${{ github.ref_name }}
           echo "result=PUBLISHED" >> "$GITHUB_OUTPUT"
 
-      # --- run TS regression against whatever is now on disk -------------
-      - name: Node football-intel read-contract test
-        if: steps.compare.outputs.outcome == 'UPDATED'
+      # --- proof that a failed/partial run never mutates the real
+      # (committed) served snapshot: the local checkout's served files must
+      # be byte-identical to what was recorded before this run started,
+      # UNLESS this run actually published. ------------------------------
+      - name: Verify last-known-good untouched unless published
+        if: always()
         run: |
-          npm ci
-          node --import tsx --test test/football-intel-read.test.ts
+          OUTCOME="${{ steps.publish.outputs.result || 'NONE' }}"
+          NEW_HASH=$(cat $SERVED_FILES 2>/dev/null | sha256sum | cut -d' ' -f1)
+          if [ "$OUTCOME" != "PUBLISHED" ] && [ "$NEW_HASH" != "${{ steps.published.outputs.hash }}" ]; then
+            echo "::error::served files changed without going through a successful publish (outcome=$OUTCOME) -- last-known-good guarantee violated"
+            exit 1
+          fi
+          echo "last-known-good integrity verified (outcome=$OUTCOME)"
 
       - name: Job summary
         if: always()
         run: |
           {
-            echo "# Football Intelligence Weekly Refresh"
+            echo "# Football Intelligence Daily Refresh"
             echo
             echo "| field | value |"
             echo "|---|---|"
             echo "| result | ${{ steps.publish.outputs.result || steps.compare.outputs.outcome || steps.validate.outputs.result || steps.build.outputs.result || steps.fetch.outputs.result || 'UNKNOWN' }} |"
             if [ -f "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json" ]; then
-              echo "| season | $(jq -r .season "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json") |"
-              echo "| through_week | $(jq -r .through_week "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json") |"
+              M="$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json"
+              echo "| season | $(jq -r .season "$M") |"
+              echo "| through_week | $(jq -r .through_week "$M") |"
+              echo "| week_state | $(jq -r .week_completion.week_state "$M") |"
+              echo "| games_completed_in_latest_week | $(jq -r .week_completion.games_completed_in_latest_week "$M") |"
+              echo "| games_scheduled_in_latest_week | $(jq -r .week_completion.games_scheduled_in_latest_week "$M") |"
+              echo "| latest_completed_game_date | $(jq -r .week_completion.latest_completed_game_date "$M") |"
               echo "| previous_version | ${{ steps.published.outputs.version || 'none' }} |"
-              echo "| new_version | $(jq -r .football_intelligence_version "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json") |"
-              echo "| generated_at | $(jq -r .generated_at "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json") |"
+              echo "| new_version | $(jq -r .football_intelligence_version "$M") |"
+              echo "| generated_at | $(jq -r .generated_at "$M") |"
               echo
               echo "## source cutoffs"
               echo '```json'
-              jq -r .data_cutoff "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json"
+              jq -r .data_cutoff "$M"
               echo '```'
             fi
             echo
             echo "## validation gates"
             if [ -f "$CANDIDATE_ROOT/lib/football-intel/data/validation_result.json" ]; then
+              R="$CANDIDATE_ROOT/lib/football-intel/data/validation_result.json"
               echo '```json'
-              jq -r '.gates[] | "[\(.status)] \(.name)  \(.detail)"' "$CANDIDATE_ROOT/lib/football-intel/data/validation_result.json"
+              jq -r '.gates[] | "[\(.status)] \(.name)  \(.detail)"' "$R"
+              echo '```'
+              echo
+              echo "## source classification"
+              echo '```json'
+              jq -r .source_classification "$R"
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
