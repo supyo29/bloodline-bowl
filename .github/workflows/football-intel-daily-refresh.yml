@@ -115,10 +115,13 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-          # last-known-good fingerprint: proven untouched below unless this
-          # run actually publishes (requirement: LKG survives any failure,
-          # including a failed partial-week build/validate).
-          HASH=$(cat $SERVED_FILES 2>/dev/null | sha256sum | cut -d' ' -f1)
+          # last-known-good fingerprint of the COMMITTED state at HEAD (not
+          # the working-tree disk, which the stage step is about to
+          # overwrite locally) -- re-checked against origin at the very end
+          # against the actual remote ref, so a failed Node test or any
+          # other post-staging failure is judged against what's really
+          # published, not against this job's already-mutated checkout.
+          HASH=$( { for f in $SERVED_FILES; do git show "HEAD:$f" 2>/dev/null; done; } | sha256sum | cut -d' ' -f1)
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
       # --- refresh -----------------------------------------------------
@@ -211,7 +214,7 @@ jobs:
             echo "result=CONCURRENCY_ABORT" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          echo "result=OK" >> "$GITHUB_OUTPUT"
+          # no output on success -- see the Node-test step for why.
 
       # --- stage the candidate locally (copy only -- no commit/push yet) -
       - name: Stage candidate into served directory
@@ -235,10 +238,36 @@ jobs:
         if: steps.compare.outputs.outcome == 'UPDATED'
         run: |
           npm ci
-          node --import tsx --test test/football-intel-read.test.ts
+          if ! node --import tsx --test test/football-intel-read.test.ts; then
+            echo "result=FAILED_NODE_CONTRACT" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          # no output on success: the job-summary priority chain treats an
+          # empty output as "keep looking," so only failure codes are ever
+          # written here -- a later step's real outcome (PUBLISHED/NO_CHANGE)
+          # must not be shadowed by an earlier step's mere "it passed."
 
-      # --- publish: only after concurrency check + staging + the Node
-      # read-contract test have all passed -------------------------------
+      # --- second, authoritative drift check: origin/main (or whatever ref
+      # triggered this run) can move at any point during npm ci / the Node
+      # test, which takes real wall-clock time. The early check only proves
+      # main hadn't moved yet when we started staging; this one is the one
+      # that actually gates the push. -------------------------------------
+      - name: Check origin/main has not moved (final, immediately pre-publish)
+        id: concurrency_final
+        if: steps.compare.outputs.outcome == 'UPDATED'
+        run: |
+          git fetch origin main
+          BASE_SHA=$(git rev-parse HEAD)
+          REMOTE_SHA=$(git rev-parse origin/main)
+          if [ "$BASE_SHA" != "$REMOTE_SHA" ] && [ "${{ github.ref_name }}" = "main" ]; then
+            echo "origin/main moved during staging/npm-ci/Node-test ($BASE_SHA -> $REMOTE_SHA); aborting publish rather than overwriting concurrent work. No rebase, no force push, no automatic conflict repair." >&2
+            echo "result=CONCURRENCY_ABORT" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          # no output on success -- see the Node-test step for why.
+
+      # --- publish: only after both concurrency checks + staging + the
+      # Node read-contract test have all passed ---------------------------
       - name: Commit and push
         id: publish
         if: steps.compare.outputs.outcome == 'UPDATED'
@@ -266,17 +295,22 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           echo "result=PUBLISHED" >> "$GITHUB_OUTPUT"
 
-      # --- proof that a failed/partial run never mutates the real
-      # (committed) served snapshot: the local checkout's served files must
-      # be byte-identical to what was recorded before this run started,
-      # UNLESS this run actually published. ------------------------------
-      - name: Verify last-known-good untouched unless published
+      # --- proof that a failed/partial run never mutates the real,
+      # REMOTE last-known-good snapshot. This checks origin/${ref}'s actual
+      # committed content (via `git show`), not this job's local disk --
+      # the local checkout is expected to already differ after staging (or
+      # to be left in a half-updated state if the Node test failed), and
+      # that is irrelevant: the runner is thrown away either way. Only a
+      # change to what origin/${ref} actually serves would matter, and that
+      # can only happen through the publish step above. -------------------
+      - name: Verify remote last-known-good untouched unless published
         if: always()
         run: |
-          OUTCOME="${{ steps.publish.outputs.result || 'NONE' }}"
-          NEW_HASH=$(cat $SERVED_FILES 2>/dev/null | sha256sum | cut -d' ' -f1)
-          if [ "$OUTCOME" != "PUBLISHED" ] && [ "$NEW_HASH" != "${{ steps.published.outputs.hash }}" ]; then
-            echo "::error::served files changed without going through a successful publish (outcome=$OUTCOME) -- last-known-good guarantee violated"
+          OUTCOME="${{ steps.publish.outputs.result || steps.concurrency_final.outputs.result || steps.node_test.outputs.result || steps.concurrency.outputs.result || 'NONE' }}"
+          git fetch origin ${{ github.ref_name }} || true
+          REMOTE_HASH=$( { for f in $SERVED_FILES; do git show "origin/${{ github.ref_name }}:$f" 2>/dev/null; done; } | sha256sum | cut -d' ' -f1)
+          if [ "$OUTCOME" != "PUBLISHED" ] && [ "$REMOTE_HASH" != "${{ steps.published.outputs.hash }}" ]; then
+            echo "::error::remote last-known-good changed without a successful publish from this run (outcome=$OUTCOME) -- last-known-good guarantee violated"
             exit 1
           fi
           echo "last-known-good integrity verified (outcome=$OUTCOME)"
@@ -289,7 +323,7 @@ jobs:
             echo
             echo "| field | value |"
             echo "|---|---|"
-            echo "| result | ${{ steps.publish.outputs.result || steps.compare.outputs.outcome || steps.validate.outputs.result || steps.build.outputs.result || steps.fetch.outputs.result || 'UNKNOWN' }} |"
+            echo "| result | ${{ steps.publish.outputs.result || steps.concurrency_final.outputs.result || steps.node_test.outputs.result || steps.compare.outputs.outcome || steps.concurrency.outputs.result || steps.validate.outputs.result || steps.build.outputs.result || steps.fetch.outputs.result || 'UNKNOWN' }} |"
             if [ -f "$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json" ]; then
               M="$CANDIDATE_ROOT/lib/football-intel/data/football_intelligence_manifest.json"
               echo "| season | $(jq -r .season "$M") |"
