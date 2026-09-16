@@ -111,12 +111,16 @@ contextual_matchup_feature <- build_contextual_matchups(team_profile, unit_cover
 # ---- FTN descriptive (DESCRIPTIVE_ONLY; never a model input) -------
 ftn_descriptive <- build_ftn_descriptive(ftn, pbp, season, through_week, FI)
 
+# ---- partial-week completion (spec: daily refresh, real-time ingest) ----
+week_completion <- FI$compute_week_completion(schedules, season, through_week)
+message(sprintf("week completion: %s (%d/%d games)%s", week_completion$week_state,
+                week_completion$games_completed_in_latest_week, week_completion$games_scheduled_in_latest_week,
+                if (!is.na(week_completion$latest_completed_game_date))
+                  sprintf(", latest completed game %s", week_completion$latest_completed_game_date) else ""))
+
 # ---- version id (content hash of the served tables, spec §3, §27) --
-content <- digest::digest(list(
-  FI$MODEL_TAG, FI$FEATURE_SCHEMA_VERSION, season, through_week,
-  team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature
-), algo = "sha256")
-version <- sprintf("fi:%d:w%02d:%s", season, through_week, substr(content, 1, 12))
+version <- FI$compute_version(season, through_week, week_completion$games_completed_in_latest_week,
+                              team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature)
 
 manifest <- list(
   football_intelligence_version = version,
@@ -125,6 +129,7 @@ manifest <- list(
   generated_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
   season = season,
   through_week = through_week,
+  week_completion = week_completion,
   data_cutoff = data_cutoff,
   seasons_used = list(prior = prior_seasons, current = season),
   model_versions = list(

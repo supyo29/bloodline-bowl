@@ -171,4 +171,53 @@ FI$normalize_team <- function(x) {
     "SL" = "LAR", "JAC" = "JAX", .default = x)
 }
 
+# ---- sources whose per-(season,week) availability fetch_raw.R tracks -----
+# Single source of truth for both fetch_raw.R's source_availability.rds and
+# validate_snapshot.R's EXPECTED_SOURCE_LAG / BROKEN_OR_MISSING_DATA
+# classification -- a source entirely absent from data_cutoff is only ever
+# "expected lag" if it's on this list; anything else appearing would be
+# unexpected and worth a human look.
+FI$EXPECTED_SOURCES <- c("pbp", "participation", "ngs_passing", "ngs_rushing", "ngs_receiving",
+                         "pfr_pass", "pfr_def", "snap_counts", "ftn_charting")
+
+# ---- partial-week completion (daily refresh support) --------------------
+# Derives week completeness from the authoritative schedule/result data
+# already fetched (schedules.rds), never from calendar date. A week is
+# COMPLETE only when every scheduled REG game for it has a final result;
+# any other state (including zero completed games) is PARTIAL. This is
+# reporting metadata only -- it does not change how current_rating_for_metric
+# selects rows (week <= through_week already includes whatever games have
+# actually been played, complete or not).
+FI$compute_week_completion <- function(schedules, season, week) {
+  wk <- schedules[schedules$season == season & schedules$game_type == "REG" & schedules$week == week, , drop = FALSE]
+  n_scheduled <- nrow(wk)
+  done <- wk[!is.na(wk$result), , drop = FALSE]
+  n_completed <- nrow(done)
+  list(
+    latest_week = as.integer(week),
+    week_state = if (n_scheduled > 0 && n_completed == n_scheduled) "COMPLETE" else "PARTIAL",
+    games_completed_in_latest_week = as.integer(n_completed),
+    games_scheduled_in_latest_week = as.integer(n_scheduled),
+    latest_completed_game_date = if (n_completed > 0) as.character(max(done$gameday, na.rm = TRUE)) else NA_character_
+  )
+}
+
+# ---- content-hash version id (spec §3, §27) ------------------------------
+# games_completed_in_latest_week is an explicit digest input: two builds for
+# the identical (season, through_week) with a different number of completed
+# games must never collapse to the same version, even in the hypothetical
+# case where the newly-completed game happened not to move any published
+# metric. Making this explicit (rather than relying only on the served
+# tables incidentally differing) is what a daily partial-week refresh
+# depends on for correct NO_CHANGE vs UPDATED detection.
+FI$compute_version <- function(season, through_week, games_completed_in_latest_week,
+                               team_profile, player_usage_profile, unit_coverage_profile,
+                               contextual_matchup_feature) {
+  content <- digest::digest(list(
+    FI$MODEL_TAG, FI$FEATURE_SCHEMA_VERSION, season, through_week, games_completed_in_latest_week,
+    team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature
+  ), algo = "sha256")
+  sprintf("fi:%d:w%02d:%s", season, through_week, substr(content, 1, 12))
+}
+
 invisible(FI)
