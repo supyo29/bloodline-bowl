@@ -1,8 +1,8 @@
 {
-  "football_intelligence_version": "fi:2026:w01:2d953dc8544b",
+  "football_intelligence_version": "fi:2026:w01:ab802a853780",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-09-16T00:48:20-0500",
+  "generated_at": "2026-09-16T17:27:34+0000",
   "season": 2026,
   "through_week": 1,
   "week_completion": {
@@ -34,7 +34,7 @@
     "usage": "usage-2026.1"
   },
   "source_versions": {
-    "nflreadr": "1.5.0"
+    "nflreadr": "1.5.1"
   },
   "config": {
     "prior_decay_lambda": 0.5,
