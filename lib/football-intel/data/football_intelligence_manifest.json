@@ -1,24 +1,23 @@
 {
-  "football_intelligence_version": "fi:2025:w18:6e872c5caa82",
+  "football_intelligence_version": "fi:2026:w01:cf54a02807a9",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-09-07T23:54:20-0500",
-  "season": 2025,
-  "through_week": 18,
+  "generated_at": "2026-09-16T00:04:35-0500",
+  "season": 2026,
+  "through_week": 1,
   "data_cutoff": {
-    "ftn_charting": 18,
-    "ngs_passing": 18,
-    "ngs_receiving": 18,
-    "ngs_rushing": 18,
-    "participation": 18,
-    "pbp": 18,
-    "pfr_def": 18,
-    "pfr_pass": 18,
-    "snap_counts": 18
+    "ftn_charting": 1,
+    "ngs_passing": 1,
+    "ngs_receiving": 1,
+    "ngs_rushing": 1,
+    "pbp": 1,
+    "pfr_def": 1,
+    "pfr_pass": 1,
+    "snap_counts": 1
   },
   "seasons_used": {
-    "prior": [2021, 2022, 2023, 2024],
-    "current": 2025
+    "prior": [2022, 2023, 2024, 2025],
+    "current": 2026
   },
   "model_versions": {
     "opponent_adjustment": "opp-adj-ridge-2026.1",
