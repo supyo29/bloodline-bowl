@@ -28,11 +28,15 @@ FI$SEED <- 20260907L
 # prior seasons; we ingest a wider window only so the walk-forward backtest
 # can reconstruct priors as they would have existed in earlier test seasons.
 FI$SEASON_CURRENT   <- 2026L
-FI$PBP_SEASONS      <- 2012:2025   # team/pace/EPA/explosive/RZ — cheap, long history
-FI$PARTICIPATION_SEASONS <- 2016:2025   # formation / personnel / man-zone / routes
-FI$PFR_SEASONS      <- 2018:2025   # pressure / blitz / YBC / coverage-allowed
-FI$NGS_SEASONS      <- 2016:2025
-FI$FTN_SEASONS      <- 2022:2025   # DESCRIPTIVE_ONLY — never a model input (spec guardrail 1)
+# Upper bound of every ingest window is FI$SEASON_CURRENT, not a literal year,
+# so the in-season automated refresh actually requests the current season's
+# data instead of silently stopping at whatever year this file was last
+# edited in.
+FI$PBP_SEASONS      <- 2012:FI$SEASON_CURRENT   # team/pace/EPA/explosive/RZ — cheap, long history
+FI$PARTICIPATION_SEASONS <- 2016:FI$SEASON_CURRENT   # formation / personnel / man-zone / routes
+FI$PFR_SEASONS      <- 2018:FI$SEASON_CURRENT   # pressure / blitz / YBC / coverage-allowed
+FI$NGS_SEASONS      <- 2016:FI$SEASON_CURRENT
+FI$FTN_SEASONS      <- 2022:FI$SEASON_CURRENT   # DESCRIPTIVE_ONLY — never a model input (spec guardrail 1)
 
 # Walk-forward backtest window (spec §17). Test seasons whose priors can be
 # built from >= 3 prior seasons of every required source.

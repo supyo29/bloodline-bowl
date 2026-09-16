@@ -106,6 +106,17 @@ compute_metric_profile <- function(tgf, spec, season, through_week, prior_rating
   cur <- current_rating_for_metric(tgf, spec, season, through_week, FI)
   recent <- current_rating_for_metric(tgf, spec, season, through_week, FI,
                                       halflife = FI$TREND_RECENT_HALFLIFE_GAMES)
+  # current_rating_for_metric() returns NULL when this metric has no usable
+  # current-season sample at all yet (e.g. a source it depends on -- like
+  # participation-derived n_charted for def_blitz_rate -- hasn't published
+  # for the target week). That is a legitimate zero-current-observation
+  # state, not an error: fall back to the same all-NA-current row shape the
+  # per-team join already handles below, so the profile is prior-only with
+  # obs_eff_n = 0 (-> INSUFFICIENT_SAMPLE), never a crash.
+  empty_cur <- tibble::tibble(team = character(), current_dev = double(),
+                              eff_n = double(), kish = double(), raw = double(), mu = double())
+  if (is.null(cur)) cur <- empty_cur
+  if (is.null(recent)) recent <- empty_cur
 
   teams <- sort(unique(c(priors$team, cur$team, disc$team)))
   base <- tibble::tibble(team = teams, metric = spec$key, side = spec$side,
