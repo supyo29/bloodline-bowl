@@ -65,10 +65,17 @@ if (is.null(cand_manifest)) {
 } else {
   add("manifest is valid JSON and present", PASS)
   req_keys <- c("football_intelligence_version", "model_tag", "feature_schema_version",
-                "season", "through_week", "generated_at", "data_cutoff", "files")
+                "season", "through_week", "generated_at", "data_cutoff", "files", "week_completion")
   missing_keys <- setdiff(req_keys, names(cand_manifest))
   add("manifest has all required keys", if (length(missing_keys) == 0) PASS else FAIL,
       if (length(missing_keys)) paste("missing:", paste(missing_keys, collapse = ", ")) else "")
+
+  wc_keys <- c("latest_week", "week_state", "games_completed_in_latest_week",
+               "games_scheduled_in_latest_week", "latest_completed_game_date")
+  wc <- cand_manifest$week_completion
+  wc_missing <- if (is.null(wc)) wc_keys else setdiff(wc_keys, names(wc))
+  add("manifest.week_completion has all required sub-fields", if (length(wc_missing) == 0) PASS else FAIL,
+      if (length(wc_missing)) paste("missing:", paste(wc_missing, collapse = ", ")) else "")
 
   listed <- unlist(cand_manifest$files)
   missing_files <- setdiff(listed, list.files(CAND))
@@ -104,8 +111,51 @@ if (!is.null(cand_manifest) && !is.null(pub_manifest)) {
     add("no un-forced regression away from an already-reached current season", FAIL,
         sprintf("published season %d already reached; candidate resolved to %d", ps, cs))
   }
+
+  # ---- partial-week completion monotonicity (same season+week only) ----
+  same_week <- identical(cs, ps) && identical(cw, pw)
+  cwc <- cand_manifest$week_completion; pwc <- pub_manifest$week_completion
+  if (same_week && !is.null(cwc) && !is.null(pwc)) {
+    cgc <- suppressWarnings(as.integer(cwc$games_completed_in_latest_week))
+    pgc <- suppressWarnings(as.integer(pwc$games_completed_in_latest_week))
+    if (FORCE) {
+      add("games_completed_in_latest_week never decreases within the same week", WARN,
+          sprintf("published=%s candidate=%s (regression allowed by --force)", pgc, cgc))
+    } else {
+      add("games_completed_in_latest_week never decreases within the same week",
+          if (isTRUE(cgc >= pgc)) PASS else FAIL,
+          sprintf("published=%s candidate=%s", pgc, cgc))
+    }
+    complete_regressed <- identical(pwc$week_state, "COMPLETE") && !identical(cwc$week_state, "COMPLETE")
+    if (complete_regressed && FORCE) {
+      add("COMPLETE week_state never silently regresses to PARTIAL", WARN,
+          "published COMPLETE, candidate PARTIAL (allowed by --force)")
+    } else {
+      add("COMPLETE week_state never silently regresses to PARTIAL",
+          if (!complete_regressed) PASS else FAIL,
+          sprintf("published=%s candidate=%s", pwc$week_state, cwc$week_state))
+    }
+  }
 } else if (!is.null(cand_manifest) && is.null(pub_manifest)) {
   add("season/week does not regress vs published", PASS, "no published snapshot yet (first publish)")
+}
+
+# ---------------------------------------------------------------------------
+# GATE 2b — week_completion internal self-consistency (candidate-only)
+# ---------------------------------------------------------------------------
+if (!is.null(cand_manifest) && !is.null(cand_manifest$week_completion)) {
+  wc <- cand_manifest$week_completion
+  gc <- suppressWarnings(as.integer(wc$games_completed_in_latest_week))
+  gs <- suppressWarnings(as.integer(wc$games_scheduled_in_latest_week))
+  add("games_completed_in_latest_week never exceeds games_scheduled_in_latest_week",
+      if (isTRUE(gc <= gs)) PASS else FAIL, sprintf("completed=%s scheduled=%s", gc, gs))
+  is_complete <- isTRUE(gs > 0 && gc == gs)
+  add("week_state == COMPLETE requires every scheduled game completed",
+      if (!identical(wc$week_state, "COMPLETE") || is_complete) PASS else FAIL,
+      sprintf("week_state=%s completed=%s scheduled=%s", wc$week_state, gc, gs))
+  add("an incomplete week is explicitly labeled PARTIAL, never COMPLETE",
+      if (is_complete || identical(wc$week_state, "PARTIAL")) PASS else FAIL,
+      sprintf("week_state=%s completed=%s scheduled=%s", wc$week_state, gc, gs))
 }
 
 # ---------------------------------------------------------------------------
@@ -132,31 +182,40 @@ if (file.exists(pbp_path) && !is.null(cand_manifest)) {
 # ---------------------------------------------------------------------------
 # GATE 4 — per-source lag classification: EXPECTED_SOURCE_LAG vs BROKEN
 # ---------------------------------------------------------------------------
+source_classification <- list()
 if (!is.null(cand_manifest)) {
   cc <- cand_manifest$data_cutoff
   pc <- if (!is.null(pub_manifest)) pub_manifest$data_cutoff else list()
   same_season <- !is.null(pub_manifest) && identical(as.integer(pub_manifest$season), as.integer(cand_manifest$season))
+  through_wk <- as.integer(cand_manifest$through_week)
   broken <- character(0)
   lagging <- character(0)
-  for (src in names(cc)) {
-    cval <- suppressWarnings(as.integer(cc[[src]]))
+  # every source fetch_raw.R is expected to track, whether or not it made it
+  # into this candidate's data_cutoff at all -- a source with ZERO rows for
+  # the target season is exactly as much "expected lag" as one that's merely
+  # behind through_week, and must be classified explicitly rather than
+  # silently skipped because it has no data_cutoff entry to loop over.
+  all_sources <- union(FI$EXPECTED_SOURCES, names(cc))
+  for (src in all_sources) {
+    cval <- if (src %in% names(cc)) suppressWarnings(as.integer(cc[[src]])) else NA_integer_
     pval <- if (same_season && !is.null(pc[[src]])) suppressWarnings(as.integer(pc[[src]])) else NA_integer_
     if (!is.na(pval) && (is.na(cval) || cval < pval)) {
       broken <- c(broken, sprintf("%s (was w%d, now %s)", src, pval, if (is.na(cval)) "MISSING" else paste0("w", cval)))
-    } else if (!is.na(cval) && cval < as.integer(cand_manifest$through_week)) {
-      lagging <- c(lagging, sprintf("%s (w%d, through_week w%d)", src, cval, as.integer(cand_manifest$through_week)))
+      source_classification[[src]] <- "BROKEN_OR_MISSING_DATA"
+    } else if (is.na(cval)) {
+      lagging <- c(lagging, sprintf("%s (no rows yet for this season)", src))
+      source_classification[[src]] <- "EXPECTED_SOURCE_LAG"
+    } else if (cval < through_wk) {
+      lagging <- c(lagging, sprintf("%s (w%d, through_week w%d)", src, cval, through_wk))
+      source_classification[[src]] <- "EXPECTED_SOURCE_LAG"
+    } else {
+      source_classification[[src]] <- "AT_CUTOFF"
     }
-  }
-  # a source present in the previously published manifest that vanished
-  # entirely from the candidate for the same season is also a regression.
-  if (same_season) {
-    vanished <- setdiff(names(pc), names(cc))
-    if (length(vanished)) broken <- c(broken, sprintf("%s (vanished from data_cutoff)", vanished))
   }
   add("no source regressed vs a previously-achieved cutoff (BROKEN_OR_MISSING_DATA)",
       if (length(broken) == 0) PASS else FAIL,
       if (length(broken)) paste(broken, collapse = "; ") else "")
-  add("sources behind through_week are flagged EXPECTED_SOURCE_LAG (informational)",
+  add("every source behind or absent for the target season is flagged EXPECTED_SOURCE_LAG (informational)",
       PASS, if (length(lagging)) paste(lagging, collapse = "; ") else "all sources at through_week")
 }
 
@@ -244,10 +303,13 @@ overall <- if (any(vapply(results, function(r) r$status == FAIL, logical(1)))) "
 summary_obj <- list(
   overall = overall,
   candidate = list(season = cand_manifest$season, through_week = cand_manifest$through_week,
-                    version = cand_manifest$football_intelligence_version),
+                    version = cand_manifest$football_intelligence_version,
+                    week_completion = cand_manifest$week_completion),
   published = if (!is.null(pub_manifest))
     list(season = pub_manifest$season, through_week = pub_manifest$through_week,
-         version = pub_manifest$football_intelligence_version) else NULL,
+         version = pub_manifest$football_intelligence_version,
+         week_completion = pub_manifest$week_completion) else NULL,
+  source_classification = source_classification,
   gates = results
 )
 write(jsonlite::toJSON(summary_obj, auto_unbox = TRUE, pretty = TRUE, null = "null"),
