@@ -221,13 +221,8 @@ jobs:
 
           SEASON=$(jq -r .season lib/football-intel/data/football_intelligence_manifest.json)
           WEEK=$(jq -r .through_week lib/football-intel/data/football_intelligence_manifest.json)
-          git commit -m "football-intel: refresh ${SEASON} week ${WEEK}
-
-Automated weekly Football Intelligence refresh.
-version: ${{ steps.compare.outputs.candidate_version }}
-previous: ${{ steps.published.outputs.version }}
-
-Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+          MSG="football-intel: refresh ${SEASON} week ${WEEK}"$'\n\n'"Automated weekly Football Intelligence refresh."$'\n'"version: ${{ steps.compare.outputs.candidate_version }}"$'\n'"previous: ${{ steps.published.outputs.version }}"$'\n\n'"Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+          git commit -m "$MSG"
 
           git push origin HEAD:${{ github.ref_name }}
           echo "result=PUBLISHED" >> "$GITHUB_OUTPUT"
