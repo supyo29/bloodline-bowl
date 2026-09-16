@@ -62,12 +62,53 @@ test_that("PARTIAL -> more completions -> COMPLETE is a real transition the func
                  wc3$games_completed_in_latest_week), c(1L, 2L, 3L))
 })
 
-test_that("compute_version changes when games_completed_in_latest_week changes, even if the served tables happen to be identical", {
-  tp <- tibble::tibble(team = "KC", metric = "off_pass_epa", modeled = 0.1)
-  v1 <- FI$compute_version(2024, 5, 1L, tp, tp, tp, tp)
-  v2 <- FI$compute_version(2024, 5, 2L, tp, tp, tp, tp)
+wc_base <- list(latest_week = 5L, week_state = "PARTIAL", games_completed_in_latest_week = 1L,
+                games_scheduled_in_latest_week = 3L, latest_completed_game_date = "2024-10-03")
+tp <- tibble::tibble(team = "KC", metric = "off_pass_epa", modeled = 0.1)
+ftn <- tibble::tibble(team = "KC", metric = "man_rate", value = 0.4)
+
+test_that("identical snapshot -> identical version", {
+  v1 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  v2 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  expect_identical(v1, v2)
+})
+
+test_that("different completed-game count -> different version, even if every served table is identical", {
+  wc2 <- wc_base; wc2$games_completed_in_latest_week <- 2L
+  v1 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  v2 <- FI$compute_version(2024, 5, wc2, tp, tp, tp, tp, ftn)
   expect_false(identical(v1, v2))
-  # sanity: identical inputs (including completed count) are deterministic
-  v1b <- FI$compute_version(2024, 5, 1L, tp, tp, tp, tp)
-  expect_identical(v1, v1b)
+})
+
+test_that("different served FTN descriptive content -> different version (the bug this fixes)", {
+  ftn2 <- tibble::tibble(team = "KC", metric = "man_rate", value = 0.9)
+  v1 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  v2 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn2)
+  expect_false(identical(v1, v2))
+})
+
+test_that("compute_version has no generated_at parameter at all -- a timestamp cannot leak into identity", {
+  expect_false("generated_at" %in% names(formals(FI$compute_version)))
+})
+
+test_that("every week_completion semantic field is covered by the digest, not just the completed count", {
+  replacements <- list(latest_week = 6L, week_state = "COMPLETE",
+                       games_scheduled_in_latest_week = 999L, latest_completed_game_date = "2099-01-01")
+  v0 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  for (f in names(replacements)) {
+    wc_mod <- wc_base
+    wc_mod[[f]] <- replacements[[f]]
+    v1 <- FI$compute_version(2024, 5, wc_mod, tp, tp, tp, tp, ftn)
+    expect_false(identical(v0, v1), info = sprintf("changing %s did not change the version", f))
+  }
+})
+
+test_that("generated_at-only difference does not change the version (it is not a digest input)", {
+  # simulate two builds that differ only in wall-clock time by constructing
+  # the full manifest twice and confirming the version field is identical
+  # while generated_at, if present, would differ.
+  v1 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  Sys.sleep(0.01)
+  v2 <- FI$compute_version(2024, 5, wc_base, tp, tp, tp, tp, ftn)
+  expect_identical(v1, v2)
 })

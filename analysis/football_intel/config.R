@@ -203,19 +203,36 @@ FI$compute_week_completion <- function(schedules, season, week) {
 }
 
 # ---- content-hash version id (spec §3, §27) ------------------------------
-# games_completed_in_latest_week is an explicit digest input: two builds for
-# the identical (season, through_week) with a different number of completed
-# games must never collapse to the same version, even in the hypothetical
-# case where the newly-completed game happened not to move any published
-# metric. Making this explicit (rather than relying only on the served
-# tables incidentally differing) is what a daily partial-week refresh
-# depends on for correct NO_CHANGE vs UPDATED detection.
-FI$compute_version <- function(season, through_week, games_completed_in_latest_week,
+# The version identity covers every served *analytical/descriptive* table --
+# team_profile, player_usage_profile, unit_coverage_profile,
+# contextual_matchup_feature, AND ftn_descriptive (previously omitted: a
+# daily refresh that only changed FTN charting would have kept the same
+# version and never published it). It also covers week_completion's five
+# semantic fields explicitly (latest_week, week_state,
+# games_completed_in_latest_week, games_scheduled_in_latest_week,
+# latest_completed_game_date) rather than only the completed-game count, so
+# any change to how complete the week is -- not just the raw count --
+# changes identity too.
+#
+# Two things are deliberately EXCLUDED from the digest:
+#   - generated_at: a wall-clock timestamp must never by itself create a new
+#     version, or every run would be "UPDATED" regardless of content.
+#   - data_cutoff: a source reporting a newer cutoff is provenance/freshness
+#     metadata, not served analytical content. Any cutoff change that
+#     actually adds information will, by construction, show up in one of the
+#     hashed tables above (a new play changes tgf -> team_profile/usage/etc.;
+#     new FTN rows change ftn_descriptive); a cutoff bump that changes none
+#     of them is, by definition, a no-op for anything a consumer reads, and
+#     the correct outcome for that is NO_CHANGE, not a forced republish of
+#     otherwise-identical served data.
+FI$compute_version <- function(season, through_week, week_completion,
                                team_profile, player_usage_profile, unit_coverage_profile,
-                               contextual_matchup_feature) {
+                               contextual_matchup_feature, ftn_descriptive) {
+  wc_identity <- week_completion[c("latest_week", "week_state", "games_completed_in_latest_week",
+                                   "games_scheduled_in_latest_week", "latest_completed_game_date")]
   content <- digest::digest(list(
-    FI$MODEL_TAG, FI$FEATURE_SCHEMA_VERSION, season, through_week, games_completed_in_latest_week,
-    team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature
+    FI$MODEL_TAG, FI$FEATURE_SCHEMA_VERSION, season, through_week, wc_identity,
+    team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature, ftn_descriptive
   ), algo = "sha256")
   sprintf("fi:%d:w%02d:%s", season, through_week, substr(content, 1, 12))
 }

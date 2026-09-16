@@ -119,8 +119,9 @@ message(sprintf("week completion: %s (%d/%d games)%s", week_completion$week_stat
                   sprintf(", latest completed game %s", week_completion$latest_completed_game_date) else ""))
 
 # ---- version id (content hash of the served tables, spec §3, §27) --
-version <- FI$compute_version(season, through_week, week_completion$games_completed_in_latest_week,
-                              team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature)
+version <- FI$compute_version(season, through_week, week_completion,
+                              team_profile, player_usage_profile, unit_coverage_profile,
+                              contextual_matchup_feature, ftn_descriptive)
 
 manifest <- list(
   football_intelligence_version = version,

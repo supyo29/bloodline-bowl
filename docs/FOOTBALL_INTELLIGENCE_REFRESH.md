@@ -98,16 +98,43 @@ production data, exactly like any other week — the model's existing
 priors/shrinkage/confidence machinery is what protects a 1-game sample from
 being overweighted, not a gate in this automation.
 
-The version hash is an explicit function of `games_completed_in_latest_week`
-(`FI$compute_version()`), not just of the served tables. That guarantees a
-week going from 1 completed game to 15 gets a new
-`football_intelligence_version` even in the (rare) case none of the served
-tables happened to visibly change — `season == season && through_week ==
-through_week` is never treated as sufficient for `NO_CHANGE`. Verified
-directly in `analysis/football_intel/tests/testthat/test-week-completion.R`:
-`compute_version()` called twice with identical tables but a different
-`games_completed_in_latest_week` produces two different hashes, and the same
-call repeated with identical inputs (including the count) is deterministic.
+### Version identity — what's in the hash, and what deliberately isn't
+
+`FI$compute_version()` hashes every served analytical/descriptive table —
+`team_profile`, `player_usage_profile`, `unit_coverage_profile`,
+`contextual_matchup_feature`, **and `ftn_descriptive`** — plus all five
+`week_completion` semantic fields (`latest_week`, `week_state`,
+`games_completed_in_latest_week`, `games_scheduled_in_latest_week`,
+`latest_completed_game_date`), not just the completed-game count. That
+guarantees a week going from 1 completed game to 15 gets a new
+`football_intelligence_version` even in the (rare) case none of the tables
+happened to visibly change, and that new FTN charting data alone — with the
+other four tables unchanged — is never silently swallowed into `NO_CHANGE`
+(a real gap in an earlier revision of this automation: `ftn_descriptive` was
+omitted from the digest entirely). `season == season && through_week ==
+through_week` is never treated as sufficient for `NO_CHANGE`.
+
+Two things are deliberately **excluded**:
+
+- **`generated_at`** — a wall-clock timestamp must never by itself create a
+  new version, or every run would be `UPDATED` regardless of content.
+  `compute_version()` doesn't even take it as a parameter.
+- **`data_cutoff`** — a source reporting a newer cutoff is provenance/freshness
+  metadata, not served content. Any cutoff change that actually adds
+  information will, by construction, already show up in one of the hashed
+  tables (a new play changes `team_game_features` → `team_profile`/usage/etc.;
+  new FTN rows change `ftn_descriptive`). A cutoff bump that moves none of
+  them is a no-op for every consumer of the served data, and the correct
+  outcome for that is `NO_CHANGE`, not a forced republish of otherwise
+  byte-identical tables.
+
+Verified directly in `analysis/football_intel/tests/testthat/test-week-completion.R`:
+identical inputs → identical version; a different completed-game count with
+otherwise-identical tables → different version; different `ftn_descriptive`
+content with everything else identical → different version (the specific bug
+this fixes); every other `week_completion` field individually changes the
+version too; and a `generated_at`-only difference cannot change it because
+the function has no such parameter to leak through.
 
 ### Typical valid state
 
