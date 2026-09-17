@@ -29,7 +29,8 @@ source(file.path(.role_dir, "..", "football_intel", "config.R"))  # defines FI
 ROLE <- new.env()
 
 # ---- versioning -----------------------------------------------------------
-ROLE$SCHEMA_VERSION   <- "role-opportunity-schema:v1"   # data/grain contract version
+ROLE$SCHEMA_VERSION   <- "role-opportunity-schema:v1"   # data/grain contract version (Checkpoint B)
+ROLE$MODEL_SCHEMA_VERSION <- "role-profile-model:v1"    # role-profile/change-detection contract (Checkpoint C)
 ROLE$FEATURE_SCHEMA_VERSION <- 1L
 ROLE$SEED             <- FI$SEED
 
