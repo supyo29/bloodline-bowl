@@ -1,0 +1,143 @@
+{
+  "role_opportunity_schema_version": "role-opportunity-schema:v1",
+  "season": 2026,
+  "through_week": 1,
+  "generated_at": "2026-09-17T20:49:45+0000",
+  "week_completion": {
+    "latest_week": 1,
+    "week_state": "COMPLETE",
+    "games_completed_in_latest_week": 16,
+    "games_scheduled_in_latest_week": 16,
+    "latest_completed_game_date": "2026-09-14"
+  },
+  "feature_family_availability": [
+    {
+      "family": "SNAPS",
+      "source": "snap_counts",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "ROUTES",
+      "source": "participation",
+      "status": "UNAVAILABLE",
+      "through_week": null
+    },
+    {
+      "family": "TARGETS",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "AIR_YARDS",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "RUSHING",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "RED_ZONE",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "THIRD_DOWN",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "TWO_MINUTE",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "RETURNS",
+      "source": "pbp",
+      "status": "AVAILABLE_CURRENT",
+      "through_week": 1
+    },
+    {
+      "family": "ALIGNMENT",
+      "source": null,
+      "status": "UNAVAILABLE",
+      "through_week": null
+    },
+    {
+      "family": "MOTION_PLAYER_LEVEL",
+      "source": null,
+      "status": "UNAVAILABLE",
+      "through_week": null
+    },
+    {
+      "family": "PASS_BLOCKING",
+      "source": null,
+      "status": "UNAVAILABLE",
+      "through_week": null
+    },
+    {
+      "family": "RUN_BLOCKING",
+      "source": null,
+      "status": "UNAVAILABLE",
+      "through_week": null
+    }
+  ],
+  "field_ownership": {
+    "offensive_snaps": "SOURCE_NATIVE",
+    "snap_share_source": "SOURCE_NATIVE",
+    "snap_share_derived": "DERIVED",
+    "targets": "DERIVED",
+    "target_share": "DERIVED",
+    "receptions": "DERIVED",
+    "air_yards": "DERIVED",
+    "air_yards_share": "DERIVED",
+    "aDOT": "DERIVED",
+    "carries": "DERIVED",
+    "rush_share": "DERIVED",
+    "position_group_rush_share": "DERIVED",
+    "position_group_target_share": "DERIVED",
+    "pass_play_personnel": "DERIVED",
+    "route_participation": "DERIVED",
+    "red_zone_targets": "DERIVED",
+    "red_zone_carries": "DERIVED",
+    "inside_10_targets": "DERIVED",
+    "inside_10_carries": "DERIVED",
+    "goal_line_carries": "DERIVED",
+    "end_zone_targets": "DERIVED",
+    "third_down_targets": "DERIVED",
+    "third_down_carries": "DERIVED",
+    "two_minute_targets": "DERIVED",
+    "two_minute_carries": "DERIVED",
+    "kick_returns": "SOURCE_NATIVE",
+    "kick_return_yards": "SOURCE_NATIVE",
+    "punt_returns": "SOURCE_NATIVE",
+    "punt_return_yards": "SOURCE_NATIVE",
+    "kick_return_opportunity_share": "DERIVED",
+    "punt_return_opportunity_share": "DERIVED",
+    "slot_alignment": "UNAVAILABLE",
+    "wide_alignment": "UNAVAILABLE",
+    "backfield_alignment": "UNAVAILABLE",
+    "motion": "UNAVAILABLE",
+    "pass_blocking": "UNAVAILABLE",
+    "run_blocking": "UNAVAILABLE"
+  },
+  "data_quality": {
+    "player_game_rows_full_history": 274341,
+    "served_rows": 1200,
+    "duplicate_keys": 0,
+    "unresolved_gsis_id": 0
+  },
+  "internal_artifact": "analysis/player_role/cache/player_game_role.rds (git-ignored; full multi-season history)",
+  "served_artifact": "lib/player-role-intelligence/data/player_game_role.csv (current season only)",
+  "production_numeric_influence": "PROHIBITED",
+  "notes": "Checkpoint B substrate. No role classification, no shrinkage/recency model, no fantasy points. Evidence only.",
+  "role_opportunity_version": "roi:2026:w01:ff33921ee088"
+}
