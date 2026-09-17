@@ -54,6 +54,47 @@ export interface SnapshotLineage {
   crosswalk_version: string | null;
 }
 
+/**
+ * Football Intelligence's own week-completion state, mirrored from
+ * `FootballIntelligenceWeekCompletion` (`lib/football-intel/schema.ts`).
+ * Duplicated as a small standalone shape here (not imported) so
+ * `lib/canonical/` -- the core substrate every engine depends on -- never
+ * takes a compile-time dependency on one optional subsystem's module; keep
+ * the two shapes in sync if either changes.
+ */
+export interface FootballIntelligenceWeekCompletion {
+  latest_week: number;
+  week_state: "PARTIAL" | "COMPLETE";
+  games_completed_in_latest_week: number;
+  games_scheduled_in_latest_week: number;
+  latest_completed_game_date: string | null;
+}
+
+/**
+ * Identity/provenance of one Football Intelligence snapshot, as consulted by
+ * an engine. This is IDENTITY only -- what FI says about itself. Whether
+ * that identity is fresh enough, which feature families it covers, and
+ * whether it's permitted to influence a production result are separate
+ * questions answered by `lib/canonical/intelligence-freshness.ts`, never by
+ * this type. Built exclusively by
+ * `buildFootballIntelligenceLineage()` (`lib/football-intel/lineage.ts`) --
+ * no consumer should construct this by hand.
+ */
+export interface FootballIntelligenceLineage {
+  /** `fi:<season>:w<week>:<12 hex>` */
+  version: string;
+  model_tag: string;
+  season: number;
+  through_week: number;
+  /** `null` only for a manifest frozen before week_completion existed -- never fabricated. */
+  week_completion: FootballIntelligenceWeekCompletion | null;
+  /** per-source max NFL week actually ingested, exactly as FI published it. */
+  data_cutoff: Record<string, number>;
+  /** every output-class value FI's contract declares (e.g. OBSERVED/MODELED/DESCRIPTIVE_ONLY) -- informational, not per-metric. */
+  output_classes: string[];
+  generated_at: string;
+}
+
 /** One projection model that fed an engine result. */
 export interface ProjectionLineageEntry {
   /** What role this projection played in the engine. */
@@ -74,6 +115,14 @@ export interface RecommendationLineage {
   snapshot: SnapshotLineage;
   /** Projection models consumed (empty for engines that use none). */
   projections: ProjectionLineageEntry[];
+  /**
+   * Football Intelligence's identity, if this engine call consulted it at
+   * all. `null` means "not consulted" -- an explicit, typed fact, not an
+   * absent field a consumer could mistake for "consulted but empty."
+   * Intelligence-Modernization Phase 1 (see
+   * `docs/INTELLIGENCE_MODERNIZATION_PHASE_1_AUDIT.md`).
+   */
+  football_intelligence: FootballIntelligenceLineage | null;
   /** Engine name -> version. e.g. `{ weekly_engine: "post-draft-intel-2026.1" }`. */
   engine_versions: Record<string, string>;
 }
@@ -83,6 +132,7 @@ export function buildRecommendationLineage(
   snapshot: SnapshotLineage,
   engineVersions: Record<string, string>,
   projections: ProjectionLineageEntry[] = [],
+  footballIntelligence: FootballIntelligenceLineage | null = null,
 ): RecommendationLineage {
-  return { snapshot, projections, engine_versions: { ...engineVersions } };
+  return { snapshot, projections, football_intelligence: footballIntelligence, engine_versions: { ...engineVersions } };
 }

@@ -31,6 +31,18 @@ export type PredictiveStatus =
   | "DESCRIPTIVE_TENDENCY"
   | "UNVALIDATED";
 
+/** COMPLETE only when every scheduled REG game for `latest_week` has a final
+ * result; anything else, including zero completed games, is PARTIAL. Derived
+ * from schedule/result data by `FI$compute_week_completion()` in
+ * `analysis/football_intel/config.R` -- never from calendar date. */
+export interface FootballIntelligenceWeekCompletion {
+  latest_week: number;
+  week_state: "PARTIAL" | "COMPLETE";
+  games_completed_in_latest_week: number;
+  games_scheduled_in_latest_week: number;
+  latest_completed_game_date: string | null;
+}
+
 export interface FootballIntelligenceManifest {
   football_intelligence_version: string; // fi:<season>:w<week>:<12 hex>
   model_tag: string;
@@ -38,6 +50,13 @@ export interface FootballIntelligenceManifest {
   generated_at: string;
   season: number;
   through_week: number;
+  /**
+   * Present on every manifest built after the daily-refresh partial-week
+   * upgrade. Optional (not `undefined`-unsafe to read, but genuinely absent)
+   * on any manifest frozen before that change -- never fabricate this when
+   * it's missing.
+   */
+  week_completion?: FootballIntelligenceWeekCompletion;
   /** per-source max NFL week actually ingested for `season` (spec §3, guardrail 2). */
   data_cutoff: Record<string, number>;
   seasons_used: { prior: number[]; current: number };
