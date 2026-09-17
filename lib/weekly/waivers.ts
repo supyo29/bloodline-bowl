@@ -24,6 +24,46 @@ import type {
   WeeklyWarning,
 } from "./schema";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
+import {
+  assessRecommendationReadiness,
+  DEPLOYMENT_NOT_APPLICABLE,
+  type RecommendationReadiness,
+} from "@/lib/canonical/recommendation-readiness";
+import type { RecommendationLineage } from "@/lib/canonical/lineage";
+
+export const WAIVER_ENGINE_VERSION = "waiver-engine-2026.1";
+
+/**
+ * Intelligence-Modernization Phase 1 provenance. Football Intelligence is
+ * NOT consumed anywhere in this file (verified by the Checkpoint A audit and
+ * re-verified by a repo-wide grep as part of Checkpoint C's regression
+ * tests) -- `football_intelligence_used_for_numeric_ranking` is therefore a
+ * literal `false`, not a runtime-computed boolean, so the type system itself
+ * would need to change before this could silently start being true.
+ */
+export interface WaiverIntelligenceProvenance {
+  lineage: RecommendationLineage;
+  readiness: RecommendationReadiness;
+  football_intelligence_used_for_numeric_ranking: false;
+  engine: string;
+  engine_version: string;
+  generated_at: string;
+}
+
+function buildWaiverIntelligenceProvenance(ctx: WeeklyTeamContext): WaiverIntelligenceProvenance {
+  const readiness = assessRecommendationReadiness(
+    { lineage: ctx.lineage, operation: "WAIVER" },
+    { deployment: DEPLOYMENT_NOT_APPLICABLE },
+  );
+  return {
+    lineage: ctx.lineage,
+    readiness,
+    football_intelligence_used_for_numeric_ranking: false,
+    engine: "waiver_engine",
+    engine_version: WAIVER_ENGINE_VERSION,
+    generated_at: new Date().toISOString(),
+  };
+}
 
 export interface WaiverCandidateEval {
   add_player_id: string;
@@ -87,6 +127,8 @@ export interface WaiverResult {
   considered: number;
   do_not_add: Array<{ add_player_id: string; add_name: string; reason: string; starter_impact: number | null; starter_impact_status: "RESOLVED" | "UNRESOLVED" }>;
   warnings: WeeklyWarning[];
+  /** Intelligence Modernization Phase 1: what produced this result and how fresh it is. Additive -- never affects `recommendations`/`considered`/`do_not_add`. */
+  intelligence: WaiverIntelligenceProvenance;
 }
 
 const BASE_POS = ["QB", "RB", "WR", "TE", "K", "DEF"];
@@ -136,6 +178,7 @@ export function buildWaiverRecommendations(
           severity: "warning",
         },
       ],
+      intelligence: buildWaiverIntelligenceProvenance(ctx),
     };
   }
 
@@ -518,6 +561,7 @@ export function buildWaiverRecommendations(
     considered,
     do_not_add,
     warnings,
+    intelligence: buildWaiverIntelligenceProvenance(ctx),
   };
 }
 

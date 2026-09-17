@@ -133,5 +133,19 @@ export interface MatchupIntelligence {
   leverage_diagnostics: LeverageDiagnostic[];
 
   lineage: MatchupLineage;
+  /**
+   * Intelligence Modernization Phase 1. Separately typed from `lineage`
+   * (this shadow model's own version/deployment info) so no consumer can
+   * confuse "Matchup Intelligence ran" with "the main Football Intelligence
+   * engine informed this number" -- today it never does (`build.ts` never
+   * imports `lib/football-intel`; `lineage.football_intelligence_version`
+   * is the literal string `"not_used"`), and this field says so explicitly
+   * via the canonical evaluator rather than a hand-written note.
+   */
+  shadow_football_intelligence: {
+    lineage: import("@/lib/canonical/lineage").FootballIntelligenceLineage | null;
+    readiness: import("@/lib/canonical/recommendation-readiness").RecommendationReadiness;
+    eligible_to_influence_production: boolean;
+  };
   warnings: string[];
 }

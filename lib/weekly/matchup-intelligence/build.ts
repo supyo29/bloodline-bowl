@@ -14,12 +14,45 @@ import { loadCorrelationModel } from "./correlations";
 import { simulateMatchup, type SimPlayer } from "./simulator";
 import { buildDegradation } from "./confidence";
 import { buildExplanations } from "./explain";
-import { matchupDeploymentContract } from "./deployment";
+import { matchupDeploymentContract, matchupMayInfluenceProduction } from "./deployment";
 import {
   MATCHUP_INTELLIGENCE_CONTRACT_VERSION,
   type MatchupIntelligence,
   type LeverageDiagnostic,
 } from "./schema";
+import { loadFootballIntelligence } from "@/lib/football-intel";
+import { buildFootballIntelligenceLineage } from "@/lib/football-intel/lineage";
+import {
+  assessRecommendationReadiness,
+  type DeploymentPermission,
+} from "@/lib/canonical/recommendation-readiness";
+
+/**
+ * Intelligence Modernization Phase 1. Matchup Intelligence's OWN model
+ * (distribution/correlation, `analysis/football_intel_matchup/`) is a
+ * SEPARATE R model from the main Football Intelligence engine
+ * (`analysis/football_intel/`) -- `build.ts` never imports
+ * `lib/football-intel` for its actual simulation inputs, only for this
+ * provenance slot. Computed once per call so every return path (success,
+ * no-opponent, degraded) reports the identical assessment.
+ */
+function buildShadowFootballIntelligence(ctx: WeeklyTeamContext): MatchupIntelligence["shadow_football_intelligence"] {
+  const fi = loadFootballIntelligence();
+  const fiLineage = buildFootballIntelligenceLineage(fi);
+  const eligible = matchupMayInfluenceProduction();
+  const deployment: DeploymentPermission = {
+    football_intelligence_production_active: eligible,
+    source: "matchup_intelligence",
+    detail: eligible
+      ? "matchup_distribution_model.json's deployment contract is PRODUCTION_ACTIVE"
+      : "matchup_distribution_model.json's deployment contract is not PRODUCTION_ACTIVE -- SHADOW_ONLY",
+  };
+  const readiness = assessRecommendationReadiness(
+    { lineage: { ...ctx.lineage, football_intelligence: fiLineage }, operation: "MATCHUP" },
+    { deployment },
+  );
+  return { lineage: fiLineage, readiness, eligible_to_influence_production: eligible };
+}
 
 const MATCHUP_MODEL_VERSION = "ri-matchup-2026.1";
 const CALIBRATED_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
@@ -126,6 +159,7 @@ export function buildMatchupIntelligence(ctx: WeeklyTeamContext): MatchupIntelli
     contract_version: MATCHUP_INTELLIGENCE_CONTRACT_VERSION,
     generated_at: now,
   };
+  const shadowFi = buildShadowFootballIntelligence(ctx);
 
   const teamLineup = buildOptimalLineup({
     week: ctx.league.week,
@@ -139,7 +173,7 @@ export function buildMatchupIntelligence(ctx: WeeklyTeamContext): MatchupIntelli
   const team = toSimPlayers(teamStarterIds, slots, ctx, "team");
 
   if (!ctx.opponent || !ctx.opponent.roster) {
-    return emptyResult(ctx, lineageBase, "no_opponent");
+    return emptyResult(ctx, lineageBase, shadowFi, "no_opponent");
   }
 
   const plausible = plausibleOpponentLineup(ctx);
@@ -160,7 +194,7 @@ export function buildMatchupIntelligence(ctx: WeeklyTeamContext): MatchupIntelli
 
   if (team.incomplete || opp.incomplete || team.unknown > 0 || opp.unknown > 0) {
     // an unknown/incomplete starter must not be simulated as a numeric 0
-    return degradedResult(ctx, lineageBase, opponent_view, seedIdentity, {
+    return degradedResult(ctx, lineageBase, shadowFi, opponent_view, seedIdentity, {
       team_unknown: team.unknown, opp_unknown: opp.unknown,
       team_missing: team.missing, opp_missing: opp.missing,
       team_incomplete: team.incomplete, opp_incomplete: opp.incomplete,
@@ -238,6 +272,7 @@ export function buildMatchupIntelligence(ctx: WeeklyTeamContext): MatchupIntelli
       sim_win_probability_se: round4(sim.win_probability_se),
       opponent_view,
     },
+    shadow_football_intelligence: shadowFi,
     warnings,
   };
 }
@@ -294,6 +329,7 @@ function buildLeverageDiagnostics(
 function emptyResult(
   ctx: WeeklyTeamContext,
   lineageBase: Omit<MatchupIntelligence["lineage"], "sim_seed" | "sim_seed_identity" | "sim_count" | "sim_win_probability_se" | "opponent_view">,
+  shadowFi: MatchupIntelligence["shadow_football_intelligence"],
   code: string,
 ): MatchupIntelligence {
   return {
@@ -308,6 +344,7 @@ function emptyResult(
     dependence_diagnostics: null,
     explanations: [], leverage_diagnostics: [],
     lineage: { ...lineageBase, sim_seed: 0, sim_seed_identity: "", sim_count: 0, sim_win_probability_se: 0, opponent_view: "SUBMITTED" },
+    shadow_football_intelligence: shadowFi,
     warnings: [code],
   };
 }
@@ -315,6 +352,7 @@ function emptyResult(
 function degradedResult(
   ctx: WeeklyTeamContext,
   lineageBase: Omit<MatchupIntelligence["lineage"], "sim_seed" | "sim_seed_identity" | "sim_count" | "sim_win_probability_se" | "opponent_view">,
+  shadowFi: MatchupIntelligence["shadow_football_intelligence"],
   opponent_view: MatchupIntelligence["lineage"]["opponent_view"],
   seedIdentity: string,
   d: { team_unknown: number; opp_unknown: number; team_missing: number; opp_missing: number; team_incomplete: boolean; opp_incomplete: boolean; questionable: number },
@@ -345,6 +383,7 @@ function degradedResult(
     }],
     leverage_diagnostics: [],
     lineage: { ...lineageBase, sim_seed: 0, sim_seed_identity: seedIdentity, sim_count: 0, sim_win_probability_se: 0, opponent_view },
+    shadow_football_intelligence: shadowFi,
     warnings: ["matchup_intelligence_not_simulated_unknown_starter"],
   };
 }

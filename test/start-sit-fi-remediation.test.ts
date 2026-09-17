@@ -29,6 +29,8 @@ import {
 } from "@/lib/weekly/start-sit-fi";
 import type { WeeklyProjectionBatch, WeeklyProjection } from "@/lib/weekly/schema";
 import type { StartSitShadowComparison } from "@/lib/weekly/start-sit-fi";
+import { assessRecommendationReadiness, DEPLOYMENT_NOT_APPLICABLE } from "@/lib/canonical/recommendation-readiness";
+import type { RecommendationLineage } from "@/lib/canonical/lineage";
 
 const model = (): StartSitModel => {
   __resetStartSitModelCache();
@@ -188,12 +190,42 @@ test("C: no auto-promotion — a PASSED research verdict does not change product
 
 /* -------------------- Part C: live-capture labelling -------------------- */
 
+const fakeProductionLineage: RecommendationLineage = {
+  snapshot: {
+    league_snapshot_id: "snap:l:2026:w1:0000000000000000",
+    snapshot_schema_version: 3,
+    content_hash: "0000000000000000000000000000000000000000000000000000000000000",
+    generated_at: new Date().toISOString(),
+    provider: "sleeper",
+    league_slug: "l",
+    league_id: "1",
+    season: 2026,
+    week: 1,
+    scoring_fingerprint: "scoring:v1:000000000000000000000000",
+    roster_fingerprint: "rf-000",
+    player_data_version: "pdv-000",
+    crosswalk_version: null,
+  },
+  projections: [],
+  football_intelligence: null,
+  engine_versions: { test_fixture: "v1" },
+};
+
 const fakeCmp = (): StartSitShadowComparison => ({
   lineage: {
     start_sit_model_version: "ri-startsit-2026.1", football_intelligence_version: "fi:2025:w18:x",
     football_intel_data_cutoff: { pbp: 18 }, baseline_projection_version: "sleeper-weekly-rotowire",
     decision_generated_at: new Date().toISOString(), deployment: "SHADOW_ONLY",
     contract_version: "start-sit-fi-2026.1",
+  },
+  production_recommendation_lineage: fakeProductionLineage,
+  shadow_football_intelligence: {
+    lineage: null,
+    readiness: assessRecommendationReadiness(
+      { lineage: fakeProductionLineage, operation: "START_SIT" },
+      { deployment: DEPLOYMENT_NOT_APPLICABLE },
+    ),
+    eligible_to_influence_production: false,
   },
   adjustments: [{
     canonical_player_id: "p1", position: "RB", nfl_team: "KC", opponent: "DEN",

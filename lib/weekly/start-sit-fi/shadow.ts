@@ -15,7 +15,13 @@
 import { buildOptimalLineup } from "../lineup";
 import type { WeeklyTeamContext, WeeklyProjection, WeeklyProjectionBatch } from "../schema";
 import { loadFootballIntelligence } from "@/lib/football-intel";
+import { buildFootballIntelligenceLineage } from "@/lib/football-intel/lineage";
 import { loadStartSitModel, translateFiAdjustment } from "./translate";
+import { anyFiProductionInfluence } from "./deployment";
+import {
+  assessRecommendationReadiness,
+  type DeploymentPermission,
+} from "@/lib/canonical/recommendation-readiness";
 import type {
   StartSitShadowComparison,
   StartSitFiAdjustment,
@@ -28,10 +34,32 @@ export function buildStartSitShadow(ctx: WeeklyTeamContext): StartSitShadowCompa
   const fi = loadFootballIntelligence();
   const now = new Date().toISOString();
 
+  // Intelligence Modernization Phase 1: the ONE canonical FI lineage
+  // translation (never hand-assembled), the readiness assessment built from
+  // it, and the REAL current deployment gate (never re-derived) -- see
+  // lib/weekly/start-sit-fi/schema.ts's StartSitShadowComparison doc for why
+  // this is kept separate from `production_recommendation_lineage`.
+  const fiLineage = buildFootballIntelligenceLineage(fi);
+  const eligibleToInfluenceProduction = anyFiProductionInfluence(model);
+  const deployment: DeploymentPermission = {
+    football_intelligence_production_active: eligibleToInfluenceProduction,
+    source: "start_sit_fi",
+    detail: eligibleToInfluenceProduction
+      ? "at least one position is PRODUCTION_ACTIVE per start_sit_model.json's deployment contract"
+      : "no position is PRODUCTION_ACTIVE -- SHADOW_ONLY across the board",
+  };
+  const readiness = assessRecommendationReadiness(
+    { lineage: { ...ctx.lineage, football_intelligence: fiLineage }, operation: "START_SIT" },
+    { deployment },
+  );
+  const shadow_football_intelligence = { lineage: fiLineage, readiness, eligible_to_influence_production: eligibleToInfluenceProduction };
+
   const lineage = {
     start_sit_model_version: model?.start_sit_model_version ?? "unavailable",
-    football_intelligence_version: fi?.manifest.football_intelligence_version ?? null,
-    football_intel_data_cutoff: fi?.manifest.data_cutoff ?? null,
+    // Derived from the canonical FI lineage, never independently recomputed
+    // from fi.manifest -- kept only for API/back-compat.
+    football_intelligence_version: fiLineage?.version ?? null,
+    football_intel_data_cutoff: fiLineage?.data_cutoff ?? null,
     baseline_projection_version: ctx.projections.model_version,
     decision_generated_at: now,
     deployment: (model?.deployment ?? "SHADOW_ONLY") as "SHADOW_ONLY" | "PRODUCTION",
@@ -41,6 +69,8 @@ export function buildStartSitShadow(ctx: WeeklyTeamContext): StartSitShadowCompa
   if (!model) {
     return {
       lineage,
+      production_recommendation_lineage: ctx.lineage,
+      shadow_football_intelligence,
       adjustments: [],
       baseline_lineup_total: null,
       fi_lineup_total: null,
@@ -154,6 +184,8 @@ export function buildStartSitShadow(ctx: WeeklyTeamContext): StartSitShadowCompa
 
   return {
     lineage,
+    production_recommendation_lineage: ctx.lineage,
+    shadow_football_intelligence,
     adjustments,
     baseline_lineup_total: baseLineup.optimal_total,
     fi_lineup_total: fiLineup.optimal_total,

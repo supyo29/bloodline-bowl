@@ -151,6 +151,8 @@ export interface NflRealityFrontier {
   latest_week_with_any_completed_game: number;
   completed_games_in_latest_week: number;
   scheduled_games_in_latest_week: number;
+  /** the latest completed game's own date within that week, when the source provides one. */
+  latest_completed_game_date: string | null;
   as_of: string;
 }
 
@@ -179,6 +181,8 @@ export interface IntelligenceFreshnessAssessment {
   feature_families: FeatureFamilyStatus[];
   prohibited_features: IntelligenceFeatureFamily[];
   lineage: RecommendationLineage;
+  /** the independent ground truth this assessment was judged against, exactly as supplied -- `null` if the caller supplied none. Passed through so a formatter never has to be handed a second copy. */
+  nfl_reality: NflRealityFrontier | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -563,11 +567,15 @@ export function assessIntelligenceFreshness(
     feature_families: featureFamilies,
     prohibited_features: prohibited,
     lineage,
+    nfl_reality: request.nfl_reality ?? null,
   };
 }
 
 /** Human-readable summary, generated from the typed assessment -- never hand-formatted by a caller. */
-export function summarizeIntelligenceFreshness(assessment: IntelligenceFreshnessAssessment): string {
+export function summarizeIntelligenceFreshness(
+  assessment: IntelligenceFreshnessAssessment,
+  opts: { deployment_active?: boolean } = {},
+): string {
   const lines: string[] = [];
   const snap = assessment.lineage.snapshot;
   lines.push(`League state: ${snap.league_snapshot_id}`);
@@ -578,16 +586,29 @@ export function summarizeIntelligenceFreshness(assessment: IntelligenceFreshness
       `Football Intelligence: ${assessment.overall_status} -- ${fi.version}` +
         (wc ? ` (w${wc.latest_week} ${wc.week_state}, ${wc.games_completed_in_latest_week}/${wc.games_scheduled_in_latest_week} games)` : ""),
     );
+    if (assessment.nfl_reality) {
+      const r = assessment.nfl_reality;
+      lines.push(
+        `Latest completed NFL frontier: Week ${r.latest_week_with_any_completed_game} -- ${r.completed_games_in_latest_week}/${r.scheduled_games_in_latest_week}`,
+      );
+    }
     for (const f of assessment.feature_families) {
       if (f.availability === "NOT_APPLICABLE") continue;
       lines.push(
-        `  ${f.family}: ${f.lag_classification}` + (f.data_cutoff_week != null ? ` (w${f.data_cutoff_week})` : ""),
+        `  ${f.family}: ${f.lag_classification}` +
+          (f.data_cutoff_week != null ? ` (w${f.data_cutoff_week})` : "") +
+          (f.predictive_eligibility === "DESCRIPTIVE_ONLY" ? " -- DESCRIPTIVE_ONLY" : ""),
       );
     }
+    lines.push(`FI production influence: ${opts.deployment_active ? "ACTIVE" : "DISALLOWED"}`);
   } else {
     lines.push("Football Intelligence: NOT_USED");
   }
   lines.push(`Freshness policy: ${assessment.freshness_policy_version}`);
+  const engines = Object.entries(assessment.lineage.engine_versions);
+  if (engines.length > 0) {
+    lines.push(`Recommendation: ${engines.map(([k, v]) => `${k}:${v}`).join(", ")}`);
+  }
   lines.push(
     `Overall: ${assessment.overall_status} / ${assessment.usable ? "usable" : "not usable"}` +
       (assessment.confidence_cap ? ` (confidence capped ${assessment.confidence_cap})` : ""),

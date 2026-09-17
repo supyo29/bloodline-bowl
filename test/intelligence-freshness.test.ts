@@ -95,6 +95,7 @@ function reality(overrides: Partial<NflRealityFrontier> = {}): NflRealityFrontie
     latest_week_with_any_completed_game: 1,
     completed_games_in_latest_week: 16,
     scheduled_games_in_latest_week: 16,
+    latest_completed_game_date: "2026-09-14",
     as_of: "2026-09-17T04:00:00Z",
     ...overrides,
   };

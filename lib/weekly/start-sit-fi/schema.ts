@@ -76,7 +76,9 @@ export interface StartSitFiAdjustment {
 
 export interface StartSitFiLineage {
   start_sit_model_version: string;
+  /** @deprecated derived from `shadow_football_intelligence.lineage.version` -- kept for API compatibility, never independently recomputed. */
   football_intelligence_version: string | null;
+  /** @deprecated derived from `shadow_football_intelligence.lineage.data_cutoff` -- kept for API compatibility, never independently recomputed. */
   football_intel_data_cutoff: Record<string, number> | null;
   baseline_projection_version: string;
   decision_generated_at: string;
@@ -86,6 +88,26 @@ export interface StartSitFiLineage {
 
 export interface StartSitShadowComparison {
   lineage: StartSitFiLineage;
+  /**
+   * Intelligence Modernization Phase 1. Two SEPARATELY TYPED lineages so no
+   * consumer can confuse "FI was evaluated" with "FI influenced the
+   * production decision":
+   *   - `production_recommendation_lineage` -- what actually determined the
+   *     production Start/Sit output (baseline projection provider, canonical
+   *     league/scoring state, lineup optimizer). This is `ctx.lineage`
+   *     exactly as production sees it -- `football_intelligence` on it is
+   *     always `null`, because production never consults FI.
+   *   - `shadow_football_intelligence` -- FI's own lineage (if a snapshot is
+   *     published) plus the canonical readiness assessment for this shadow
+   *     evaluation, and whether it was even eligible to influence
+   *     production right now (it never is, in Phase 1).
+   */
+  production_recommendation_lineage: import("@/lib/canonical/lineage").RecommendationLineage;
+  shadow_football_intelligence: {
+    lineage: import("@/lib/canonical/lineage").FootballIntelligenceLineage | null;
+    readiness: import("@/lib/canonical/recommendation-readiness").RecommendationReadiness;
+    eligible_to_influence_production: boolean;
+  };
   /** per-player adjustments (all positions; ineligible ones are all-zero). */
   adjustments: StartSitFiAdjustment[];
   baseline_lineup_total: number | null;
