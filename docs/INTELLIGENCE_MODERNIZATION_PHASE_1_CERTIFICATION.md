@@ -454,12 +454,33 @@ freshness/lineage system growing up alongside these.
 
 ## 14. Merge and production record
 
-_Filled in at merge time — see the final merge/production-verification report
-delivered alongside this document for the authoritative, timestamped
-record. Summary:_
-
 - **Certified branch tip:** `9f13949`
 - **Reconciliation merge commit:** `2395522` (merges `origin/main` `76ee903`
   into the certified branch; see §0)
-- **Merge SHA on `main`:** recorded in the final report
-- **Production verification:** recorded in the final report
+- **Final commit on the branch (freeze declaration):** `1d55b94`
+- **Merge SHA on `main`:** `1d55b94` (fast-forward, `main` `76ee903` -> `1d55b94`,
+  pushed to `origin/main`)
+- **Production deployment:** Vercel `dpl_EwDP8AdywmwiTFpnRCaYW5nM9Vwj`,
+  commit `1d55b94`, `READY`, aliased to `bloodline-bowl-sleeper-bridge.vercel.app`
+
+**Production verification (read-only, live, this run):**
+```
+GET /api/health                                       -> 200, ok:true
+GET /api/league/bloodline-bowl/state                   -> 200
+  lineage.league_snapshot_id: snap:bloodline-bowl:2026:w2:ae2af1a888c66501
+GET /api/waivers/bloodline-bowl/supyo29/week/2         -> 200
+  intelligence.football_intelligence_used_for_numeric_ranking: false
+  intelligence.readiness.overall: {status: READY, usable: true}
+GET /api/lineup/bloodline-bowl/supyo29/week/2          -> 200
+GET /api/matchup/bloodline-bowl/supyo29/week/2         -> 200
+GET /api/intelligence/bloodline-bowl/supyo29/week/2    -> 200
+  start_sit_shadow.production_recommendation_lineage.football_intelligence: null
+  start_sit_shadow.shadow_football_intelligence.lineage.version: fi:2026:w01:890f7aefd53f
+  start_sit_shadow.shadow_football_intelligence.readiness...overall_status: CURRENT
+  start_sit_shadow.shadow_football_intelligence.eligible_to_influence_production: false
+  matchup_intelligence.shadow_football_intelligence.lineage.version: fi:2026:w01:890f7aefd53f
+  matchup_intelligence.shadow_football_intelligence.readiness...overall_status: CURRENT
+  matchup_intelligence.shadow_football_intelligence.eligible_to_influence_production: false
+```
+No waiver was submitted, no lineup was changed, no trade was made — every
+request above was a `GET`.
