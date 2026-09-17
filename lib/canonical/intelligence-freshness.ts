@@ -400,12 +400,39 @@ export function assessIntelligenceFreshness(
       escalate("DEGRADED");
     }
   }
-  if (fi && fi.season !== lineage.snapshot.season && !request.allow_historical_football_intelligence) {
+  // Two different things can make an FI season "not match" -- they must not
+  // be conflated. (a) The CALLER wired the wrong FI/analysis pairing
+  // together (e.g. asked for season X but got handed season Y's FI) -- a
+  // wiring bug, INCOMPATIBLE, detected only against an explicit
+  // `expected_season` the caller states it wants. (b) FI's own automation
+  // is genuinely behind an entire season (the exact "NFL is in 2026, FI
+  // still describes 2025" example from the audit) -- that is STALE, not
+  // INCOMPATIBLE: the data is still self-consistent, just old, and the
+  // whole point of a STALE verdict (vs. refusing to answer at all) is that
+  // it's a normal, recoverable-once-the-refresh-catches-up state.
+  if (
+    fi &&
+    request.expected_season != null &&
+    fi.season !== request.expected_season &&
+    !request.allow_historical_football_intelligence
+  ) {
     reasons.push({
       code: "FI_SEASON_MISMATCH",
       severity: "BLOCK",
       affects: ["PBP_TEAM_EFFICIENCY", "PLAYER_USAGE"],
-      detail: `FI season ${fi.season} !== snapshot season ${lineage.snapshot.season} without allow_historical_football_intelligence`,
+      detail: `FI season ${fi.season} !== expected_season ${request.expected_season} without allow_historical_football_intelligence`,
+    });
+    escalate("INCOMPATIBLE");
+  }
+  if (fi && fi.season > lineage.snapshot.season) {
+    // FI describing a season beyond the live canonical snapshot's own
+    // season is never legitimate -- future data, regardless of whether a
+    // reality frontier was supplied.
+    reasons.push({
+      code: "FI_AHEAD_OF_REALITY",
+      severity: "BLOCK",
+      affects: ["PBP_TEAM_EFFICIENCY"],
+      detail: `FI season ${fi.season} is ahead of the live snapshot's season ${lineage.snapshot.season} -- impossible/future data`,
     });
     escalate("INCOMPATIBLE");
   }
@@ -426,6 +453,19 @@ export function assessIntelligenceFreshness(
   if (state.status !== "INCOMPATIBLE") {
     if (!fi) {
       reasons.push({ code: "FI_NOT_USED", severity: "INFO", affects: [], detail: "lineage.football_intelligence is null: not consulted for this call" });
+    } else if (fi.season < lineage.snapshot.season) {
+      // Checked FIRST, independent of whether a reality frontier was
+      // supplied: the live canonical snapshot's own season is itself a
+      // trustworthy "what season is it really" signal. An entire season
+      // behind is the audit's own STALE example -- self-consistent data,
+      // just old, not a wiring error.
+      reasons.push({
+        code: "FI_SEASON_BEHIND_CURRENT",
+        severity: "BLOCK",
+        affects: ["PBP_TEAM_EFFICIENCY", "PLAYER_USAGE"],
+        detail: `FI season ${fi.season} is behind the live snapshot's season ${lineage.snapshot.season}`,
+      });
+      escalate("STALE");
     } else if (request.nfl_reality && fi.season === request.nfl_reality.season) {
       const cmp = compareFiToReality(fi, request.nfl_reality);
       if (cmp.behindReality && cmp.weekGap > 0) {
@@ -450,14 +490,6 @@ export function assessIntelligenceFreshness(
         reasons.push({ code: "FI_PARTIAL_CURRENT", severity: "INFO", affects: [], detail: `FI matches the reality frontier; week ${fi.through_week} is PARTIAL (${fi.week_completion?.games_completed_in_latest_week ?? 0}/${fi.week_completion?.games_scheduled_in_latest_week ?? "?"})` });
         escalate("PARTIAL_CURRENT");
       }
-    } else if (fi.season < (request.nfl_reality?.season ?? fi.season)) {
-      reasons.push({
-        code: "FI_SEASON_BEHIND_CURRENT",
-        severity: "BLOCK",
-        affects: ["PBP_TEAM_EFFICIENCY", "PLAYER_USAGE"],
-        detail: `FI season ${fi.season} is behind the current reality season ${request.nfl_reality?.season}`,
-      });
-      escalate("STALE");
     } else if (!request.nfl_reality) {
       // No independent frontier: report FI's own self-described state
       // honestly, without claiming a cross-checked verdict.

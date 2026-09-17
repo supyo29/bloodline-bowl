@@ -275,17 +275,32 @@ describe("compatibility", () => {
     assert.ok(a.reasons.some((x) => x.code === "SCORING_FINGERPRINT_MISMATCH"));
   });
 
-  test("15. mixed incompatible lineage versions (FI season != snapshot season, no historical flag) -> INCOMPATIBLE", () => {
+  test("15. mixed incompatible lineage versions: caller expected a specific season, FI is wired to a different one -> INCOMPATIBLE", () => {
+    // This is the "wrong wiring" case (a consumer mistake), distinct from
+    // "FI's automation is genuinely a season behind" (test 3-below / FM
+    // example), which must be STALE, not INCOMPATIBLE -- see the
+    // FI_SEASON_BEHIND_CURRENT vs FI_SEASON_MISMATCH split in the module.
     const fi = fiWeek1Complete({ season: 2025 });
-    const a = assessIntelligenceFreshness(request({ lineage: baseLineage({ football_intelligence: fi }) }));
+    const a = assessIntelligenceFreshness(request({ lineage: baseLineage({ football_intelligence: fi }), expected_season: 2026 }));
     assert.equal(a.overall_status, "INCOMPATIBLE");
     assert.ok(a.reasons.some((x) => x.code === "FI_SEASON_MISMATCH"));
 
     // the same mismatch, explicitly permitted for historical/ROS analysis, is NOT incompatible
     const historical = assessIntelligenceFreshness(
-      request({ operation: "TRADE", lineage: baseLineage({ football_intelligence: fi }), allow_historical_football_intelligence: true }),
+      request({ operation: "TRADE", lineage: baseLineage({ football_intelligence: fi }), expected_season: 2026, allow_historical_football_intelligence: true }),
     );
     assert.notEqual(historical.overall_status, "INCOMPATIBLE");
+  });
+
+  test("3b. FI genuinely a season behind the live snapshot (audit's own STALE example) -> STALE, not INCOMPATIBLE", () => {
+    const fi = fiWeek1Complete({
+      season: 2025,
+      through_week: 18,
+      week_completion: { latest_week: 18, week_state: "COMPLETE", games_completed_in_latest_week: 16, games_scheduled_in_latest_week: 16, latest_completed_game_date: "2026-01-04" },
+    });
+    const a = assessIntelligenceFreshness(request({ lineage: baseLineage({ football_intelligence: fi }) }));
+    assert.equal(a.overall_status, "STALE");
+    assert.ok(a.reasons.some((x) => x.code === "FI_SEASON_BEHIND_CURRENT"));
   });
 
   test("16. null/unavailable fields remain explicitly unavailable, never fabricated", () => {
