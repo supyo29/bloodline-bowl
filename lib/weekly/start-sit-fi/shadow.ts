@@ -32,7 +32,9 @@ import { START_SIT_FI_CONTRACT_VERSION } from "./schema";
 export function buildStartSitShadow(ctx: WeeklyTeamContext): StartSitShadowComparison | null {
   const model = loadStartSitModel();
   const fi = loadFootballIntelligence();
-  const now = new Date().toISOString();
+  // ctx.generated_at, not a fresh `new Date()` -- see the Checkpoint D
+  // determinism fix in lib/weekly/waivers.ts for why.
+  const now = ctx.generated_at;
 
   // Intelligence Modernization Phase 1: the ONE canonical FI lineage
   // translation (never hand-assembled), the readiness assessment built from

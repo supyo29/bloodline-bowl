@@ -61,7 +61,12 @@ function buildWaiverIntelligenceProvenance(ctx: WeeklyTeamContext): WaiverIntell
     football_intelligence_used_for_numeric_ranking: false,
     engine: "waiver_engine",
     engine_version: WAIVER_ENGINE_VERSION,
-    generated_at: new Date().toISOString(),
+    // Reuses ctx.generated_at (set once at context construction,
+    // lib/weekly/context.ts) rather than calling `new Date()` again here --
+    // identical inputs + identical context timestamp must yield byte-
+    // identical output, and a second wall-clock read inside the builder
+    // would break that even when nothing else changed.
+    generated_at: ctx.generated_at,
   };
 }
 

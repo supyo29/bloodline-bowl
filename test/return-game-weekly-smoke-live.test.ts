@@ -170,7 +170,22 @@ describe("weekly KR enrichment — real Bloodline Bowl smoke test (live)", () =>
       const m = krWarning!.match(/kr_yd=([\d.]+)/);
       assert.ok(m, "expected kr_yd value in the enrichment warning");
       const expectedDelta = Number(m![1]) * krRate;
-      assert.equal(Math.round(delta * 100) / 100, Math.round(expectedDelta * 100) / 100, `${pid}: entire point delta must be explained by KR alone, not PR`);
+      // `nativePts`/`enrichedPts` are each independently rounded to cents by
+      // the canonical scorer (they include every OTHER stat category too,
+      // not just kr_yd) -- comparing the difference of two independently-
+      // rounded totals against a raw, unrounded ingredient-level
+      // `kr_yd * rate` can differ by up to exactly one rounding quantum in
+      // each direction (round(X) vs round(X + d), each off from its true
+      // value by at most 0.005), i.e. up to $0.01 combined. That is not
+      // measurement noise or an arbitrary tolerance -- it's the exact,
+      // provable bound of comparing two independently-rounded sums. Any gap
+      // beyond it would mean a second, unexplained contribution (e.g. PR
+      // stacking) really is present.
+      const ROUNDING_CONTRACT_TOLERANCE = 0.01;
+      assert.ok(
+        Math.abs(delta - expectedDelta) <= ROUNDING_CONTRACT_TOLERANCE + 1e-9,
+        `${pid}: entire point delta must be explained by KR alone, not PR (delta=${delta}, expected=${expectedDelta}, diff=${delta - expectedDelta})`,
+      );
     }
     if (checked === 0) return t.skip("no rostered PR-role player had a week-2 entry (bye) — nothing to compare");
   });

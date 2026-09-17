@@ -40,7 +40,20 @@ import type {
   FootballIntelligenceLineage,
 } from "./lineage";
 
-export const FRESHNESS_POLICY_VERSION = "freshness-policy:2026.1";
+export const FRESHNESS_POLICY_VERSION = "freshness-policy:2026.2";
+
+/**
+ * The Football Intelligence daily refresh's own documented cadence
+ * (`.github/workflows/football-intel-daily-refresh.yml`, `cron: "0 13 * * *"`)
+ * -- NOT an arbitrary threshold. A gap between the runtime
+ * `NflRealityFrontier` and FI's self-reported `week_completion` that's
+ * within one refresh cycle (plus a buffer for a delayed/retried run) is
+ * expected, ordinary publication lag; a gap that persists past it means the
+ * scheduled refresh should already have picked up the completed game and
+ * something is actually behind.
+ */
+export const FI_REFRESH_CADENCE_HOURS = 24;
+export const FI_REFRESH_LAG_BUFFER_HOURS = 12;
 
 export type IntelligenceOperation =
   | "START_SIT"
@@ -80,7 +93,18 @@ export type FreshnessReasonCode =
   | "SOURCE_EXPECTED_LAG"
   | "SOURCE_UNAVAILABLE_FOR_SEASON"
   | "SOURCE_REGRESSED"
-  | "DESCRIPTIVE_ONLY_FAMILY";
+  | "DESCRIPTIVE_ONLY_FAMILY"
+  // Checkpoint D: the runtime NflRealityFrontier (Sleeper schedule status)
+  // and Football Intelligence's own self-reported week_completion (nflverse
+  // schedule/result state, via the daily refresh) are two independently
+  // maintained descriptions of football reality. A gap between them is
+  // classified using EVIDENCE (how long ago FI last refreshed, relative to
+  // its own documented daily cadence), never an arbitrary wall-clock
+  // threshold and never a third schedule source.
+  | "REALITY_FRONTIER_SOURCE_DISAGREEMENT"
+  | "FI_PUBLICATION_LAG_POSSIBLE"
+  | "FI_BEHIND_CONFIRMED_COMPLETED_GAME"
+  | "SCHEDULE_SOURCE_CONFLICT";
 
 export interface FreshnessReason {
   code: FreshnessReasonCode;
@@ -166,6 +190,8 @@ export interface IntelligenceFreshnessRequest {
   expected_season?: number;
   /** set true for a deliberate historical/ROS analysis where FI's season legitimately differs from the live snapshot's season. */
   allow_historical_football_intelligence?: boolean;
+  /** clock injection for deterministic tests -- epoch ms. Defaults to `Date.now()`. */
+  now?: number;
 }
 
 export interface IntelligenceFreshnessAssessment {
@@ -472,22 +498,47 @@ export function assessIntelligenceFreshness(
       escalate("STALE");
     } else if (request.nfl_reality && fi.season === request.nfl_reality.season) {
       const cmp = compareFiToReality(fi, request.nfl_reality);
-      if (cmp.behindReality && cmp.weekGap > 0) {
+      const nowMs = request.now ?? Date.now();
+      const generatedMs = Date.parse(fi.generated_at);
+      const hoursSinceFiRefresh = Number.isFinite(generatedMs) ? (nowMs - generatedMs) / 3_600_000 : null;
+      const withinExpectedLagWindow = hoursSinceFiRefresh != null && hoursSinceFiRefresh <= FI_REFRESH_CADENCE_HOURS + FI_REFRESH_LAG_BUFFER_HOURS;
+
+      // True schedule incompatibility: the two sources disagree about how
+      // MANY games are even scheduled for the same week -- not a timing
+      // question at all, so it's checked before the completed-count gap.
+      const fiWc = fi.week_completion;
+      if (fiWc && fiWc.latest_week === request.nfl_reality.latest_week_with_any_completed_game && fiWc.games_scheduled_in_latest_week !== request.nfl_reality.scheduled_games_in_latest_week) {
         reasons.push({
-          code: "FI_BEHIND_COMPLETED_GAMES",
+          code: "SCHEDULE_SOURCE_CONFLICT",
           severity: "BLOCK",
-          affects: ["PBP_TEAM_EFFICIENCY", "PLAYER_USAGE"],
-          detail: `FI through_week ${fi.through_week} is ${cmp.weekGap} week(s) behind the last week with a completed game (w${request.nfl_reality.latest_week_with_any_completed_game})`,
+          affects: ["SCHEDULE", "PBP_TEAM_EFFICIENCY"],
+          detail: `week ${fiWc.latest_week}: FI (nflverse) reports ${fiWc.games_scheduled_in_latest_week} scheduled games, runtime frontier (Sleeper) reports ${request.nfl_reality.scheduled_games_in_latest_week} -- the two schedule sources disagree`,
         });
-        escalate("STALE");
+        escalate("INCOMPATIBLE");
+      } else if (cmp.behindReality && cmp.weekGap > 0) {
+        reasons.push({
+          code: withinExpectedLagWindow ? "FI_PUBLICATION_LAG_POSSIBLE" : "FI_BEHIND_CONFIRMED_COMPLETED_GAME",
+          severity: withinExpectedLagWindow ? "WARN" : "BLOCK",
+          affects: ["PBP_TEAM_EFFICIENCY", "PLAYER_USAGE"],
+          detail:
+            `FI through_week ${fi.through_week} is ${cmp.weekGap} week(s) behind the runtime frontier's last completed week (w${request.nfl_reality.latest_week_with_any_completed_game}); ` +
+            (hoursSinceFiRefresh != null
+              ? `FI last refreshed ${hoursSinceFiRefresh.toFixed(1)}h ago (cadence ${FI_REFRESH_CADENCE_HOURS}h + ${FI_REFRESH_LAG_BUFFER_HOURS}h buffer)`
+              : "FI's generated_at could not be parsed"),
+        });
+        escalate(withinExpectedLagWindow ? "DEGRADED" : "STALE");
       } else if (cmp.behindReality && cmp.sameWeekGamesBehind > 0) {
         reasons.push({
-          code: "FI_BEHIND_COMPLETED_GAMES",
-          severity: "WARN",
+          code: withinExpectedLagWindow ? "FI_PUBLICATION_LAG_POSSIBLE" : "FI_BEHIND_CONFIRMED_COMPLETED_GAME",
+          severity: withinExpectedLagWindow ? "INFO" : "BLOCK",
           affects: ["PBP_TEAM_EFFICIENCY", "PLAYER_USAGE"],
-          detail: `FI has captured ${fi.week_completion?.games_completed_in_latest_week ?? 0} of ${request.nfl_reality.completed_games_in_latest_week} completed week-${fi.through_week} games`,
+          detail:
+            `FI has captured ${fi.week_completion?.games_completed_in_latest_week ?? 0} of ${request.nfl_reality.completed_games_in_latest_week} completed week-${fi.through_week} games; ` +
+            (hoursSinceFiRefresh != null
+              ? `FI last refreshed ${hoursSinceFiRefresh.toFixed(1)}h ago (cadence ${FI_REFRESH_CADENCE_HOURS}h + ${FI_REFRESH_LAG_BUFFER_HOURS}h buffer)`
+              : "FI's generated_at could not be parsed"),
         });
-        escalate("DEGRADED");
+        escalate(withinExpectedLagWindow ? "PARTIAL_CURRENT" : "STALE");
       } else if (fi.week_completion?.week_state === "COMPLETE") {
         reasons.push({ code: "FI_CURRENT", severity: "INFO", affects: [], detail: `FI matches the reality frontier and week ${fi.through_week} is COMPLETE` });
       } else {

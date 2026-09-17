@@ -16,9 +16,17 @@ import {
   assessIntelligenceFreshness,
   summarizeIntelligenceFreshness,
   FRESHNESS_POLICY_VERSION,
+  FI_REFRESH_CADENCE_HOURS,
+  FI_REFRESH_LAG_BUFFER_HOURS,
   type IntelligenceFreshnessRequest,
   type NflRealityFrontier,
 } from "@/lib/canonical/intelligence-freshness";
+
+/** epoch ms comfortably beyond the expected-lag window past `generatedAt`. */
+const wellBeyondLagWindow = (generatedAt: string) =>
+  Date.parse(generatedAt) + (FI_REFRESH_CADENCE_HOURS + FI_REFRESH_LAG_BUFFER_HOURS + 6) * 3_600_000;
+/** epoch ms comfortably inside the expected-lag window past `generatedAt`. */
+const wellWithinLagWindow = (generatedAt: string) => Date.parse(generatedAt) + 2 * 3_600_000;
 import type {
   RecommendationLineage,
   SnapshotLineage,
@@ -122,21 +130,31 @@ describe("completed-game frontier", () => {
     assert.equal(a.fallback_required, false);
   });
 
-  test("2. a Week-2 game becomes final but FI has not incorporated it -> STALE for an FI-dependent operation", () => {
+  test("2. a Week-2 game becomes final but FI has not incorporated it, and the daily refresh should already have run -> STALE (confirmed) for an FI-dependent operation", () => {
     const r = reality({ latest_week_with_any_completed_game: 2, completed_games_in_latest_week: 1, scheduled_games_in_latest_week: 15 });
-    const matchup = assessIntelligenceFreshness(request({ operation: "MATCHUP", nfl_reality: r }));
+    const now = wellBeyondLagWindow(fiWeek1Complete().generated_at);
+    const matchup = assessIntelligenceFreshness(request({ operation: "MATCHUP", nfl_reality: r, now }));
     assert.equal(matchup.overall_status, "STALE");
     assert.equal(matchup.confidence_cap, "LOW");
     assert.equal(matchup.fallback_required, true);
-    assert.ok(matchup.reasons.some((x) => x.code === "FI_BEHIND_COMPLETED_GAMES"));
+    assert.ok(matchup.reasons.some((x) => x.code === "FI_BEHIND_CONFIRMED_COMPLETED_GAME"));
 
     // same underlying staleness, but WAIVER (LOW materiality, FI not consumed
     // by production) must not be forced into a fallback -- there's nothing
     // FI-derived in its production number to fall back FROM.
-    const waiver = assessIntelligenceFreshness(request({ operation: "WAIVER", nfl_reality: r }));
+    const waiver = assessIntelligenceFreshness(request({ operation: "WAIVER", nfl_reality: r, now }));
     assert.equal(waiver.overall_status, "STALE");
     assert.equal(waiver.fallback_required, false);
     assert.notEqual(waiver.confidence_cap, "LOW");
+  });
+
+  test("2b. the SAME gap, checked shortly after FI's last refresh -> expected publication lag, not confirmed stale", () => {
+    const r = reality({ latest_week_with_any_completed_game: 2, completed_games_in_latest_week: 1, scheduled_games_in_latest_week: 15 });
+    const now = wellWithinLagWindow(fiWeek1Complete().generated_at);
+    const matchup = assessIntelligenceFreshness(request({ operation: "MATCHUP", nfl_reality: r, now }));
+    assert.equal(matchup.overall_status, "DEGRADED");
+    assert.notEqual(matchup.overall_status, "STALE");
+    assert.ok(matchup.reasons.some((x) => x.code === "FI_PUBLICATION_LAG_POSSIBLE"));
   });
 
   test("3. FI Week 2 PARTIAL 1/15, matching reality exactly -> PARTIAL_CURRENT", () => {
@@ -313,6 +331,18 @@ describe("compatibility", () => {
       assert.equal(f.data_cutoff_week, null);
     }
   });
+
+  test("41. true schedule incompatibility: the two sources disagree about how many games are even scheduled -> INCOMPATIBLE, not a timing question", () => {
+    const fi = fiWeek1Complete({
+      through_week: 2,
+      week_completion: { latest_week: 2, week_state: "PARTIAL", games_completed_in_latest_week: 1, games_scheduled_in_latest_week: 16, latest_completed_game_date: "2026-09-17" },
+    });
+    // runtime frontier (Sleeper) says 15 games scheduled week 2; FI (nflverse) says 16 -- a real disagreement, not lag.
+    const r = reality({ latest_week_with_any_completed_game: 2, completed_games_in_latest_week: 1, scheduled_games_in_latest_week: 15 });
+    const a = assessIntelligenceFreshness(request({ lineage: baseLineage({ football_intelligence: fi }), nfl_reality: r }));
+    assert.equal(a.overall_status, "INCOMPATIBLE");
+    assert.ok(a.reasons.some((x) => x.code === "SCHEDULE_SOURCE_CONFLICT"));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -368,7 +398,11 @@ describe("semantics", () => {
     // a brand-new model_tag/version string with season/week behind reality is still STALE.
     const fi = fiWeek1Complete({ model_tag: "ri-football-intel-2027.9", version: "fi:2026:w01:zzzzzzzzzzzz" });
     const a = assessIntelligenceFreshness(
-      request({ lineage: baseLineage({ football_intelligence: fi }), nfl_reality: reality({ latest_week_with_any_completed_game: 3, completed_games_in_latest_week: 1 }) }),
+      request({
+        lineage: baseLineage({ football_intelligence: fi }),
+        nfl_reality: reality({ latest_week_with_any_completed_game: 3, completed_games_in_latest_week: 1 }),
+        now: wellBeyondLagWindow(fi.generated_at),
+      }),
     );
     assert.equal(a.overall_status, "STALE");
   });

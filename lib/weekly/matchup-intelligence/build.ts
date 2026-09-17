@@ -143,7 +143,9 @@ export function buildMatchupIntelligence(ctx: WeeklyTeamContext): MatchupIntelli
   const distModel = loadDistributionModel();
   const corrModel = loadCorrelationModel();
   const contract = matchupDeploymentContract();
-  const now = new Date().toISOString();
+  // ctx.generated_at, not a fresh `new Date()` -- see the Checkpoint D
+  // determinism fix in lib/weekly/waivers.ts for why.
+  const now = ctx.generated_at;
   const snapLineage = (ctx.lineage as { snapshot?: { league_snapshot_id?: string; scoring_fingerprint?: string } }).snapshot;
   const warnings: string[] = [];
 

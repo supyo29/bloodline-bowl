@@ -249,6 +249,16 @@ describe("waiver integration", () => {
     assert.equal(result.do_not_add[0]!.add_player_id, "fa_meh");
   });
 
+  test("Checkpoint D: identical context -> byte-identical WaiverResult (generated_at determinism)", () => {
+    const ctx = waiverFixture();
+    const a = buildWaiverRecommendations(ctx);
+    const b = buildWaiverRecommendations(ctx);
+    assert.deepEqual(a, b);
+    // ctx.generated_at is set once at context construction -- the waiver
+    // builder must reuse it, never call `new Date()` again itself.
+    assert.equal(a.intelligence.generated_at, ctx.generated_at);
+  });
+
   test("17. lineage is present on the waiver result", () => {
     const result = buildWaiverRecommendations(waiverFixture());
     assert.ok(result.intelligence.lineage);

@@ -129,9 +129,19 @@ describe("live: full weekly engine for the three primary managers", () => {
 describe("live: route handlers", () => {
   it("GET /api/lineup/... returns a legal optimal lineup", async (t) => {
     if (!online) return t.skip("Sleeper offline");
+    // The route enforces a current-week-only invariant (Weekly Engine
+    // Hardening), so the request week must track whatever week the league
+    // is actually on right now rather than a hardcoded literal that goes
+    // stale the moment the real season advances. buildWeeklyIntelligence
+    // with no week option already resolves to the current week -- ask it
+    // first instead of guessing.
+    const current = await buildWeeklyIntelligence("bloodline-bowl", "supyo29", {});
+    if (!current.intelligence) return t.skip(`current week unavailable: ${current.code} ${current.detail}`);
+    const week = String(current.intelligence.week);
+
     const { GET } = await import("../app/api/lineup/[league]/[manager]/week/[week]/route");
     const res = await GET(new Request("https://x"), {
-      params: Promise.resolve({ league: "bloodline-bowl", manager: "supyo29", week: "1" }),
+      params: Promise.resolve({ league: "bloodline-bowl", manager: "supyo29", week }),
     });
     assert.equal(res.status, 200);
     const body = (await res.json()) as { data: { lineup: { slots: unknown[]; illegal_situations: string[] } } };
