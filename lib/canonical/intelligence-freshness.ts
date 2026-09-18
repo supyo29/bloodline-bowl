@@ -38,6 +38,8 @@
 import type {
   RecommendationLineage,
   FootballIntelligenceLineage,
+  RoleOpportunityIntelligenceLineage,
+  FootballIntelligenceWeekCompletion,
 } from "./lineage";
 
 export const FRESHNESS_POLICY_VERSION = "freshness-policy:2026.2";
@@ -104,7 +106,20 @@ export type FreshnessReasonCode =
   | "REALITY_FRONTIER_SOURCE_DISAGREEMENT"
   | "FI_PUBLICATION_LAG_POSSIBLE"
   | "FI_BEHIND_CONFIRMED_COMPLETED_GAME"
-  | "SCHEDULE_SOURCE_CONFLICT";
+  | "SCHEDULE_SOURCE_CONFLICT"
+  // Checkpoint D (Phase 2): Role & Opportunity Intelligence's own freshness
+  // reason codes, structurally mirroring the FI_* codes above one-for-one --
+  // same policy, same NflRealityFrontier comparison, a distinct product's
+  // lineage. See `assessRoleOpportunityFreshness()`.
+  | "ROLE_NOT_USED"
+  | "ROLE_CURRENT"
+  | "ROLE_PARTIAL_CURRENT"
+  | "ROLE_SEASON_BEHIND_CURRENT"
+  | "ROLE_AHEAD_OF_REALITY"
+  | "ROLE_SEASON_MISMATCH"
+  | "ROLE_PUBLICATION_LAG_POSSIBLE"
+  | "ROLE_BEHIND_CONFIRMED_COMPLETED_GAME"
+  | "ROLE_SCHEDULE_SOURCE_CONFLICT";
 
 export interface FreshnessReason {
   code: FreshnessReasonCode;
@@ -348,24 +363,43 @@ function buildFeatureFamilyStatuses(
   });
 }
 
-function compareFiToReality(
-  fi: FootballIntelligenceLineage,
+/**
+ * The single, shared "how does this intelligence product's self-reported
+ * completeness compare to independently-sourced football reality" policy.
+ * Used by BOTH `assessIntelligenceFreshness` (Football Intelligence) and
+ * `assessRoleOpportunityFreshness` (Role & Opportunity Intelligence,
+ * Checkpoint D) -- extracted here specifically so the disagreement policy
+ * is never forked between the two products (Checkpoint D spec §17: "do not
+ * fork disagreement policy"). Takes only the generic season/through_week/
+ * week_completion triple, not a product-specific lineage type.
+ */
+function compareThroughWeekToReality(
+  season: number,
+  throughWeek: number,
+  weekCompletion: FootballIntelligenceWeekCompletion | null,
   reality: NflRealityFrontier,
 ): { aheadOfReality: boolean; behindReality: boolean; weekGap: number; sameWeekGamesBehind: number } {
-  if (fi.season !== reality.season) {
+  if (season !== reality.season) {
     return { aheadOfReality: false, behindReality: false, weekGap: 0, sameWeekGamesBehind: 0 };
   }
-  const fiCompleted = fi.week_completion?.games_completed_in_latest_week ?? 0;
-  const weekGap = reality.latest_week_with_any_completed_game - fi.through_week;
+  const completed = weekCompletion?.games_completed_in_latest_week ?? 0;
+  const weekGap = reality.latest_week_with_any_completed_game - throughWeek;
   if (weekGap < 0) {
     return { aheadOfReality: true, behindReality: false, weekGap, sameWeekGamesBehind: 0 };
   }
   if (weekGap === 0) {
-    const gamesBehind = reality.completed_games_in_latest_week - fiCompleted;
+    const gamesBehind = reality.completed_games_in_latest_week - completed;
     if (gamesBehind < 0) return { aheadOfReality: true, behindReality: false, weekGap: 0, sameWeekGamesBehind: 0 };
     return { aheadOfReality: false, behindReality: gamesBehind > 0, weekGap: 0, sameWeekGamesBehind: gamesBehind };
   }
   return { aheadOfReality: false, behindReality: true, weekGap, sameWeekGamesBehind: 0 };
+}
+
+function compareFiToReality(
+  fi: FootballIntelligenceLineage,
+  reality: NflRealityFrontier,
+): { aheadOfReality: boolean; behindReality: boolean; weekGap: number; sameWeekGamesBehind: number } {
+  return compareThroughWeekToReality(fi.season, fi.through_week, fi.week_completion, reality);
 }
 
 export function assessIntelligenceFreshness(
@@ -665,4 +699,254 @@ export function summarizeIntelligenceFreshness(
       (assessment.confidence_cap ? ` (confidence capped ${assessment.confidence_cap})` : ""),
   );
   return lines.join("\n");
+}
+
+// ===========================================================================
+// Checkpoint D (Phase 2): Role & Opportunity Intelligence freshness.
+//
+// This is NOT a second freshness policy -- it reuses `FRESHNESS_POLICY_VERSION`,
+// `OverallFreshnessStatus`, `ConfidenceCap`, `NflRealityFrontier`, and the
+// exact same `compareThroughWeekToReality` disagreement logic that
+// `assessIntelligenceFreshness` uses for Football Intelligence. What differs
+// is only which lineage/feature-family shape is being assessed -- Role &
+// Opportunity Intelligence is a genuinely distinct, independently-versioned
+// product (Checkpoint D spec §4), so it gets its own small evaluator rather
+// than forcing a single function to branch on which of two unrelated lineage
+// shapes it received.
+// ===========================================================================
+
+/** Feature families Role & Opportunity Intelligence can independently track. Ordering IS the deterministic report order. */
+export const ROLE_INTELLIGENCE_FEATURE_FAMILIES = [
+  "ROLE_SNAPS",
+  "ROLE_TARGETS",
+  "ROLE_RUSHING",
+  "ROLE_RED_ZONE",
+  "ROLE_ROUTES",
+  "ROLE_RETURNS",
+] as const;
+export type RoleIntelligenceFeatureFamily = (typeof ROLE_INTELLIGENCE_FEATURE_FAMILIES)[number];
+
+const ROLE_RAW_SOURCE_FAMILY: Record<string, RoleIntelligenceFeatureFamily[]> = {
+  snap_counts: ["ROLE_SNAPS"],
+  pbp: ["ROLE_TARGETS", "ROLE_RUSHING", "ROLE_RED_ZONE", "ROLE_RETURNS"],
+  participation: ["ROLE_ROUTES"],
+};
+
+export interface RoleFeatureFamilyStatus {
+  family: RoleIntelligenceFeatureFamily;
+  availability: FeatureFamilyAvailability;
+  data_cutoff_week: number | null;
+  lag_weeks: number | null;
+  lag_classification: FeatureFamilyLagClassification;
+  /** Role Intelligence is SHARED_CONTEXT, never a production numeric input -- see Checkpoint D report. */
+  production_numeric_influence: ProductionNumericInfluence;
+}
+
+function classifyRoleSource(
+  source: string,
+  roi: RoleOpportunityIntelligenceLineage,
+): { classification: FeatureFamilyLagClassification; cutoffWeek: number | null; lagWeeks: number | null } {
+  const cutoffWeek = roi.data_cutoff[source] ?? null;
+  if (cutoffWeek == null) return { classification: "UNAVAILABLE", cutoffWeek: null, lagWeeks: null };
+  const lag = roi.through_week - cutoffWeek;
+  return { classification: lag > 0 ? "EXPECTED_SOURCE_LAG" : "AT_CUTOFF", cutoffWeek, lagWeeks: lag };
+}
+
+function buildRoleFeatureFamilyStatuses(roi: RoleOpportunityIntelligenceLineage | null): RoleFeatureFamilyStatus[] {
+  return ROLE_INTELLIGENCE_FEATURE_FAMILIES.map((family): RoleFeatureFamilyStatus => {
+    if (!roi) {
+      return { family, availability: "UNAVAILABLE", data_cutoff_week: null, lag_weeks: null, lag_classification: "NOT_APPLICABLE", production_numeric_influence: "PROHIBITED" };
+    }
+    const rawSource = Object.keys(ROLE_RAW_SOURCE_FAMILY).find((s) => ROLE_RAW_SOURCE_FAMILY[s]!.includes(family));
+    if (!rawSource) {
+      return { family, availability: "UNAVAILABLE", data_cutoff_week: null, lag_weeks: null, lag_classification: "NOT_APPLICABLE", production_numeric_influence: "PROHIBITED" };
+    }
+    const classified = classifyRoleSource(rawSource, roi);
+    const availability: FeatureFamilyAvailability = classified.classification === "UNAVAILABLE" ? "UNAVAILABLE" : "AVAILABLE";
+    return {
+      family,
+      availability,
+      data_cutoff_week: classified.cutoffWeek,
+      lag_weeks: classified.lagWeeks,
+      lag_classification: classified.classification,
+      production_numeric_influence: "PROHIBITED",
+    };
+  });
+}
+
+export interface RoleOpportunityFreshnessRequest {
+  lineage: RecommendationLineage;
+  operation: IntelligenceOperation;
+  nfl_reality?: NflRealityFrontier;
+  previous_role_opportunity_intelligence?: RoleOpportunityIntelligenceLineage | null;
+  expected_season?: number;
+  allow_historical_role_opportunity_intelligence?: boolean;
+  now?: number;
+}
+
+export interface RoleOpportunityFreshnessAssessment {
+  freshness_policy_version: string;
+  operation: IntelligenceOperation;
+  overall_status: OverallFreshnessStatus;
+  usable: boolean;
+  confidence_cap: ConfidenceCap | null;
+  fallback_required: boolean;
+  reasons: FreshnessReason[];
+  feature_families: RoleFeatureFamilyStatus[];
+  prohibited_features: RoleIntelligenceFeatureFamily[];
+  lineage: RecommendationLineage;
+  nfl_reality: NflRealityFrontier | null;
+}
+
+/**
+ * The Role & Opportunity Intelligence analogue of `assessIntelligenceFreshness`.
+ * Answers exactly the two questions Checkpoint D §14 asks for: is this Role
+ * Intelligence current relative to the NFL Reality Frontier, and which role
+ * feature families are current/lagging/unavailable -- WITHOUT collapsing the
+ * per-family answer into the overall one (spec §15: routes lagging must never
+ * be hidden by targets/snaps being current, and vice versa).
+ */
+export function assessRoleOpportunityFreshness(
+  request: RoleOpportunityFreshnessRequest,
+): RoleOpportunityFreshnessAssessment {
+  const { lineage, operation } = request;
+  const roi = lineage.role_opportunity_intelligence ?? null;
+  const reasons: FreshnessReason[] = [];
+  const state: { status: OverallFreshnessStatus } = { status: "CURRENT" };
+  const STATUS_RANK: Record<OverallFreshnessStatus, number> = { CURRENT: 0, PARTIAL_CURRENT: 1, DEGRADED: 2, STALE: 3, INCOMPATIBLE: 4 };
+  const escalate = (next: OverallFreshnessStatus) => { if (STATUS_RANK[next] > STATUS_RANK[state.status]) state.status = next; };
+
+  if (
+    roi &&
+    request.expected_season != null &&
+    roi.season !== request.expected_season &&
+    !request.allow_historical_role_opportunity_intelligence
+  ) {
+    reasons.push({
+      code: "ROLE_SEASON_MISMATCH",
+      severity: "BLOCK",
+      affects: ["ROLE_SNAPS", "ROLE_TARGETS"],
+      detail: `Role Intelligence season ${roi.season} !== expected_season ${request.expected_season} without allow_historical_role_opportunity_intelligence`,
+    });
+    escalate("INCOMPATIBLE");
+  }
+  if (roi && roi.season > lineage.snapshot.season) {
+    reasons.push({
+      code: "ROLE_AHEAD_OF_REALITY",
+      severity: "BLOCK",
+      affects: ["ROLE_SNAPS"],
+      detail: `Role Intelligence season ${roi.season} is ahead of the live snapshot's season ${lineage.snapshot.season}`,
+    });
+    escalate("INCOMPATIBLE");
+  }
+  if (roi && request.nfl_reality && roi.season === request.nfl_reality.season) {
+    const cmp = compareThroughWeekToReality(roi.season, roi.through_week, roi.week_completion, request.nfl_reality);
+    if (cmp.aheadOfReality) {
+      reasons.push({
+        code: "ROLE_AHEAD_OF_REALITY",
+        severity: "BLOCK",
+        affects: ["ROLE_SNAPS"],
+        detail: `Role Intelligence through_week ${roi.through_week} is ahead of the supplied reality frontier (w${request.nfl_reality.latest_week_with_any_completed_game})`,
+      });
+      escalate("INCOMPATIBLE");
+    }
+  }
+
+  if (state.status !== "INCOMPATIBLE") {
+    if (!roi) {
+      reasons.push({ code: "ROLE_NOT_USED", severity: "INFO", affects: [], detail: "lineage.role_opportunity_intelligence is null/absent: not consulted for this call" });
+    } else if (roi.season < lineage.snapshot.season) {
+      reasons.push({
+        code: "ROLE_SEASON_BEHIND_CURRENT",
+        severity: "BLOCK",
+        affects: ["ROLE_SNAPS", "ROLE_TARGETS"],
+        detail: `Role Intelligence season ${roi.season} is behind the live snapshot's season ${lineage.snapshot.season}`,
+      });
+      escalate("STALE");
+    } else if (request.nfl_reality && roi.season === request.nfl_reality.season) {
+      const cmp = compareThroughWeekToReality(roi.season, roi.through_week, roi.week_completion, request.nfl_reality);
+      const nowMs = request.now ?? Date.now();
+      const generatedMs = Date.parse(roi.generated_at);
+      const hoursSinceRefresh = Number.isFinite(generatedMs) ? (nowMs - generatedMs) / 3_600_000 : null;
+      const withinExpectedLagWindow = hoursSinceRefresh != null && hoursSinceRefresh <= FI_REFRESH_CADENCE_HOURS + FI_REFRESH_LAG_BUFFER_HOURS;
+
+      const roiWc = roi.week_completion;
+      if (roiWc && roiWc.latest_week === request.nfl_reality.latest_week_with_any_completed_game && roiWc.games_scheduled_in_latest_week !== request.nfl_reality.scheduled_games_in_latest_week) {
+        reasons.push({
+          code: "ROLE_SCHEDULE_SOURCE_CONFLICT",
+          severity: "BLOCK",
+          affects: ["ROLE_SNAPS"],
+          detail: `week ${roiWc.latest_week}: Role Intelligence reports ${roiWc.games_scheduled_in_latest_week} scheduled games, runtime frontier reports ${request.nfl_reality.scheduled_games_in_latest_week}`,
+        });
+        escalate("INCOMPATIBLE");
+      } else if (cmp.behindReality && cmp.weekGap > 0) {
+        reasons.push({
+          code: withinExpectedLagWindow ? "ROLE_PUBLICATION_LAG_POSSIBLE" : "ROLE_BEHIND_CONFIRMED_COMPLETED_GAME",
+          severity: withinExpectedLagWindow ? "WARN" : "BLOCK",
+          affects: ["ROLE_SNAPS", "ROLE_TARGETS", "ROLE_RUSHING"],
+          detail: `Role Intelligence through_week ${roi.through_week} is ${cmp.weekGap} week(s) behind the runtime frontier's last completed week (w${request.nfl_reality.latest_week_with_any_completed_game})`,
+        });
+        escalate(withinExpectedLagWindow ? "DEGRADED" : "STALE");
+      } else if (cmp.behindReality && cmp.sameWeekGamesBehind > 0) {
+        reasons.push({
+          code: withinExpectedLagWindow ? "ROLE_PUBLICATION_LAG_POSSIBLE" : "ROLE_BEHIND_CONFIRMED_COMPLETED_GAME",
+          severity: withinExpectedLagWindow ? "INFO" : "BLOCK",
+          affects: ["ROLE_SNAPS"],
+          detail: `Role Intelligence has captured ${roi.week_completion?.games_completed_in_latest_week ?? 0} of ${request.nfl_reality.completed_games_in_latest_week} completed week-${roi.through_week} games`,
+        });
+        escalate(withinExpectedLagWindow ? "PARTIAL_CURRENT" : "STALE");
+      } else if (roi.week_completion?.week_state === "COMPLETE") {
+        reasons.push({ code: "ROLE_CURRENT", severity: "INFO", affects: [], detail: `Role Intelligence matches the reality frontier and week ${roi.through_week} is COMPLETE` });
+      } else {
+        reasons.push({ code: "ROLE_PARTIAL_CURRENT", severity: "INFO", affects: [], detail: `Role Intelligence matches the reality frontier; week ${roi.through_week} is PARTIAL` });
+        escalate("PARTIAL_CURRENT");
+      }
+    } else if (!request.nfl_reality) {
+      reasons.push({ code: "NO_INDEPENDENT_FRONTIER", severity: "INFO", affects: [], detail: "no NflRealityFrontier supplied; Role Intelligence's own week_completion is reported uncross-checked" });
+      if (!roi.week_completion) {
+        reasons.push({ code: "NO_WEEK_COMPLETION_METADATA", severity: "WARN", affects: ["ROLE_SNAPS"], detail: "manifest predates week_completion" });
+        escalate("DEGRADED");
+      } else if (roi.week_completion.week_state === "COMPLETE") {
+        reasons.push({ code: "ROLE_CURRENT", severity: "INFO", affects: [], detail: `Role Intelligence reports week ${roi.through_week} COMPLETE (uncross-checked)` });
+      } else {
+        reasons.push({ code: "ROLE_PARTIAL_CURRENT", severity: "INFO", affects: [], detail: `Role Intelligence reports week ${roi.through_week} PARTIAL (uncross-checked)` });
+        escalate("PARTIAL_CURRENT");
+      }
+    }
+  }
+
+  const featureFamilies = buildRoleFeatureFamilyStatuses(roi);
+  for (const f of featureFamilies) {
+    if (f.lag_classification === "EXPECTED_SOURCE_LAG") {
+      reasons.push({ code: "SOURCE_EXPECTED_LAG", severity: "INFO", affects: [f.family], detail: `${f.family} is ${f.lag_weeks} week(s) behind through_week -- expected lag, not a failure` });
+    } else if (f.lag_classification === "UNAVAILABLE" && roi) {
+      reasons.push({ code: "SOURCE_UNAVAILABLE_FOR_SEASON", severity: "INFO", affects: [f.family], detail: `${f.family} has no rows for season ${roi.season} yet` });
+    }
+  }
+
+  let confidenceCap: ConfidenceCap | null = null;
+  let fallbackRequired = false;
+  if (state.status === "INCOMPATIBLE") {
+    confidenceCap = "INSUFFICIENT_SAMPLE";
+    fallbackRequired = true;
+  } else if (state.status === "STALE" || state.status === "DEGRADED") {
+    // Role Intelligence is SHARED_CONTEXT everywhere (spec §27) -- no
+    // operation has a production numeric dependency on it to fall back FROM,
+    // mirroring how LOW-materiality FI operations behave today.
+    confidenceCap = "MEDIUM";
+  }
+
+  return {
+    freshness_policy_version: FRESHNESS_POLICY_VERSION,
+    operation,
+    overall_status: state.status,
+    usable: state.status !== "INCOMPATIBLE",
+    confidence_cap: confidenceCap,
+    fallback_required: fallbackRequired,
+    reasons,
+    feature_families: featureFamilies,
+    prohibited_features: [...ROLE_INTELLIGENCE_FEATURE_FAMILIES],
+    lineage,
+    nfl_reality: request.nfl_reality ?? null,
+  };
 }

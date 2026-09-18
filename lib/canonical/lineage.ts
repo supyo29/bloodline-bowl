@@ -95,6 +95,34 @@ export interface FootballIntelligenceLineage {
   generated_at: string;
 }
 
+/**
+ * Identity/provenance of one Role & Opportunity Intelligence snapshot
+ * (Phase 2), as consulted by an engine. Structurally parallel to
+ * {@link FootballIntelligenceLineage} on purpose -- same identity-only
+ * contract, same "this is not a freshness verdict" boundary -- but a
+ * DISTINCT product: Role & Opportunity Intelligence is independently
+ * versioned from Football Intelligence even though both are built from
+ * overlapping raw nflverse sources (Checkpoint B/D). Built exclusively by
+ * `buildRoleOpportunityIntelligenceLineage()`
+ * (`lib/player-role-intelligence/lineage.ts`) -- no consumer should
+ * construct this by hand.
+ */
+export interface RoleOpportunityIntelligenceLineage {
+  /** `roi:<season>:w<week>:<12 hex>` */
+  version: string;
+  model_tag: string;
+  feature_schema_version: string;
+  season: number;
+  through_week: number;
+  /** `null` only for a manifest that predates week_completion -- never fabricated. */
+  week_completion: FootballIntelligenceWeekCompletion | null;
+  /** per-raw-source max NFL week actually ingested (pbp, participation, snap_counts), exactly as the manifest published it. */
+  data_cutoff: Record<string, number>;
+  /** Checkpoint B's grain/schema contract version this artifact was built under. */
+  substrate_schema_version: string;
+  generated_at: string;
+}
+
 /** One projection model that fed an engine result. */
 export interface ProjectionLineageEntry {
   /** What role this projection played in the engine. */
@@ -123,6 +151,21 @@ export interface RecommendationLineage {
    * `docs/INTELLIGENCE_MODERNIZATION_PHASE_1_AUDIT.md`).
    */
   football_intelligence: FootballIntelligenceLineage | null;
+  /**
+   * Role & Opportunity Intelligence's identity, if this engine call
+   * consulted it at all (Phase 2, Checkpoint D). `null` means "not
+   * consulted" -- same explicit-fact convention as `football_intelligence`.
+   * Attaching this lineage is never itself evidence of numeric influence --
+   * see `lib/player-role-intelligence/README` / Checkpoint D report for the
+   * deployment-state gate that governs whether it may ever be one.
+   *
+   * Optional (unlike `football_intelligence`) so every pre-existing
+   * `RecommendationLineage` literal in the codebase keeps typechecking
+   * without modification -- `undefined` and `null` both mean "not
+   * consulted" for this field; new code should prefer `null` explicitly
+   * (via `buildRecommendationLineage`, which always sets it).
+   */
+  role_opportunity_intelligence?: RoleOpportunityIntelligenceLineage | null;
   /** Engine name -> version. e.g. `{ weekly_engine: "post-draft-intel-2026.1" }`. */
   engine_versions: Record<string, string>;
 }
@@ -133,6 +176,13 @@ export function buildRecommendationLineage(
   engineVersions: Record<string, string>,
   projections: ProjectionLineageEntry[] = [],
   footballIntelligence: FootballIntelligenceLineage | null = null,
+  roleOpportunityIntelligence: RoleOpportunityIntelligenceLineage | null = null,
 ): RecommendationLineage {
-  return { snapshot, projections, football_intelligence: footballIntelligence, engine_versions: { ...engineVersions } };
+  return {
+    snapshot,
+    projections,
+    football_intelligence: footballIntelligence,
+    role_opportunity_intelligence: roleOpportunityIntelligence,
+    engine_versions: { ...engineVersions },
+  };
 }
