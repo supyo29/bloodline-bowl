@@ -1,0 +1,305 @@
+{
+  "priors": {
+    "league": [
+      {
+        "dimension": "target_share",
+        "league_rate": 0.9,
+        "n_league": 50
+      },
+      {
+        "dimension": "rush_share",
+        "league_rate": 0.8,
+        "n_league": 50
+      },
+      {
+        "dimension": "kick_return_role",
+        "league_rate": 0.7,
+        "n_league": 20
+      }
+    ],
+    "position": [
+      {
+        "dimension": "target_share",
+        "position": "WR",
+        "position_rate_blended": 0.85
+      },
+      {
+        "dimension": "target_share",
+        "position": "TE",
+        "position_rate_blended": 0.95
+      },
+      {
+        "dimension": "target_share",
+        "position": "RB",
+        "position_rate_blended": 0.75
+      },
+      {
+        "dimension": "rush_share",
+        "position": "RB",
+        "position_rate_blended": 0.78
+      },
+      {
+        "dimension": "rush_share",
+        "position": "TE",
+        "position_rate_blended": 0.6
+      }
+    ],
+    "team": [
+      {
+        "dimension": "target_share",
+        "team": "AAA",
+        "position": "WR",
+        "team_rate_blended": 1.2,
+        "n_team": 10
+      },
+      {
+        "dimension": "target_share",
+        "team": "BBB",
+        "position": "WR",
+        "team_rate_blended": 0.65,
+        "n_team": 10
+      },
+      {
+        "dimension": "rush_share",
+        "team": "AAA",
+        "position": "RB",
+        "team_rate_blended": 0.95,
+        "n_team": 8
+      }
+    ]
+  },
+  "position_weights": [
+    {
+      "dimension": "target_share",
+      "same_position_multiplier": 1.3
+    },
+    {
+      "dimension": "rush_share",
+      "same_position_multiplier": 1.5
+    },
+    {
+      "dimension": "kick_return_role",
+      "same_position_multiplier": 1.1
+    }
+  ],
+  "nse_regression_case": {
+    "rate_team_AAA_WR_target_share": 1.2,
+    "rate_team_BBB_WR_target_share": 0.65,
+    "rate_unseen_team_falls_to_position_prior": 0.85,
+    "rate_unseen_position_falls_to_league_prior": 0.8,
+    "rate_unknown_dimension_falls_to_global_default": 0.5
+  },
+  "scenarios": [
+    {
+      "name": "RB_absence_rushing",
+      "team": "AAA",
+      "absent_position": "RB",
+      "dimension": "rush_share",
+      "vacated_opportunity": 0.55,
+      "candidates": [
+        {
+          "id": "RB2",
+          "position": "RB",
+          "pre_event_recent": 0.2,
+          "pre_event_season": 0.15
+        },
+        {
+          "id": "RB3",
+          "position": "RB",
+          "pre_event_recent": 0.05,
+          "pre_event_season": 0.06
+        },
+        {
+          "id": "QB1",
+          "position": "QB",
+          "pre_event_recent": 0.08,
+          "pre_event_season": 0.08
+        }
+      ],
+      "expected_predictions": [
+        {
+          "gsis_id": "RB2",
+          "position": "RB",
+          "pre_event_role": 0.2,
+          "predicted_role": 0.569693396226415,
+          "predicted_delta": 0.369693396226415
+        },
+        {
+          "gsis_id": "RB3",
+          "position": "RB",
+          "pre_event_role": 0.05,
+          "predicted_role": 0.123938679245283,
+          "predicted_delta": 0.07393867924528304
+        },
+        {
+          "gsis_id": "QB1",
+          "position": "QB",
+          "pre_event_role": 0.08,
+          "predicted_role": 0.1588679245283019,
+          "predicted_delta": 0.07886792452830189
+        }
+      ]
+    },
+    {
+      "name": "WR_absence_cross_position_receiving",
+      "team": "AAA",
+      "absent_position": "WR",
+      "dimension": "target_share",
+      "vacated_opportunity": 0.3,
+      "candidates": [
+        {
+          "id": "WR2",
+          "position": "WR",
+          "pre_event_recent": 0.18,
+          "pre_event_season": 0.14
+        },
+        {
+          "id": "TE1",
+          "position": "TE",
+          "pre_event_recent": 0.1,
+          "pre_event_season": 0.09
+        },
+        {
+          "id": "RB1",
+          "position": "RB",
+          "pre_event_recent": 0.06,
+          "pre_event_season": 0.07000000000000001
+        }
+      ],
+      "expected_predictions": [
+        {
+          "gsis_id": "WR2",
+          "position": "WR",
+          "pre_event_role": 0.18,
+          "predicted_role": 0.412707182320442,
+          "predicted_delta": 0.232707182320442
+        },
+        {
+          "gsis_id": "TE1",
+          "position": "TE",
+          "pre_event_role": 0.1,
+          "predicted_role": 0.1795580110497238,
+          "predicted_delta": 0.07955801104972376
+        },
+        {
+          "gsis_id": "RB1",
+          "position": "RB",
+          "pre_event_role": 0.06,
+          "predicted_role": 0.1077348066298343,
+          "predicted_delta": 0.04773480662983426
+        }
+      ]
+    },
+    {
+      "name": "TE_absence",
+      "team": "BBB",
+      "absent_position": "TE",
+      "dimension": "target_share",
+      "vacated_opportunity": 0.15,
+      "candidates": [
+        {
+          "id": "WR3",
+          "position": "WR",
+          "pre_event_recent": 0.12,
+          "pre_event_season": 0.1
+        },
+        {
+          "id": "TE2",
+          "position": "TE",
+          "pre_event_recent": 0.03,
+          "pre_event_season": 0.02
+        }
+      ],
+      "expected_predictions": [
+        {
+          "gsis_id": "WR3",
+          "position": "WR",
+          "pre_event_role": 0.12,
+          "predicted_role": 0.2275471698113207,
+          "predicted_delta": 0.1075471698113207
+        },
+        {
+          "gsis_id": "TE2",
+          "position": "TE",
+          "pre_event_role": 0.03,
+          "predicted_role": 0.06495283018867924,
+          "predicted_delta": 0.03495283018867924
+        }
+      ]
+    },
+    {
+      "name": "return_role_independent",
+      "team": "AAA",
+      "absent_position": "WR",
+      "dimension": "kick_return_role",
+      "vacated_opportunity": 0.65,
+      "candidates": [
+        {
+          "id": "WR4",
+          "position": "WR",
+          "pre_event_recent": 0.02,
+          "pre_event_season": 0.01
+        },
+        {
+          "id": "RB4",
+          "position": "RB",
+          "pre_event_recent": 0.3,
+          "pre_event_season": 0.28
+        }
+      ],
+      "expected_predictions": [
+        {
+          "gsis_id": "WR4",
+          "position": "WR",
+          "pre_event_role": 0.02,
+          "predicted_role": 0.05108695652173913,
+          "predicted_delta": 0.03108695652173913
+        },
+        {
+          "gsis_id": "RB4",
+          "position": "RB",
+          "pre_event_role": 0.3,
+          "predicted_role": 0.7239130434782608,
+          "predicted_delta": 0.4239130434782608
+        }
+      ]
+    },
+    {
+      "name": "sparse_hierarchy_fallback_unseen_team",
+      "team": "ZZZ",
+      "absent_position": "WR",
+      "dimension": "target_share",
+      "vacated_opportunity": 0.25,
+      "candidates": [
+        {
+          "id": "WR5",
+          "position": "WR",
+          "pre_event_recent": 0.15,
+          "pre_event_season": 0.15
+        },
+        {
+          "id": "TE3",
+          "position": "TE",
+          "pre_event_recent": 0.05,
+          "pre_event_season": 0.05
+        }
+      ],
+      "expected_predictions": [
+        {
+          "gsis_id": "WR5",
+          "position": "WR",
+          "pre_event_role": 0.15,
+          "predicted_role": 0.3191326530612245,
+          "predicted_delta": 0.1691326530612245
+        },
+        {
+          "gsis_id": "TE3",
+          "position": "TE",
+          "pre_event_role": 0.05,
+          "predicted_role": 0.09336734693877552,
+          "predicted_delta": 0.04336734693877552
+        }
+      ]
+    }
+  ]
+}

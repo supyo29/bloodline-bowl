@@ -1,16 +1,19 @@
 // ===========================================================================
-// Injury -> Opportunity Propagation Intelligence -- Checkpoint B structural
-// production isolation (spec §36 item 30, §41).
+// Injury -> Opportunity Propagation Intelligence -- structural production
+// isolation (Checkpoint B spec §36 item 30/§41; Checkpoint D spec §54-56,
+// §63-64).
 //
-// Checkpoint B introduces NO TypeScript product yet (spec §34: internal R
-// artifacts only). This test exists as a regression tripwire for every
-// future checkpoint: it must keep passing right up through Checkpoint D's
-// served product, at which point it proves the served read contract is
-// still never imported by a production recommendation path.
+// This is the permanent regression tripwire across every Phase 3
+// checkpoint: no production numeric consumer may ever reference the
+// propagation substrate or served product, regardless of what Checkpoint D
+// serves. Updated for Checkpoint D's actual served product location
+// (`lib/opportunity-propagation-intelligence/`) -- Checkpoints B/C's
+// "no TS product yet" assertion is now Checkpoint D's "TS product exists,
+// but zero production consumer imports it" assertion.
 // ===========================================================================
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 function grepDirForOpportunityPropagation(dir: string): string[] {
@@ -29,7 +32,7 @@ function grepDirForOpportunityPropagation(dir: string): string[] {
       hits.push(...grepDirForOpportunityPropagation(rel));
     } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx"))) {
       const text = readFileSync(full, "utf8");
-      if (/injury-opportunity-propagation|opportunity_propagation|OpportunityPropagationIntelligence/.test(text)) {
+      if (/injury-opportunity-propagation|opportunity-propagation-intelligence|opportunity_propagation|OpportunityPropagationIntelligence|evaluateOpportunityPropagationScenario/.test(text)) {
         hits.push(rel);
       }
     }
@@ -37,8 +40,8 @@ function grepDirForOpportunityPropagation(dir: string): string[] {
   return hits;
 }
 
-describe("production isolation (Phase 3, Checkpoint B)", () => {
-  test("no production consumer references the opportunity-propagation substrate", () => {
+describe("production isolation (Phase 3, Checkpoint D)", () => {
+  test("no production consumer references the opportunity-propagation substrate or served product", () => {
     const hits = [
       ...grepDirForOpportunityPropagation("lib/weekly"),
       ...grepDirForOpportunityPropagation("lib/trades"),
@@ -49,23 +52,29 @@ describe("production isolation (Phase 3, Checkpoint B)", () => {
     assert.deepEqual(hits, [], `unexpected opportunity-propagation reference(s) in production code: ${hits.join(", ")}`);
   });
 
-  test("Checkpoint B has not created a lib/injury-opportunity-propagation TS product yet", () => {
-    let exists = true;
-    try {
-      readdirSync(join(process.cwd(), "lib", "injury-opportunity-propagation"));
-    } catch {
-      exists = false;
-    }
-    assert.equal(exists, false, "Checkpoint B is internal-only (R artifacts); a TS product is Checkpoint D's deliverable, not this checkpoint's");
+  test("Checkpoint D's served TS product exists at lib/opportunity-propagation-intelligence/", () => {
+    assert.ok(existsSync(join(process.cwd(), "lib", "opportunity-propagation-intelligence", "index.ts")));
   });
 
-  test("lib/player-role-intelligence (Phase 2) is untouched by this checkpoint", () => {
+  test("lib/player-role-intelligence (Phase 2, frozen) is untouched by Checkpoint D", () => {
     const text = readFileSync(join(process.cwd(), "lib", "player-role-intelligence", "schema.ts"), "utf8");
-    assert.ok(!/injury-opportunity-propagation|opportunity_propagation/.test(text));
+    assert.ok(!/opportunity-propagation-intelligence|opportunity_propagation|OpportunityPropagationIntelligence/.test(text));
   });
 
-  test("lib/canonical/lineage.ts is untouched by this checkpoint (no propagation lineage type added yet)", () => {
+  test("lib/canonical/lineage.ts's Phase 3 addition is purely additive -- existing RecommendationLineage literals still typecheck with opportunity_propagation_intelligence omitted/null", () => {
     const text = readFileSync(join(process.cwd(), "lib", "canonical", "lineage.ts"), "utf8");
-    assert.ok(!/OpportunityPropagationIntelligenceLineage/.test(text));
+    assert.match(text, /opportunity_propagation_intelligence\?:/, "field must be optional -- additive, never required");
+    assert.match(text, /opportunityPropagationIntelligence: OpportunityPropagationIntelligenceLineage \| null = null/, "buildRecommendationLineage's new param must default to null -- existing call sites keep producing null unmodified");
+  });
+
+  test("orchestrator directory has zero references to the propagation model or scenario evaluator (spec §55)", () => {
+    const hits = grepDirForOpportunityPropagation("lib/orchestrator");
+    assert.deepEqual(hits, []);
+  });
+
+  test("no waiver/start-sit/matchup/trade/projection engine imports the scenario evaluator (spec §54, exact enumerated list)", () => {
+    const dirs = ["lib/weekly/waivers", "lib/weekly/start-sit", "lib/weekly/matchup", "lib/trades", "lib/projections", "lib/weekly/lineup"];
+    const hits = dirs.flatMap((d) => grepDirForOpportunityPropagation(d));
+    assert.deepEqual(hits, []);
   });
 });

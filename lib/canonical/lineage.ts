@@ -123,6 +123,42 @@ export interface RoleOpportunityIntelligenceLineage {
   generated_at: string;
 }
 
+/**
+ * Identity/provenance of one Injury -> Opportunity Propagation Intelligence
+ * artifact (Phase 3, Checkpoint D), as consulted by an engine. Structurally
+ * parallel to {@link FootballIntelligenceLineage} /
+ * {@link RoleOpportunityIntelligenceLineage} on purpose, but a DISTINCT
+ * product, independently versioned -- Phase 3 directly DEPENDS on Role &
+ * Opportunity Intelligence (Phase 2), which is why `role_opportunity_
+ * version` is a required field here rather than a sibling lineage entry:
+ * every propagation prediction is only as current as the specific Role
+ * Intelligence snapshot it was computed against, and that dependency must
+ * travel with the prediction, not be inferred from whichever Role
+ * Intelligence snapshot happens to be current at read time. Built
+ * exclusively by `buildOpportunityPropagationIntelligenceLineage()`
+ * (`lib/opportunity-propagation-intelligence/lineage.ts`) -- no consumer
+ * should construct this by hand.
+ *
+ * Attaching this lineage is never itself evidence of numeric influence:
+ * Phase 3 is `SHADOW_ONLY`, `eligible_to_influence_production: false` (see
+ * docs/INJURY_OPPORTUNITY_PROPAGATION_PHASE_3_CHECKPOINT_D.md) -- stricter
+ * than Phase 2's `SHARED_CONTEXT`, because Phase 3 is predictive rather
+ * than purely descriptive.
+ */
+export interface OpportunityPropagationIntelligenceLineage {
+  /** `opi:<season>:w<week>:<12 hex>` */
+  version: string;
+  model_tag: string;
+  schema_version: string;
+  season: number;
+  through_week: number;
+  generated_at: string;
+  /** The exact Role & Opportunity Intelligence version this prediction was computed against -- Phase 3's real, first-class dependency (never inferred). */
+  role_opportunity_version: string;
+  /** `CALIBRATED` for the scenario actually evaluated (single-absence) or `EXPERIMENTAL_MULTI_ABSENCE` -- never omitted, never upgraded silently. */
+  scenario_support: "CALIBRATED" | "EXPERIMENTAL_MULTI_ABSENCE" | "UNSUPPORTED_SCENARIO";
+}
+
 /** One projection model that fed an engine result. */
 export interface ProjectionLineageEntry {
   /** What role this projection played in the engine. */
@@ -166,6 +202,16 @@ export interface RecommendationLineage {
    * (via `buildRecommendationLineage`, which always sets it).
    */
   role_opportunity_intelligence?: RoleOpportunityIntelligenceLineage | null;
+  /**
+   * Injury -> Opportunity Propagation Intelligence's identity, if this
+   * engine call consulted it at all (Phase 3, Checkpoint D). `null` means
+   * "not consulted" -- same explicit-fact convention as `football_
+   * intelligence`/`role_opportunity_intelligence`. Every existing
+   * production call site keeps typechecking unmodified (optional field)
+   * and keeps producing `null` here, because Phase 3 is `SHADOW_ONLY` and
+   * no production engine consults it.
+   */
+  opportunity_propagation_intelligence?: OpportunityPropagationIntelligenceLineage | null;
   /** Engine name -> version. e.g. `{ weekly_engine: "post-draft-intel-2026.1" }`. */
   engine_versions: Record<string, string>;
 }
@@ -177,12 +223,14 @@ export function buildRecommendationLineage(
   projections: ProjectionLineageEntry[] = [],
   footballIntelligence: FootballIntelligenceLineage | null = null,
   roleOpportunityIntelligence: RoleOpportunityIntelligenceLineage | null = null,
+  opportunityPropagationIntelligence: OpportunityPropagationIntelligenceLineage | null = null,
 ): RecommendationLineage {
   return {
     snapshot,
     projections,
     football_intelligence: footballIntelligence,
     role_opportunity_intelligence: roleOpportunityIntelligence,
+    opportunity_propagation_intelligence: opportunityPropagationIntelligence,
     engine_versions: { ...engineVersions },
   };
 }

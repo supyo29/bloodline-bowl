@@ -104,4 +104,18 @@ OPP$compute_version <- function(season_min, season_max, absence_events) {
   sprintf("opp:%d-%d:%s", season_min, season_max, substr(content, 1, 12))
 }
 
+# ---- Checkpoint D: served OPI ("opi:<season>:w<week>:<12hex>") version --
+# identical rule (generated_at excluded from the digest) as OPP$compute_
+# version/ROLE$compute_version/FI$compute_version -- extracted as its own
+# function specifically so it is independently unit-testable (spec §6/§48).
+OPP$compute_opi_version <- function(season, through_week, model_tag, model_method, schema_version,
+                                    training_window, role_opportunity_version,
+                                    league_table, position_table, team_table, weights_table, dims_table) {
+  content <- digest::digest(list(
+    model_tag, model_method, schema_version, training_window, role_opportunity_version,
+    league_table, position_table, team_table, weights_table, dims_table
+  ), algo = "sha256")
+  sprintf("opi:%d:w%02d:%s", season, through_week, substr(content, 1, 12))
+}
+
 invisible(OPP)

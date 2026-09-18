@@ -119,7 +119,16 @@ export type FreshnessReasonCode =
   | "ROLE_SEASON_MISMATCH"
   | "ROLE_PUBLICATION_LAG_POSSIBLE"
   | "ROLE_BEHIND_CONFIRMED_COMPLETED_GAME"
-  | "ROLE_SCHEDULE_SOURCE_CONFLICT";
+  | "ROLE_SCHEDULE_SOURCE_CONFLICT"
+  // Checkpoint D (Phase 3): Injury -> Opportunity Propagation Intelligence's
+  // own freshness reason codes. See `assessOpportunityPropagationFreshness()`.
+  | "PROPAGATION_NOT_USED"
+  | "PROPAGATION_SEASON_MISMATCH"
+  | "PROPAGATION_AHEAD_OF_REALITY"
+  | "PROPAGATION_ROLE_VERSION_MISMATCH"
+  | "PROPAGATION_ROLE_DEPENDENCY_NOT_CURRENT"
+  | "AVAILABILITY_SOURCE_BACKED"
+  | "AVAILABILITY_CONSUMER_SUPPLIED";
 
 export interface FreshnessReason {
   code: FreshnessReasonCode;
@@ -946,6 +955,172 @@ export function assessRoleOpportunityFreshness(
     reasons,
     feature_families: featureFamilies,
     prohibited_features: [...ROLE_INTELLIGENCE_FEATURE_FAMILIES],
+    lineage,
+    nfl_reality: request.nfl_reality ?? null,
+  };
+}
+
+// ===========================================================================
+// Checkpoint D (Phase 3): Injury -> Opportunity Propagation Intelligence
+// freshness.
+//
+// Reuses `FRESHNESS_POLICY_VERSION`, `OverallFreshnessStatus`,
+// `ConfidenceCap`, `NflRealityFrontier`, and `compareThroughWeekToReality`
+// exactly as `assessRoleOpportunityFreshness` does for Role Intelligence --
+// no parallel "propagation-freshness-v1" policy is created (Checkpoint D
+// spec §33). What is genuinely different here: Phase 3 has a REAL, first-
+// class dependency on Phase 2 (spec §34), so this evaluator COMPOSES an
+// already-computed `RoleOpportunityFreshnessAssessment` rather than
+// re-deriving Role Intelligence's own freshness logic from scratch -- if
+// the Role Intelligence dependency is stale/degraded, the propagation
+// result's overall status can never read better than that dependency's,
+// regardless of how current the propagation artifact's OWN manifest is.
+// ===========================================================================
+
+/** Feature families the propagation product itself can independently track. Ordering IS the deterministic report order. */
+export const PROPAGATION_INTELLIGENCE_FEATURE_FAMILIES = [
+  "PROPAGATION_MODEL_ARTIFACT",
+  "PROPAGATION_ROLE_DEPENDENCY",
+  "PROPAGATION_AVAILABILITY_SCENARIO_INPUT",
+] as const;
+export type PropagationIntelligenceFeatureFamily = (typeof PROPAGATION_INTELLIGENCE_FEATURE_FAMILIES)[number];
+
+export interface PropagationFeatureFamilyStatus {
+  family: PropagationIntelligenceFeatureFamily;
+  availability: FeatureFamilyAvailability;
+  /** Role Intelligence is SHARED_CONTEXT / PROHIBITED; Phase 3 is SHADOW_ONLY / PROHIBITED -- stricter, never looser. */
+  production_numeric_influence: ProductionNumericInfluence;
+  detail: string;
+}
+
+export interface OpportunityPropagationFreshnessRequest {
+  lineage: RecommendationLineage;
+  operation: IntelligenceOperation;
+  /** The Role Intelligence freshness assessment for the SAME lineage -- composed, not re-derived (spec §34). */
+  role_opportunity_freshness: RoleOpportunityFreshnessAssessment;
+  nfl_reality?: NflRealityFrontier;
+  expected_season?: number;
+  /**
+   * Whether the scenario's unavailability was supplied by the caller
+   * (spec §35's `USER/CONSUMER_SUPPLIED_FULL_GAME_NONPARTICIPATION`) or by
+   * a source-backed current-availability feed. v1 only ever supplies the
+   * former -- Phase 3 never claims to know a player is currently OUT.
+   */
+  availability_scenario_source?: "CONSUMER_SUPPLIED" | "SOURCE_BACKED_CURRENT_AVAILABILITY";
+  now?: number;
+}
+
+export interface OpportunityPropagationFreshnessAssessment {
+  freshness_policy_version: string;
+  operation: IntelligenceOperation;
+  overall_status: OverallFreshnessStatus;
+  usable: boolean;
+  confidence_cap: ConfidenceCap | null;
+  reasons: FreshnessReason[];
+  feature_families: PropagationFeatureFamilyStatus[];
+  prohibited_features: PropagationIntelligenceFeatureFamily[];
+  role_opportunity_version_used: string | null;
+  lineage: RecommendationLineage;
+  nfl_reality: NflRealityFrontier | null;
+}
+
+/**
+ * The Injury -> Opportunity Propagation Intelligence analogue of
+ * `assessRoleOpportunityFreshness`. Answers: is the propagation artifact
+ * itself current, is the Role Intelligence it depends on current (composed
+ * from the caller's own `assessRoleOpportunityFreshness` call, never
+ * re-derived), and was the supplied availability scenario consumer-supplied
+ * (always true in v1) or source-backed (never true in v1, spec §35).
+ */
+export function assessOpportunityPropagationFreshness(
+  request: OpportunityPropagationFreshnessRequest,
+): OpportunityPropagationFreshnessAssessment {
+  const { lineage, operation, role_opportunity_freshness } = request;
+  const opi = lineage.opportunity_propagation_intelligence ?? null;
+  const reasons: FreshnessReason[] = [];
+  const STATUS_RANK: Record<OverallFreshnessStatus, number> = { CURRENT: 0, PARTIAL_CURRENT: 1, DEGRADED: 2, STALE: 3, INCOMPATIBLE: 4 };
+  const state: { status: OverallFreshnessStatus } = { status: "CURRENT" };
+  const escalate = (next: OverallFreshnessStatus) => { if (STATUS_RANK[next] > STATUS_RANK[state.status]) state.status = next; };
+
+  if (!opi) {
+    reasons.push({ code: "PROPAGATION_NOT_USED", severity: "INFO", affects: [], detail: "lineage.opportunity_propagation_intelligence is null/absent: not consulted for this call" });
+  } else {
+    if (request.expected_season != null && opi.season !== request.expected_season) {
+      reasons.push({
+        code: "PROPAGATION_SEASON_MISMATCH", severity: "BLOCK", affects: ["PROPAGATION_MODEL_ARTIFACT"],
+        detail: `Opportunity Propagation Intelligence season ${opi.season} !== expected_season ${request.expected_season}`,
+      });
+      escalate("INCOMPATIBLE");
+    }
+    if (request.nfl_reality && opi.season === request.nfl_reality.season) {
+      const cmp = compareThroughWeekToReality(opi.season, opi.through_week, null, request.nfl_reality);
+      if (cmp.aheadOfReality) {
+        reasons.push({
+          code: "PROPAGATION_AHEAD_OF_REALITY", severity: "BLOCK", affects: ["PROPAGATION_MODEL_ARTIFACT"],
+          detail: `Opportunity Propagation Intelligence through_week ${opi.through_week} is ahead of the supplied reality frontier`,
+        });
+        escalate("INCOMPATIBLE");
+      }
+    }
+    // Phase 3's real dependency: if opi's own recorded role_opportunity_version
+    // does not match the version the composed Role Intelligence assessment
+    // actually evaluated, the prediction is traceable to a DIFFERENT Role
+    // Intelligence snapshot than the one just assessed -- never silently assumed consistent.
+    const roiInLineage = lineage.role_opportunity_intelligence ?? null;
+    if (roiInLineage && opi.role_opportunity_version !== roiInLineage.version) {
+      reasons.push({
+        code: "PROPAGATION_ROLE_VERSION_MISMATCH", severity: "BLOCK", affects: ["PROPAGATION_ROLE_DEPENDENCY"],
+        detail: `Opportunity Propagation Intelligence was computed against role_opportunity_version ${opi.role_opportunity_version}, but this lineage's role_opportunity_intelligence.version is ${roiInLineage.version}`,
+      });
+      escalate("INCOMPATIBLE");
+    }
+  }
+
+  // Compose, never re-derive: the propagation result can never read
+  // fresher than the Role Intelligence dependency it was built on.
+  if (state.status !== "INCOMPATIBLE") {
+    escalate(role_opportunity_freshness.overall_status);
+    if (role_opportunity_freshness.overall_status !== "CURRENT") {
+      reasons.push({
+        code: "PROPAGATION_ROLE_DEPENDENCY_NOT_CURRENT", severity: role_opportunity_freshness.overall_status === "INCOMPATIBLE" ? "BLOCK" : "WARN",
+        affects: ["PROPAGATION_ROLE_DEPENDENCY"],
+        detail: `Role Intelligence dependency status is ${role_opportunity_freshness.overall_status}; the propagation prediction inherits this degradation regardless of the propagation artifact's own currentness`,
+      });
+    }
+  }
+
+  if (request.availability_scenario_source === "SOURCE_BACKED_CURRENT_AVAILABILITY") {
+    reasons.push({
+      code: "AVAILABILITY_SOURCE_BACKED", severity: "INFO", affects: ["PROPAGATION_AVAILABILITY_SCENARIO_INPUT"],
+      detail: "scenario unavailability was source-backed, not consumer-supplied -- its own cutoff must be tracked separately from this freshness assessment (spec §35)",
+    });
+  } else {
+    reasons.push({
+      code: "AVAILABILITY_CONSUMER_SUPPLIED", severity: "INFO", affects: ["PROPAGATION_AVAILABILITY_SCENARIO_INPUT"],
+      detail: "scenario unavailability is CONSUMER_SUPPLIED (v1 default) -- Phase 3 does not itself know or claim the player is currently unavailable",
+    });
+  }
+
+  const featureFamilies: PropagationFeatureFamilyStatus[] = [
+    { family: "PROPAGATION_MODEL_ARTIFACT", availability: opi ? "AVAILABLE" : "UNAVAILABLE", production_numeric_influence: "PROHIBITED", detail: opi ? `artifact ${opi.version}` : "not consulted" },
+    { family: "PROPAGATION_ROLE_DEPENDENCY", availability: role_opportunity_freshness.overall_status === "INCOMPATIBLE" ? "UNAVAILABLE" : "AVAILABLE", production_numeric_influence: "PROHIBITED", detail: `Role Intelligence status ${role_opportunity_freshness.overall_status}` },
+    { family: "PROPAGATION_AVAILABILITY_SCENARIO_INPUT", availability: "AVAILABLE", production_numeric_influence: "PROHIBITED", detail: request.availability_scenario_source ?? "CONSUMER_SUPPLIED" },
+  ];
+
+  let confidenceCap: ConfidenceCap | null = null;
+  if (state.status === "INCOMPATIBLE") confidenceCap = "INSUFFICIENT_SAMPLE";
+  else if (state.status === "STALE" || state.status === "DEGRADED") confidenceCap = "MEDIUM";
+
+  return {
+    freshness_policy_version: FRESHNESS_POLICY_VERSION,
+    operation,
+    overall_status: state.status,
+    usable: state.status !== "INCOMPATIBLE",
+    confidence_cap: confidenceCap,
+    reasons,
+    feature_families: featureFamilies,
+    prohibited_features: [...PROPAGATION_INTELLIGENCE_FEATURE_FAMILIES],
+    role_opportunity_version_used: opi?.role_opportunity_version ?? null,
     lineage,
     nfl_reality: request.nfl_reality ?? null,
   };
