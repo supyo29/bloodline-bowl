@@ -195,13 +195,14 @@ manifest <- list(
     recency_method = "EWMA",
     recency_halflife_games = ROLE$RECENT_HALFLIFE_GAMES,
     prior_methodology = "player's own prior-season EWMA (same half-life), discontinuity-discounted for team/position change",
-    confidence_methodology_version = "role-confidence:v1",
+    confidence_methodology_version = "role-confidence:v2",
+    confidence_methodology_note = "v2 (Checkpoint E): HIGH tier retired -- a chronology-safe historical backtest found HIGH-confidence trending events persisted less reliably (43.8%) than MEDIUM (49.1%), n=856; confidence_level() now caps at MEDIUM pending further calibration. See PLAYER_ROLE_OPPORTUNITY_PHASE_2_CERTIFICATION.md.",
     min_share_delta = ROLE$MIN_SHARE_DELTA,
     min_opportunity_for_trend = ROLE$MIN_OPPORTUNITY_FOR_TREND,
     role_level_calibration_basis = list(
       WR = "empirical quantiles, 2012-2025 substrate",
       RB = "empirical quantiles, 2012-2025 substrate",
-      TE = "WR quantile fallback -- NOT independently calibrated for TE (Checkpoint C known limitation, unchanged in Checkpoint D)"
+      TE = "empirical TE-specific quantiles, 2012-2025 substrate (n=14,855; verified era-stable, 2012-2018 vs 2019-2025 nearly identical) -- CORRECTED in Checkpoint E: earlier checkpoints' 'TE uses WR fallback' caveat was overstated. The dimension that actually drives TE role_level (target_share) has always used real TE-specific thresholds; only an unused position-group-share config entry (never read by role_level()) reuses a WR approximation."
     ),
     confidence_calibration_scope = "global + positional dimension sets only, as actually backtested -- NOT separately calibrated for rookies, team-changers, or volume tiers (Checkpoint C known limitation)"
   ),

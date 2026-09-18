@@ -144,6 +144,7 @@ export interface RoleOpportunityManifest {
     recency_halflife_games: number;
     prior_methodology: string;
     confidence_methodology_version: string;
+    confidence_methodology_note?: string;
     min_share_delta: number;
     min_opportunity_for_trend: number;
     role_level_calibration_basis: Record<string, string>;

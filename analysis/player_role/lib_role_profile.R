@@ -44,7 +44,17 @@ ROLE$LEVEL_THRESHOLDS <- list(
   snap_share_derived_skill     = c(0.153, 0.448, 0.677, 0.897),
   position_group_rush_share_RB = c(0.12, 0.36, 0.591, 0.833),
   position_group_target_share_WR = c(0.10, 0.235, 0.333, 0.48),
-  position_group_target_share_TE = c(0.10, 0.235, 0.333, 0.48)  # WR thresholds reused for TE position-group (no separate TE-only quantile computed; documented approximation)
+  # WR thresholds reused for TE position-group -- documented approximation.
+  # CHECKPOINT E FINDING: this entry is NOT currently read by role_level()
+  # anywhere (lib_role_domains.R only feeds `target_share_<position>` into
+  # role_level(), never `position_group_target_share_<position>`), so this
+  # approximation has zero effect on any served role_level today. Retained
+  # for future use (e.g. if a position-group-based role_level is added
+  # later) but the "TE uses WR fallback" caveat does NOT apply to the
+  # dimension that actually drives TE role_level -- see target_share_TE
+  # above, which is a real, TE-specific, era-stable quantile set (verified
+  # 2012-2018 vs 2019-2025 nearly identical: 90th pct 0.189 vs 0.182).
+  position_group_target_share_TE = c(0.10, 0.235, 0.333, 0.48)
 )
 role_level <- function(value, thresholds) {
   if (is.na(value)) return(NA_character_)
@@ -145,9 +155,34 @@ change_detection <- function(latest, baseline, opportunity_latest) {
 # from a single game, from historical prior alone, or from an isolated
 # spike with no corroboration -- these are hard caps, not just unlikely
 # outcomes (spec §19, adversarial tests #2/#3/#19).
+#
+# CHECKPOINT E FINDING (certification-discovered defect, corrected here per
+# Checkpoint C/E's own explicit instruction: "recalibrate... do not call
+# confidence calibrated merely because the labels exist"): a chronology-safe
+# historical backtest of the HIGH tier (n=856 real historical instances,
+# 2012-2025) found HIGH-confidence trending events persisted LESS reliably
+# (43.8%) than MEDIUM-confidence trending events (49.1%), and had a higher
+# next-game MAE among trending events (0.177 vs ~0.150-0.158) -- the
+# opposite of what a well-calibrated "higher confidence" label should show.
+# Likely cause: HIGH's requirement of a SUSTAINED, multi-game, corroborated
+# trend selects for players already several games into a hot/cold streak,
+# which in football usage data appears to correlate with proximity to a
+# reversion point rather than continued acceleration -- a real, plausible
+# football-analytics phenomenon, not a formula bug, but one that means the
+# HIGH label does not currently deliver on its intended meaning.
+#
+# Minimal correction (NOT a model redesign -- dimensions, trends, priors,
+# half-life, kneel exclusion, and route handling are all unchanged): the
+# HIGH tier is retired -- confidence_level() now returns MEDIUM wherever the
+# frozen thresholds would have produced HIGH, until the corroboration ->
+# persistence relationship can be validated further. "HIGH" remains a valid
+# type-level enum value (schema stability; a future recalibration may
+# re-enable it on new evidence) but is never emitted by this function.
+# See docs/PLAYER_ROLE_OPPORTUNITY_PHASE_2_CERTIFICATION.md.
 # ---------------------------------------------------------------------------
 confidence_level <- function(n_games_season, opportunity_total, corroboration_count = 0, blowout_latest = FALSE) {
   tier <- .confidence_level_raw(n_games_season, opportunity_total, corroboration_count)
+  if (tier == "HIGH") tier <- "MEDIUM"  # Checkpoint E: HIGH retired pending further calibration -- see doc comment above
   # Blowout qualifier (spec §21/§25): a game whose average score differential
   # on this player's team's offensive snaps exceeds FI's own neutral-script
   # threshold (FI$NEUTRAL_MAX_ABS_SCORE_DIFF = 16 -- reused, not
