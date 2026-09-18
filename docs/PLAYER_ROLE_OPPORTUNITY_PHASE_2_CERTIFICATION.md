@@ -396,3 +396,196 @@ Two real issues were found under adversarial scrutiny — a confidence-calibrati
 ## 30. Stop gate
 
 **STOP.** No merge. No deploy. No tag. Phase 3 not started. No production waiver ranking, projection, Start/Sit, trade, or matchup logic altered. Role Intelligence remains unactivated — `SHARED_CONTEXT`, `eligible_to_influence_production: false`. Awaiting review.
+
+*(§30's stop gate applied to this certification checkpoint itself, at the time it was written, and has since been explicitly superseded by a separate, later merge/deployment authorization — recorded in §31 below. Nothing in §§1–30 above has been altered or rewritten; this preserves the original certification record, including the honest discovery and correction of the HIGH-confidence inversion and the TE-fallback documentation overstatement.)*
+
+---
+
+## 31. Merge, deployment, and production verification (post-certification)
+
+Performed under a separate, explicit merge/deploy/verify authorization, after re-verifying every certified fact below was still true at execution time.
+
+### 31.1 Concurrency gate (re-run at merge time)
+
+```
+origin/main before merge:  4bd41f7  (unchanged since Checkpoint A -- verified via fresh `git fetch origin`)
+certified branch HEAD:     45da80a  (player-role-opportunity-phase2-audit)
+drift:                     NONE
+```
+No automated Football Intelligence refresh, no canonical/freshness change, no Role Intelligence change, no production-recommendation-engine change landed on `main` between certification and merge. Nothing to reconcile — a clean fast-forward was possible and used.
+
+### 31.2 Certified-state re-verification (immediately before merge)
+
+Re-confirmed directly against the actual branch content at merge time (not assumed from the certification doc): `model_tag=role-opportunity-2026.1`, `role_opportunity_version=roi:2026:w01:819dc3166607`, `deployment_state=SHARED_CONTEXT`, `eligible_to_influence_production=false`, `confidence_methodology_version=role-confidence:v2` (HIGH retired: `grep` confirmed `if (tier == "HIGH") tier <- "MEDIUM"` present in `lib_role_profile.R`), `RECENT_HALFLIFE_GAMES=2`, `EXCLUDE_QB_KNEELS=TRUE`, zero `fantasy`/`touchdown`/`points` references anywhere in the role-model R files. Live upstream re-check: `nflreadr::load_participation(seasons=2026)` still returns HTTP 404 — routes remain genuinely unavailable, exactly as certified, not stale-assumed.
+
+### 31.3 Pre-merge regression (full gate, re-run fresh)
+
+```
+R (player_role):        27 + 38 + 6 = 71/71 assertions pass
+R (football_intel):     24 + 23 = 47/47 assertions pass
+TypeScript full suite:  1953 pass / 0 fail / 4 skipped (1957 total)
+Targeted isolation run: 233/233 pass (waivers, start-sit, matchup, trades,
+                        projections, orchestrator, orchestrator-isolation,
+                        system-trust-audit, player-role-intelligence,
+                        intelligence-freshness)
+tsc --noEmit:           clean
+eslint:                 0 errors, 29 pre-existing warnings (unchanged)
+```
+No failures waived. No new warnings.
+
+### 31.4 Merge
+
+```
+git checkout main            (main == origin/main == 4bd41f7, clean)
+git merge --ff-only player-role-opportunity-phase2-audit
+  Updating 4bd41f7..45da80a
+  Fast-forward
+  34 files changed, 8126 insertions(+), 8 deletions(-)
+git push origin main
+  4bd41f7..45da80a  main -> main
+```
+Fast-forward merge — no merge commit, linear history preserved, no rebase, no force-push, no destructive operation. **Final `main` SHA: `45da80a`.**
+
+### 31.5 Deployment (repository's normal path — Vercel Git integration, no manual/alternate path used)
+
+```
+Project:        bloodline-bowl-sleeper-bridge (prj_4Zhxc9SFaWcW2zB0f5Wz6AVrLuHE)
+Deployment ID:  dpl_GVH5nkcp5kdD5NpPTL2ikJwaXmAp
+Deployment SHA: 45da80aa324e266aa112ffa7eadbd94f2fc09898
+Target:         production
+State:          READY  (BUILDING -> READY, ~28s build)
+Production alias: bloodline-bowl-sleeper-bridge.vercel.app
+```
+
+### 31.6 Production health check (read-only)
+
+```
+GET /api/health                                -> 200, ok:true, league_id 1395549281678532608
+GET /api/leagues                                -> 200, bloodline-bowl READY, canonical routes listed
+GET /api/league/bloodline-bowl/state            -> 200, status READY, real live snapshot
+                                                    (snap:bloodline-bowl:2026:w2:c4e3d4f207d2c653,
+                                                     season 2026, week 2, real content hash)
+```
+
+### 31.7 Production Role product verification
+
+Role & Opportunity Intelligence has **no HTTP endpoint** (a deliberate architecture choice made in Checkpoint D, matching Football Intelligence's own precedent of library-methods-only access — re-confirmed still true and unchanged in this merge). Verification was therefore performed by invoking the deployed code's actual TypeScript modules directly against `main @ 45da80a` (the identical commit Vercel built and deployed — no local/production code divergence is possible, since both are the same immutable git commit):
+
+```
+role_opportunity_version:        roi:2026:w01:819dc3166607
+deployment_state:                SHARED_CONTEXT
+eligible_to_influence_production: false
+season / through_week:           2026 / 1
+ROLE_ROUTES:                     UNAVAILABLE (production_numeric_influence: PROHIBITED) -- routes
+                                  correctly reported unavailable, no OBSERVED+null contradiction
+```
+
+### 31.8 Live Bloodline Bowl Role lookup (against deployed commit's code, real roster)
+
+Queried the real, live Bloodline Bowl roster (Sleeper `league_id 1395549281678532608`) and resolved representative players through the deployed Role Intelligence reader:
+
+| Slot | Player | Trend | Target confidence | Rush confidence | Route evidence |
+|---|---|---|---|---|---|
+| RB | Ashton Jeanty (LV) | CONTRACTING | LOW | MEDIUM | unavailable |
+| WR | D.J. Moore (BUF) | EXPANDING | LOW | n/a | unavailable |
+| TE | Trey McBride (ARI) | EXPANDING | MEDIUM | n/a | unavailable |
+| Return activity | Deebo Samuel (SF) | STABLE | LOW | n/a | unavailable |
+| Low/uncertain opportunity | Rome Odunze (CHI) | STABLE | LOW | n/a | unavailable |
+
+All five resolved successfully; no fantasy recommendation language in any output. `assessRoleOpportunityFreshness()` against this data: **`overall_status: CURRENT`, `usable: true`**, `ROLE_ROUTES` independently `UNAVAILABLE`/`PROHIBITED` within the same CURRENT assessment — mixed-family truth preserved, exactly as certified.
+
+### 31.9 Production lineage/isolation verification — live, real production traffic
+
+The strongest available evidence: real production recommendation-engine responses, fetched read-only from the live deployment, show the new `role_opportunity_intelligence` lineage field present (confirming the additive schema change reached production) and `null` (confirming zero consultation), alongside a fully-generated, unaffected real recommendation:
+
+**`GET /api/intelligence/bloodline-bowl/supyo29/week/2`** (real weekly decision engine call):
+```json
+"lineage": {
+  "football_intelligence": null,
+  "role_opportunity_intelligence": null,
+  ...
+},
+"top_actions": [
+  {"type": "LINEUP", "message": "Start Zay Flowers over Deebo Samuel in WR (+0.8 projected)", "projected_gain": 0.76}
+],
+"summary": { "waiver_priority": "Waiver recommendations unavailable: current free-agent pool is not materialized/certified." (pre-existing, unrelated readiness gate, not a Phase 2 effect) }
+```
+
+**`GET /api/matchup/bloodline-bowl/supyo29/week/2`** (real production matchup call):
+```json
+"context.lineage": { "football_intelligence": null, "role_opportunity_intelligence": null }
+```
+
+Both are real, live, GET-only production responses — not synthetic fixtures. `role_opportunity_intelligence: null` in both, alongside fully-formed real recommendations (a real lineup swap suggestion, a real matchup projection), is direct, in-production proof that Role Intelligence's presence in the type system does not translate to consultation, let alone influence.
+
+### 31.10 Production numeric isolation — explicit yes/no
+
+| | Changed by this merge/deployment? |
+|---|---|
+| Waiver ranking/scores | **No** |
+| Start/Sit selection/expected points | **No** |
+| Matchup production values | **No** |
+| Trade valuation/discovery/partner fit | **No** |
+| Projection calculations | **No** |
+| Orchestrator actionability | **No** — zero references to Role Intelligence anywhere in `lib/orchestrator/`, confirmed both by static grep and by the fact that no orchestrator route was touched by this merge |
+
+`eligible_to_influence_production: false` remains authoritative — read directly from the deployed manifest, not asserted from memory.
+
+### 31.11 Final concurrency check (before this document update)
+
+```
+git fetch origin  -> origin/main == 45da80a  (exactly what was merged, deployed, and verified above)
+```
+No new automated refresh or other commit landed on `main` between deployment and this record being written. The production verification above corresponds exactly to the code actually deployed.
+
+---
+
+## 32. Final report
+
+**Git:**
+```
+Phase 2 certified branch:  player-role-opportunity-phase2-audit
+Certified SHA:             45da80a
+Starting main:             4bd41f7
+Drift:                     none, at any point (certification through deployment)
+Reconciliation commits:    none needed
+Merge:                     fast-forward, 4bd41f7 -> 45da80a, no merge commit
+Final main:                45da80a  (pushed to origin)
+Working tree:              clean
+```
+
+**Product:** `role-opportunity-2026.1` / `roi:2026:w01:819dc3166607` / `role-profile-model:v1` / `SHARED_CONTEXT` / `eligible_to_influence_production: false`.
+
+**Data:** `source_cutoffs = {pbp: 1, snap_counts: 1}`; routes `AVAILABLE_WITH_LAG` (live-reconfirmed unavailable upstream, unchanged); returns `AVAILABLE_CURRENT`; zero unresolved identities among applicable rostered skill-position players (confirmed on both the certification pass and this deployment's live roster re-check).
+
+**Tests:** Phase 2 R 71/71, FI R 47/47 (118/118 combined), TypeScript 1953/1953 pass (4 skipped, unchanged), targeted isolation 233/233, `tsc --noEmit` clean, lint 0 errors/29 pre-existing warnings.
+
+**Production:** Deployment `dpl_GVH5nkcp5kdD5NpPTL2ikJwaXmAp`, SHA `45da80a`, state READY, alias `bloodline-bowl-sleeper-bridge.vercel.app`. Health, league state, and Role Intelligence read-path (via the deployed commit's code — no HTTP route exists for it by design) all verified. Freshness: `CURRENT`. Lineage: present, additive, `null` in every real production call checked.
+
+**Production isolation:** waiver — No. Start/Sit — No. matchup — No. trade — No. projection — No. orchestrator actionability — No.
+
+**Frozen contracts** (unchanged from §28): player-game grain/identity/metric definitions/denominators/kneel treatment/red-zone definitions/return-role definitions/source-availability semantics; EWMA half-life 2, prior methodology, team-change discontinuity, role dimensions, latest/recent/season/prior semantics, trend semantics, role-level semantics, confidence semantics (current maximum = MEDIUM), corroboration behavior, route-optional behavior; the permanent chronology invariants (Week W baseline uses only pre-W information; missing current observation never backfills `latest` from historical prior); the manifest/content-version scheme, profile schema, change-event schema, artifact validator, TypeScript reader, deterministic formatter; `RoleOpportunityIntelligenceLineage`, NFL Reality Frontier reuse, Phase 1 freshness reuse, Recommendation Readiness compatibility, deployment/influence separation, return-role orthogonality.
+
+**Known limitations (carried forward, honestly, none newly hidden):**
+- Routes remain unavailable for all of 2026 to date (live-reconfirmed at merge time).
+- No `HIGH` confidence tier — retired in Checkpoint E after a real calibration inversion was found; maximum currently emitted confidence is `MEDIUM`.
+- No dedicated subgroup calibration for rookies, team-changers, or volume tiers (diagnostic found no material harm from the generic model, but no subgroup-specific model exists).
+- Alignment, motion (player-level), pass-blocking, run-blocking remain genuinely unavailable.
+- Two shared FI infrastructure defects remain deferred (postseason schedule filter, unnormalized `return_team`) — Phase 2 continues to route around both without modifying shared code.
+- No API/bridge endpoint for Role Intelligence — library-methods-only, by design.
+
+**Phase 3:** confirmed **not begun**. No injury-redistribution logic exists anywhere in this codebase.
+
+---
+
+## 33. Final verdict
+
+```
+PLAYER ROLE & OPPORTUNITY INTELLIGENCE PHASE 2 — MERGED AND FROZEN
+```
+
+---
+
+## 34. Stop gate (final)
+
+**STOP.** Phase 3 not started. No injury redistribution implemented. No waiver ranking, projection, Start/Sit, matchup, or trade logic modified or activated. Role Intelligence remains `SHARED_CONTEXT` / `eligible_to_influence_production: false` in production. Awaiting review.
