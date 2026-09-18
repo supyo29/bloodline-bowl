@@ -1,26 +1,26 @@
 {
-  "football_intelligence_version": "fi:2026:w01:890f7aefd53f",
+  "football_intelligence_version": "fi:2026:w02:1cf634c91756",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-09-17T17:27:16+0000",
+  "generated_at": "2026-09-18T16:52:38+0000",
   "season": 2026,
-  "through_week": 1,
+  "through_week": 2,
   "week_completion": {
-    "latest_week": 1,
-    "week_state": "COMPLETE",
-    "games_completed_in_latest_week": 16,
+    "latest_week": 2,
+    "week_state": "PARTIAL",
+    "games_completed_in_latest_week": 1,
     "games_scheduled_in_latest_week": 16,
-    "latest_completed_game_date": "2026-09-14"
+    "latest_completed_game_date": "2026-09-17"
   },
   "data_cutoff": {
     "ftn_charting": 1,
-    "ngs_passing": 1,
-    "ngs_receiving": 1,
-    "ngs_rushing": 1,
-    "pbp": 1,
+    "ngs_passing": 2,
+    "ngs_receiving": 2,
+    "ngs_rushing": 2,
+    "pbp": 2,
     "pfr_def": 1,
     "pfr_pass": 1,
-    "snap_counts": 1
+    "snap_counts": 2
   },
   "seasons_used": {
     "prior": [2022, 2023, 2024, 2025],
