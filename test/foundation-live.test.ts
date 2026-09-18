@@ -189,19 +189,28 @@ describe("smoke: GET /api/history/{league}/week/{week}", () => {
 /* --------------------------------------------------- Yahoo auth (pre-auth) */
 
 describe("smoke: Yahoo auth routes in pre-auth state", () => {
-  it("/api/auth/yahoo/status reports configured=false with missing env named", async () => {
-    const { GET } = (await import("../app/api/auth/yahoo/status/route")) as NoArgRouteModule;
+  it("/api/yahoo/status reports configured=false with missing env named", async () => {
+    const { GET } = (await import("../app/api/yahoo/status/route")) as NoArgRouteModule;
     const res = await GET();
     const body = (await res.json()) as { configured: boolean; missing_env: string[] };
     assert.equal(body.configured, false);
     assert.ok(body.missing_env.includes("YAHOO_CLIENT_ID"));
   });
 
-  it("/api/auth/yahoo/connect returns NOT_CONFIGURED (503), not a broken redirect", async () => {
-    const { GET } = (await import("../app/api/auth/yahoo/connect/route")) as NoArgRouteModule;
+  it("/api/yahoo/auth/start returns NOT_CONFIGURED (503), not a broken redirect", async () => {
+    const { GET } = (await import("../app/api/yahoo/auth/start/route")) as NoArgRouteModule;
     const res = await GET();
     assert.equal(res.status, 503);
     const body = (await res.json()) as { status: string };
     assert.equal(body.status, "NOT_CONFIGURED");
+  });
+
+  it("/api/auth/yahoo/status stays as a 308 redirect to the new path", async () => {
+    const { GET } = (await import("../app/api/auth/yahoo/status/route")) as {
+      GET: (req: Request) => Promise<Response>;
+    };
+    const res = await GET(new Request("https://x/api/auth/yahoo/status"));
+    assert.equal(res.status, 308);
+    assert.ok(res.headers.get("location")?.endsWith("/api/yahoo/status"));
   });
 });

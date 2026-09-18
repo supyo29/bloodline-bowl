@@ -37,6 +37,7 @@ import {
   getValidAccessToken,
   type YahooTokenStore,
 } from "./oauth";
+import { resolveYahooTokenStore } from "./token-store";
 
 export interface YahooProviderOptions {
   env?: NodeJS.ProcessEnv;
@@ -52,7 +53,14 @@ export class YahooProvider implements FantasyProvider {
 
   constructor(opts: YahooProviderOptions = {}) {
     this.#env = opts.env ?? process.env;
-    this.#tokenStore = opts.tokenStore ?? new InMemoryYahooTokenStore();
+    if (opts.tokenStore) {
+      this.#tokenStore = opts.tokenStore;
+    } else {
+      // Use the durable Supabase-backed store when the environment supports it;
+      // otherwise an in-memory store (which simply reads as "not connected").
+      const resolved = resolveYahooTokenStore(this.#env, { allowMemoryFallback: true });
+      this.#tokenStore = resolved.ok ? resolved.store : new InMemoryYahooTokenStore();
+    }
   }
 
   capabilities(): ProviderCapabilities {
@@ -89,18 +97,22 @@ export class YahooProvider implements FantasyProvider {
         ),
       };
     }
-    const token = await getValidAccessToken(cfg.config, this.#tokenStore).catch(() => null);
-    if (!token) {
+    const result = await getValidAccessToken(cfg.config, this.#tokenStore).catch(
+      () => ({ status: "REFRESH_FAILED" as const, access_token: null, token: null }),
+    );
+    if (result.status === "NOT_CONNECTED" || !result.access_token) {
       return {
         ok: false,
         result: degraded(
-          "AUTH_REQUIRED",
-          "yahoo_auth_required",
-          "Yahoo is configured but no account is connected. Complete /api/auth/yahoo/connect.",
+          result.status === "REFRESH_FAILED" ? "PROVIDER_ERROR" : "AUTH_REQUIRED",
+          result.status === "REFRESH_FAILED" ? "yahoo_token_unhealthy" : "yahoo_auth_required",
+          result.status === "REFRESH_FAILED"
+            ? "Yahoo account connected but its token could not be refreshed. Re-authorize via /api/yahoo/auth/start."
+            : "Yahoo is configured but no account is connected. Complete /api/yahoo/auth/start.",
         ),
       };
     }
-    return { ok: true, accessToken: token };
+    return { ok: true, accessToken: result.access_token };
   }
 
   async healthCheck(): Promise<ProviderHealth> {
@@ -117,13 +129,34 @@ export class YahooProvider implements FantasyProvider {
         detail: `Yahoo OAuth env not set (missing: ${cfg.missing.join(", ")}).`,
       };
     }
-    const token = await this.#tokenStore.get().catch(() => null);
+    let token;
+    try {
+      token = await this.#tokenStore.get();
+    } catch (err) {
+      return {
+        ...base,
+        status: "PROVIDER_ERROR",
+        detail: `Yahoo token store unreadable: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
     if (!token) {
       return {
         ...base,
         status: "AUTH_REQUIRED",
         detail: "Yahoo app configured; no account connected yet.",
       };
+    }
+    if (cfg.config) {
+      const check = await getValidAccessToken(cfg.config, this.#tokenStore).catch(
+        () => ({ status: "REFRESH_FAILED" as const, access_token: null, token: null }),
+      );
+      if (check.status !== "OK") {
+        return {
+          ...base,
+          status: "PROVIDER_ERROR",
+          detail: `Yahoo account connected but token is unhealthy (${check.status}).`,
+        };
+      }
     }
     return {
       ...base,
