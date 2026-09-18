@@ -194,12 +194,61 @@ sources <- list(
   )
 )
 
+# --- human-readable currentness note, derived ENTIRELY from cached source state.
+# It is a prose restatement of the machine fields (current_season_rows /
+# last_available / availability_state) and NOTHING else. It never consults the
+# calendar date, and it changes no model calculation, feature, weight, lane, or
+# predictive eligibility (Phase 10 metadata-debt fix; spec §5 of the Phase 10 doc).
+build_as_of_note <- function(sources, cur) {
+  live <- character(0); prior <- character(0); unknown <- character(0)
+  for (nm in names(sources)) {
+    s <- sources[[nm]]
+    r <- suppressWarnings(as.integer(s$current_season_rows))
+    if (length(r) != 1L || is.na(r)) {
+      unknown <- c(unknown, nm)
+    } else if (r > 0L) {
+      thru <- if (is.null(s$last_available) || is.na(s$last_available)) "an unknown week" else s$last_available
+      live <- c(live, sprintf("%s (%d rows through %s)", nm, r, thru))
+    } else {
+      prior <- c(prior, nm)
+    }
+  }
+  n_total <- length(names(sources))
+  parts <- character(0)
+  if (length(live) == 0L) {
+    # Canonical phrase "0 rows of any" — the Phase 10 freshness gate keys on it.
+    parts <- c(parts, sprintf(
+      "As of generation, 0 rows of any of the %d audited sources are cached for season %d; every cached source's newest data is a prior season.",
+      n_total, cur))
+    parts <- c(parts, sprintf(
+      "Every Phase 9 calculation is PRIOR_ONLY for %d until %d games are played and ingested.", cur, cur))
+  } else if (length(prior) == 0L && length(unknown) == 0L) {
+    parts <- c(parts, sprintf(
+      "As of generation, all %d audited sources carry season %d rows: %s.",
+      n_total, cur, paste(live, collapse = "; ")))
+  } else {
+    parts <- c(parts, sprintf(
+      "As of generation, %d of %d audited sources carry season %d rows: %s.",
+      length(live), n_total, cur, paste(live, collapse = "; ")))
+    if (length(prior) > 0L) parts <- c(parts, sprintf(
+      "%d source(s) still have no season %d rows and remain PRIOR_ONLY: %s.",
+      length(prior), cur, paste(sort(prior), collapse = ", ")))
+  }
+  if (length(unknown) > 0L) parts <- c(parts, sprintf(
+    "Source(s) whose cached schema exposes no season column (currentness indeterminate): %s.",
+    paste(sort(unknown), collapse = ", ")))
+  parts <- c(parts, sprintf(
+    "A source without season %d rows is PRIOR_ONLY regardless of the calendar date; only each source's own current_season_rows / availability_state is authoritative.",
+    cur))
+  paste(parts, collapse = " ")
+}
+
 audit <- list(
   audit_version = "psi-source-audit-2026.1",
   model_tag = PSI$MODEL_TAG,
   generated_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
   current_season = CUR,
-  as_of_note = "As of generation, 0 rows of ANY 2026 source are cached; newest data is 2025. Every Phase 9 calculation is PRIOR_ONLY for 2026 until Week 1 games are played + ingested.",
+  as_of_note = build_as_of_note(sources, CUR),
   pbp_spatial_completeness = pbp_spatial,
   sources = sources
 )

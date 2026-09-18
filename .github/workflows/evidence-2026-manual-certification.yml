@@ -1,0 +1,128 @@
+name: 2026 Evidence Refresh — Manual Certification
+
+# Phase 10 — Checkpoint C. MANUAL DISPATCH ONLY.
+#
+# Proves the 2026 evidence loop is reproducible off the developer workstation:
+# refresh the nflverse cache, rebuild Football Intelligence + Player x Scheme in
+# dependency order, run the freshness/lineage gate and the R + TypeScript
+# regressions, and preserve every report/manifest/diff for review.
+#
+# This workflow NEVER:
+#   * commits or pushes generated data
+#   * pushes to main / opens a PR / merges
+#   * deploys, promotes a model, or changes a deployment lane
+#   * executes a fantasy transaction
+# It only runs `npm run evidence:certify` and uploads its output as artifacts.
+#
+# No schedule is defined here on purpose. A weekly cron is a separate, tiny
+# follow-up that is only allowed after one green manual run (Phase 10 rule).
+
+"on":
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this certification run is being triggered"
+        required: false
+        default: "manual 2026 evidence certification"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evidence-2026-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Real 2026 evidence certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NFLREADR_VERBOSE: "false"
+      R_KEEP_PKG_SOURCE: "no"
+      TZ: "UTC"
+
+    steps:
+      - name: Checkout (no credentials persisted)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Node dependencies (locked)
+        run: npm ci
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.5.3"
+          use-public-rspm: true
+
+      - name: System libraries for curl / xml (nflverse egress)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev
+
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-${{ runner.os }}-4.5.3-evidence-${{ hashFiles('scripts/bootstrap-r-deps.R') }}
+          restore-keys: |
+            r-${{ runner.os }}-4.5.3-evidence-
+
+      - name: Bootstrap audited R dependencies
+        run: Rscript scripts/bootstrap-r-deps.R
+
+      - name: Record pre-refresh served-artifact state
+        run: |
+          mkdir -p artifacts/evidence-loop
+          {
+            echo "# Pre-refresh served-artifact state ($(git rev-parse HEAD))"
+            git ls-files -s lib/football-intel/data lib/player-scheme-intelligence/data
+          } > artifacts/evidence-loop/artifact-state-before.txt
+          find lib/football-intel/data lib/player-scheme-intelligence/data -type f | sort \
+            | xargs sha256sum > artifacts/evidence-loop/artifact-checksums-before.txt
+
+      - name: Run the real evidence certification
+        run: npm run evidence:certify
+
+      - name: Artifact diff (generated vs committed)
+        if: always()
+        run: |
+          {
+            echo "# git status (working tree after the refresh)"
+            git status --porcelain
+            echo
+            echo "# git diff --stat for served artifacts"
+            git diff --stat -- lib/football-intel/data lib/player-scheme-intelligence/data outputs || true
+            echo
+            echo "# checksum delta"
+            find lib/football-intel/data lib/player-scheme-intelligence/data -type f | sort \
+              | xargs sha256sum > artifacts/evidence-loop/artifact-checksums-after.txt || true
+            diff -u artifacts/evidence-loop/artifact-checksums-before.txt \
+                    artifacts/evidence-loop/artifact-checksums-after.txt || true
+          } | tee artifacts/evidence-loop/artifact-diff.txt
+
+      - name: Upload evidence-loop reports + manifests + logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-2026-certification-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            artifacts/evidence-loop/**
+            lib/football-intel/data/football_intelligence_manifest.json
+            lib/player-scheme-intelligence/data/player_scheme_manifest.json
+            outputs/player-scheme-intelligence-2026/source_audit.json
+            analysis/football_intel/cache/source_availability.rds
+
+      # This job has `permissions: contents: read` and never runs git commit /
+      # git push / gh pr / a deploy. The generated data stays in the runner's
+      # workspace and is only ever an uploaded artifact for human review.
