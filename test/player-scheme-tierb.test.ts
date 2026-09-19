@@ -145,3 +145,37 @@ test("tierB: feature registry status artifact records built families + availabil
     if (f.availability === "DESCRIPTIVE_ONLY") assert.equal(f.predictive_eligible, false);
   }
 });
+
+// ---------------------------------------------------------------------------
+// FTN read_thrown numeric semantics are UNVERIFIED_SOURCE_CONFLICT: no
+// Player-Scheme output may carry ordinal first/second/third read labels.
+// ---------------------------------------------------------------------------
+const ORDINAL = /FIRST_READ|SECOND_READ|THIRD_PLUS_READ|PRE_SNAP_OR_ZERO/;
+const NEUTRAL_BUCKETS = new Set(["RAW_0", "RAW_1", "RAW_2", "CHECKDOWN", "DESIGNED", "SCRAMBLE_DRILL", "OTHER"]);
+
+test("tierB read semantics: served qb_progression_profile.csv uses only the neutral vocabulary", () => {
+  const dataDir = join(process.cwd(), "lib", "player-scheme-intelligence", "data");
+  const csv = readFileSync(join(dataDir, "qb_progression_profile.csv"), "utf8");
+  assert.ok(!ORDINAL.test(csv), "no ordinal labels in the served artifact");
+  const lines = csv.trim().split("\n");
+  const col = lines[0]!.split(",").indexOf('"bucket"');
+  assert.ok(col >= 0);
+  for (const l of lines.slice(1)) {
+    const b = l.split(",")[col]!.replace(/"/g, "");
+    assert.ok(NEUTRAL_BUCKETS.has(b), `unexpected bucket ${b}`);
+  }
+  // no other served Player-Scheme artifact may reintroduce them either
+  for (const f of ["player_scheme_manifest.json"]) {
+    assert.ok(!ORDINAL.test(readFileSync(join(dataDir, f), "utf8")), `${f} clean`);
+  }
+});
+
+test("tierB read semantics: QB profile API output has no ordinal labels and reports UNVERIFIED semantics", () => {
+  __resetPlayerSchemeCache();
+  const p = buildQbProfile("00-0019596") as Record<string, unknown> | null; // has progression rows
+  assert.ok(p);
+  const json = JSON.stringify(p);
+  assert.ok(!ORDINAL.test(json), "profile JSON free of ordinal read labels");
+  assert.match(json, /UNVERIFIED_SOURCE_CONFLICT/);
+  assert.match(json, /RAW_1/);
+});
