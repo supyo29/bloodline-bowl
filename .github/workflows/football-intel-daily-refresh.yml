@@ -16,6 +16,18 @@ name: Football Intelligence Daily Refresh
 on:
   schedule:
     - cron: "0 13 * * *"
+  # Source-code changes to Football Intelligence get the same full refresh /
+  # validation gate immediately. Published data-only commits do not match
+  # these paths, preventing a refresh loop.
+  push:
+    branches: [main]
+    paths:
+      - "analysis/football_intel/**"
+      - "lib/football-intel/read.ts"
+      - "lib/football-intel/schema.ts"
+      - "app/api/football-intel/**"
+      - "lib/discovery.ts"
+      - ".github/workflows/football-intel-daily-refresh.yml"
   workflow_dispatch:
     inputs:
       season:
@@ -55,6 +67,7 @@ env:
     lib/football-intel/data/unit_coverage_profile.csv
     lib/football-intel/data/contextual_matchup_feature.csv
     lib/football-intel/data/ftn_descriptive.csv
+    lib/football-intel/data/receiver_progression.csv
     lib/football-intel/data/football_intelligence_manifest.json
 
 jobs:
