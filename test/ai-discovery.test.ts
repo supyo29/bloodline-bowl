@@ -144,6 +144,7 @@ describe("GET /api/ai", () => {
       "/api/leagues/{leagueSlug}/managers/{managerSlug}/recommendations",
       "/api/transactions/{leagueSlug}",
       "/api/history/{leagueSlug}/week/{week}",
+      "/api/football-intel/players/{playerId}/progression",
     ]) {
       assert.ok(templates.includes(expected), `missing capability ${expected}`);
     }
