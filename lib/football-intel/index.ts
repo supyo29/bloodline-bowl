@@ -7,4 +7,5 @@
  */
 export * from "./schema";
 export { loadFootballIntelligence, __resetFootballIntelligenceCache } from "./read";
+export { receiverProgression } from "./progression";
 export type { FootballIntelligence } from "./read";
