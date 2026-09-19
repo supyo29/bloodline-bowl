@@ -1,7 +1,7 @@
 # Intelligence Modernization — Phase 3.5A
 ## Shadow Model Audit, Evidence Integrity & Tuning Foundation
 
-Status: **in progress** (Checkpoint A committed; later sections are appended per checkpoint).
+Status: **complete — CERTIFIED WITH DOCUMENTED LIMITATIONS** (branch, not merged/deployed).
 Scope: the Start/Sit Football-Intelligence shadow system `ri-startsit-2026.1` (frozen, `SHADOW_ONLY`).
 Not in scope: Phase 4, Book-Ready retrofit (3.5C), Analysis Book contract (3.5D), any activation/merge/deploy.
 
@@ -151,3 +151,92 @@ refresh), and it carries no per-week reasons. It is not authoritative; it is reg
 
 D1–D6 are repaired in Checkpoints B/C. D7–D11 are *model/research* findings: they are documented, not "fixed" in place
 (`ri-startsit-2026.1` is immutable) and are addressed by the candidate-v2 protocol (Checkpoint D).
+
+## 10. Fixes implemented
+
+| Defect | Fix |
+|---|---|
+| D1 partial week counts | `NFL_WEEK_COMPLETE` requires every scheduled game `complete` per the frozen Phase 1 predicate (`buildNflSeasonCompletion`, `isCompleted` shared with `buildNflRealityFrontier`), cross-checked against nflverse schedule + PBP game counts. PBP presence is never used as completion. |
+| D2 gate could never open | separate `sleeper_history_2026.rds` cache (`fetch_sleeper_history.R --season=2026`, weeks 1–18; the frozen 2021–25 cache untouched); FI as-of minimum (W ≥ 3) encoded explicitly. |
+| D3 baseline | `PRODUCTION_BASELINE_AVAILABLE` requires ≥1 `LIVE_CAPTURED` pre-kickoff record for the week. Sleeper history never satisfies it (2026 wk1 projections carry `last_modified` 2026-09-15 — five days *after* kickoff). |
+| D4 capture never called / mislabelled | default store resolves to durable Supabase or `UnconfiguredCaptureStore` (explicit NOT_CONFIGURED); runtime wired in `buildWeeklyIntelligence`; class assigned by lock classifier. |
+| D5 identity/immutability | deterministic `capture_id`, deep-frozen records, INSERT-only DB tables (trigger), outcomes in a separate table. |
+| D6 silent failure | capture in its own guard, after production output; failure logged + counted in `getCaptureHealth()`; no longer nulls `start_sit_shadow`. |
+| new: `--force` hole | `reevaluate.R --force` previously bypassed the gate and stamped `FAILED` into the manifest; now ignored. `guard_model_write()` in train/backtest/finalize refuses to rewrite 2026.1 or fit a candidate unless the gate is ELIGIBLE with per-week evidence. |
+| TS trust | `isEligible` refuses a bare count: every claimed week must have all five predicates true in `week_evidence`; legacy manifests can never open the gate. |
+
+D7–D11 are model/research findings — recorded, **not** patched into the frozen model (see §15).
+
+## 11. Persistence design
+
+* Tables `bridge_startsit_shadow_captures` / `_outcomes` (migration `20260919120000_startsit_shadow_evidence.sql`, **applied to prod Supabase `ijpfjdzmaztofawhwepf` 2026-09-19**: new empty tables, RLS on/no policies, rollback SQL in the file).
+* Pattern reused: `SupabaseRest.insertIgnoreDuplicates` (`ON CONFLICT DO NOTHING`, returned rows ⇒ CREATED vs DUPLICATE, safe under concurrency), same as the snapshot/ledger stores.
+* DB-verified (self-rolling-back block): duplicate insert = 0 rows; UPDATE and DELETE raise; invalid `capture_kind` rejected; 0 rows remain.
+* Identity: `ssc:` + sha256(class, season, week, league, manager, scoring fingerprint, model version + artifact fingerprint, FI version + cutoff, baseline version, content hash). Timestamps excluded ⇒ repeated GETs idempotent; a moved projection ⇒ a new record.
+* Bounded: 2.5 s store timeout, in-process recent-id short circuit; never throws.
+
+## 12. Live vs reconstructed semantics
+
+`LIVE_CAPTURED` = every involved team's game was `pre_game` in a schedule read taken ≤5 min from the decision, and no involved game's ET date was already past. `LIVE_POST_LOCK` (a game started/finished), `LIVE_UNVERIFIED` (schedule missing/stale/no involved game/bad timestamp), `HISTORICALLY_RECONSTRUCTED` are separately keyed in id, DB column, summary and report. Only `LIVE_CAPTURED` counts toward the gate or per-position decision counts. A bare request claiming `LIVE_CAPTURED` without lock evidence is downgraded. **Kickoff *time* is not in the schedule feed** — same-day games rely on Sleeper `status` (limitation L2).
+
+## 13. Current 2026 evidence state (2026-09-19)
+
+NFL: wk1 16/16 complete; wk2 1/16 (PARTIAL); FI `fi:2026:w02:351c149735ed` (wk2, PARTIAL 1/16).
+
+| Week | Result | Reasons |
+|---|---|---|
+| 1 | rejected | `NO_PRIOR_CURRENT_SEASON_WEEK`, `FI_ASOF_UNBUILDABLE_BEFORE_WEEK_3`, `NO_PRE_KICKOFF_PRODUCTION_BASELINE_CAPTURE` (NFL-complete ✓, actuals ✓) |
+| 2 | rejected | `WEEK_PARTIAL_1_OF_16_GAMES`, `FI_ASOF_UNBUILDABLE_BEFORE_WEEK_3`, `ACTUALS_NOT_FINAL_WEEK_INCOMPLETE`, `NO_PRE_KICKOFF_PRODUCTION_BASELINE_CAPTURE` |
+
+Qualifying weeks **0 / 4** (preferred 6) → `NOT_ELIGIBLE`. Before/after: the old manifest also said 0, but for a wrong, unprovable reason and would have counted week 2 the moment a PBP row and one actual existed. Capture counts: LIVE_CAPTURED 0, POST_LOCK 0, UNVERIFIED 0, RECONSTRUCTED 0 (no production runtime has written yet — branch is not deployed; local env has no Supabase credentials, so the store reports `unconfigured`).
+
+## 14. Tuning readiness
+
+**INFRASTRUCTURE_READY_EVIDENCE_INSUFFICIENT.** Pipeline trustworthy; 0 qualifying weeks. Earliest realistic opening: deploy capture → LIVE_CAPTURED baselines accumulate from that week → 4 completed weeks with FI as-of buildable (W ≥ 3) → not before ~Week 7 of 2026 even if deployed immediately.
+
+## 15. Historical reproduction (Checkpoint D) and candidate-v2 plan
+
+Full frozen pipeline rerun in an isolated scratch root; served artifact hash unchanged (`85d2ddd5…`). Record: `analysis/football_intel_startsit/reproduction_audit_2026-09-19.json`.
+
+* Reproduced: same families, λ, τ=3, cap 0.25, identical per-position statuses. β drift ≤0.059 (WR), reversal counts −1.9%. Classified **SOURCE_REVISION / DEPENDENCY_DRIFT** (caches re-fetched 09-08 → 09-16); no leakage introduced, no model defect; frozen model not updated.
+* **D10 measured:** the model JSON's "vs Sleeper" row used the Sleeper run's own tuned gate (τ=0.5, cap 0.08). The gate actually served (τ=3, cap .25) vs the production-like baseline: 22,135 reversals, **47.4% win, −0.48 pts/reversal, −10,716 pts** (2025 only: 48.2%, −2,461); QB 46.6 / RB 49.4 / WR 46.8 / TE 46.6%. Versus the trailing control, 2025: 50.6%, +0.40/reversal. FI looks useful only against the naïve control.
+* Per position (served metrics, both baselines never merged): QB 51.9%/47.2%, RB 60.6%/50.5%, WR 49.3%/48.8%, TE 41.6%/48.4% (trailing / Sleeper reversal win rate) — model JSON + reproduction file hold the full table.
+* Candidate-v2 registry: `analysis/football_intel_startsit/candidate_v2_feature_registry.json` (dormant; every family classified; unsafe classes barred from backtests; Phase 3 propagation `CONDITIONAL_SCENARIO_ONLY`; Phase 2 role signals `RECONSTRUCTABLE_AS_OF` in code but served snapshot is CURRENT_ONLY → deferred to prospective). Residual target must be `actual − captured production baseline` (fixes D7); discontinuity flags must be rebuilt as-of (D9); τ/cap tuned against the production baseline (D10); nested walk-forward on eligible 2026 weeks only; decision metrics primary, MAE supporting. **No `ri-startsit-2026.2` artifact exists or was generated.**
+
+## 16. Git / drift log
+
+Base `cf4dbb1`. `origin/main` re-fetched after each checkpoint (A, B, C, D, E): unchanged at `cf4dbb1`; no drift to reconcile. No force-push, nothing merged/tagged/deployed.
+
+## 17. Tests
+
+* TypeScript `npm test`: **2104 tests / 2100 pass / 0 fail / 4 skipped** (baseline 2078/2074/0/4; +26 new). New: `startsit-evidence-gate` (7), `startsit-capture-integrity` (14), `startsit-candidate-v2-registry` (5).
+* R: `analysis/football_intel_startsit/tests` — 44 expectations pass (adversarial matrix 1–10 + reality-unavailable + live-week-1/2 + gate count); `analysis/football_intel/tests` invariants + week-completion pass.
+* `tsc --noEmit`: 0 errors. `eslint app lib test`: 0 errors (32 pre-existing-style warnings).
+* Two existing assertions were deliberately changed (both encoded the defects): default `captureShadowDecision` ⇒ `LIVE_CAPTURED` (now `LIVE_UNVERIFIED`), and a stale-manifest assertion (`fi_snapshot_is_current_season === false`, `/does not count/`). Count-only eligibility (no per-week evidence) was also tightened.
+* Adversarial matrix: 1–10 R; 11–20 `startsit-capture-integrity`; 21–25 isolation tests in the same file.
+
+## 18. Live verification (read-only)
+
+Real Bloodline Bowl / `supyo29`, week 2: production sections computed; `shadow_deployment=SHADOW_ONLY`, `eligible_to_influence_production=false`. Sleeper schedule: wk2 1/16 complete ⇒ partial proven not counted. Live capture classification today: **`LIVE_POST_LOCK` (`GAME_NOT_PRE_GAME:BUF:complete`)** — a post-kickoff request did not masquerade as live evidence. Diagnostic route handler returns model/gate/store status; store `unconfigured`, durability false. **Not verified live:** a deployed runtime write to Supabase (no credentials locally; branch not deployed). DB-side behaviour was verified directly (§11); the store code by a PostgREST contract test.
+
+## 19. Production-isolation proof
+
+`scripts/startsit-production-parity.ts` hashes lineup / start_sit / waivers / matchup / matchup_leverage / positional_needs (volatile `*_at` stripped). Base commit `cf4dbb1` vs this branch under four capture modes (default-unconfigured, in-memory store, throwing store, hanging store): **all six hashes identical in every mode**; lineup total 113.58 unchanged. Structural tests: only `lib/weekly/intelligence.ts` (+ readiness/freshness/orchestrator schema type refs, the evidence route and store) import `start-sit-fi`; production engines never reference adjustment fields; R scripts never write `activation_log`; `fiMayInfluenceProduction` false for QB/RB/WR/TE/K/DEF; `anyFiProductionInfluence` false; model artifact sha256 pinned.
+
+## 20. Known limitations
+
+* L1 A deployed Supabase write path is unproven until the branch is deployed with credentials.
+* L2 Kickoff time absent from schedule feed; a game that starts but whose Sleeper status lags could be labelled pre-game for minutes (mitigated by ET-date check and 5-min schedule freshness).
+* L3 Capture covers only requests actually made (rostered players of registered managers), not a full slate; evidence is partial by construction.
+* L4 D7–D11 remain true of `ri-startsit-2026.1` (trailing-target residual, in-sample per-position verdicts, whole-season discontinuity leakage, served-gate mismatch, DNP survivorship) — documented, model frozen.
+* L5 Evidence gate depends on Sleeper schedule status + nflverse caches; a stale local nflverse cache fails closed (safe, not silent).
+* L6 The evidence gate requires a manual/CI run of `eligibility.R` (with `startsit-evidence-report.ts` for capture counts); it is not yet scheduled.
+* L7 The forced re-evaluation experiment temporarily overwrote git-ignored `outputs/startsit-2026/decision_dataset.rds`; restored from the reproduction run.
+
+## 21. Deferred
+
+3.5B (fresh-week evidence accumulation once deployed), 3.5C Book-Ready retrofit, 3.5D Analysis Book contract, Phase 4, wiring `eligibility.R` + evidence report into the FI refresh workflow, outcome-enrichment job (store + API exist, no producer), any v2 fit.
+
+## 22. Verdict
+
+**CERTIFIED WITH DOCUMENTED LIMITATIONS.** All certification gates hold: model frozen and SHADOW_ONLY; a partial week cannot count and every rejection is explained; the capture path is durable-by-design, idempotent, immutable, class-separated and failure-visible; no known leakage remains *in the re-evaluation path* (historical leakage in 2026.1 is documented, not hidden); production output is value-identical; the 2026 sample is not exaggerated (0 weeks) and no v2 was trained. Limitations L1/L3 are the reason this is not an unqualified CERTIFIED.

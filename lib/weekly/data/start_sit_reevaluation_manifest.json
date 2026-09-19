@@ -75,7 +75,7 @@
   ],
   "nfl_reality": {
     "available": true,
-    "as_of": "2026-09-19T16:22:42.415Z",
+    "as_of": "2026-09-19T16:30:05.495Z",
     "source": "sleeper:/schedule/nfl/regular/2026",
     "latest_week_with_any_completed_game": 2,
     "weeks": [
@@ -115,6 +115,6 @@
   "capture_summary_available": false,
   "fi_snapshot_seen": "fi:2026:w02:351c149735ed",
   "fi_snapshot_is_current_season": true,
-  "generated_at": "2026-09-19T11:23:21-0500",
+  "generated_at": "2026-09-19T11:30:44-0500",
   "refresh_command": "Rscript analysis/football_intel_startsit/eligibility.R  (then reevaluate.R when ELIGIBLE)"
 }
