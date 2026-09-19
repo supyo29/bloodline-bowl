@@ -6,6 +6,7 @@
  * endpoint never infers the unthrown progression order for other receivers.
  */
 import { loadFootballIntelligence } from "@/lib/football-intel";
+import { receiverProgression } from "@/lib/football-intel/progression";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +44,8 @@ export async function GET(
     );
   }
 
-  const rows = fi.receiverProgression(
-    { gsis_id: playerId, sleeper_id: playerId },
+  const rows = receiverProgression(
+    playerId,
     { season, ...(week == null ? {} : { week }) },
   );
   const ftnCutoff = fi.manifest.data_cutoff.ftn_charting ?? null;
