@@ -231,12 +231,12 @@ test("progression: Rome Odunze Week 1 returns RAW_1, CHECKDOWN, SCRAMBLE_DRILL (
   assert.deepEqual(a.rows, b.rows);
   assert.deepEqual(a.summary.by_read, { CHECKDOWN: 1, RAW_1: 1, SCRAMBLE_DRILL: 1 });
   const by = Object.fromEntries(a.rows.map((r) => [r.bucket, r]));
-  assert.equal(by.RAW_1.receptions, 0);
-  assert.equal(by.RAW_1.air_yards, 41);
-  assert.equal(by.CHECKDOWN.receptions, 1);
-  assert.equal(by.CHECKDOWN.receiving_yards, 5);
-  assert.equal(by.SCRAMBLE_DRILL.receiving_yards, 47);
-  assert.equal(by.SCRAMBLE_DRILL.air_yards, 44);
+  assert.equal(by.RAW_1!.receptions, 0);
+  assert.equal(by.RAW_1!.air_yards, 41);
+  assert.equal(by.CHECKDOWN!.receptions, 1);
+  assert.equal(by.CHECKDOWN!.receiving_yards, 5);
+  assert.equal(by.SCRAMBLE_DRILL!.receiving_yards, 47);
+  assert.equal(by.SCRAMBLE_DRILL!.air_yards, 44);
   assert.equal(a.summary.targets_eligible, 3);
   assert.equal(a.summary.targets_charted_read, 3);
 });
