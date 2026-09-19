@@ -2,11 +2,13 @@
  * Receiver progression read adapter.
  *
  * Reads the additive DESCRIPTIVE_ONLY receiver_progression.csv artifact
- * published by the Football Intelligence refresh. Missing artifact or player
+ * published by the Football Intelligence refresh. Numeric FTN read codes are
+ * exposed raw (RAW_0/1/2); their meaning is UNVERIFIED_SOURCE_CONFLICT. Missing artifact or player
  * resolves to an empty array; nothing is fabricated.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { RECEIVER_READ_BUCKETS } from "./schema";
 import type { ReceiverProgressionRow, ReceiverReadBucket } from "./schema";
 
 const DATA_PATH = join(process.cwd(), "lib", "football-intel", "data", "receiver_progression.csv");
@@ -56,6 +58,13 @@ const num = (value: string | undefined): number | null =>
 const str = (value: string | undefined): string | null =>
   value == null || value === "" ? null : value;
 
+/** Anything outside the neutral vocabulary (e.g. a stale ordinal label) collapses to OTHER. */
+function readBucket(value: string | undefined): ReceiverReadBucket {
+  return (RECEIVER_READ_BUCKETS as readonly string[]).includes(value ?? "")
+    ? (value as ReceiverReadBucket)
+    : "OTHER";
+}
+
 function allProgressionRows(): ReceiverProgressionRow[] {
   if (!existsSync(DATA_PATH)) return [];
   return parseCsv(readFileSync(DATA_PATH, "utf8")).map((r) => ({
@@ -67,7 +76,7 @@ function allProgressionRows(): ReceiverProgressionRow[] {
     sleeper_id: str(r.sleeper_id),
     full_name: str(r.full_name),
     passer_gsis_id: str(r.passer_gsis_id),
-    bucket: (r.bucket || "OTHER") as ReceiverReadBucket,
+    bucket: readBucket(r.bucket),
     targets: num(r.targets) ?? 0,
     target_read_share: num(r.target_read_share),
     receptions: num(r.receptions) ?? 0,
@@ -86,7 +95,7 @@ function allProgressionRows(): ReceiverProgressionRow[] {
     targets_charted_read: num(r.targets_charted_read) ?? 0,
     read_coverage_rate: num(r.read_coverage_rate),
     output_class: "DESCRIPTIVE_ONLY",
-    source: r.source ?? "nflverse_ftn",
+    source: r.source ?? "FTN Data via nflverse",
     read_semantics: r.read_semantics ?? "",
   }));
 }

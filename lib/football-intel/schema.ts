@@ -180,18 +180,25 @@ export interface FtnDescriptive {
 
 
 /**
- * One receiver-week FTN progression bucket. DESCRIPTIVE_ONLY: this describes
- * the read on which an actual target was thrown. It does not infer the full
+ * One receiver-week FTN progression bucket. DESCRIPTIVE_ONLY: this carries the
+ * raw FTN `read_thrown` code on actual targets. It does not infer the full
  * unthrown receiver progression on the play.
+ *
+ * NUMERIC SEMANTICS ARE UNVERIFIED (UNVERIFIED_SOURCE_CONFLICT): the numeric
+ * codes 0/1/2 are exposed neutrally as RAW_0/RAW_1/RAW_2 and must NOT be
+ * relabelled first/second/third read until FTN/nflverse confirms the mapping.
+ * Only CHK/DES/SD carry a named meaning.
  */
-export type ReceiverReadBucket =
-  | "FIRST_READ"
-  | "SECOND_READ"
-  | "THIRD_PLUS_READ"
-  | "CHECKDOWN"
-  | "DESIGNED"
-  | "SCRAMBLE_DRILL"
-  | "OTHER";
+export const RECEIVER_READ_BUCKETS = [
+  "RAW_0",
+  "RAW_1",
+  "RAW_2",
+  "CHECKDOWN",
+  "DESIGNED",
+  "SCRAMBLE_DRILL",
+  "OTHER",
+] as const;
+export type ReceiverReadBucket = (typeof RECEIVER_READ_BUCKETS)[number];
 
 export interface ReceiverProgressionRow {
   season: number;

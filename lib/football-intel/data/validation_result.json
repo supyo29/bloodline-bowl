@@ -1,0 +1,184 @@
+{
+  "overall": "PASS",
+  "candidate": {
+    "season": 2026,
+    "through_week": 2,
+    "version": "fi:2026:w02:138a3fcd692a",
+    "week_completion": {
+      "latest_week": 2,
+      "week_state": "PARTIAL",
+      "games_completed_in_latest_week": 1,
+      "games_scheduled_in_latest_week": 16,
+      "latest_completed_game_date": "2026-09-17"
+    }
+  },
+  "published": null,
+  "source_classification": {
+    "pbp": "AT_CUTOFF",
+    "participation": "EXPECTED_SOURCE_LAG",
+    "ngs_passing": "AT_CUTOFF",
+    "ngs_rushing": "AT_CUTOFF",
+    "ngs_receiving": "AT_CUTOFF",
+    "pfr_pass": "EXPECTED_SOURCE_LAG",
+    "pfr_def": "EXPECTED_SOURCE_LAG",
+    "snap_counts": "AT_CUTOFF",
+    "ftn_charting": "AT_CUTOFF"
+  },
+  "gates": [
+    {
+      "name": "manifest is valid JSON and present",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "manifest has all required keys",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "manifest.week_completion has all required sub-fields",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "every file the manifest lists exists in the candidate dir",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "season is a plausible NFL season",
+      "status": "PASS",
+      "detail": "season=2026"
+    },
+    {
+      "name": "through_week is a plausible NFL week",
+      "status": "PASS",
+      "detail": "through_week=2"
+    },
+    {
+      "name": "receiver_progression.csv is present and parseable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "receiver progression has required columns",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "receiver progression uses only neutral raw / supported named read_thrown buckets",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "receiver progression never labels numeric codes first/second/third read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "receiver progression read shares reconcile to 1",
+      "status": "PASS",
+      "detail": "max_err=1.11e-15"
+    },
+    {
+      "name": "receiver progression charted targets never exceed eligible targets",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "receiver progression remains DESCRIPTIVE_ONLY",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "season/week does not regress vs published",
+      "status": "PASS",
+      "detail": "no published snapshot yet (first publish)"
+    },
+    {
+      "name": "games_completed_in_latest_week never exceeds games_scheduled_in_latest_week",
+      "status": "PASS",
+      "detail": "completed=1 scheduled=16"
+    },
+    {
+      "name": "week_state == COMPLETE requires every scheduled game completed",
+      "status": "PASS",
+      "detail": "week_state=PARTIAL completed=1 scheduled=16"
+    },
+    {
+      "name": "an incomplete week is explicitly labeled PARTIAL, never COMPLETE",
+      "status": "PASS",
+      "detail": "week_state=PARTIAL completed=1 scheduled=16"
+    },
+    {
+      "name": "candidate uses the current season when current-season data exists",
+      "status": "PASS",
+      "detail": "cache has 2026 REG data; candidate resolved season=2026"
+    },
+    {
+      "name": "no source regressed vs a previously-achieved cutoff (BROKEN_OR_MISSING_DATA)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "every source behind or absent for the target season is flagged EXPECTED_SOURCE_LAG (informational)",
+      "status": "PASS",
+      "detail": "participation (no rows yet for this season); pfr_pass (w1, through_week w2); pfr_def (w1, through_week w2)"
+    },
+    {
+      "name": "team_profile.csv is present and non-empty",
+      "status": "PASS",
+      "detail": "640 rows"
+    },
+    {
+      "name": "player_usage_profile.csv is present and non-empty",
+      "status": "PASS",
+      "detail": "10890 rows"
+    },
+    {
+      "name": "unit_coverage_profile.csv is present and non-empty",
+      "status": "PASS",
+      "detail": "96 rows"
+    },
+    {
+      "name": "contextual_matchup_feature.csv is present and non-empty",
+      "status": "PASS",
+      "detail": "6048 rows"
+    },
+    {
+      "name": "team_profile.csv has the required columns",
+      "status": "PASS",
+      "detail": "missing: "
+    },
+    {
+      "name": "team_profile.csv team-count sanity (first publish)",
+      "status": "PASS",
+      "detail": "32 teams"
+    },
+    {
+      "name": "team_profile.csv has no duplicate (team, side, metric) rows",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "team_profile.csv has no non-finite modeled values",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "no metric is all-NA across every team (fabricated-empty guard)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "player_usage_profile.csv has no duplicate (gsis_id, metric) rows",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "contextual_matchup_feature.csv has no duplicate (feature, offense, defense) rows",
+      "status": "PASS",
+      "detail": ""
+    }
+  ]
+}

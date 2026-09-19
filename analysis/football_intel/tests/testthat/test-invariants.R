@@ -121,12 +121,12 @@ test_that("unknown continuity applies NO discount", {
   expect_equal(build_prior_discounts(dt, FI)$prior_discount, 1)
 })
 
-test_that("FTN read_thrown semantics are decoded exactly and never off by one", {
-  expect_equal(
-    .ftn_read_bucket(c("0", "1", "2", "CHK", "DES", "SD", "unexpected")),
-    c("FIRST_READ", "SECOND_READ", "THIRD_PLUS_READ", "CHECKDOWN",
-      "DESIGNED", "SCRAMBLE_DRILL", "OTHER")
-  )
+test_that("FTN read_thrown numeric codes stay neutral; only CHK/DES/SD carry names", {
+  out <- .ftn_read_bucket(c("0", "1", "2", "CHK", "DES", "SD", "unexpected"))
+  expect_equal(out, c("RAW_0", "RAW_1", "RAW_2", "CHECKDOWN",
+                      "DESIGNED", "SCRAMBLE_DRILL", "OTHER"))
+  # numeric semantics are UNVERIFIED_SOURCE_CONFLICT: no ordinal read labels
+  expect_false(any(grepl("FIRST|SECOND|THIRD", out)))
 })
 
 test_that("FTN / man-zone are never tagged as model inputs", {
