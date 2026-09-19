@@ -10,6 +10,7 @@ import {
   loadFootballIntelligence,
   __resetFootballIntelligenceCache,
 } from "@/lib/football-intel";
+import { receiverProgression } from "@/lib/football-intel/progression";
 
 test("football-intel: manifest loads with a versioned id and per-source cutoff", () => {
   __resetFootballIntelligenceCache();
@@ -123,11 +124,10 @@ test("football-intel: FTN descriptive is DESCRIPTIVE_ONLY with explicit season b
 test("football-intel: receiver progression is read-only and missing players return an empty set", () => {
   const fi = loadFootballIntelligence({ force: true })!;
   assert.deepEqual(
-    fi.receiverProgression({ gsis_id: "00-9999999" }, { season: fi.manifest.season, week: 1 }),
+    receiverProgression("00-9999999", { season: fi.manifest.season, week: 1 }),
     [],
   );
-  const rows = fi.receiverProgression({ sleeper_id: "___nope___" });
-  assert.deepEqual(rows, []);
+  assert.deepEqual(receiverProgression("___nope___"), []);
 });
 
 test("football-intel: throughWeek() honors per-source cutoff", () => {
