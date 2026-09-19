@@ -7,6 +7,7 @@ suppressWarnings(suppressMessages({ library(dplyr); library(jsonlite) }))
 .here <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 BASE <- if (length(.here)) dirname(.here) else file.path(getwd(), "analysis", "football_intel_startsit")
 source(file.path(BASE, "config.R"))
+guard_model_write()  # Phase 3.5A: frozen 2026.1 / evidence-gate protection
 
 model <- fromJSON(file.path(SS$SERVE_DIR, "start_sit_model.json"), simplifyVector = FALSE)
 bt <- readRDS(file.path(SS$OUT_DIR, "backtest_full.rds"))

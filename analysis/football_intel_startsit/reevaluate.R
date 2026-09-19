@@ -42,7 +42,11 @@ man_path <- file.path(SS$SERVE_DIR, "start_sit_reevaluation_manifest.json")
 man <- fromJSON(man_path)
 write_man <- function(m) write(toJSON(m, auto_unbox = TRUE, pretty = TRUE, null = "null"), man_path)
 
-if (!isTRUE(man$reevaluation_eligible) && !FORCE) {
+# Phase 3.5A: `--force` can NO LONGER bypass the evidence gate. Fitting a candidate on an ineligible
+# sample is exactly what this gate exists to prevent; the flag is retained only so old invocations
+# do not error, and it is ignored.
+if (FORCE) message("NOTE: --force is ignored; the evidence gate is not bypassable.")
+if (!isTRUE(man$reevaluation_eligible)) {
   message(sprintf("re-evaluation NOT_ELIGIBLE — %s", man$not_eligible_reason))
   message("pipeline dormant. Re-run after the milestone weeks (", man$cadence$first_check_week,
           ", then ", man$cadence$second_check_week, ", then every ", man$cadence$thereafter_every_weeks, ").")
@@ -50,8 +54,7 @@ if (!isTRUE(man$reevaluation_eligible) && !FORCE) {
 }
 
 CANDIDATE <- man$next_candidate_version
-message("re-evaluation ", if (FORCE && !isTRUE(man$reevaluation_eligible)) "(FORCED) " else "",
-        "running candidate ", CANDIDATE, " ...")
+message("re-evaluation running candidate ", CANDIDATE, " ...")
 man$reevaluation_status <- "RUNNING"; write_man(man)
 
 fail <- function(reason) {

@@ -101,3 +101,25 @@ SS$SERVE_DIR <- file.path(SS$ROOT, "lib", "weekly", "data")
 for (d in c(SS$CACHE_DIR, SS$OUT_DIR, SS$SERVE_DIR)) dir.create(d, showWarnings = FALSE, recursive = TRUE)
 
 invisible(SS)
+
+# ---------------------------------------------------------------------------
+# Phase 3.5A model-write guard. Called first by every script that writes the served
+# start_sit_model.json (train.R, backtest.R, finalize_model.R).
+#   * In the REAL repo (a .git dir at ROOT): ri-startsit-2026.1 is immutable -- never rewritten.
+#   * A candidate (ri-startsit-2026.N, N > 1) may only be fit when the evidence gate manifest says
+#     ELIGIBLE with per-week evidence. `--force` cannot bypass this.
+#   * A scratch root (no .git) is a research sandbox and is unrestricted; it can never touch the
+#     served artifact of the real repo.
+# ---------------------------------------------------------------------------
+guard_model_write <- function() {
+  if (!dir.exists(file.path(SS$ROOT, ".git"))) return(invisible(TRUE))   # scratch sandbox
+  if (identical(SS$MODEL_VERSION, "ri-startsit-2026.1"))
+    stop("REFUSED: ri-startsit-2026.1 is frozen/immutable and must not be rewritten in the real repo.")
+  mp <- file.path(SS$SERVE_DIR, "start_sit_reevaluation_manifest.json")
+  man <- if (file.exists(mp)) jsonlite::fromJSON(mp, simplifyVector = FALSE) else NULL
+  ok <- !is.null(man) && isTRUE(man$reevaluation_eligible) && !is.null(man$evidence_gate_version) &&
+    length(man$completed_fi_week_list) >= man$minimum_weeks_required
+  if (!ok) stop("REFUSED: candidate training requires an ELIGIBLE evidence gate (per-week evidence). Current gate: ",
+                if (is.null(man)) "missing" else man$reevaluation_status)
+  invisible(TRUE)
+}

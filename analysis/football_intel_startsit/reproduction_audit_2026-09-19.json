@@ -1,0 +1,22 @@
+{
+  "audit": "Phase 3.5A Checkpoint D -- historical reproduction of ri-startsit-2026.1",
+  "method": "full frozen pipeline (build_decision_dataset -> train -> backtest -> finalize_model) run in an isolated scratch root (no .git, own lib/weekly/data + outputs); the served artifact in the repo was never written. Caches: nflverse/FI caches as of 2026-09-16 (frozen model built 2026-09-08).",
+  "served_model_sha256": "85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293",
+  "reproduced": {
+    "families_and_lambda_identical": true,
+    "tau_tie_break": [3, 3], "max_total_adjustment_fraction": [0.25, 0.25],
+    "max_abs_beta_diff_by_position": {"QB": 0.0163, "RB": 0.0077, "WR": 0.0587, "TE": 0.0016},
+    "per_position_production_status_identical": true,
+    "overall_vs_trailing": {"served": {"n_reversals": 30511, "rev_win_rate": 0.5107, "rev_mean_delta": 0.2223}, "reproduced": {"n_reversals": 29942, "rev_win_rate": 0.5111, "rev_mean_delta": 0.2244}},
+    "overall_vs_sleeper_2023_25": {"served": {"n_reversals": 10618, "rev_win_rate": 0.4872, "rev_mean_delta": -0.2888, "total_delta_points": -3066}, "reproduced": {"n_reversals": 10584, "rev_win_rate": 0.4869, "rev_mean_delta": -0.2986, "total_delta_points": -3160}}
+  },
+  "discrepancy_classification": "SOURCE_REVISION / DEPENDENCY_DRIFT (nflverse + FI caches re-fetched between 2026-09-08 and 2026-09-16). No leakage introduced, no model defect. The frozen model is NOT updated for floating-point / source drift.",
+  "finding_D10_served_gate_vs_production_like_baseline": {
+    "note": "The 'vs Sleeper' row in the model JSON was measured with the Sleeper run's OWN tuned gate (tau=0.5, cap=0.08). The gate actually served (tau=3, cap=0.25, tuned on the trailing control) was never evaluated against it. Measured here:",
+    "sleeper_2023_25_overall": {"n_reversals": 22135, "rev_win_rate": 0.474, "rev_mean_delta": -0.484, "total_delta_points": -10716},
+    "sleeper_2025_only": {"n_reversals": 7113, "rev_win_rate": 0.482, "rev_mean_delta": -0.346, "total_delta_points": -2461},
+    "by_position_sleeper_served_gate": {"QB": {"n_rev": 2700, "win": 0.466}, "RB": {"n_rev": 5948, "win": 0.494}, "TE": {"n_rev": 4874, "win": 0.466}, "WR": {"n_rev": 8613, "win": 0.468}},
+    "vs_trailing_control_2025_only": {"n_reversals": 5677, "rev_win_rate": 0.506, "rev_mean_delta": 0.397}
+  },
+  "verdict": "FI looks useful only against the naive trailing control (2025: 50.6% win, +0.40/reversal). Against the production-like baseline with the SERVED gate it is a net loser at every position (win rate 46.6%-49.4%, -10.7k pts). Consistent with SHADOW_ONLY; nothing about this is reinterpreted."
+}
