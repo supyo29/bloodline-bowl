@@ -278,6 +278,8 @@ psi_qb_concept_profile <- function(db, PSI, first_season = 2022L) {
 # =========================================================================
 # QB PROGRESSION PROFILE (FTN read_thrown) — spec §13. DESCRIPTIVE_ONLY.
 # =========================================================================
+# FTN's 0=primary-read code begins in 2023; 2022 primary reads are NA and
+# therefore remain unclassified rather than being fabricated as FIRST_READ.
 psi_read_bucket <- function(x) {
   x <- as.character(x)
   dplyr::case_when(
