@@ -183,11 +183,17 @@ test("football-intel: throughWeek() honors per-source cutoff", () => {
 });
 
 const ROME = "11620";
+type ProgressionBody = {
+  status: string;
+  lineage: Record<string, unknown> & { limitation: string };
+  summary: { by_read: Record<string, number>; targets_eligible: number; targets_charted_read: number };
+  rows: Array<{ bucket: string; receptions: number; receiving_yards: number; air_yards: number | null }>;
+};
 const progressionRoute = async (id: string, qs: string) =>
   (await progressionGET(
     new Request(`http://x/api/football-intel/players/${id}/progression?${qs}`),
     { params: Promise.resolve({ playerId: id }) },
-  )).json() as Promise<any>;
+  )).json() as Promise<ProgressionBody>;
 
 test("progression: numeric FTN codes are neutral and never acquire first/second/third labels", () => {
   const all = receiverProgression("___none___"); // force module load; empty by design
@@ -224,7 +230,7 @@ test("progression: Rome Odunze Week 1 returns RAW_1, CHECKDOWN, SCRAMBLE_DRILL (
   assert.equal(a.status, "READY");
   assert.deepEqual(a.rows, b.rows);
   assert.deepEqual(a.summary.by_read, { CHECKDOWN: 1, RAW_1: 1, SCRAMBLE_DRILL: 1 });
-  const by = Object.fromEntries(a.rows.map((r: any) => [r.bucket, r]));
+  const by = Object.fromEntries(a.rows.map((r) => [r.bucket, r]));
   assert.equal(by.RAW_1.receptions, 0);
   assert.equal(by.RAW_1.air_yards, 41);
   assert.equal(by.CHECKDOWN.receptions, 1);
