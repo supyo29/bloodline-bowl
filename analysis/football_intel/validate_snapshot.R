@@ -5,7 +5,7 @@
 #   Rscript analysis/football_intel/validate_snapshot.R <candidate_dir> <published_dir|NONE> [--force]
 #
 # Runs entirely against two directories of already-built served files (each
-# holding football_intelligence_manifest.json + the 5 served CSVs). Never
+# holding football_intelligence_manifest.json + the served CSVs). Never
 # rebuilds anything and never writes into either directory except the result
 # file <candidate_dir>/validation_result.json.
 #
