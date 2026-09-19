@@ -181,14 +181,16 @@ build_ftn_descriptive <- function(ftn, pbp, season, through_week, FI) {
 # Receiver target progression — FTN read_thrown, DESCRIPTIVE_ONLY.
 #
 # NUMERIC SEMANTICS ARE UNVERIFIED (UNVERIFIED_SOURCE_CONFLICT). The nflreadr
-# dictionary (added 2026-09-01, PR #319) documents 0/1/2 as first/second/third-
-# plus read, but that conflicts with (a) the original nflverse issue #216
-# checklist, which described "read 0, eg screens", and (b) the observed data:
-# on targeted passes "0" is <1% of targets (~17% completion, ~4 aDOT) while "1"
-# is >50%. We therefore do NOT attach first/second/third labels to numeric
-# codes; they are exposed neutrally as RAW_0/RAW_1/RAW_2 until FTN/nflverse
-# confirms the mapping. Only CHK = checkdown, DES = designed, SD = scramble
-# drill carry named meaning.
+# dictionary text added by PR #319 (2026-09-01) defines 0/1/2 as first/second/
+# third-plus read. The original nflverse issue #216 checklist enumerated the
+# codes 1, 2, CHK, SD and DES; its parenthetical "read 0, eg screens" referred
+# to the designed-read concept, not to authoritative documentation of literal
+# numeric 0. We have found no cited FTN confirmation resolving the discrepancy
+# between the #319 definitions and the observed data (on targeted passes "0" is
+# ~1% of targets with ~22% completion, while "1" is >50%). We therefore do NOT
+# attach first/second/third labels to numeric codes; they are exposed neutrally
+# as RAW_0/RAW_1/RAW_2 until FTN/nflverse confirms the mapping. Only
+# CHK = checkdown, DES = designed, SD = scramble drill carry named meaning.
 #
 # This labels ONLY the code on the thrown target. It does not infer the
 # unthrown progression order for other eligible receivers on that play.
