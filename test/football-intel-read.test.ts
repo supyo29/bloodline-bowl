@@ -10,7 +10,7 @@ import {
   loadFootballIntelligence,
   __resetFootballIntelligenceCache,
 } from "@/lib/football-intel";
-import { receiverProgression } from "@/lib/football-intel/progression";
+import { receiverProgression, summarizeReceiverProgression } from "@/lib/football-intel/progression";
 
 test("football-intel: manifest loads with a versioned id and per-source cutoff", () => {
   __resetFootballIntelligenceCache();
@@ -128,6 +128,47 @@ test("football-intel: receiver progression is read-only and missing players retu
     [],
   );
   assert.deepEqual(receiverProgression("___nope___"), []);
+});
+
+test("football-intel: progression season summary counts weekly coverage once, not once per bucket", () => {
+  const base = {
+    season: 2026,
+    team: "CHI",
+    opponent: "GB",
+    gsis_id: "00-test",
+    sleeper_id: "test",
+    full_name: "Test Receiver",
+    passer_gsis_id: "00-qb",
+    receptions: 1,
+    receiving_yards: 10,
+    yards_per_target: 10,
+    air_yards: 8,
+    adot: 8,
+    yac: 2,
+    epa_per_target: 0.2,
+    success_rate: 1,
+    first_down_rate: 1,
+    explosive_rate: 0,
+    receiving_tds: 0,
+    td_rate: 0,
+    output_class: "DESCRIPTIVE_ONLY" as const,
+    source: "nflverse_ftn",
+    read_semantics: "test",
+  };
+  const summary = summarizeReceiverProgression([
+    { ...base, week: 1, bucket: "FIRST_READ" as const, targets: 2, target_read_share: 2 / 3,
+      targets_eligible: 5, targets_charted_read: 3, read_coverage_rate: 0.6 },
+    { ...base, week: 1, bucket: "SECOND_READ" as const, targets: 1, target_read_share: 1 / 3,
+      targets_eligible: 5, targets_charted_read: 3, read_coverage_rate: 0.6 },
+    { ...base, week: 2, bucket: "FIRST_READ" as const, targets: 2, target_read_share: 1,
+      targets_eligible: 4, targets_charted_read: 2, read_coverage_rate: 0.5 },
+  ]);
+  assert.ok(summary);
+  assert.equal(summary!.targets, 5);
+  assert.equal(summary!.targets_eligible, 9);
+  assert.equal(summary!.targets_charted_read, 5);
+  assert.equal(summary!.read_coverage_rate, 5 / 9);
+  assert.deepEqual(summary!.by_read, { FIRST_READ: 4, SECOND_READ: 1 });
 });
 
 test("football-intel: throughWeek() honors per-source cutoff", () => {
