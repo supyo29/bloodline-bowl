@@ -6,7 +6,7 @@
  * endpoint never infers the unthrown progression order for other receivers.
  */
 import { loadFootballIntelligence } from "@/lib/football-intel";
-import { receiverProgression } from "@/lib/football-intel/progression";
+import { receiverProgression, summarizeReceiverProgression } from "@/lib/football-intel/progression";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -49,20 +49,11 @@ export async function GET(
     { season, ...(week == null ? {} : { week }) },
   );
   const ftnCutoff = fi.manifest.data_cutoff.ftn_charting ?? null;
-  const requestedBeyondCutoff = week != null && ftnCutoff != null && season === fi.manifest.season && week > ftnCutoff;
-  const status = rows.length > 0 ? "READY" : requestedBeyondCutoff ? "EXPECTED_SOURCE_LAG" : "NOT_AVAILABLE";
-
-  const totals = rows.reduce(
-    (acc, r) => {
-      acc.targets += r.targets;
-      acc.receptions += r.receptions;
-      acc.receiving_yards += r.receiving_yards;
-      acc.receiving_tds += r.receiving_tds;
-      acc.by_read[r.bucket] = (acc.by_read[r.bucket] ?? 0) + r.targets;
-      return acc;
-    },
-    { targets: 0, receptions: 0, receiving_yards: 0, receiving_tds: 0, by_read: {} as Record<string, number> },
-  );
+  const currentSeasonSourceLag =
+    season === fi.manifest.season &&
+    (ftnCutoff == null || (week != null && week > ftnCutoff));
+  const status = rows.length > 0 ? "READY" : currentSeasonSourceLag ? "EXPECTED_SOURCE_LAG" : "NOT_AVAILABLE";
+  const summary = summarizeReceiverProgression(rows);
 
   return jsonResponse(
     {
@@ -79,12 +70,7 @@ export async function GET(
         read_semantics: "0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL",
         limitation: "The read bucket describes the target that was thrown. It does not reveal every receiver's full unthrown progression on the play.",
       },
-      summary: rows.length ? {
-        ...totals,
-        targets_eligible: rows[0]?.targets_eligible ?? null,
-        targets_charted_read: rows[0]?.targets_charted_read ?? null,
-        read_coverage_rate: rows[0]?.read_coverage_rate ?? null,
-      } : null,
+      summary,
       rows,
     },
     { headers: { "Cache-Control": status === "READY" ? cacheHeader(300, 900) : cacheHeader(60, 180) } },
