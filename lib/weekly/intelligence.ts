@@ -15,7 +15,8 @@ import { buildMatchup, buildLeverage } from "./matchup";
 import { buildWaiverRecommendations } from "./waivers";
 import { compareStartSit, type StartSitComparison } from "./start-sit";
 import { buildWeeklySummary, type WeeklySummary } from "./summary";
-import { buildStartSitShadow, getShadowCaptureStore, captureShadowDecision } from "./start-sit-fi";
+import { buildStartSitShadow, getShadowCaptureStore, installDefaultCaptureStore, persistShadowDecision, resolveLockEvidence } from "./start-sit-fi";
+import { startSitModelFingerprint } from "./start-sit-fi/capture-runtime";
 import type { StartSitShadowComparison } from "./start-sit-fi";
 import { buildMatchupIntelligence } from "./matchup-intelligence";
 import type { MatchupIntelligence } from "./matchup-intelligence";
@@ -178,22 +179,36 @@ async function buildWeeklyIntelligenceInner(
   let start_sit_shadow: StartSitShadowComparison | null = null;
   try {
     start_sit_shadow = buildStartSitShadow(ctx);
-    // Part C — live shadow-decision capture. No-op unless a store is wired
-    // (default NullCaptureStore). Preserves the original as-of state so the
-    // future 2026 re-certification does not need reconstruction.
-    if (start_sit_shadow && getShadowCaptureStore().kind !== "null") {
-      captureShadowDecision(start_sit_shadow, {
+  } catch {
+    start_sit_shadow = null;
+  }
+  // Phase 3.5A evidence capture. Telemetry ONLY: it runs after every production section and the
+  // shadow comparison are already computed, in its own guard, and can neither throw into nor
+  // alter them. A failure is recorded in capture health + logged (never silently swallowed) and
+  // does NOT null the shadow comparison. `LIVE_CAPTURED` is assigned only if every involved NFL
+  // game is verifiably pre_game right now (lock evidence); otherwise the record is
+  // LIVE_POST_LOCK / LIVE_UNVERIFIED and is not valid evaluation evidence.
+  if (start_sit_shadow && start_sit_shadow.lineage.start_sit_model_version !== "unavailable") {
+    try {
+      installDefaultCaptureStore();
+      // no network read when capture is disabled (Null store, e.g. under `node --test`)
+      const lock_evidence = getShadowCaptureStore().kind === "null"
+        ? undefined
+        : await resolveLockEvidence(start_sit_shadow, ctx.league.season, ctx.league.week);
+      await persistShadowDecision(start_sit_shadow, {
         season: ctx.league.season,
         week: ctx.league.week,
         league_slug: ctx.league.slug,
         manager_slug: ctx.manager.manager_slug,
         scoring_fingerprint:
           (ctx.lineage as { snapshot?: { scoring_fingerprint?: string | null } })?.snapshot?.scoring_fingerprint ?? null,
-        kind: "LIVE_CAPTURED",
+        lock_evidence,
+        model_fingerprint: startSitModelFingerprint(),
       });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[start-sit-capture] capture path failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-  } catch {
-    start_sit_shadow = null;
   }
   // Phase 5 shadow path — non-fatal, never alters production output.
   let matchup_intelligence: MatchupIntelligence | null = null;

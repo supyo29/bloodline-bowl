@@ -74,6 +74,8 @@ if (file.exists(hist26)) {
 # --- 4. live shadow-capture summary (durable store, emitted by the TS report) -
 cap_path <- file.path(SS$OUT_DIR, "shadow_capture_summary.json")
 cap <- if (file.exists(cap_path)) fromJSON(cap_path, simplifyVector = FALSE) else NULL
+# an unavailable/non-durable summary can never vouch for a baseline
+if (!is.null(cap) && !isTRUE(cap$available)) cap$live_captured_by_week <- list()
 live_by_week <- if (!is.null(cap$live_captured_by_week)) cap$live_captured_by_week else list()
 baseline <- list(live_captured_by_week = live_by_week)
 
@@ -130,7 +132,7 @@ manifest <- list(
   live_captured_decisions = live_n,
   historically_reconstructed_decisions = as.integer(cap$reconstructed_total %||% 0L),
   post_lock_observations = as.integer(cap$post_lock_total %||% 0L),
-  capture_summary_available = !is.null(cap),
+  capture_summary_available = isTRUE(cap$available),
   fi_snapshot_seen = if (is.null(fi_manifest)) NULL else fi_manifest$football_intelligence_version,
   fi_snapshot_is_current_season = !is.null(fi_manifest) && identical(as.integer(fi_manifest$season), CURRENT_SEASON),
   generated_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),

@@ -250,8 +250,11 @@ const fakeCmp = (): StartSitShadowComparison => ({
 });
 
 test("C: capture labels LIVE_CAPTURED vs HISTORICALLY_RECONSTRUCTED and never mixes silently", () => {
+  // Phase 3.5A: a bare live request with no lock evidence is NOT pristine evidence. The old
+  // default of LIVE_CAPTURED was the integrity defect; the class is now earned only via
+  // verified pre-kickoff lock evidence (see test/startsit-capture-integrity.test.ts).
   const live = captureShadowDecision(fakeCmp(), { season: 2026, week: 1, league_slug: "l", manager_slug: "m", scoring_fingerprint: "scoring:v1:abc" });
-  assert.equal(live.capture_kind, "LIVE_CAPTURED");
+  assert.equal(live.capture_kind, "LIVE_UNVERIFIED");
   const recon = captureShadowDecision(fakeCmp(), { season: 2025, week: 5, league_slug: "l", manager_slug: "m", scoring_fingerprint: null, kind: "HISTORICALLY_RECONSTRUCTED" });
   assert.equal(recon.capture_kind, "HISTORICALLY_RECONSTRUCTED");
   assert.equal(recon.actual_fantasy_points, null); // filled in later, once known
