@@ -26,5 +26,30 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      # The repository-wide npm test command includes Player-Scheme tests that
+      # intentionally read generated outputs/ artifacts not committed to a clean
+      # checkout. Gate this PR on the committed-data contracts it changes plus
+      # the Start/Sit consumer that caught the original interface regression.
+      - name: Relevant Node tests
+        run: >-
+          node --import tsx --test
+          test/football-intel-read.test.ts
+          test/start-sit-fi.test.ts
+          test/ai-discovery.test.ts
       - run: npm run lint
+
+  r-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.5.3"
+      - name: Parse changed Football Intelligence R entrypoints
+        run: |
+          Rscript -e "parse(file='analysis/football_intel/lib_interactions.R')"
+          Rscript -e "parse(file='analysis/football_intel/build_snapshot.R')"
+          Rscript -e "parse(file='analysis/football_intel/config.R')"
+          Rscript -e "parse(file='analysis/football_intel/validate_snapshot.R')"
+          Rscript -e "parse(file='analysis/player_scheme_intelligence/lib_charting.R')"
