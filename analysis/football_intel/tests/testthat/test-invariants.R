@@ -13,7 +13,7 @@ library(testthat)
 `%||%` <- function(a, b) if (is.null(a)) b else a
 BASE <- file.path(Sys.getenv("FI_ROOT", getwd()), "analysis", "football_intel")
 for (f in c("config.R", "lib_features.R", "lib_opponent_adj.R", "lib_priors.R",
-            "lib_recency.R", "lib_profiles.R")) source(file.path(BASE, f))
+            "lib_recency.R", "lib_profiles.R", "lib_interactions.R")) source(file.path(BASE, f))
 
 cache <- function(n) readRDS(file.path(FI$CACHE_DIR, paste0(n, ".rds")))
 tgf <- readRDS(file.path(FI$CACHE_DIR, "team_game_features.rds")) %>% dplyr::filter(season_type == "REG")
@@ -119,6 +119,14 @@ test_that("unknown continuity applies NO discount", {
                        defensive_coord_change = NA, ol_continuity = NA_real_,
                        front_turnover = NA_real_, secondary_turnover = NA_real_)
   expect_equal(build_prior_discounts(dt, FI)$prior_discount, 1)
+})
+
+test_that("FTN read_thrown semantics are decoded exactly and never off by one", {
+  expect_equal(
+    .ftn_read_bucket(c("0", "1", "2", "CHK", "DES", "SD", "unexpected")),
+    c("FIRST_READ", "SECOND_READ", "THIRD_PLUS_READ", "CHECKDOWN",
+      "DESIGNED", "SCRAMBLE_DRILL", "OTHER")
+  )
 })
 
 test_that("FTN / man-zone are never tagged as model inputs", {

@@ -177,3 +177,50 @@ export interface FtnDescriptive {
   source_coverage: string;
   season_bounds: string;
 }
+
+
+/**
+ * One receiver-week FTN progression bucket. DESCRIPTIVE_ONLY: this describes
+ * the read on which an actual target was thrown. It does not infer the full
+ * unthrown receiver progression on the play.
+ */
+export type ReceiverReadBucket =
+  | "FIRST_READ"
+  | "SECOND_READ"
+  | "THIRD_PLUS_READ"
+  | "CHECKDOWN"
+  | "DESIGNED"
+  | "SCRAMBLE_DRILL"
+  | "OTHER";
+
+export interface ReceiverProgressionRow {
+  season: number;
+  week: number;
+  team: string;
+  opponent: string;
+  gsis_id: string;
+  sleeper_id: string | null;
+  full_name: string | null;
+  passer_gsis_id: string | null;
+  bucket: ReceiverReadBucket;
+  targets: number;
+  target_read_share: number | null;
+  receptions: number;
+  receiving_yards: number;
+  yards_per_target: number | null;
+  air_yards: number | null;
+  adot: number | null;
+  yac: number | null;
+  epa_per_target: number | null;
+  success_rate: number | null;
+  first_down_rate: number | null;
+  explosive_rate: number | null;
+  receiving_tds: number;
+  td_rate: number | null;
+  targets_eligible: number;
+  targets_charted_read: number;
+  read_coverage_rate: number | null;
+  output_class: "DESCRIPTIVE_ONLY";
+  source: "nflverse_ftn" | string;
+  read_semantics: string;
+}

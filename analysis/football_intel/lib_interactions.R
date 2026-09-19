@@ -175,3 +175,128 @@ build_ftn_descriptive <- function(ftn, pbp, season, through_week, FI) {
     select(season, through_week, team, metric, value, n_plays, availability, output_class,
            source_coverage, season_bounds)
 }
+
+
+# ------------------------------------------------------------------------
+# Receiver target progression — FTN read_thrown, DESCRIPTIVE_ONLY.
+#
+# FTN semantics (nflreadr data dictionary):
+#   0 = first/primary read, 1 = second read, 2 = third read or later,
+#   CHK = checkdown, DES = designed read (e.g. screens / many RPO throws),
+#   SD = scramble drill.
+#
+# This labels ONLY the read on which the ball was thrown. It does not infer
+# the unthrown progression order for other eligible receivers on that play.
+# ------------------------------------------------------------------------
+.ftn_read_bucket <- function(x) {
+  x <- as.character(x)
+  dplyr::case_when(
+    x == "0"   ~ "FIRST_READ",
+    x == "1"   ~ "SECOND_READ",
+    x == "2"   ~ "THIRD_PLUS_READ",
+    x == "CHK" ~ "CHECKDOWN",
+    x == "DES" ~ "DESIGNED",
+    x == "SD"  ~ "SCRAMBLE_DRILL",
+    TRUE        ~ "OTHER"
+  )
+}
+
+build_receiver_progression <- function(ftn, pbp, ff_playerids, season, through_week, FI) {
+  empty <- function() tibble::tibble(
+    season = integer(), week = integer(), team = character(), opponent = character(),
+    gsis_id = character(), sleeper_id = character(), full_name = character(),
+    passer_gsis_id = character(), bucket = character(), targets = integer(),
+    target_read_share = double(), receptions = integer(), receiving_yards = double(),
+    yards_per_target = double(), air_yards = double(), adot = double(), yac = double(),
+    epa_per_target = double(), success_rate = double(), first_down_rate = double(),
+    explosive_rate = double(), receiving_tds = integer(), td_rate = double(),
+    targets_eligible = integer(), targets_charted_read = integer(),
+    read_coverage_rate = double(), output_class = character(), source = character(),
+    read_semantics = character()
+  )
+  if (is.null(ftn) || nrow(ftn) == 0 || !season %in% FI$FTN_SEASONS) return(empty())
+
+  plays <- pbp %>%
+    filter(season_type == "REG", season == !!season, week <= !!through_week,
+           coalesce(pass, 0) == 1, !is.na(receiver_player_id)) %>%
+    transmute(
+      game_id, play_id, season, week,
+      team = FI$normalize_team(posteam), opponent = FI$normalize_team(defteam),
+      gsis_id = receiver_player_id, passer_gsis_id = passer_player_id,
+      complete = coalesce(complete_pass, 0),
+      yards_gained = coalesce(yards_gained, 0),
+      target_air_yards = air_yards,
+      target_yac = ifelse(complete_pass == 1, yards_after_catch, NA_real_),
+      epa, success = coalesce(success, as.integer(epa > 0)),
+      first_down = coalesce(first_down, 0),
+      receiving_td = coalesce(pass_touchdown, 0)
+    )
+
+  if (nrow(plays) == 0) return(empty())
+
+  chart <- ftn %>%
+    transmute(
+      game_id = nflverse_game_id, play_id = nflverse_play_id,
+      read_thrown = as.character(read_thrown)
+    )
+
+  joined <- plays %>% left_join(chart, by = c("game_id", "play_id"))
+  totals <- joined %>%
+    group_by(season, week, team, opponent, gsis_id) %>%
+    summarise(
+      targets_eligible = dplyr::n(),
+      targets_charted_read = sum(!is.na(read_thrown) & read_thrown != ""),
+      read_coverage_rate = targets_charted_read / targets_eligible,
+      .groups = "drop"
+    )
+
+  out <- joined %>%
+    filter(!is.na(read_thrown), read_thrown != "") %>%
+    mutate(bucket = .ftn_read_bucket(read_thrown)) %>%
+    group_by(season, week, team, opponent, gsis_id, passer_gsis_id, bucket) %>%
+    summarise(
+      targets = dplyr::n(),
+      receptions = sum(complete, na.rm = TRUE),
+      receiving_yards = sum(yards_gained, na.rm = TRUE),
+      yards_per_target = mean(yards_gained, na.rm = TRUE),
+      air_yards = ifelse(all(is.na(target_air_yards)), NA_real_, sum(target_air_yards, na.rm = TRUE)),
+      adot = ifelse(all(is.na(target_air_yards)), NA_real_, mean(target_air_yards, na.rm = TRUE)),
+      yac = ifelse(all(is.na(target_yac)), NA_real_, sum(target_yac, na.rm = TRUE)),
+      epa_per_target = mean(epa, na.rm = TRUE),
+      success_rate = mean(success, na.rm = TRUE),
+      first_down_rate = mean(first_down, na.rm = TRUE),
+      explosive_rate = mean(complete == 1 & yards_gained >= FI$EXPLOSIVE_PASS_YARDS, na.rm = TRUE),
+      receiving_tds = sum(receiving_td, na.rm = TRUE),
+      td_rate = mean(receiving_td, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    left_join(totals, by = c("season", "week", "team", "opponent", "gsis_id")) %>%
+    group_by(season, week, team, opponent, gsis_id) %>%
+    mutate(target_read_share = targets / sum(targets)) %>%
+    ungroup()
+
+  idmap <- ff_playerids %>%
+    transmute(
+      gsis_id = as.character(gsis_id),
+      sleeper_id = dplyr::coalesce(as.character(sleeper_id), NA_character_),
+      full_name = dplyr::coalesce(as.character(name), NA_character_)
+    ) %>%
+    filter(!is.na(gsis_id), gsis_id != "") %>%
+    distinct(gsis_id, .keep_all = TRUE)
+
+  out %>%
+    left_join(idmap, by = "gsis_id") %>%
+    mutate(
+      output_class = "DESCRIPTIVE_ONLY",
+      source = "FTN Data via nflverse",
+      read_semantics = "0=FIRST_READ|1=SECOND_READ|2=THIRD_PLUS_READ|CHK=CHECKDOWN|DES=DESIGNED|SD=SCRAMBLE_DRILL|2022_PRIMARY_READS_UNCODED_NA"
+    ) %>%
+    select(
+      season, week, team, opponent, gsis_id, sleeper_id, full_name, passer_gsis_id,
+      bucket, targets, target_read_share, receptions, receiving_yards, yards_per_target,
+      air_yards, adot, yac, epa_per_target, success_rate, first_down_rate,
+      explosive_rate, receiving_tds, td_rate, targets_eligible, targets_charted_read,
+      read_coverage_rate, output_class, source, read_semantics
+    ) %>%
+    arrange(season, week, team, gsis_id, bucket)
+}

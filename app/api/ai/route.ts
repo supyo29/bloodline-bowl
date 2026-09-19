@@ -97,6 +97,7 @@ export async function GET(): Promise<Response> {
       ),
       note:
         "Substitute {leagueSlug} and {managerSlug} with values from `leagues` / `registered_managers`. " +
+        "Substitute {playerId} with a supported GSIS or Sleeper player id for player-level service routes. " +
         "Substitute {week} with the current NFL week from /api/league/{leagueSlug}/state (state.current_week). " +
         "Scope 'manager-week' routes use the /api/{capability}/{leagueSlug}/{managerSlug}/week/{week} shape, " +
         "NOT the /api/leagues/... prefix.",

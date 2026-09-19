@@ -278,11 +278,24 @@ psi_qb_concept_profile <- function(db, PSI, first_season = 2022L) {
 # =========================================================================
 # QB PROGRESSION PROFILE (FTN read_thrown) — spec §13. DESCRIPTIVE_ONLY.
 # =========================================================================
+# FTN's 0=primary-read code begins in 2023; 2022 primary reads are NA and
+# therefore remain unclassified rather than being fabricated as FIRST_READ.
+psi_read_bucket <- function(x) {
+  x <- as.character(x)
+  dplyr::case_when(
+    x == "0"   ~ "FIRST_READ",
+    x == "1"   ~ "SECOND_READ",
+    x == "2"   ~ "THIRD_PLUS_READ",
+    x == "CHK" ~ "CHECKDOWN",
+    x == "DES" ~ "DESIGNED",
+    x == "SD"  ~ "SCRAMBLE_DRILL",
+    TRUE        ~ "OTHER"
+  )
+}
+
 psi_qb_progression_profile <- function(db, PSI, first_season = 2022L) {
   db <- db %>% filter(season >= first_season, ftn_charted, !is.na(read_thrown), read_thrown != "")
-  relabel <- c("0" = "PRE_SNAP_OR_ZERO", "1" = "FIRST_READ", "2" = "SECOND_READ",
-               "CHK" = "CHECKDOWN", "DES" = "DESIGNED", "SD" = "SCRAMBLE_DRILL")
-  db %>% mutate(bucket = ifelse(read_thrown %in% names(relabel), relabel[read_thrown], "OTHER")) %>%
+  db %>% mutate(bucket = psi_read_bucket(read_thrown)) %>%
     group_by(gsis_id = passer_player_id, bucket) %>%
     group_modify(~ {
       e <- psi_eff_block(.x)

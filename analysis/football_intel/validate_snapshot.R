@@ -5,7 +5,7 @@
 #   Rscript analysis/football_intel/validate_snapshot.R <candidate_dir> <published_dir|NONE> [--force]
 #
 # Runs entirely against two directories of already-built served files (each
-# holding football_intelligence_manifest.json + the 5 served CSVs). Never
+# holding football_intelligence_manifest.json + the served CSVs). Never
 # rebuilds anything and never writes into either directory except the result
 # file <candidate_dir>/validation_result.json.
 #
@@ -50,7 +50,7 @@ read_csv_safe <- function(dir, name) {
 }
 
 SERVED_FILES <- c("team_profile.csv", "player_usage_profile.csv", "unit_coverage_profile.csv",
-                   "contextual_matchup_feature.csv", "ftn_descriptive.csv")
+                   "contextual_matchup_feature.csv", "ftn_descriptive.csv", "receiver_progression.csv")
 REQUIRED_NONEMPTY <- c("team_profile.csv", "player_usage_profile.csv",
                         "unit_coverage_profile.csv", "contextual_matchup_feature.csv")
 
@@ -89,6 +89,41 @@ if (is.null(cand_manifest)) {
       sprintf("season=%s", season))
   add("through_week is a plausible NFL week", if (isTRUE(week >= 1 && week <= 22)) PASS else FAIL,
       sprintf("through_week=%s", week))
+}
+
+# ---------------------------------------------------------------------------
+# GATE 1b — receiver progression semantics / reconciliation
+# ---------------------------------------------------------------------------
+rp <- read_csv_safe(CAND, "receiver_progression.csv")
+if (is.null(rp)) {
+  add("receiver_progression.csv is present and parseable", FAIL, "missing or unparseable")
+} else {
+  add("receiver_progression.csv is present and parseable", PASS)
+  if (nrow(rp) > 0) {
+    required_rp <- c("season","week","team","opponent","gsis_id","bucket","targets",
+                     "target_read_share","targets_eligible","targets_charted_read",
+                     "read_coverage_rate","output_class","source","read_semantics")
+    miss_rp <- setdiff(required_rp, names(rp))
+    add("receiver progression has required columns", if (length(miss_rp) == 0) PASS else FAIL,
+        if (length(miss_rp)) paste("missing:", paste(miss_rp, collapse = ", ")) else "")
+    allowed <- c("FIRST_READ","SECOND_READ","THIRD_PLUS_READ","CHECKDOWN","DESIGNED","SCRAMBLE_DRILL","OTHER")
+    bad <- setdiff(unique(rp$bucket), allowed)
+    add("receiver progression uses only documented read_thrown buckets",
+        if (length(bad) == 0) PASS else FAIL,
+        if (length(bad)) paste("unexpected:", paste(bad, collapse = ", ")) else "")
+    shares <- rp %>% dplyr::group_by(season, week, team, gsis_id) %>%
+      dplyr::summarise(s = sum(target_read_share), charted = dplyr::first(targets_charted_read),
+                       eligible = dplyr::first(targets_eligible), .groups = "drop")
+    add("receiver progression read shares reconcile to 1",
+        if (all(abs(shares$s - 1) < 1e-9)) PASS else FAIL,
+        sprintf("max_err=%.3g", max(abs(shares$s - 1))))
+    add("receiver progression charted targets never exceed eligible targets",
+        if (all(shares$charted <= shares$eligible)) PASS else FAIL)
+    add("receiver progression remains DESCRIPTIVE_ONLY",
+        if (all(rp$output_class == "DESCRIPTIVE_ONLY")) PASS else FAIL)
+  } else {
+    add("receiver progression has required columns", WARN, "FTN progression has no rows for this snapshot")
+  }
 }
 
 # ---------------------------------------------------------------------------

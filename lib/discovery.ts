@@ -299,6 +299,17 @@ export const CAPABILITIES: Capability[] = [
     temporality: "live",
   },
   {
+    id: "receiver_progression",
+    title: "Receiver target progression",
+    description:
+      "FTN read_thrown evidence for actual receiver targets by NFL week: first read, second read, third-or-later, checkdown, designed read, and scramble drill. DESCRIPTIVE_ONLY; it does not infer the unthrown receiver progression.",
+    scope: "service",
+    route_template: "/api/football-intel/players/{playerId}/progression",
+    canonical: true,
+    temporality: "live+historical",
+    query_params: ["season", "week"],
+  },
+  {
     id: "competitive_trade",
     title: "Competitive trade intelligence",
     description:
