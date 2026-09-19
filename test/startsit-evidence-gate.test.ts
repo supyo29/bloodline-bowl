@@ -28,10 +28,10 @@ const weekOf = (week: number, n: number, complete: number, extra?: string): RawN
 test("completion: 16/16 complete week is COMPLETE; 1/16 and 15/16 are PARTIAL (never COMPLETE)", () => {
   const c = buildNflSeasonCompletion([...weekOf(1, 16, 16), ...weekOf(2, 16, 1), ...weekOf(3, 16, 15), ...weekOf(4, 16, 0)], 2026, "t");
   const by = Object.fromEntries(c.weeks.map((w) => [w.week, w])) as Record<number, (typeof c.weeks)[number]>;
-  assert.equal(by[1].state, "COMPLETE");
-  assert.equal(by[2].state, "PARTIAL");
-  assert.equal(by[3].state, "PARTIAL");
-  assert.equal(by[4].state, "NOT_STARTED");
+  assert.equal(by[1]!.state, "COMPLETE");
+  assert.equal(by[2]!.state, "PARTIAL");
+  assert.equal(by[3]!.state, "PARTIAL");
+  assert.equal(by[4]!.state, "NOT_STARTED");
 });
 
 test("completion: a postponed / in-game / unknown-status game keeps the week PARTIAL", () => {
