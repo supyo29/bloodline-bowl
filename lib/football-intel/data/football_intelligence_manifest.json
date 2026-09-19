@@ -1,8 +1,8 @@
 {
-  "football_intelligence_version": "fi:2026:w02:1cf634c91756",
+  "football_intelligence_version": "fi:2026:w02:138a3fcd692a",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-09-18T16:52:38+0000",
+  "generated_at": "2026-09-19T13:52:18+0000",
   "season": 2026,
   "through_week": 2,
   "week_completion": {
@@ -13,7 +13,7 @@
     "latest_completed_game_date": "2026-09-17"
   },
   "data_cutoff": {
-    "ftn_charting": 1,
+    "ftn_charting": 2,
     "ngs_passing": 2,
     "ngs_receiving": 2,
     "ngs_rushing": 2,
@@ -43,8 +43,8 @@
     "opp_adj_ridge_lambda": 1,
     "seed": 20260907
   },
-  "files": ["team_profile.csv", "player_usage_profile.csv", "unit_coverage_profile.csv", "contextual_matchup_feature.csv", "ftn_descriptive.csv"],
+  "files": ["team_profile.csv", "player_usage_profile.csv", "unit_coverage_profile.csv", "contextual_matchup_feature.csv", "ftn_descriptive.csv", "receiver_progression.csv"],
   "output_classes": ["OBSERVED", "MODELED", "DESCRIPTIVE_ONLY"],
   "determinism": "seeded + closed-form ridge; identical cache -> identical version",
-  "notes": ["FTN (ftn_descriptive.csv) is DESCRIPTIVE_ONLY and never feeds any rating/prior/trend/backtest.", "man/zone (def_man_rate) is DESCRIPTIVE_ONLY, min-play gated.", "Ratings are deviations from the season league mean on the metric's native scale."]
+  "notes": ["FTN (ftn_descriptive.csv) is DESCRIPTIVE_ONLY and never feeds any rating/prior/trend/backtest.", "receiver_progression.csv uses FTN Data via nflverse read_thrown and is DESCRIPTIVE_ONLY; it labels the read on which the target was thrown, not every receiver's full progression.", "read_thrown semantics: 0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL. FTN did not code primary reads as 0 in 2022, so 2022 primary reads appear as NA and are not recoverable from this field.", "man/zone (def_man_rate) is DESCRIPTIVE_ONLY, min-play gated.", "Ratings are deviations from the season league mean on the metric's native scale."]
 }
