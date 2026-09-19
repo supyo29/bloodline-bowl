@@ -78,7 +78,12 @@ export async function GET(
         read_semantics: "0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL",
         limitation: "The read bucket describes the target that was thrown. It does not reveal every receiver's full unthrown progression on the play.",
       },
-      summary: rows.length ? totals : null,
+      summary: rows.length ? {
+        ...totals,
+        targets_eligible: rows[0]?.targets_eligible ?? null,
+        targets_charted_read: rows[0]?.targets_charted_read ?? null,
+        read_coverage_rate: rows[0]?.read_coverage_rate ?? null,
+      } : null,
       rows,
     },
     { headers: { "Cache-Control": status === "READY" ? cacheHeader(300, 900) : cacheHeader(60, 180) } },
