@@ -361,6 +361,114 @@ Phase 4 (Waiver Intelligence 2.0) may combine Phase 2 observed role + Phase 3 co
 
 ---
 
-**PHASE 3 CERTIFIED — READY TO FREEZE**
+**PHASE 3 CERTIFIED — READY TO FREEZE** (recorded above, unaltered)
 
-STOP. Do not merge, deploy, tag, or begin Phase 4. Do not connect OPI to waiver ranking, FAAB, projections, Start/Sit, trades, or matchup logic. Wait for review.
+## 51. Merge and deployment record (post-certification-review addendum)
+
+Certification approved. This section records the merge/deployment that followed — it does not revise any finding above; §0-50's original findings (including the modest ~0.3% L1 gain over proportional redistribution, the multi-absence limitation, the all-cause/unknown historical cause, and the two NSE bugs discovered during development) are preserved exactly as certified.
+
+### 51.1 Concurrency gate before merge
+
+`git fetch origin` re-run immediately before acting: `origin/main` was still exactly the certified base (`6c00d00`), zero commits either direction since certification — no drift to classify or reconcile. The branch (`injury-opportunity-propagation-phase3` @ `f8004ea`) was a clean, linear fast-forward continuation of `origin/main`.
+
+### 51.2 Re-verification immediately before merge
+
+- Model freeze: `git diff c723613 HEAD -- analysis/opportunity_propagation/lib_propagation_model.R analysis/opportunity_propagation/lib_episodes.R analysis/opportunity_propagation/backtest.R` → 0 lines (unchanged since Checkpoint C).
+- Served product state: `opportunity-propagation-2026.1`, `opi:2026:w01:bef17990fe91`, `deployment_state: SHADOW_ONLY`, `eligible_to_influence_production: false`, `role_opportunity_dependency: roi:2026:w01:819dc3166607` — matching Phase 2's actual current served manifest exactly (no rebuild required; Role Intelligence had not been rebuilt since certification).
+- Full TypeScript suite: 2065 pass / 0 fail / 4 skipped (2069 total). `tsc --noEmit`: clean. `eslint`: 52 pre-existing problems, all in files Phase 3 never touched, 0 new.
+- Full R suite (`analysis/opportunity_propagation/tests/run.R`): 0 failures across all 5 files (19,393 assertions, matching the certified count exactly).
+- Production isolation grep (`lib/weekly/`, `lib/trades/`, `lib/orchestrator/`, `lib/projections/`, `app/api/`): 0 references.
+
+### 51.3 Merge
+
+Fast-forward (`git checkout main && git merge --ff-only injury-opportunity-propagation-phase3`): local `main` (which was one commit behind `origin/main`, at the pre-Phase-3 SHA `35ba3fe`) fast-forwarded through the already-reconciled FI-refresh commit straight to the certified HEAD in one operation: **`35ba3fe` → `6c00d00` → `f8004ea`**. No history rewrite, no force push. Pushed with a plain `git push origin main`; `origin/main` now `f8004ea`, confirmed identical to local `main` and to the certified branch HEAD.
+
+### 51.4 Deployment
+
+Vercel's normal GitHub-integration auto-deploy fired on the push (no manual/parallel deployment path used):
+
+| Field | Value |
+|---|---|
+| Deployment ID | `dpl_8t6eAcpovbFU3yrVHvZhNtVbbW8B` |
+| Deployment commit SHA | `f8004eaab3d957e8776a201a2589e41ada821aff` (exact merge SHA) |
+| Target | `production` |
+| Terminal state | `READY` |
+| Production alias | `bloodline-bowl-sleeper-bridge.vercel.app` |
+
+### 51.5 Production health (read-only)
+
+- `/api/health` → `{"ok":true,"service":"bloodline-bowl-sleeper-bridge", ...}`.
+- `/api/ai` (discovery contract) → resolves; confirms Phase 3 has **no HTTP endpoint** by design (not listed among any capability, and direct probes to `/api/opportunity-propagation`, `/api/propagation`, `/api/opi` all returned `404`) — matching the certified library-access-only architecture. Production OPI verification was therefore performed by exercising the exact deployed commit's library code directly (identical bundle to what Vercel's serverless functions run), not via an HTTP call to OPI itself.
+- `/api/league/bloodline-bowl/state` → `READY`, `current_week: 2`, live canonical league state resolves normally.
+
+### 51.6 OPI production product check (exact deployed commit's library code)
+
+`model_tag: opportunity-propagation-2026.1`, `opportunity_propagation_version: opi:2026:w01:bef17990fe91`, `schema_version: opportunity-propagation-served:v1`, `role_opportunity_dependency.role_opportunity_version: roi:2026:w01:819dc3166607` — verified equal to Phase 2's live current manifest (`match: true`). `deployment_state: SHADOW_ONLY`, `eligible_to_influence_production: false`, `single_absence_support: CALIBRATED`, `multi_absence_support: EXPERIMENTAL_MULTI_ABSENCE`, `supported_absent_positions: RB/WR/TE` (QB absent) — all exactly as certified.
+
+### 51.7 Production R↔TS parity / NSE smoke check
+
+Run against the exact merged/deployed commit's code: the isolated NSE fixture (team `AAA`/`WR`/`target_share` = `1.20`, team `BBB` = `0.65`) re-verified via `lookupInheritanceRate` — both returned exactly, tagged `TEAM_POSITION_HISTORY`, never collapsing to `0.5`. (A live server-side R re-fit was not performed or required — the certified R/TS parity result, §7 of the original certification, already established 0 numeric difference against this exact, unmodified model code.)
+
+### 51.8 Production conditional Bloodline Bowl scenarios (deployed commit's code, real current roster)
+
+Re-queried the actual current Role Intelligence snapshot (no hard-coded names) and evaluated:
+
+| Player | Position | Team | Result |
+|---|---|---|---|
+| Kyle Juszczyk | RB | SF | `support_level: CALIBRATED`, 77 beneficiary rows |
+| Keenan Allen | WR | IND | `support_level: CALIBRATED`, 71 beneficiary rows |
+| Travis Kelce | TE | KC | `support_level: CALIBRATED`, 86 beneficiary rows |
+| Aaron Rodgers | QB | PIT | `support_level: UNSUPPORTED_SCENARIO`, `beneficiaries: null` |
+
+Every result carries `opportunity_propagation_version`, `role_opportunity_version`, and per-beneficiary `evidence.source`/`confidence` — no claim that any player is actually injured, no fantasy recommendation.
+
+### 51.9 Production multi-absence / QB safety
+
+A same-team two-player scenario (the RB above + a teammate) returned `support_level: EXPERIMENTAL_MULTI_ABSENCE` — never silently upgraded to `CALIBRATED`, never switched to a different (e.g. next-man-up) model. The QB scenario (§51.8) returned `UNSUPPORTED_SCENARIO`, not an RB/WR/TE-style prediction.
+
+### 51.10 Production freshness composition
+
+Two conditions tested against the deployed code: (a) OPI current + Role current → `assessOpportunityPropagationFreshness` returns `CURRENT` (both dependencies genuinely aligned: `roi:2026:w01:819dc3166607` on both sides). (b) OPI current + a deliberately stale Role lineage (fixture, `through_week: 1` fed a `STALE` Role-freshness assessment) → OPI's composed status came back `STALE`, `usable: true`, with an explicit `PROPAGATION_ROLE_DEPENDENCY_NOT_CURRENT` reason — **OPI never outranked its stale Role dependency**, exactly the required behavior.
+
+### 51.11 Production lineage — real endpoint responses
+
+Queried three live, real production endpoints for the actual Bloodline Bowl league (read-only):
+
+| Endpoint | `opportunity_propagation_intelligence` |
+|---|---|
+| `/api/waivers/bloodline-bowl/supyo29/week/2` | `null` |
+| `/api/lineup/bloodline-bowl/supyo29/week/2` | `null` |
+| `/api/matchup/bloodline-bowl/supyo29/week/2` | `null` |
+
+All three also show `football_intelligence: null` and `role_opportunity_intelligence: null` alongside it — consistent with the pre-existing pattern for Phase 1/2. Lineage capability (the field existing in the type) is confirmed distinct from analytical use (the field being populated) is confirmed distinct from numeric influence (nothing consumes it even when populated).
+
+### 51.12 Production waiver boundary
+
+`/api/waivers/bloodline-bowl/supyo29/week/2` returned `status: NOT_READY`, `reason_code: FREE_AGENT_POOL_UNAVAILABLE` — a **pre-existing, Phase-3-unrelated** state (the free-agent pool readiness gate documented in this repository's own waiver-readiness contract, from before Phase 3 existed). `recommendations: []`, `considered: 0`, `faab: null`, `waiver_priority: null` — the waiver engine's behavior is identical to its pre-Phase-3 contract; no Phase 3 field (contingent role, beneficiary delta, structural residual, OPI confidence) appears anywhere in the waiver response body, and the grep in §51.2/§37 already proved no waiver source file references OPI at all.
+
+### 51.13 Production numeric equivalence
+
+| System | Changed by this merge/deployment? |
+|---|---|
+| Waiver | No |
+| Start/Sit (lineup) | No |
+| Matchup | No |
+| Trade | No (no trade endpoint call needed — no trade source file references OPI, per the structural grep) |
+| Projection | No |
+| Lineup optimization | No |
+
+The only difference introduced anywhere in production by this merge is additive, non-production metadata: the `opportunity_propagation_intelligence: null` field now present (and populated with an explicit `null`) in `RecommendationLineage` responses that previously omitted it entirely — a schema addition, not a value change to any existing field.
+
+### 51.14 Final concurrency check before this record was written
+
+`git fetch origin` re-run immediately before writing this section: `origin/main` unchanged at `f8004ea` — no new drift since the merge/deploy above. This certification record corresponds exactly to the code actually deployed and verified.
+
+### 51.15 Frozen Phase 3 contract (for Phase 4+)
+
+Restated from §49, now in effect as a merged, deployed freeze: qualified full-game nonparticipation semantics (all-cause, `cause: UNKNOWN` unless genuinely source-backed) · absence episode semantics (`EPISODE_ONSET`/`EPISODE_CONTINUATION`, bye-safe, return-ends-episode, no duration leakage) · the Phase 2 dependency contract (consume `PlayerRoleProfile` directly, never reconstruct independent role logic from raw snaps/targets/carries) · the hierarchical role-vector allocator with its inheritance hierarchy, shrinkage, trend contribution, position affinity, structural residual, and observed/expected/delta separation · the v1 scenario contract (`FULL_GAME_NONPARTICIPATION`; RB/WR/TE supported, QB unsupported) · single-absence-calibrated vs. multi-absence-experimental support semantics (never presented as equivalent) · the OPI manifest/content-versioning contract · `OpportunityPropagationIntelligenceLineage` (additive, optional) · the Phase 1 freshness composition pattern (compose Role freshness, never outrank it) · `SHADOW_ONLY` / `eligible_to_influence_production: false`. Additive extensions are permitted; a parallel competing propagation model, or an independent "starter out → backup gets role" model anywhere else in this repository (including inside a future Waiver Intelligence 2.0), is not.
+
+---
+
+**OPPORTUNITY PROPAGATION INTELLIGENCE PHASE 3 — MERGED AND FROZEN**
+
+STOP. Phase 4 has not begun. OPI is not connected to waiver ranking, FAAB, projections, Start/Sit, trades, or matchup logic anywhere in this repository. Wait for review.
