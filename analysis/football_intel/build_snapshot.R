@@ -152,7 +152,7 @@ manifest <- list(
   notes = c(
     "FTN (ftn_descriptive.csv) is DESCRIPTIVE_ONLY and never feeds any rating/prior/trend/backtest.",
     "receiver_progression.csv uses FTN Data via nflverse read_thrown and is DESCRIPTIVE_ONLY; it carries the raw FTN code on the thrown target, not every receiver's full progression.",
-    "read_thrown numeric semantics (0/1/2) are UNVERIFIED_SOURCE_CONFLICT: the current nflreadr dictionary conflicts with the original nflverse issue #216 checklist ('read 0, eg screens') and with observed FTN distributions, so numeric codes are exposed as RAW_0/RAW_1/RAW_2 and NOT labelled first/second/third read. CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL are retained.",
+    "read_thrown numeric semantics (0/1/2) are UNVERIFIED_SOURCE_CONFLICT: the current nflreadr dictionary definitions (introduced by PR #319) conflict with observed FTN distributions, and the original nflverse issue #216 checklist enumerated only 1, 2, CHK, SD and DES (its parenthetical 'read 0, eg screens' referred to the designed-read concept, not literal numeric 0). No cited FTN confirmation resolves the discrepancy, so numeric codes are exposed as RAW_0/RAW_1/RAW_2 and NOT labelled first/second/third read. CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL are retained.",
     "man/zone (def_man_rate) is DESCRIPTIVE_ONLY, min-play gated.",
     "Ratings are deviations from the season league mean on the metric's native scale."
   )

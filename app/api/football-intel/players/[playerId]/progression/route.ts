@@ -73,7 +73,7 @@ export async function GET(
         read_semantics:
           "RAW_0/RAW_1/RAW_2 = raw FTN numeric read_thrown codes 0/1/2 (meaning unverified; NOT labelled first/second/third read). CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL.",
         limitation:
-          "The bucket is the raw code on the target that was thrown. It does not reveal every receiver's full unthrown progression on the play. Numeric codes are intentionally not interpreted as first/second/third read: the current nflreadr dictionary (0=first, 1=second, 2=third-plus) conflicts with the original nflverse issue #216 checklist ('read 0, eg screens') and with observed FTN distributions, so the numeric progression labels are withheld until FTN/nflverse confirms them.",
+          "The bucket is the raw code on the target that was thrown. It does not reveal every receiver's full unthrown progression on the play. Numeric codes are intentionally not interpreted as first/second/third read: the current nflreadr dictionary definitions (0=first, 1=second, 2=third-plus, introduced by PR #319) conflict with observed FTN distributions, and the original nflverse issue #216 checklist enumerated only 1, 2, CHK, SD and DES (its parenthetical 'read 0, eg screens' referred to the designed-read concept, not literal numeric 0). No cited FTN confirmation resolves the discrepancy, so numeric semantics are intentionally withheld.",
       },
       summary,
       rows,
