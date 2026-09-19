@@ -21,7 +21,34 @@ export type ReevaluationStatus =
   | "PASSED"
   | "FAILED";
 
+/** The five predicates a week must satisfy to count (Phase 3.5A; auditable per week). */
+export const EVIDENCE_PREDICATES = [
+  "NFL_WEEK_COMPLETE",
+  "FI_ASOF_AVAILABLE",
+  "CURRENT_SEASON_FI_AVAILABLE",
+  "ACTUALS_AVAILABLE",
+  "PRODUCTION_BASELINE_AVAILABLE",
+] as const;
+export type EvidencePredicate = (typeof EVIDENCE_PREDICATES)[number];
+
+export interface WeekEvidence {
+  week: number;
+  predicates: Record<EvidencePredicate, boolean>;
+  counts: boolean;
+  /** why each failing predicate failed (empty when the week counts). */
+  reasons: string[];
+  detail?: { games_scheduled: number | null; games_completed: number | null; live_captured_records: number };
+}
+
 export interface ReevaluationManifest {
+  /** present on manifests produced by the Phase 3.5A gate; absence => legacy, untrusted. */
+  evidence_gate_version?: string;
+  week_evidence?: WeekEvidence[];
+  candidate_weeks?: number[];
+  rejected_weeks?: Array<{ week: number; reasons: string[] }>;
+  post_lock_observations?: number;
+  nfl_reality?: unknown;
+  capture_summary_available?: boolean;
   current_model_version: string;
   deployment: string;
   season: number;
@@ -87,6 +114,10 @@ export function reevaluationStatus(m?: ReevaluationManifest | null): Reevaluatio
 export function isEligible(m?: ReevaluationManifest | null): boolean {
   const man = m ?? loadReevaluationManifest();
   if (!man) return false;
+  // Phase 3.5A: the count is never trusted on its own. Every listed week must be
+  // backed by per-week evidence in which ALL five predicates are true. A legacy
+  // manifest (no per-week evidence) can never open the gate.
+  if (!weekEvidenceSupportsCount(man)) return false;
   return (
     man.season === 2026 &&
     man.completed_fi_weeks >= man.minimum_weeks_required &&
@@ -100,4 +131,16 @@ export function nextCandidateVersion(current: string): string {
   const m = current.match(/^(.*?-)(\d{4})\.(\d+)$/);
   if (!m) return `${current}.next`;
   return `${m[1]}${m[2]}.${Number(m[3]) + 1}`;
+}
+
+/** true iff every week in `completed_fi_week_list` has per-week evidence with all predicates true (and no duplicates). */
+export function weekEvidenceSupportsCount(man: ReevaluationManifest): boolean {
+  const list = man.completed_fi_week_list ?? [];
+  if (list.length === 0) return true; // nothing claimed; nothing to substantiate
+  if (!man.evidence_gate_version || !Array.isArray(man.week_evidence)) return false;
+  if (new Set(list).size !== list.length || man.completed_fi_weeks !== list.length) return false;
+  return list.every((w) => {
+    const e = man.week_evidence!.find((x) => x.week === w);
+    return !!e && e.counts === true && EVIDENCE_PREDICATES.every((p) => e.predicates?.[p] === true);
+  });
 }

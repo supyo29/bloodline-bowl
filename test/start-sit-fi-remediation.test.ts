@@ -135,10 +135,17 @@ test("C: re-evaluation manifest exists, is NOT_ELIGIBLE, 0 genuine 2026 FI weeks
   assert.equal(m!.minimum_weeks_required, 4);
 });
 
-test("C: the prior-only FI snapshot does not count as a current-season week", () => {
+test("C: no partial or prior-only week counts; the manifest explains every rejected week", () => {
+  // Phase 3.5A: the old assertion pinned a stale (2026-09-08) manifest that still saw the
+  // prior-only fi:2025 snapshot. The invariant is unchanged -- nothing counts unless it
+  // satisfies every predicate -- but it is now asserted against per-week evidence.
   const m = loadReevaluationManifest(true)!;
-  assert.equal(m.fi_snapshot_is_current_season, false);
-  assert.match(m.not_eligible_reason ?? "", /does not count/);
+  assert.ok(m.evidence_gate_version, "manifest must be produced by the Phase 3.5A gate");
+  assert.equal(m.completed_fi_week_list.length, m.week_evidence!.filter((e) => e.counts).length);
+  for (const e of m.week_evidence!) {
+    if (!e.counts) assert.ok(e.reasons.length > 0, `rejected week ${e.week} must carry a reason`);
+  }
+  assert.match(m.not_eligible_reason ?? "", /qualifying week/);
 });
 
 test("C: candidate versioning — 2026.1 is immutable, next is 2026.2", () => {
@@ -168,7 +175,11 @@ test("C: synthetic eligibility transitions (Week 3 / Week 4 insufficient / Week 
     false,
   );
   // week 4 with valid coverage -> ELIGIBLE
-  const ok = synthManifest({ completed_fi_weeks: 4, completed_fi_week_list: [1, 2, 3, 4], reevaluation_eligible: true, reevaluation_status: "ELIGIBLE" });
+  const evidence = [1, 2, 3, 4].map((week) => ({
+    week, counts: true, reasons: [],
+    predicates: { NFL_WEEK_COMPLETE: true, FI_ASOF_AVAILABLE: true, CURRENT_SEASON_FI_AVAILABLE: true, ACTUALS_AVAILABLE: true, PRODUCTION_BASELINE_AVAILABLE: true },
+  }));
+  const ok = synthManifest({ completed_fi_weeks: 4, completed_fi_week_list: [1, 2, 3, 4], reevaluation_eligible: true, reevaluation_status: "ELIGIBLE", evidence_gate_version: "evidence-gate-2026.2", week_evidence: evidence });
   assert.equal(reevaluationEligible(ok), true);
   assert.equal(reevaluationStatus(ok), "ELIGIBLE");
 });

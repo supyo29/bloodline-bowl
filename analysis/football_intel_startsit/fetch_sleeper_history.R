@@ -19,6 +19,10 @@ suppressWarnings(suppressMessages({ library(jsonlite); library(dplyr); library(t
 .here <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
 source(file.path(dirname(.here), "config.R"))
 REFRESH <- "--refresh" %in% commandArgs(TRUE)
+# Phase 3.5A: `--season=YYYY` writes a SEPARATE cache (sleeper_history_YYYY.rds) covering weeks
+# 1..18 for that season and always refreshes it. The frozen 2021-25 cache is never touched.
+.sarg <- grep("^--season=", commandArgs(TRUE), value = TRUE)
+ONE_SEASON <- if (length(.sarg)) as.integer(sub("^--season=", "", .sarg[1])) else NA_integer_
 
 pull <- function(kind, season, week) {
   # kind: "projections" or "stats"
@@ -46,10 +50,13 @@ rename_std <- function(df, suffix) {
   )
 }
 
-cache_path <- file.path(SS$CACHE_DIR, "sleeper_history.rds")
+cache_path <- if (is.na(ONE_SEASON)) file.path(SS$CACHE_DIR, "sleeper_history.rds") else
+  file.path(SS$CACHE_DIR, sprintf("sleeper_history_%d.rds", ONE_SEASON))
+if (!is.na(ONE_SEASON)) REFRESH <- TRUE
 if (!REFRESH && file.exists(cache_path)) { message("[cached] sleeper_history.rds"); quit(status = 0) }
 
-grid <- expand.grid(season = SS$SEASONS, week = SS$MIN_WEEK:(SS$MAX_WEEK + 1L))
+grid <- if (is.na(ONE_SEASON)) expand.grid(season = SS$SEASONS, week = SS$MIN_WEEK:(SS$MAX_WEEK + 1L)) else
+  expand.grid(season = ONE_SEASON, week = 1:(SS$MAX_WEEK + 1L))
 proj_rows <- list(); stat_rows <- list()
 for (i in seq_len(nrow(grid))) {
   s <- grid$season[i]; w <- grid$week[i]

@@ -1,4 +1,5 @@
 {
+  "evidence_gate_version": "evidence-gate-2026.2",
   "current_model_version": "ri-startsit-2026.1",
   "deployment": "SHADOW_ONLY",
   "season": 2026,
@@ -6,10 +7,101 @@
   "completed_fi_week_list": [],
   "minimum_weeks_required": 4,
   "preferred_weeks": 6,
-  "per_week_requirements": ["pbp_completed_reg_week", "phase3_fi_asof_snapshot_buildable", "fi_team_ratings_present_through_prior_week", "actual_fantasy_outcomes_present", "production_baseline_projection_available"],
+  "per_week_requirements": [
+    "NFL_WEEK_COMPLETE",
+    "FI_ASOF_AVAILABLE",
+    "CURRENT_SEASON_FI_AVAILABLE",
+    "ACTUALS_AVAILABLE",
+    "PRODUCTION_BASELINE_AVAILABLE"
+  ],
+  "candidate_weeks": [
+    1,
+    2
+  ],
+  "week_evidence": [
+    {
+      "week": 1,
+      "predicates": {
+        "NFL_WEEK_COMPLETE": true,
+        "FI_ASOF_AVAILABLE": false,
+        "CURRENT_SEASON_FI_AVAILABLE": false,
+        "ACTUALS_AVAILABLE": true,
+        "PRODUCTION_BASELINE_AVAILABLE": false
+      },
+      "counts": false,
+      "reasons": ["NO_PRIOR_CURRENT_SEASON_WEEK", "FI_ASOF_UNBUILDABLE_BEFORE_WEEK_3", "NO_PRE_KICKOFF_PRODUCTION_BASELINE_CAPTURE"],
+      "detail": {
+        "games_scheduled": 16,
+        "games_completed": 16,
+        "live_captured_records": 0
+      }
+    },
+    {
+      "week": 2,
+      "predicates": {
+        "NFL_WEEK_COMPLETE": false,
+        "FI_ASOF_AVAILABLE": false,
+        "CURRENT_SEASON_FI_AVAILABLE": true,
+        "ACTUALS_AVAILABLE": false,
+        "PRODUCTION_BASELINE_AVAILABLE": false
+      },
+      "counts": false,
+      "reasons": ["WEEK_PARTIAL_1_OF_16_GAMES", "FI_ASOF_UNBUILDABLE_BEFORE_WEEK_3", "ACTUALS_NOT_FINAL_WEEK_INCOMPLETE", "NO_PRE_KICKOFF_PRODUCTION_BASELINE_CAPTURE"],
+      "detail": {
+        "games_scheduled": 16,
+        "games_completed": 1,
+        "live_captured_records": 0
+      }
+    }
+  ],
+  "rejected_weeks": [
+    {
+      "week": 1,
+      "reasons": [
+        "NO_PRIOR_CURRENT_SEASON_WEEK",
+        "FI_ASOF_UNBUILDABLE_BEFORE_WEEK_3",
+        "NO_PRE_KICKOFF_PRODUCTION_BASELINE_CAPTURE"
+      ]
+    },
+    {
+      "week": 2,
+      "reasons": [
+        "WEEK_PARTIAL_1_OF_16_GAMES",
+        "FI_ASOF_UNBUILDABLE_BEFORE_WEEK_3",
+        "ACTUALS_NOT_FINAL_WEEK_INCOMPLETE",
+        "NO_PRE_KICKOFF_PRODUCTION_BASELINE_CAPTURE"
+      ]
+    }
+  ],
+  "nfl_reality": {
+    "available": true,
+    "as_of": "2026-09-19T16:08:29.706Z",
+    "source": "sleeper:/schedule/nfl/regular/2026",
+    "latest_week_with_any_completed_game": 2,
+    "weeks": [
+      {
+        "week": 1,
+        "scheduled": 16,
+        "completed": 16,
+        "state": "COMPLETE"
+      },
+      {
+        "week": 2,
+        "scheduled": 16,
+        "completed": 1,
+        "state": "PARTIAL"
+      },
+      {
+        "week": 3,
+        "scheduled": 16,
+        "completed": 0,
+        "state": "NOT_STARTED"
+      }
+    ]
+  },
   "reevaluation_eligible": false,
   "reevaluation_status": "NOT_ELIGIBLE",
-  "not_eligible_reason": "insufficient genuine 2026 FI sample: 0 completed current-season FI week(s), need >= 4 (prior-only snapshot fi:2025:w18:6e872c5caa82 does not count)",
+  "not_eligible_reason": "insufficient genuine 2026 evidence: 0 qualifying week(s), need >= 4 (candidate weeks 1-2; NFL frontier: week 2 has 1/16 games completed)",
   "last_evaluated_through_week": null,
   "next_candidate_version": "ri-startsit-2026.2",
   "cadence": {
@@ -19,8 +111,10 @@
   },
   "live_captured_decisions": 0,
   "historically_reconstructed_decisions": 0,
-  "fi_snapshot_seen": "fi:2025:w18:6e872c5caa82",
-  "fi_snapshot_is_current_season": false,
-  "generated_at": "2026-09-08T11:42:00-0500",
+  "post_lock_observations": 0,
+  "capture_summary_available": false,
+  "fi_snapshot_seen": "fi:2026:w02:351c149735ed",
+  "fi_snapshot_is_current_season": true,
+  "generated_at": "2026-09-19T11:09:11-0500",
   "refresh_command": "Rscript analysis/football_intel_startsit/eligibility.R  (then reevaluate.R when ELIGIBLE)"
 }

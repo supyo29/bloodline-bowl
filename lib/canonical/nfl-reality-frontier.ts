@@ -48,7 +48,7 @@ export interface RawNflScheduleGame {
  * introduces) is treated as NOT completed -- a conservative default that
  * never counts a game as done unless the source explicitly says so.
  */
-function isCompleted(game: RawNflScheduleGame): boolean {
+export function isCompleted(game: RawNflScheduleGame): boolean {
   return (game.status ?? "").trim().toLowerCase() === "complete";
 }
 
@@ -121,4 +121,88 @@ export async function loadNflRealityFrontier(season: number): Promise<NflReality
   }).catch(() => null);
   if (!Array.isArray(games)) return null;
   return buildNflRealityFrontier(games, season, new Date().toISOString());
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3.5A -- per-week completion (additive; the frontier above is unchanged).
+//
+// The frontier reports "latest week with ANY completed game", which is
+// deliberately NOT "week complete". Evidence gates that need a week to be
+// wholly finished (Start/Sit re-evaluation) must not infer it from PBP rows or
+// from the frontier. This is the ONE place that answers it, using the SAME
+// `isCompleted` predicate the frontier uses (only status === "complete").
+// ---------------------------------------------------------------------------
+
+export type NflWeekState = "COMPLETE" | "PARTIAL" | "NOT_STARTED";
+
+export interface NflWeekCompletion {
+  week: number;
+  scheduled: number;
+  completed: number;
+  by_status: Record<string, number>;
+  /** COMPLETE only when scheduled > 0 and EVERY scheduled game is "complete". */
+  state: NflWeekState;
+  earliest_game_date: string | null;
+  latest_game_date: string | null;
+  teams: string[];
+}
+
+export interface NflSeasonCompletion {
+  season: number;
+  as_of: string;
+  source: string;
+  weeks: NflWeekCompletion[];
+}
+
+/**
+ * Pure. A postponed / in-game / unknown-status game is not "complete", so its
+ * week stays PARTIAL. A game moved to another week is counted in the week the
+ * source now lists it under; callers cross-check the per-week scheduled count
+ * against a second source (nflverse schedules) and fail closed on disagreement.
+ */
+export function buildNflSeasonCompletion(
+  games: RawNflScheduleGame[],
+  season: number,
+  asOf: string,
+): NflSeasonCompletion {
+  const byWeek = new Map<number, RawNflScheduleGame[]>();
+  for (const g of games) {
+    if (typeof g.week !== "number" || !g.home || !g.away) continue;
+    const arr = byWeek.get(g.week) ?? [];
+    arr.push(g);
+    byWeek.set(g.week, arr);
+  }
+  const weeks: NflWeekCompletion[] = [...byWeek.keys()]
+    .sort((a, b) => a - b)
+    .map((week) => {
+      const wg = byWeek.get(week)!;
+      const completed = wg.filter(isCompleted).length;
+      const by_status: Record<string, number> = {};
+      for (const g of wg) {
+        const k = (g.status ?? "unknown").trim().toLowerCase() || "unknown";
+        by_status[k] = (by_status[k] ?? 0) + 1;
+      }
+      const dates = wg.map((g) => g.date).filter((d): d is string => !!d).sort();
+      return {
+        week,
+        scheduled: wg.length,
+        completed,
+        by_status,
+        state: (completed === 0 ? "NOT_STARTED" : completed === wg.length ? "COMPLETE" : "PARTIAL") as NflWeekState,
+        earliest_game_date: dates[0] ?? null,
+        latest_game_date: dates[dates.length - 1] ?? null,
+        teams: [...new Set(wg.flatMap((g) => [g.home!, g.away!]))].sort(),
+      };
+    });
+  return { season, as_of: asOf, source: `sleeper:/schedule/nfl/regular/${season}`, weeks };
+}
+
+/** Async loader. `null` on any fetch failure -- never fabricates completion. */
+export async function loadNflSeasonCompletion(season: number): Promise<NflSeasonCompletion | null> {
+  const games = await fetchSleeper<RawNflScheduleGame[]>(`/schedule/nfl/regular/${season}`, {
+    baseUrl: SLEEPER_ROOT_URL,
+    revalidate: 0,
+  }).catch(() => null);
+  if (!Array.isArray(games)) return null;
+  return buildNflSeasonCompletion(games, season, new Date().toISOString());
 }
