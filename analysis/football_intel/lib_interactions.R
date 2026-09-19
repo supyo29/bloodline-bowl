@@ -288,8 +288,8 @@ build_receiver_progression <- function(ftn, pbp, ff_playerids, season, through_w
     left_join(idmap, by = "gsis_id") %>%
     mutate(
       output_class = "DESCRIPTIVE_ONLY",
-      source = "nflverse_ftn",
-      read_semantics = "0=FIRST_READ|1=SECOND_READ|2=THIRD_PLUS_READ|CHK=CHECKDOWN|DES=DESIGNED|SD=SCRAMBLE_DRILL"
+      source = "FTN Data via nflverse",
+      read_semantics = "0=FIRST_READ|1=SECOND_READ|2=THIRD_PLUS_READ|CHK=CHECKDOWN|DES=DESIGNED|SD=SCRAMBLE_DRILL|2022_PRIMARY_READS_UNCODED_NA"
     ) %>%
     select(
       season, week, team, opponent, gsis_id, sleeper_id, full_name, passer_gsis_id,
