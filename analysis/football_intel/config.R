@@ -227,12 +227,14 @@ FI$compute_week_completion <- function(schedules, season, week) {
 #     otherwise-identical served data.
 FI$compute_version <- function(season, through_week, week_completion,
                                team_profile, player_usage_profile, unit_coverage_profile,
-                               contextual_matchup_feature, ftn_descriptive) {
+                               contextual_matchup_feature, ftn_descriptive,
+                               receiver_progression = NULL) {
   wc_identity <- week_completion[c("latest_week", "week_state", "games_completed_in_latest_week",
                                    "games_scheduled_in_latest_week", "latest_completed_game_date")]
   content <- digest::digest(list(
     FI$MODEL_TAG, FI$FEATURE_SCHEMA_VERSION, season, through_week, wc_identity,
-    team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature, ftn_descriptive
+    team_profile, player_usage_profile, unit_coverage_profile, contextual_matchup_feature,
+    ftn_descriptive, receiver_progression
   ), algo = "sha256")
   sprintf("fi:%d:w%02d:%s", season, through_week, substr(content, 1, 12))
 }
