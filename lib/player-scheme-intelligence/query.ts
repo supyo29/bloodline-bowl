@@ -134,7 +134,14 @@ function qbChartingSection(gsis_id: string) {
     pass_rusher_count: chartingFamily("qb_rusher_count", qbRusherCountProfile(gsis_id)),
     formation: chartingFamily("qb_formation", qbFormationProfile(gsis_id)),
     concepts: chartingFamily("qb_concepts", qbConceptProfile(gsis_id)),
-    progression: chartingFamily("qb_progression", qbProgressionProfile(gsis_id)),
+    // Numeric FTN read_thrown codes are exposed raw (RAW_0/1/2): their meaning is
+    // UNVERIFIED (source dictionary conflicts with observed data). Never an ordinal read label.
+    progression: {
+      ...chartingFamily("qb_progression", qbProgressionProfile(gsis_id)),
+      numeric_read_semantics_status: "UNVERIFIED_SOURCE_CONFLICT" as const,
+      read_semantics:
+        "RAW_0/RAW_1/RAW_2 are raw FTN numeric read_thrown codes 0/1/2 (meaning unverified; NOT first/second/third read). CHECKDOWN/DESIGNED/SCRAMBLE_DRILL = CHK/DES/SD.",
+    },
   };
 }
 

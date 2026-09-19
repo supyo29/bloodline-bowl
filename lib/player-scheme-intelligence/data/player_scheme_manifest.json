@@ -37,7 +37,7 @@
   "notes": ["Tier A is PBP-only and LIVE_CAPABLE. No participation / FTN / NGS input.", "Cells are built ONLY from plays with a charted pass_location AND air_yards (or run_location). Uncharted plays are counted in *_total, never assigned to a cell (spec §41).", "depth bins: BEHIND_LOS air_yards<0 | SHORT 0-9 | INTERMEDIATE 10-19 | DEEP 20+. air_yards==0 -> SHORT (documented).", "run_location / run_gap are offense-perspective as shipped by nflverse; no mirroring (spec §42).", "Scrambles + sacks + spikes + kneels + 2-pt are excluded from the designed-play universes; sacks are NOT pass attempts.", "current_season_status=PRIOR_ONLY: newest data is a prior season; NOT a current-season observation (spec §3)."],
   "tiers": ["A", "B", "C", "D"],
   "tier_b": {
-    "built_at": "2026-09-08T17:11:19-0500",
+    "built_at": "2026-09-19T10:37:04-0500",
     "spatial_version": "qb-spatial-2026.1",
     "tendency_version": "player-tendency-2026.1",
     "feature_registry_version": "psi-feature-registry-2026.1",
@@ -53,7 +53,7 @@
     },
     "box_bucket_verdict": "CAVEAT_RAW_SERVED",
     "reconciliation_all_pass": true,
-    "served_content_sha256": "c3693a39b72346cd3d08f4569b6669ab135a205a6a2cdf5021cf50b0501aa049",
+    "served_content_sha256": "5a10eac5bd1dac9af2f7f715dc4f0ce2255df192a63f4f72d3a077c91391b6a7",
     "families": [
       {
         "family": "qb_coverage",

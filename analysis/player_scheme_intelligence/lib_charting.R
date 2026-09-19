@@ -278,14 +278,21 @@ psi_qb_concept_profile <- function(db, PSI, first_season = 2022L) {
 # =========================================================================
 # QB PROGRESSION PROFILE (FTN read_thrown) — spec §13. DESCRIPTIVE_ONLY.
 # =========================================================================
-# FTN's 0=primary-read code begins in 2023; 2022 primary reads are NA and
-# therefore remain unclassified rather than being fabricated as FIRST_READ.
+# NUMERIC read_thrown SEMANTICS ARE UNVERIFIED (UNVERIFIED_SOURCE_CONFLICT).
+# The nflreadr dictionary text added by PR #319 defines 0/1/2 as first/second/
+# third-plus read, but that conflicts with the observed FTN distributions and no
+# FTN confirmation has been cited. We therefore expose the numeric codes
+# neutrally as RAW_0/RAW_1/RAW_2 and do NOT infer any ordinal read label; only
+# CHK/DES/SD keep named categories. Same vocabulary as Football Intelligence's
+# receiver_progression (analysis/football_intel/lib_interactions.R).
+# Note: the 2022 source contains one " CHK" (leading space) value on a single
+# play; it is deliberately left as OTHER (fail-closed, not silently rewritten).
 psi_read_bucket <- function(x) {
   x <- as.character(x)
   dplyr::case_when(
-    x == "0"   ~ "FIRST_READ",
-    x == "1"   ~ "SECOND_READ",
-    x == "2"   ~ "THIRD_PLUS_READ",
+    x == "0"   ~ "RAW_0",
+    x == "1"   ~ "RAW_1",
+    x == "2"   ~ "RAW_2",
     x == "CHK" ~ "CHECKDOWN",
     x == "DES" ~ "DESIGNED",
     x == "SD"  ~ "SCRAMBLE_DRILL",

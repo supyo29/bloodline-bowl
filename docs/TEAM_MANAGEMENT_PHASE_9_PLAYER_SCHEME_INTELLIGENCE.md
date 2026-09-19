@@ -343,7 +343,7 @@ Additive to Tier A: reads nothing from Tier A artifacts, does not modify them.
 | QB pass-rusher count | participation | 2016 | 1,292 | `LT4`/`FOUR`/`FIVE`/`SIXPLUS` (5+ = **blitz PROXY**, not charted identity) |
 | QB formation | participation | 2016 | 1,534 | `SHOTGUN`/`EMPTY`/`SINGLEBACK`/`I_FORM`/`PISTOL`/`UNDER CENTER`/`JUMBO`/`WILDCAT` |
 | QB concepts (FTN) | ftn | 2022 | 1,764 | play_action / motion / no_huddle / rpo / screen / out_of_pocket / throwaway — frequency + efficiency |
-| QB progression (FTN) | ftn | 2022 | 1,485 | `FIRST_READ`/`SECOND_READ`/`CHECKDOWN`/`DESIGNED`/`SCRAMBLE_DRILL`/`PRE_SNAP_OR_ZERO` |
+| QB progression (FTN) | ftn | 2022 | 1,485 | `RAW_0`/`RAW_1`/`RAW_2` (raw numeric FTN `read_thrown` codes — meaning **UNVERIFIED_SOURCE_CONFLICT**, deliberately NOT labelled first/second/third read; originally served as `PRE_SNAP_OR_ZERO`/`FIRST_READ`/`SECOND_READ`, relabelled neutrally 2026-09-19) / `CHECKDOWN`/`DESIGNED`/`SCRAMBLE_DRILL` / `OTHER` |
 | Receiver route | participation | 2018 | 18,019 | targeted-route taxonomy (21 values) |
 | Receiver coverage | participation | 2018 | 3,236 | `MAN`/`ZONE` |
 | RB box | participation | 2016 | 2,669 | `LIGHT`<6.5 / `NEUTRAL` / `HEAVY`≥7.5 |
