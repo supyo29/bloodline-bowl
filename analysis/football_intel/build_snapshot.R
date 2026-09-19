@@ -151,8 +151,8 @@ manifest <- list(
   determinism = "seeded + closed-form ridge; identical cache -> identical version",
   notes = c(
     "FTN (ftn_descriptive.csv) is DESCRIPTIVE_ONLY and never feeds any rating/prior/trend/backtest.",
-    "receiver_progression.csv uses FTN read_thrown and is DESCRIPTIVE_ONLY; it labels the read on which the target was thrown, not every receiver's full progression.",
-    "read_thrown semantics: 0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL.",
+    "receiver_progression.csv uses FTN Data via nflverse read_thrown and is DESCRIPTIVE_ONLY; it labels the read on which the target was thrown, not every receiver's full progression.",
+    "read_thrown semantics: 0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL. FTN did not code primary reads as 0 in 2022, so 2022 primary reads appear as NA and are not recoverable from this field.",
     "man/zone (def_man_rate) is DESCRIPTIVE_ONLY, min-play gated.",
     "Ratings are deviations from the season league mean on the metric's native scale."
   )
