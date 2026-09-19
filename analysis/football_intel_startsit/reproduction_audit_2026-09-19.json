@@ -1,22 +1,162 @@
 {
-  "audit": "Phase 3.5A Checkpoint D -- historical reproduction of ri-startsit-2026.1",
-  "method": "full frozen pipeline (build_decision_dataset -> train -> backtest -> finalize_model) run in an isolated scratch root (no .git, own lib/weekly/data + outputs); the served artifact in the repo was never written. Caches: nflverse/FI caches as of 2026-09-16 (frozen model built 2026-09-08).",
+  "audit": "Phase 3.5A -- reproduction / corrected diagnostic / future methodology (amended in Checkpoint F)",
   "served_model_sha256": "85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293",
-  "reproduced": {
-    "families_and_lambda_identical": true,
-    "tau_tie_break": [3, 3], "max_total_adjustment_fraction": [0.25, 0.25],
-    "max_abs_beta_diff_by_position": {"QB": 0.0163, "RB": 0.0077, "WR": 0.0587, "TE": 0.0016},
-    "per_position_production_status_identical": true,
-    "overall_vs_trailing": {"served": {"n_reversals": 30511, "rev_win_rate": 0.5107, "rev_mean_delta": 0.2223}, "reproduced": {"n_reversals": 29942, "rev_win_rate": 0.5111, "rev_mean_delta": 0.2244}},
-    "overall_vs_sleeper_2023_25": {"served": {"n_reversals": 10618, "rev_win_rate": 0.4872, "rev_mean_delta": -0.2888, "total_delta_points": -3066}, "reproduced": {"n_reversals": 10584, "rev_win_rate": 0.4869, "rev_mean_delta": -0.2986, "total_delta_points": -3160}}
+  "how_to_read": "Three sections that must never be blended. (1) is what the frozen v1 pipeline reported and is preserved verbatim. (2) is a diagnostic measured AFTER the fact and does not restate v1's methodology. (3) is what v2+ will use.",
+  "section_1_historical_frozen_v1_as_reported": {
+    "note": "Original methodology, unchanged: discontinuity flags built from the whole target season (D9), tau/cap tuned on the trailing-PPG control (D10), residual target actual - trailing PPG (D7). The 'vs Sleeper' row used the Sleeper run's own tuned gate (tau .5, cap .08), not the served gate.",
+    "served_gate": {
+      "tau": 3,
+      "cap": 0.25,
+      "tuned_on": "trailing_ppg_clean (2023-2024)"
+    },
+    "as_served_in_model_json": {
+      "overall_vs_trailing": {
+        "n_reversals": 30511,
+        "rev_win_rate": 0.5107,
+        "rev_mean_delta": 0.2223
+      },
+      "eval2025_vs_trailing": {
+        "n_reversals": 5793,
+        "rev_win_rate": 0.5056,
+        "rev_mean_delta": 0.3857
+      },
+      "overall_vs_sleeper_2023_25_with_sleeper_own_tuned_gate": {
+        "n_reversals": 10618,
+        "rev_win_rate": 0.4872,
+        "rev_mean_delta": -0.2888,
+        "total_delta_points": -3066
+      }
+    },
+    "rerun_reproduction": {
+      "families_and_lambda_identical": true,
+      "tau_tie_break": [
+        3,
+        3
+      ],
+      "max_total_adjustment_fraction": [
+        0.25,
+        0.25
+      ],
+      "max_abs_beta_diff_by_position": {
+        "QB": 0.0163,
+        "RB": 0.0077,
+        "WR": 0.0587,
+        "TE": 0.0016
+      },
+      "per_position_production_status_identical": true,
+      "overall_vs_trailing": {
+        "served": {
+          "n_reversals": 30511,
+          "rev_win_rate": 0.5107,
+          "rev_mean_delta": 0.2223
+        },
+        "reproduced": {
+          "n_reversals": 29942,
+          "rev_win_rate": 0.5111,
+          "rev_mean_delta": 0.2244
+        }
+      },
+      "overall_vs_sleeper_2023_25": {
+        "served": {
+          "n_reversals": 10618,
+          "rev_win_rate": 0.4872,
+          "rev_mean_delta": -0.2888,
+          "total_delta_points": -3066
+        },
+        "reproduced": {
+          "n_reversals": 10584,
+          "rev_win_rate": 0.4869,
+          "rev_mean_delta": -0.2986,
+          "total_delta_points": -3160
+        }
+      }
+    },
+    "discrepancy_classification": "SOURCE_REVISION / DEPENDENCY_DRIFT (nflverse + FI caches re-fetched between 2026-09-08 and 2026-09-16). No leakage introduced, no model defect. The frozen model is NOT updated for floating-point / source drift."
   },
-  "discrepancy_classification": "SOURCE_REVISION / DEPENDENCY_DRIFT (nflverse + FI caches re-fetched between 2026-09-08 and 2026-09-16). No leakage introduced, no model defect. The frozen model is NOT updated for floating-point / source drift.",
-  "finding_D10_served_gate_vs_production_like_baseline": {
-    "note": "The 'vs Sleeper' row in the model JSON was measured with the Sleeper run's OWN tuned gate (tau=0.5, cap=0.08). The gate actually served (tau=3, cap=0.25, tuned on the trailing control) was never evaluated against it. Measured here:",
-    "sleeper_2023_25_overall": {"n_reversals": 22135, "rev_win_rate": 0.474, "rev_mean_delta": -0.484, "total_delta_points": -10716},
-    "sleeper_2025_only": {"n_reversals": 7113, "rev_win_rate": 0.482, "rev_mean_delta": -0.346, "total_delta_points": -2461},
-    "by_position_sleeper_served_gate": {"QB": {"n_rev": 2700, "win": 0.466}, "RB": {"n_rev": 5948, "win": 0.494}, "TE": {"n_rev": 4874, "win": 0.466}, "WR": {"n_rev": 8613, "win": 0.468}},
-    "vs_trailing_control_2025_only": {"n_reversals": 5677, "rev_win_rate": 0.506, "rev_mean_delta": 0.397}
+  "section_2_corrected_diagnostic": {
+    "note": "Diagnostic ONLY. Frozen v1 coefficients (from start_sit_model.json, not retrained) evaluated at the gate v1 actually serves (tau 3, cap .25) against the production-like Sleeper baseline. It does not certify or re-tune anything and is not v1's original claim.",
+    "legacy_features_frozen_betas_served_gate": {
+      "vs_sleeper_2023_25": {
+        "n_reversals": 22555,
+        "rev_win_rate": 0.4742,
+        "rev_mean_delta": -0.4811,
+        "total_delta_points": -10852
+      },
+      "vs_sleeper_2025": {
+        "n_reversals": 7255,
+        "rev_win_rate": 0.4822,
+        "total_delta_points": -2322
+      },
+      "vs_trailing_2025": {
+        "n_reversals": 5793,
+        "rev_win_rate": 0.5056,
+        "rev_mean_delta": 0.3857
+      }
+    },
+    "asof_features_frozen_betas_served_gate (D9 repaired features)": {
+      "vs_sleeper_2023_25": {
+        "n_reversals": 22577,
+        "rev_win_rate": 0.4744,
+        "rev_mean_delta": -0.4747,
+        "total_delta_points": -10718
+      },
+      "vs_sleeper_2025": {
+        "n_reversals": 7272,
+        "rev_win_rate": 0.4824,
+        "total_delta_points": -2237
+      },
+      "vs_trailing_2025": {
+        "n_reversals": 5782,
+        "rev_win_rate": 0.5061,
+        "rev_mean_delta": 0.4055
+      },
+      "by_position_vs_sleeper": {
+        "QB": {
+          "n_rev": 2739,
+          "win": 0.4644
+        },
+        "RB": {
+          "n_rev": 5934,
+          "win": 0.4946
+        },
+        "TE": {
+          "n_rev": 4888,
+          "win": 0.4664
+        },
+        "WR": {
+          "n_rev": 9016,
+          "win": 0.4685
+        }
+      }
+    },
+    "d9_leak_magnitude": {
+      "rows": 56680,
+      "team_feature_cells_changed_by_asof": "5.4%-15.3% per feature (mean abs change <= 0.021)",
+      "player_usage_features_changed": "0%",
+      "confidence_labels_changed": "1.8% (mean over families)"
+    },
+    "reading": "Removing the leakage changes the diagnostic by ~1% (-10,852 -> -10,718 pts). D9 was an integrity defect that would have contaminated any future candidate, but it did NOT manufacture v1's conclusion. The betas were still trained on leaked features, so this is not a re-certification. Against the production-like baseline the served gate remains a net loser at every position (46.4%-49.5% reversal win rate); it looks useful only against the naive control."
   },
-  "verdict": "FI looks useful only against the naive trailing control (2025: 50.6% win, +0.40/reversal). Against the production-like baseline with the SERVED gate it is a net loser at every position (win rate 46.6%-49.4%, -10.7k pts). Consistent with SHADOW_ONLY; nothing about this is reinterpreted."
+  "section_3_future_candidate_methodology_v2_plus": {
+    "gate_method_version": "candidate-gate-method-2026.1",
+    "baseline_for_selection_and_certification": "PRODUCTION_CAPTURED (LIVE_CAPTURED pre-kickoff projection)",
+    "control": "TRAILING_PPG -- reported at the SAME served gate; never selects or certifies",
+    "residual_target": "actual_points - production_baseline_captured_pre_kickoff (same scoring fingerprint asserted)",
+    "gate_identity": "(tau, cap) selected on production pairs from earlier eligible weeks; evaluated with the IDENTICAL (tau, cap) on later held-out weeks; tau=0 (never reverse) always available; asserted by assert_gate_identity()",
+    "discontinuity": "AS_OF only (build_discontinuity_table_asof); OC/DC UNSAFE_FOR_BACKTEST, excluded",
+    "team_rating_confidence": "as-of truncated (D9b)",
+    "primary_metrics": [
+      "reversal win rate vs production",
+      "mean/median reversal point delta",
+      "large-loss frequency",
+      "large-win frequency",
+      "calibration by baseline edge",
+      "position",
+      "confidence",
+      "feature-family ablation",
+      "out-of-sample chronology-safe performance"
+    ],
+    "secondary_metric": "projection MAE",
+    "status": "DORMANT. No v2 fit, no artifact. reevaluate.R evaluates the gate only, fails closed, never promotes."
+  }
 }

@@ -26,7 +26,18 @@ FI_BASE <- SS$FI_DIR
 for (f in c("config.R", "lib_features.R", "lib_opponent_adj.R", "lib_priors.R",
             "lib_recency.R", "lib_continuity.R", "lib_profiles.R")) source(file.path(FI_BASE, f))
 source(file.path(BASE, "fi_asof_features.R"))
+source(file.path(BASE, "discontinuity_asof.R"))
 set.seed(SS$SEED)
+
+# --- Phase 3.5A D9: discontinuity mode guard ---------------------------------
+stopifnot(SS$DISCONTINUITY_MODE %in% c("AS_OF", "LEGACY_FULL_SEASON_V1_REPRODUCTION"))
+if (identical(SS$DISCONTINUITY_MODE, "LEGACY_FULL_SEASON_V1_REPRODUCTION") &&
+    !identical(SS$MODEL_VERSION, "ri-startsit-2026.1"))
+  stop("REFUSED: the legacy whole-season discontinuity construction leaks future information and may only ",
+       "reproduce frozen ri-startsit-2026.1; candidate ", SS$MODEL_VERSION, " must use AS_OF.")
+if (!identical(SS$MODEL_VERSION, "ri-startsit-2026.1") && dir.exists(file.path(SS$ROOT, ".git")))
+  stop("REFUSED: candidate datasets are assembled from captured pre-kickoff evidence (build_candidate_frame), ",
+       "never from Sleeper history baselines.")
 
 ficache <- function(n) readRDS(file.path(FI$CACHE_DIR, paste0(n, ".rds")))
 hist <- readRDS(file.path(SS$CACHE_DIR, "sleeper_history.rds"))
@@ -43,13 +54,24 @@ for (S in SS$SEASONS) {
   ps <- (S - FI$PRIOR_MAX_LOOKBACK):(S - 1); ps <- ps[ps >= min(FI$PBP_SEASONS)]
   prior_ratings_by_season[[as.character(S)]] <-
     bind_rows(lapply(METRIC_SPECS, function(sp) season_ratings_for_metric(tgf, sp, FI, ps)))
-  disc <- build_discontinuity_table(S, schedules, pbp, snap_counts, rosters_weekly, FI$COORD_YAML, FI)
-  discounts_by_season[[as.character(S)]] <- build_prior_discounts(disc, FI)
+  if (identical(SS$DISCONTINUITY_MODE, "LEGACY_FULL_SEASON_V1_REPRODUCTION")) {
+    disc <- build_discontinuity_table(S, schedules, pbp, snap_counts, rosters_weekly, FI$COORD_YAML, FI)
+    discounts_by_season[[as.character(S)]] <- build_prior_discounts(disc, FI)
+  } else discounts_by_season[[as.character(S)]] <- tibble::tibble(team = character(), side = character(), prior_discount = numeric())
+}
+discounts_asof <- NULL
+if (identical(SS$DISCONTINUITY_MODE, "AS_OF")) {
+  message("as-of discontinuity tables per (season, week) ...")
+  pbp_slim <- pbp %>% select(season, week, qb_dropback, passer_player_id, posteam)
+  discounts_asof <- build_discounts_asof(SS$SEASONS, (SS$MIN_WEEK):(SS$MAX_WEEK + 1L),
+                                         schedules, pbp_slim, snap_counts, rosters_weekly, FI)
+  # season-level placeholders so the bundle's `is.null(dc)` guard passes; per-week tables are used
+  for (S in SS$SEASONS) discounts_by_season[[as.character(S)]] <- tibble::tibble(team = character(), side = character(), prior_discount = numeric())
 }
 
 # --- FI as-of features ----------------------------------------------------
 message("FI as-of features for the grid ...")
-fi <- fi_asof_bundle(FI, SS, tgf, pgu, prior_ratings_by_season, discounts_by_season)
+fi <- fi_asof_bundle(FI, SS, tgf, pgu, prior_ratings_by_season, discounts_by_season, discounts_asof)
 saveRDS(fi, file.path(SS$CACHE_DIR, "fi_asof.rds"))
 
 # --- trailing-PPG clean control ------------------------------------------
@@ -126,6 +148,15 @@ d <- d %>% mutate(
   baseline_sleeper_last_modified_utc = as.POSIXct(last_modified / 1000, origin = "1970-01-01", tz = "UTC")
 )
 
+saveRDS(d, file.path(SS$OUT_DIR, "decision_dataset.rds"))
+write(jsonlite::toJSON(list(
+  built_by = "build_decision_dataset.R", model_version = SS$MODEL_VERSION, seasons = SS$SEASONS,
+  discontinuity_mode = SS$DISCONTINUITY_MODE,
+  unsafe_features_excluded = if (identical(SS$DISCONTINUITY_MODE, "AS_OF")) as.list(DISCONTINUITY_UNSAFE_FEATURES) else list(),
+  baseline_columns = list(baseline_sleeper = "REVISED_HISTORICAL research proxy - never a production baseline",
+                          baseline_trailing = "clean control - never a production baseline"),
+  built_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")), auto_unbox = TRUE, pretty = TRUE),
+  file.path(SS$OUT_DIR, "decision_dataset_provenance.json"))
 saveRDS(d, file.path(SS$OUT_DIR, "decision_dataset.rds"))
 write.csv(head(d, 500), file.path(SS$OUT_DIR, "decision_dataset_sample.csv"), row.names = FALSE)
 

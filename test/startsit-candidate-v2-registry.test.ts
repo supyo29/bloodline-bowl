@@ -47,3 +47,15 @@ test("R model-write guard is present in every artifact writer", () => {
     assert.match(readFileSync(join(ROOT, "analysis", "football_intel_startsit", f), "utf8"), /guard_model_write\(\)/, f);
   }
 });
+
+test("Checkpoint F: D9 features are classified; OC/DC are UNSAFE; the gate methodology is production-baseline-only", () => {
+  const byFam = (p: string) => reg.features.find((f: { family: string }) => f.family.startsWith(p));
+  assert.equal(byFam("discontinuity_flags_asof").history_class, "RECONSTRUCTABLE_AS_OF");
+  const oc = byFam("discontinuity_flags_coordinators");
+  assert.equal(oc.history_class, "UNSAFE_FOR_BACKTEST"); assert.equal(oc.historical_backtest_allowed, false);
+  assert.equal(reg.features.find((f: { family: string }) => f.family.startsWith("discontinuity_flags (")), undefined, "the leaking whole-season entry must be gone");
+  assert.equal(reg.gate_methodology.selection_baseline, "PRODUCTION_CAPTURED");
+  assert.match(reg.gate_methodology.control_baseline, /never selects/);
+  assert.deepEqual(reg.secondary_metrics, ["projection MAE"]);
+  assert.ok(reg.primary_objective_metrics.includes("reversal win rate vs production"));
+});

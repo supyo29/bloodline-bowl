@@ -72,6 +72,17 @@ export class SupabaseShadowCaptureStore implements ShadowCaptureStore {
     }
   }
 
+  /** Read-only export of VALID pre-kickoff evidence + its outcomes, for the R candidate evaluation. */
+  async exportLiveEvidence(): Promise<{ records: ShadowDecisionRecord[]; outcomes: ShadowOutcomeRecord[] }> {
+    const rows = await this.rest.select<{ record: ShadowDecisionRecord }>(CAPTURES, {
+      select: "record", filter: { capture_kind: "eq.LIVE_CAPTURED" }, order: "decision_timestamp.asc", limit: SUMMARY_ROW_CAP,
+    });
+    const outs = await this.rest.select<{ capture_id: string; source: string; scoring_fingerprint: string | null; actual_fantasy_points: Record<string, number>; recorded_at: string }>(
+      OUTCOMES, { select: "*", limit: SUMMARY_ROW_CAP },
+    );
+    return { records: rows.map((r) => r.record), outcomes: outs };
+  }
+
   async summary(): Promise<CaptureSummary> {
     try {
       const rows = await this.rest.select<{ record: ShadowDecisionRecord }>(CAPTURES, { select: "record", order: "decision_timestamp.desc", limit: SUMMARY_ROW_CAP });

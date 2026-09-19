@@ -18,7 +18,10 @@ suppressWarnings(suppressMessages({ library(dplyr); library(tidyr) }))
 # P3-A4). Route participation is participation-derived -> lag it.
 PART_LAG <- 2L
 
-fi_asof_bundle <- function(FI, SS, tgf, pgu, prior_ratings_by_season, discounts_by_season) {
+# discounts_asof (Phase 3.5A D9): optional list keyed "S|W". When supplied, the prior discount for a
+# Week-W decision comes from information available BEFORE W. When NULL the legacy per-season table is used
+# (frozen ri-startsit-2026.1 reproduction only).
+fi_asof_bundle <- function(FI, SS, tgf, pgu, prior_ratings_by_season, discounts_by_season, discounts_asof = NULL) {
   grid <- expand.grid(season = SS$SEASONS, week = SS$MIN_WEEK:(SS$MAX_WEEK + 1L))
   team_rows <- list(); usage_rows <- list(); interact_rows <- list()
 
@@ -30,11 +33,15 @@ fi_asof_bundle <- function(FI, SS, tgf, pgu, prior_ratings_by_season, discounts_
     thr <- W - 1L                       # only completed weeks before the decision
     if (thr < 2L) next
     pr <- prior_ratings_by_season[[as.character(S)]]
-    dc <- discounts_by_season[[as.character(S)]]
+    dc <- if (!is.null(discounts_asof)) discounts_asof[[paste0(S, "|", W)]] else discounts_by_season[[as.character(S)]]
     if (is.null(pr) || is.null(dc)) next
 
+    # Phase 3.5A D9b: compute_metric_profile() derives a pooled game-level SD (-> std_error -> confidence)
+    # from the WHOLE table it is given. In as-of mode hand it only data visible at the decision point.
+    tgf_vis <- if (!is.null(discounts_asof)) tgf[tgf$season < S | (tgf$season == S & tgf$week <= thr), , drop = FALSE] else tgf
+
     for (sp in fam_specs) {
-      prof <- tryCatch(compute_metric_profile(tgf, sp, S, thr, pr %>% filter(metric == sp$key), dc, FI),
+      prof <- tryCatch(compute_metric_profile(tgf_vis, sp, S, thr, pr %>% filter(metric == sp$key), dc, FI),
                        error = function(e) NULL)
       if (is.null(prof) || nrow(prof) == 0) next
       team_rows[[length(team_rows) + 1]] <- prof %>%

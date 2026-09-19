@@ -14,6 +14,15 @@ SS$MODEL_VERSION <- local({
 })
 SS$SEED                <- 20260908L
 
+# Phase 3.5A D9 — how discontinuity / prior-discount flags are built.
+#   AS_OF                            (DEFAULT) flags for a Week-W decision use only data available before W.
+#   LEGACY_FULL_SEASON_V1_REPRODUCTION  the original whole-target-season construction (LEAKS later-season
+#                                    facts). Permitted ONLY to reproduce the frozen ri-startsit-2026.1
+#                                    results; refused for any candidate version.
+SS$DISCONTINUITY_MODE <- local({
+  ov <- Sys.getenv("SS_DISCONTINUITY_MODE", ""); if (nzchar(ov)) ov else "AS_OF"
+})
+
 # scoring archetypes (Sleeper precomputed points columns)
 SS$ARCHETYPES <- c(std = "pts_std", half = "pts_half_ppr", ppr = "pts_ppr")
 
@@ -106,8 +115,7 @@ invisible(SS)
 # Phase 3.5A model-write guard. Called first by every script that writes the served
 # start_sit_model.json (train.R, backtest.R, finalize_model.R).
 #   * In the REAL repo (a .git dir at ROOT): ri-startsit-2026.1 is immutable -- never rewritten.
-#   * A candidate (ri-startsit-2026.N, N > 1) may only be fit when the evidence gate manifest says
-#     ELIGIBLE with per-week evidence. `--force` cannot bypass this.
+#   * No legacy script may write a candidate (Checkpoint F): candidates are evaluated only by reevaluate.R.
 #   * A scratch root (no .git) is a research sandbox and is unrestricted; it can never touch the
 #     served artifact of the real repo.
 # ---------------------------------------------------------------------------
@@ -115,11 +123,9 @@ guard_model_write <- function() {
   if (!dir.exists(file.path(SS$ROOT, ".git"))) return(invisible(TRUE))   # scratch sandbox
   if (identical(SS$MODEL_VERSION, "ri-startsit-2026.1"))
     stop("REFUSED: ri-startsit-2026.1 is frozen/immutable and must not be rewritten in the real repo.")
-  mp <- file.path(SS$SERVE_DIR, "start_sit_reevaluation_manifest.json")
-  man <- if (file.exists(mp)) jsonlite::fromJSON(mp, simplifyVector = FALSE) else NULL
-  ok <- !is.null(man) && isTRUE(man$reevaluation_eligible) && !is.null(man$evidence_gate_version) &&
-    length(man$completed_fi_week_list) >= man$minimum_weeks_required
-  if (!ok) stop("REFUSED: candidate training requires an ELIGIBLE evidence gate (per-week evidence). Current gate: ",
-                if (is.null(man)) "missing" else man$reevaluation_status)
+  # Phase 3.5A Checkpoint F: these legacy scripts fit/tune against the trailing control (D7/D10) and the
+  # whole-season discontinuity construction (D9). They may only reproduce frozen v1 in a scratch sandbox;
+  # a candidate is evaluated by reevaluate.R (captured production baseline, as-of features, one gate identity).
+  stop("REFUSED: the legacy trailing-baseline pipeline cannot produce a candidate. Use reevaluate.R.")
   invisible(TRUE)
 }

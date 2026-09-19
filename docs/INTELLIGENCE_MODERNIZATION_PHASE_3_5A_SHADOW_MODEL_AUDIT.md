@@ -1,7 +1,7 @@
 # Intelligence Modernization — Phase 3.5A
 ## Shadow Model Audit, Evidence Integrity & Tuning Foundation
 
-Status: **complete — CERTIFIED WITH DOCUMENTED LIMITATIONS** (branch, not merged/deployed).
+Status: **complete — see §23 (Checkpoint F) for the final verdict** (branch, not merged/deployed).
 Scope: the Start/Sit Football-Intelligence shadow system `ri-startsit-2026.1` (frozen, `SHADOW_ONLY`).
 Not in scope: Phase 4, Book-Ready retrofit (3.5C), Analysis Book contract (3.5D), any activation/merge/deploy.
 
@@ -240,3 +240,60 @@ Real Bloodline Bowl / `supyo29`, week 2: production sections computed; `shadow_d
 ## 22. Verdict
 
 **CERTIFIED WITH DOCUMENTED LIMITATIONS.** All certification gates hold: model frozen and SHADOW_ONLY; a partial week cannot count and every rejection is explained; the capture path is durable-by-design, idempotent, immutable, class-separated and failure-visible; no known leakage remains *in the re-evaluation path* (historical leakage in 2026.1 is documented, not hidden); production output is value-identical; the 2026 sample is not exaggerated (0 weeks) and no v2 was trained. Limitations L1/L3 are the reason this is not an unqualified CERTIFIED.
+
+---
+
+## 23. Checkpoint F — closing the remaining research-integrity gaps
+
+Scope: the dormant/future research pipeline only. `start_sit_model.json` sha256 `85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293` is byte-for-byte unchanged; nothing was trained, activated, merged or deployed; no production state was created.
+
+### 23.1 D9 — exact root cause
+`build_decision_dataset.R` called the frozen `build_discontinuity_table(target_season, …)` **once per season** on whole-season data (head coach = most games, starting QB = most dropbacks, OL/front/secondary continuity = total snaps) and applied that single table to every decision week, so a Week-4 row inherited end-of-season facts (e.g. a QB who took over in Week 9). The full-row trace found a **second** leak (D9b): `compute_metric_profile()` derives a pooled game-level SD from the *entire* team-game table it is given (→ `std_error` → `confidence`), including future weeks and seasons. It is harmless live (the table only holds played weeks) but leaked in every historical backtest.
+
+### 23.2 Chronology-safe replacement
+* `discontinuity_asof.R`: for a Week-W decision the frozen library receives only `season < S` (complete) and `season == S & week < W` — truncation *before* the call, so leakage is impossible by construction; the frozen library is untouched.
+* `fi_asof_bundle(discounts_asof=)`: per-(season, week) discounts and a visibility-truncated `tgf` for the profile SD (D9b). Legacy path retained only for frozen-v1 reproduction.
+* `SS$DISCONTINUITY_MODE` defaults to `AS_OF`; `LEGACY_FULL_SEASON_V1_REPRODUCTION` is refused for any candidate version and every dataset writes a provenance sidecar.
+* **`UNSAFE_FOR_BACKTEST`, excluded (not approximated):** `offensive_coord_change` / `defensive_coord_change` — `coordinators.yaml` is season-keyed with no effective dates (and currently empty). Forced UNKNOWN ⇒ no discount.
+
+### 23.3 Tests proving future isolation (R, real cached data)
+Week 6 of 2024: every value from week ≥ 6 of 2024 and all of 2025 is mutated (fake QBs/coaches/snap players; team-game and usage metrics scrambled) and the Week-6 rows must be `identical()`: the as-of discontinuity table, the prior-discount table, and the **full FI as-of bundle** (team ratings incl. confidence, player usage, interactions). Each has a **positive control** showing the legacy construction *does* change under the same mutation (so the test can detect leakage). Also: W vs W+1 isolation, OC/DC always UNKNOWN, `asof_visible` semantics. The full-row test found D9b.
+
+### 23.4 D10 — exact root cause
+`backtest.R` tuned (τ, cap) on the trailing-PPG control, folded those into the served model (τ=3, cap=.25), then reported "vs Sleeper" from a second run with its **own** tuned gate (τ=.5, cap=.08). The served gate was never evaluated against a production-like baseline, and a control-tuned gate was implicitly offered as production evidence. (Measured impact: §15 and the artifact.)
+
+### 23.5 Corrected candidate-tuning semantics — one answer
+`candidate_gate.R` (`candidate-gate-method-2026.1`): **tuned** = (τ, cap) chosen on **PRODUCTION_CAPTURED** pairs from the *earlier* eligible weeks; **evaluated** = the *identical* (τ, cap) on *later* held-out weeks against the *same* baseline; the trailing control is reported at that same served gate and **never selects**; τ=0 (never reverse) is always legal, so "no gate helps" is an honest outcome. `assert_gate_identity` fails closed if: tuned baseline ≠ production, evaluated baseline ≠ tuned, τ/cap differ between tune and eval or control, control participated, weeks overlap or are not chronological. `gate_apply` is proven equal to the frozen `backtest.R apply_gate`.
+
+### 23.6 Frozen research principle (code + tests + docs)
+Candidates predict **residual decision error in the production baseline**; target = `actual − captured pre-kickoff production baseline` (same scoring fingerprint asserted); selection prioritises reversal win rate vs production, mean reversal Δ, large-loss/large-win frequency, calibration by baseline edge, position, confidence, family ablation, out-of-sample chronology-safe performance; **projection MAE is secondary**. Encoded in the registry (`gate_methodology`, `primary_objective_metrics`, `secondary_metrics`), `CANDIDATE_TARGET`, and tested.
+
+### 23.7 Re-evaluation pipeline safety (proof)
+`reevaluate.R` no longer calls the legacy scripts at all. It consumes only exported `LIVE_CAPTURED` records + outcome enrichment and calls `assert_candidate_admissible`, which refuses (each tested): post-hoc/revised or mixed baselines, non-`LIVE_CAPTURED` classes, wrong target, scoring-fingerprint mismatch, non-AS_OF discontinuity, un-excluded UNSAFE features, mixed model/baseline versions, gate not ELIGIBLE / < minimum weeks / weeks lacking full per-week evidence, **any week the NFL reality artifact does not show COMPLETE**, and design families barred by the registry. `--force` is ignored; `guard_model_write` now refuses the legacy scripts for v1 *and* any candidate in a real repo. An **end-to-end test runs the real `reevaluate.R` in a throwaway sandbox** with synthetic evidence: valid evidence ⇒ one gate identity on the production baseline, no model written, never `PASSED`; mixed/post-hoc baseline ⇒ `FAILED`; partial NFL week ⇒ `FAILED`; too few weeks ⇒ dormant; missing evidence ⇒ `FAILED`. (This exercised the ELIGIBLE branch for the first time and caught a manifest-parsing bug, fixed.) `reevaluate.R` evaluates the gate and **fits nothing** — a v2 fit is a separate reviewed step.
+
+### 23.8 Reproduction artifact
+`reproduction_audit_2026-09-19.json` now has three separated sections: (1) frozen-v1 as reported (preserved), (2) corrected diagnostic (frozen betas at the served gate vs production-like baseline; legacy vs as-of features), (3) future methodology. Key numbers, frozen betas at served τ=3/cap .25 vs Sleeper 2023–25: legacy features 22,555 reversals, 47.4% win, −10,852 pts; as-of features 22,577, 47.4%, −10,718 pts. **D9 was a real integrity defect but did not manufacture v1's conclusion** (~1% change; 5–15% of team-feature cells moved, usage 0%). v1's betas were still trained on leaked features, so this is a diagnostic, not a re-certification.
+
+### 23.9 Production DB check (read-only, no new state)
+`bridge_startsit_shadow_captures/_outcomes`: additive (new tables + one trigger function, no existing object touched); 0 rows; RLS on with 0 policies (Supabase default `anon`/`authenticated` grants exist but are denied by RLS — same posture as the other `bridge_*` tables); INSERT-only triggers present; FK only outcomes→captures; rollback SQL in the migration file.
+
+### 23.10 Regression / isolation
+`start_sit_model.json` sha256 unchanged (pinned by test). Production parity (base `cf4dbb1` vs branch, four capture modes): all six section hashes identical, lineup 113.58, `SHADOW_ONLY`, `eligible_to_influence_production=false`. `fiMayInfluenceProduction` false for QB/RB/WR/TE/K/DEF; `anyFiProductionInfluence` false; structural tests show no waiver/trade/matchup/lineup consumer of Start/Sit FI. Results: see §24.
+
+### 23.11 Remaining limitations
+* L1 (unchanged, acceptable for branch certification): production runtime persistence is unproven until merge/deploy; schema behaviour verified directly and store HTTP behaviour by contract test.
+* L3 capture covers requested rosters only; evidence is partial by construction.
+* L2 kickoff *time* absent from the schedule feed (status-based lock).
+* L4 v1's coefficients remain trained on leaked/trailing-target data; the model is frozen and SHADOW_ONLY and is **not validated**.
+* L8 the captured-evidence export needs Supabase credentials; the candidate gate evaluation has only been exercised on synthetic evidence (no genuine evidence exists yet).
+* L9 the candidate gate reuses captured v1 adjustments (cap can only tighten ≤ .25); a v2 fit is undone/unstarted.
+* L10 `eligibility.R` / export not yet scheduled in CI.
+
+## 24. Final verification (post-Checkpoint F)
+* TypeScript `npm test`: **2105 tests / 2101 pass / 0 fail / 4 skipped** (Checkpoint E: 2104; +1 registry test). `tsc --noEmit`: 0 errors. `eslint app lib test`: 0 errors.
+* R `analysis/football_intel_startsit/tests`: candidate-method (53 expectations), discontinuity-asof (15, real cached data), evidence-gate (44), reevaluate-e2e (24) — all pass. `analysis/football_intel/tests` invariants + week-completion pass.
+* Real-repo guards verified by execution: `train.R`/`backtest.R` refuse (v1 frozen / no legacy candidates); `build_decision_dataset.R` refuses candidates and refuses the legacy discontinuity mode for candidates; `reevaluate.R` is dormant (`NOT_ELIGIBLE`, 0 weeks).
+* Model sha256 `85d2ddd5…6293` unchanged and unmodified in git; production parity identical in all four capture modes.
+
+## 25. FINAL PHASE 3.5A VERDICT
+**CERTIFIED — RESEARCH INFRASTRUCTURE READY, CURRENT-SEASON EVIDENCE INSUFFICIENT, LIVE PRODUCTION CAPTURE VERIFICATION PENDING DEPLOYMENT.** The shadow model itself is **not validated**: it remains frozen, SHADOW_ONLY and, against a production-like baseline, a net loser at every position.
