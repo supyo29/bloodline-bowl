@@ -23,6 +23,8 @@ import type {
   CoverageAllowedRating,
   ContextualMatchupFeature,
   FtnDescriptive,
+  ReceiverProgressionRow,
+  ReceiverReadBucket,
   Confidence,
   TrendDirection,
 } from "./schema";
@@ -78,6 +80,10 @@ export interface FootballIntelligence {
     defenseTeam: string,
   ): ContextualMatchupFeature | { availability: "NOT_AVAILABLE" };
   ftnDescriptive(nflTeam: string): FtnDescriptive[];
+  receiverProgression(
+    key: { gsis_id?: string | null; sleeper_id?: string | null },
+    opts?: { season?: number; week?: number },
+  ): ReceiverProgressionRow[];
   /** structural cutoff (spec §24): the max NFL week any consumer may treat as known. */
   throughWeek(source?: string): number;
 }
@@ -102,6 +108,7 @@ export function loadFootballIntelligence(opts?: { force?: boolean }): FootballIn
   const covRows = readCsv("unit_coverage_profile.csv");
   const ctxRows = readCsv("contextual_matchup_feature.csv");
   const ftnRows = readCsv("ftn_descriptive.csv");
+  const progressionRows = readCsv("receiver_progression.csv");
 
   const toRating = (r: Record<string, string>): TeamMetricRating => ({
     team: r.team!,
@@ -222,6 +229,48 @@ export function loadFootballIntelligence(opts?: { force?: boolean }): FootballIn
     });
   }
 
+  const progressionByGsis = new Map<string, ReceiverProgressionRow[]>();
+  const progressionGsisBySleeper = new Map<string, string>();
+  for (const r of progressionRows) {
+    const gsis = r.gsis_id!;
+    if (!gsis) continue;
+    const row: ReceiverProgressionRow = {
+      season: n(r.season) ?? manifest.season,
+      week: n(r.week) ?? manifest.through_week,
+      team: r.team ?? "",
+      opponent: r.opponent ?? "",
+      gsis_id: gsis,
+      sleeper_id: s(r.sleeper_id),
+      full_name: s(r.full_name),
+      passer_gsis_id: s(r.passer_gsis_id),
+      bucket: (r.bucket as ReceiverReadBucket) ?? "OTHER",
+      targets: n(r.targets) ?? 0,
+      target_read_share: n(r.target_read_share),
+      receptions: n(r.receptions) ?? 0,
+      receiving_yards: n(r.receiving_yards) ?? 0,
+      yards_per_target: n(r.yards_per_target),
+      air_yards: n(r.air_yards),
+      adot: n(r.adot),
+      yac: n(r.yac),
+      epa_per_target: n(r.epa_per_target),
+      success_rate: n(r.success_rate),
+      first_down_rate: n(r.first_down_rate),
+      explosive_rate: n(r.explosive_rate),
+      receiving_tds: n(r.receiving_tds) ?? 0,
+      td_rate: n(r.td_rate),
+      targets_eligible: n(r.targets_eligible) ?? 0,
+      targets_charted_read: n(r.targets_charted_read) ?? 0,
+      read_coverage_rate: n(r.read_coverage_rate),
+      output_class: "DESCRIPTIVE_ONLY",
+      source: r.source ?? "nflverse_ftn",
+      read_semantics: r.read_semantics ?? "",
+    };
+    const arr = progressionByGsis.get(gsis) ?? [];
+    arr.push(row);
+    progressionByGsis.set(gsis, arr);
+    if (row.sleeper_id) progressionGsisBySleeper.set(row.sleeper_id, gsis);
+  }
+
   const ftnByTeam = new Map<string, FtnDescriptive[]>();
   for (const r of ftnRows) {
     const arr = ftnByTeam.get(r.team!) ?? [];
@@ -267,6 +316,18 @@ export function loadFootballIntelligence(opts?: { force?: boolean }): FootballIn
     contextualMatchup: (feature, off, def) =>
       ctxIndex.get(`${feature}|${off}|${def}`) ?? { availability: "NOT_AVAILABLE" },
     ftnDescriptive: (t) => ftnByTeam.get(t) ?? [],
+    receiverProgression: (key, opts) => {
+      let gsis = key.gsis_id ?? null;
+      if (gsis && !progressionByGsis.has(gsis) && progressionGsisBySleeper.has(gsis)) {
+        gsis = progressionGsisBySleeper.get(gsis) ?? null;
+      }
+      if (!gsis && key.sleeper_id) gsis = progressionGsisBySleeper.get(key.sleeper_id) ?? null;
+      const rows = gsis ? (progressionByGsis.get(gsis) ?? []) : [];
+      return rows.filter((r) =>
+        (opts?.season == null || r.season === opts.season) &&
+        (opts?.week == null || r.week === opts.week)
+      );
+    },
     throughWeek: (source) => {
       if (source && manifest.data_cutoff[source] != null) return manifest.data_cutoff[source]!;
       return manifest.through_week;
