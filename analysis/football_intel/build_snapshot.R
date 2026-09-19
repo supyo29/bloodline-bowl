@@ -15,6 +15,7 @@
 #   lib/football-intel/data/unit_coverage_profile.csv             (served)
 #   lib/football-intel/data/contextual_matchup_feature.csv        (served)
 #   lib/football-intel/data/ftn_descriptive.csv                   (served, DESCRIPTIVE_ONLY)
+#   lib/football-intel/data/receiver_progression.csv               (served, DESCRIPTIVE_ONLY)
 #   outputs/football-intel-2026/snapshot_<version>.rds            (internal)
 # ===========================================================================
 
@@ -111,6 +112,9 @@ contextual_matchup_feature <- build_contextual_matchups(team_profile, unit_cover
 # ---- FTN descriptive (DESCRIPTIVE_ONLY; never a model input) -------
 ftn_descriptive <- build_ftn_descriptive(ftn, pbp, season, through_week, FI)
 
+# ---- receiver target progression (DESCRIPTIVE_ONLY; never a model input) --
+receiver_progression <- build_receiver_progression(ftn, pbp, ff_playerids, season, through_week, FI)
+
 # ---- partial-week completion (spec: daily refresh, real-time ingest) ----
 week_completion <- FI$compute_week_completion(schedules, season, through_week)
 message(sprintf("week completion: %s (%d/%d games)%s", week_completion$week_state,
@@ -121,7 +125,7 @@ message(sprintf("week completion: %s (%d/%d games)%s", week_completion$week_stat
 # ---- version id (content hash of the served tables, spec §3, §27) --
 version <- FI$compute_version(season, through_week, week_completion,
                               team_profile, player_usage_profile, unit_coverage_profile,
-                              contextual_matchup_feature, ftn_descriptive)
+                              contextual_matchup_feature, ftn_descriptive, receiver_progression)
 
 manifest <- list(
   football_intelligence_version = version,
@@ -142,11 +146,13 @@ manifest <- list(
     recency_halflife_games = FI$RECENCY_HALFLIFE_GAMES,
     opp_adj_ridge_lambda = FI$OPP_ADJ_RIDGE_LAMBDA, seed = FI$SEED),
   files = c("team_profile.csv", "player_usage_profile.csv", "unit_coverage_profile.csv",
-            "contextual_matchup_feature.csv", "ftn_descriptive.csv"),
+            "contextual_matchup_feature.csv", "ftn_descriptive.csv", "receiver_progression.csv"),
   output_classes = FI$OUTPUT_CLASS,
   determinism = "seeded + closed-form ridge; identical cache -> identical version",
   notes = c(
     "FTN (ftn_descriptive.csv) is DESCRIPTIVE_ONLY and never feeds any rating/prior/trend/backtest.",
+    "receiver_progression.csv uses FTN read_thrown and is DESCRIPTIVE_ONLY; it labels the read on which the target was thrown, not every receiver's full progression.",
+    "read_thrown semantics: 0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL.",
     "man/zone (def_man_rate) is DESCRIPTIVE_ONLY, min-play gated.",
     "Ratings are deviations from the season league mean on the metric's native scale."
   )
@@ -158,10 +164,12 @@ w_csv(player_usage_profile, "player_usage_profile.csv")
 w_csv(unit_coverage_profile, "unit_coverage_profile.csv")
 w_csv(contextual_matchup_feature, "contextual_matchup_feature.csv")
 w_csv(ftn_descriptive, "ftn_descriptive.csv")
+w_csv(receiver_progression, "receiver_progression.csv")
 write(jsonlite::toJSON(manifest, auto_unbox = TRUE, pretty = TRUE, null = "null"),
       file.path(FI$SERVE_DIR, "football_intelligence_manifest.json"))
 saveRDS(list(manifest = manifest, team_profile = team_profile, player_usage_profile = player_usage_profile,
              unit_coverage_profile = unit_coverage_profile, contextual_matchup_feature = contextual_matchup_feature,
+             ftn_descriptive = ftn_descriptive, receiver_progression = receiver_progression,
              discontinuity = discontinuity),
         file.path(FI$OUT_DIR, sprintf("snapshot_%s.rds", gsub("[:]", "_", version))))
 
@@ -172,5 +180,6 @@ message(sprintf("  player_usage_profile     %d rows", nrow(player_usage_profile)
 message(sprintf("  unit_coverage_profile    %d rows", nrow(unit_coverage_profile)))
 message(sprintf("  contextual_matchup       %d rows", nrow(contextual_matchup_feature)))
 message(sprintf("  ftn_descriptive          %d rows (DESCRIPTIVE_ONLY)", nrow(ftn_descriptive)))
+message(sprintf("  receiver_progression     %d rows (DESCRIPTIVE_ONLY)", nrow(receiver_progression)))
 message(sprintf("  confidence mix: %s", paste(names(table(team_profile$confidence)),
                 table(team_profile$confidence), sep = "=", collapse = " ")))
