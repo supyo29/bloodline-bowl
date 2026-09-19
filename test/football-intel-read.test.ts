@@ -5,11 +5,15 @@
  * `lib/football-intel/data/`. Deterministic — no network, no R.
  */
 import { test } from "node:test";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import {
   loadFootballIntelligence,
   __resetFootballIntelligenceCache,
 } from "@/lib/football-intel";
+import { GET as progressionGET } from "@/app/api/football-intel/players/[playerId]/progression/route";
+import { RECEIVER_READ_BUCKETS } from "@/lib/football-intel/schema";
 import { receiverProgression, summarizeReceiverProgression } from "@/lib/football-intel/progression";
 
 test("football-intel: manifest loads with a versioned id and per-source cutoff", () => {
@@ -156,11 +160,11 @@ test("football-intel: progression season summary counts weekly coverage once, no
     read_semantics: "test",
   };
   const summary = summarizeReceiverProgression([
-    { ...base, week: 1, bucket: "FIRST_READ" as const, targets: 2, target_read_share: 2 / 3,
+    { ...base, week: 1, bucket: "RAW_1" as const, targets: 2, target_read_share: 2 / 3,
       targets_eligible: 5, targets_charted_read: 3, read_coverage_rate: 0.6 },
-    { ...base, week: 1, bucket: "SECOND_READ" as const, targets: 1, target_read_share: 1 / 3,
+    { ...base, week: 1, bucket: "RAW_2" as const, targets: 1, target_read_share: 1 / 3,
       targets_eligible: 5, targets_charted_read: 3, read_coverage_rate: 0.6 },
-    { ...base, week: 2, bucket: "FIRST_READ" as const, targets: 2, target_read_share: 1,
+    { ...base, week: 2, bucket: "RAW_1" as const, targets: 2, target_read_share: 1,
       targets_eligible: 4, targets_charted_read: 2, read_coverage_rate: 0.5 },
   ]);
   assert.ok(summary);
@@ -168,7 +172,7 @@ test("football-intel: progression season summary counts weekly coverage once, no
   assert.equal(summary!.targets_eligible, 9);
   assert.equal(summary!.targets_charted_read, 5);
   assert.equal(summary!.read_coverage_rate, 5 / 9);
-  assert.deepEqual(summary!.by_read, { FIRST_READ: 4, SECOND_READ: 1 });
+  assert.deepEqual(summary!.by_read, { RAW_1: 4, RAW_2: 1 });
 });
 
 test("football-intel: throughWeek() honors per-source cutoff", () => {
@@ -176,4 +180,83 @@ test("football-intel: throughWeek() honors per-source cutoff", () => {
   assert.equal(fi.throughWeek(), fi.manifest.through_week);
   const src = Object.keys(fi.manifest.data_cutoff)[0]!;
   assert.equal(fi.throughWeek(src), fi.manifest.data_cutoff[src]);
+});
+
+const ROME = "11620";
+const progressionRoute = async (id: string, qs: string) =>
+  (await progressionGET(
+    new Request(`http://x/api/football-intel/players/${id}/progression?${qs}`),
+    { params: Promise.resolve({ playerId: id }) },
+  )).json() as Promise<any>;
+
+test("progression: numeric FTN codes are neutral and never acquire first/second/third labels", () => {
+  const all = receiverProgression("___none___"); // force module load; empty by design
+  assert.deepEqual(all, []);
+  const buckets = new Set<string>();
+  for (const id of ["11620", "00-0039919"]) {
+    for (const r of receiverProgression(id)) buckets.add(r.bucket);
+  }
+  const allowed = new Set(RECEIVER_READ_BUCKETS as readonly string[]);
+  for (const b of buckets) assert.ok(allowed.has(b), `unexpected bucket ${b}`);
+  assert.ok(!(RECEIVER_READ_BUCKETS as readonly string[]).some((b) => /FIRST|SECOND|THIRD/.test(b)));
+  // the raw served artifact itself must not carry ordinal labels
+  const csv = readFileSync(join(process.cwd(), "lib/football-intel/data/receiver_progression.csv"), "utf8");
+  assert.ok(!/FIRST_READ|SECOND_READ|THIRD_PLUS_READ/.test(csv));
+});
+
+test("progression: CHK / DES / SD keep their named categories", () => {
+  const named = ["CHECKDOWN", "DESIGNED", "SCRAMBLE_DRILL"];
+  for (const n of named) assert.ok((RECEIVER_READ_BUCKETS as readonly string[]).includes(n));
+});
+
+test("progression: API lineage reports UNVERIFIED numeric semantics and no 2022 primary-read claim", async () => {
+  const j = await progressionRoute(ROME, "season=2026&week=1");
+  assert.equal(j.lineage.numeric_read_semantics_status, "UNVERIFIED_SOURCE_CONFLICT");
+  assert.equal(j.lineage.output_class, "DESCRIPTIVE_ONLY");
+  assert.match(j.lineage.limitation, /withheld/);
+  assert.equal(j.lineage.historical_limitation, undefined);
+  assert.ok(!/FIRST_READ|SECOND_READ|THIRD_PLUS/.test(JSON.stringify(j)));
+});
+
+test("progression: Rome Odunze Week 1 returns RAW_1, CHECKDOWN, SCRAMBLE_DRILL (Sleeper and GSIS agree)", async () => {
+  const a = await progressionRoute(ROME, "season=2026&week=1");
+  const b = await progressionRoute("00-0039919", "season=2026&week=1");
+  assert.equal(a.status, "READY");
+  assert.deepEqual(a.rows, b.rows);
+  assert.deepEqual(a.summary.by_read, { CHECKDOWN: 1, RAW_1: 1, SCRAMBLE_DRILL: 1 });
+  const by = Object.fromEntries(a.rows.map((r: any) => [r.bucket, r]));
+  assert.equal(by.RAW_1.receptions, 0);
+  assert.equal(by.RAW_1.air_yards, 41);
+  assert.equal(by.CHECKDOWN.receptions, 1);
+  assert.equal(by.CHECKDOWN.receiving_yards, 5);
+  assert.equal(by.SCRAMBLE_DRILL.receiving_yards, 47);
+  assert.equal(by.SCRAMBLE_DRILL.air_yards, 44);
+  assert.equal(a.summary.targets_eligible, 3);
+  assert.equal(a.summary.targets_charted_read, 3);
+});
+
+test("progression: no production model / decision module imports progression data", () => {
+  const roots = ["lib", "app"];
+  const allowed = [
+    "lib/football-intel/progression.ts",
+    "lib/football-intel/index.ts",
+    "app/api/football-intel/players/[playerId]/progression/route.ts",
+  ];
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) { if (name !== "node_modules" && name !== "data") walk(full); continue; }
+      if (!/\.(ts|tsx)$/.test(name)) continue;
+      const rel = full.replace(process.cwd() + "/", "");
+      if (allowed.includes(rel)) continue;
+      const src = readFileSync(full, "utf8");
+      if (/receiverProgression|summarizeReceiverProgression|football-intel\/progression|receiver_progression/.test(src)) {
+        offenders.push(rel);
+      }
+    }
+  };
+  for (const r of roots) walk(join(process.cwd(), r));
+  // lib/discovery.ts only advertises the route template as a string
+  assert.deepEqual(offenders.filter((f) => f !== "lib/discovery.ts"), []);
 });

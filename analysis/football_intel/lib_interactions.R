@@ -180,20 +180,25 @@ build_ftn_descriptive <- function(ftn, pbp, season, through_week, FI) {
 # ------------------------------------------------------------------------
 # Receiver target progression — FTN read_thrown, DESCRIPTIVE_ONLY.
 #
-# FTN semantics (nflreadr data dictionary):
-#   0 = first/primary read, 1 = second read, 2 = third read or later,
-#   CHK = checkdown, DES = designed read (e.g. screens / many RPO throws),
-#   SD = scramble drill.
+# NUMERIC SEMANTICS ARE UNVERIFIED (UNVERIFIED_SOURCE_CONFLICT). The nflreadr
+# dictionary (added 2026-09-01, PR #319) documents 0/1/2 as first/second/third-
+# plus read, but that conflicts with (a) the original nflverse issue #216
+# checklist, which described "read 0, eg screens", and (b) the observed data:
+# on targeted passes "0" is <1% of targets (~17% completion, ~4 aDOT) while "1"
+# is >50%. We therefore do NOT attach first/second/third labels to numeric
+# codes; they are exposed neutrally as RAW_0/RAW_1/RAW_2 until FTN/nflverse
+# confirms the mapping. Only CHK = checkdown, DES = designed, SD = scramble
+# drill carry named meaning.
 #
-# This labels ONLY the read on which the ball was thrown. It does not infer
-# the unthrown progression order for other eligible receivers on that play.
+# This labels ONLY the code on the thrown target. It does not infer the
+# unthrown progression order for other eligible receivers on that play.
 # ------------------------------------------------------------------------
 .ftn_read_bucket <- function(x) {
   x <- as.character(x)
   dplyr::case_when(
-    x == "0"   ~ "FIRST_READ",
-    x == "1"   ~ "SECOND_READ",
-    x == "2"   ~ "THIRD_PLUS_READ",
+    x == "0"   ~ "RAW_0",
+    x == "1"   ~ "RAW_1",
+    x == "2"   ~ "RAW_2",
     x == "CHK" ~ "CHECKDOWN",
     x == "DES" ~ "DESIGNED",
     x == "SD"  ~ "SCRAMBLE_DRILL",
@@ -289,7 +294,7 @@ build_receiver_progression <- function(ftn, pbp, ff_playerids, season, through_w
     mutate(
       output_class = "DESCRIPTIVE_ONLY",
       source = "FTN Data via nflverse",
-      read_semantics = "0=FIRST_READ|1=SECOND_READ|2=THIRD_PLUS_READ|CHK=CHECKDOWN|DES=DESIGNED|SD=SCRAMBLE_DRILL|2022_PRIMARY_READS_UNCODED_NA"
+      read_semantics = "0|1|2=RAW_NUMERIC_UNVERIFIED_SOURCE_CONFLICT|CHK=CHECKDOWN|DES=DESIGNED|SD=SCRAMBLE_DRILL"
     ) %>%
     select(
       season, week, team, opponent, gsis_id, sleeper_id, full_name, passer_gsis_id,

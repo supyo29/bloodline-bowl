@@ -106,11 +106,13 @@ if (is.null(rp)) {
     miss_rp <- setdiff(required_rp, names(rp))
     add("receiver progression has required columns", if (length(miss_rp) == 0) PASS else FAIL,
         if (length(miss_rp)) paste("missing:", paste(miss_rp, collapse = ", ")) else "")
-    allowed <- c("FIRST_READ","SECOND_READ","THIRD_PLUS_READ","CHECKDOWN","DESIGNED","SCRAMBLE_DRILL","OTHER")
+    allowed <- c("RAW_0","RAW_1","RAW_2","CHECKDOWN","DESIGNED","SCRAMBLE_DRILL","OTHER")
     bad <- setdiff(unique(rp$bucket), allowed)
-    add("receiver progression uses only documented read_thrown buckets",
+    add("receiver progression uses only neutral raw / supported named read_thrown buckets",
         if (length(bad) == 0) PASS else FAIL,
         if (length(bad)) paste("unexpected:", paste(bad, collapse = ", ")) else "")
+    add("receiver progression never labels numeric codes first/second/third read",
+        if (!any(grepl("FIRST_READ|SECOND_READ|THIRD", unique(rp$bucket)))) PASS else FAIL)
     shares <- rp %>% dplyr::group_by(season, week, team, gsis_id) %>%
       dplyr::summarise(s = sum(target_read_share), charted = dplyr::first(targets_charted_read),
                        eligible = dplyr::first(targets_eligible), .groups = "drop")

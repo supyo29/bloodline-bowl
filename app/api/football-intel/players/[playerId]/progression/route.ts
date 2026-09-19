@@ -1,9 +1,11 @@
 /**
  * GET /api/football-intel/players/{playerId}/progression
  *
- * Current/historical FTN read_thrown evidence for actual receiver targets.
- * DESCRIPTIVE_ONLY: the bucket is the read on which the ball was thrown; this
- * endpoint never infers the unthrown progression order for other receivers.
+ * Current/historical raw FTN read_thrown codes for actual receiver targets.
+ * DESCRIPTIVE_ONLY: the bucket is the code recorded on the thrown target; this
+ * endpoint never infers the unthrown progression order for other receivers and
+ * intentionally withholds first/second/third-read labels for numeric codes
+ * (UNVERIFIED_SOURCE_CONFLICT).
  */
 import { loadFootballIntelligence } from "@/lib/football-intel";
 import { receiverProgression, summarizeReceiverProgression } from "@/lib/football-intel/progression";
@@ -67,9 +69,11 @@ export async function GET(
         ftn_charting_through_week: ftnCutoff,
         output_class: "DESCRIPTIVE_ONLY",
         source: "FTN Data via nflverse",
-        read_semantics: "0=FIRST_READ, 1=SECOND_READ, 2=THIRD_PLUS_READ, CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL",
-        limitation: "The read bucket describes the target that was thrown. It does not reveal every receiver's full unthrown progression on the play.",
-        historical_limitation: "In 2022 FTN did not code primary reads as 0; those primary reads appear as NA and cannot be reconstructed from read_thrown.",
+        numeric_read_semantics_status: "UNVERIFIED_SOURCE_CONFLICT",
+        read_semantics:
+          "RAW_0/RAW_1/RAW_2 = raw FTN numeric read_thrown codes 0/1/2 (meaning unverified; NOT labelled first/second/third read). CHK=CHECKDOWN, DES=DESIGNED, SD=SCRAMBLE_DRILL.",
+        limitation:
+          "The bucket is the raw code on the target that was thrown. It does not reveal every receiver's full unthrown progression on the play. Numeric codes are intentionally not interpreted as first/second/third read: the current nflreadr dictionary (0=first, 1=second, 2=third-plus) conflicts with the original nflverse issue #216 checklist ('read 0, eg screens') and with observed FTN distributions, so the numeric progression labels are withheld until FTN/nflverse confirms them.",
       },
       summary,
       rows,

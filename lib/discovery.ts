@@ -302,7 +302,7 @@ export const CAPABILITIES: Capability[] = [
     id: "receiver_progression",
     title: "Receiver target progression",
     description:
-      "FTN read_thrown evidence for actual receiver targets by NFL week: first read, second read, third-or-later, checkdown, designed read, and scramble drill. DESCRIPTIVE_ONLY; it does not infer the unthrown receiver progression.",
+      "Raw FTN read_thrown codes on actual receiver targets by NFL week: numeric codes RAW_0/RAW_1/RAW_2 (meaning UNVERIFIED — the source dictionary conflicts with observed data, so they are NOT labelled first/second/third read) plus CHECKDOWN, DESIGNED and SCRAMBLE_DRILL. DESCRIPTIVE_ONLY; contains only the thrown target's code, not the full or unthrown QB progression, so do not use it to answer 'was he the first read'.",
     scope: "service",
     route_template: "/api/football-intel/players/{playerId}/progression",
     canonical: true,
