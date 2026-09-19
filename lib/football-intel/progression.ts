@@ -101,3 +101,59 @@ export function receiverProgression(
     (opts.week == null || row.week === opts.week)
   );
 }
+
+
+export interface ReceiverProgressionSummary {
+  targets: number;
+  receptions: number;
+  receiving_yards: number;
+  receiving_tds: number;
+  by_read: Record<string, number>;
+  targets_eligible: number;
+  targets_charted_read: number;
+  read_coverage_rate: number | null;
+}
+
+export function summarizeReceiverProgression(
+  rows: ReceiverProgressionRow[],
+): ReceiverProgressionSummary | null {
+  if (rows.length === 0) return null;
+
+  const summary: ReceiverProgressionSummary = {
+    targets: 0,
+    receptions: 0,
+    receiving_yards: 0,
+    receiving_tds: 0,
+    by_read: {},
+    targets_eligible: 0,
+    targets_charted_read: 0,
+    read_coverage_rate: null,
+  };
+  const coverageByReceiverWeek = new Map<string, { eligible: number; charted: number }>();
+
+  for (const row of rows) {
+    summary.targets += row.targets;
+    summary.receptions += row.receptions;
+    summary.receiving_yards += row.receiving_yards;
+    summary.receiving_tds += row.receiving_tds;
+    summary.by_read[row.bucket] = (summary.by_read[row.bucket] ?? 0) + row.targets;
+
+    const key = `${row.season}|${row.week}|${row.team}|${row.gsis_id}`;
+    if (!coverageByReceiverWeek.has(key)) {
+      coverageByReceiverWeek.set(key, {
+        eligible: row.targets_eligible,
+        charted: row.targets_charted_read,
+      });
+    }
+  }
+
+  for (const coverage of coverageByReceiverWeek.values()) {
+    summary.targets_eligible += coverage.eligible;
+    summary.targets_charted_read += coverage.charted;
+  }
+  summary.read_coverage_rate = summary.targets_eligible > 0
+    ? summary.targets_charted_read / summary.targets_eligible
+    : null;
+
+  return summary;
+}
