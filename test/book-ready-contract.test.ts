@@ -92,9 +92,9 @@ function spearmanSign(xs: Array<[number, number]>): number {
 }
 test("units: every FI team metric's declared percentile orientation matches the served data", () => {
   const lines = readFileSync(join(ROOT, "lib/football-intel/data/team_profile.csv"), "utf8").split("\n").filter(Boolean);
-  const head = lines[0]!.split(","); const mi = head.indexOf("metric"), vi = head.indexOf("modeled"), pi = head.indexOf("league_percentile");
+  const head = lines[0]!.replace(/"/g, "").split(","); const mi = head.indexOf("metric"), vi = head.indexOf("modeled"), pi = head.indexOf("league_percentile");
   const by = new Map<string, Array<[number, number]>>();
-  for (const l of lines.slice(1)) { const c = l.split(","); if (c.length !== head.length || c[vi] === "" || c[pi] === "") continue; (by.get(c[mi]!) ?? by.set(c[mi]!, []).get(c[mi]!)!).push([Number(c[vi]), Number(c[pi])]); }
+  for (const l of lines.slice(1)) { const c = l.replace(/"/g, "").split(","); if (c.length !== head.length || c[vi] === "" || c[pi] === "") continue; (by.get(c[mi]!) ?? by.set(c[mi]!, []).get(c[mi]!)!).push([Number(c[vi]), Number(c[pi])]); }
   const unregistered = [...by.keys()].filter((m) => !registeredFiTeamMetrics().includes(m));
   assert.deepEqual(unregistered, [], "every served FI team metric must have an explicit unit + orientation");
   assert.ok(by.size >= 15, "expected the served metrics");
