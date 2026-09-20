@@ -61,7 +61,7 @@ export function buildResearchPlan(s: AnalysisBookSession, keys: string[], snap: 
   const skippedSynthesis = [...new Set(keys)].filter((k) => !selected.includes(k));
   const depth: Record<string, number> = {}; const merged = new Map<string, PlannedQuery>(); let naive = 0;
   const unsupported: Requirement[] = []; const partial: Requirement[] = []; const missing: Requirement[] = []; const deferredReq: Requirement[] = [];
-  const supportOnly = new Set<string>();
+  const supportOnly = new Set<string>(); const warnings: string[] = [];
   const selectedIds = new Set(selected.map((k) => k.split("/")[0]!));
 
   const addQueries = (owner: string, chapterKey: string, c: ContentsChapter, entries: Array<{ need: Need; history: boolean; comparisons: boolean }>, role: "PRIMARY" | "SUPPORT", via?: string) => {
@@ -94,8 +94,12 @@ export function buildResearchPlan(s: AnalysisBookSession, keys: string[], snap: 
       else if (ev.kind === "SUPPORTED" && ev.flags.length) partial.push({ chapter: key, need: label, reason: `${ev.flags.join("+")}: ${ev.reasons.join("; ")}` });
     }
     addQueries(key, key, c, entries, "PRIMARY");
+    // A chapter that cannot run (unsupported, missing context, or scenario input not yet supplied) fetches NOTHING — including
+    // its dependencies: support evidence for a chapter that cannot be researched would be wasted retrieval and false progress.
+    const runnable = entries.some(({ need }) => !bindNeed(need, s.subject).missing.length && !(need.scenario && !opts.scenario?.unavailable.length));
+    if (!runnable && c.depends_on.length && !sub) warnings.push(`${key}: its own evidence cannot run, so its dependencies (${c.depends_on.join(", ")}) were not retrieved`);
     // evidence dependencies: retrieved as SUPPORT; the dependency chapter is NOT explored by this
-    for (const dep of c.depends_on) {
+    for (const dep of runnable || sub ? c.depends_on : []) {
       const dc = s.contents.find((x) => x.chapter_id === dep); if (!dc) continue;
       if (!selectedIds.has(dep)) supportOnly.add(dep);
       addQueries(dep, dep, dc, needsAtDepth(dc, 1).map((e) => ({ ...e, history: false, comparisons: false })), "SUPPORT", key);
@@ -111,7 +115,7 @@ export function buildResearchPlan(s: AnalysisBookSession, keys: string[], snap: 
     support_only_chapters: [...supportOnly].sort(), skipped_synthesis: skippedSynthesis,
     unsupported_requirements: unsupported, partial_requirements: partial, missing_context: missing, deferred_requirements: deferredReq,
     cost: { class: cls, est_ms_sequential: seq, est_ms_parallel: par, by_class: by }, dedupe: { naive_query_count: naive, unique_query_count: queries.length, saved: naive - queries.length },
-    warnings: sharedBuildWarnings(queries),
+    warnings: [...warnings, ...sharedBuildWarnings(queries)],
   };
 }
 

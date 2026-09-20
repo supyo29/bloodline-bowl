@@ -140,3 +140,15 @@ test("SUBCHAPTERS are optional handles: opening 20A explores only that subchapte
   const text = contentsView(out.session, snap, { subchapters: true }).parts.flatMap((p) => p.rows).filter((r) => r.is_subchapter && r.number === n); assert.equal(text.length, 5); assert.equal(text.find((r) => r.label === `${n}A`)!.status, "EXPLORED");
   const c = text.find((r) => r.label === `${n}C`)!; assert.equal(c.researchability, "UNSUPPORTED", "slot/boundary is an honest UNSUPPORTED subchapter");
 });
+
+test("a chapter that CANNOT run retrieves nothing — not even its dependencies (no wasted calls, no false support-only progress)", async () => {
+  const s = make("Analyze Rome Odunze this week"); const c = spy();
+  const out = await researchChapters(s, ["injury.contingencies", "decision.projection_range", "matchup.cornerback_assignment"], { snap, client: c, now: NOW });
+  assert.equal(c.calls.length, 0, "deferred / unsupported chapters trigger no evidence request at all");
+  assert.equal(Object.values(out.session.chapters).filter((x) => x.used_as_support.length).length, 0, "and record no support use");
+  assert.ok(out.plan.warnings.some((w) => /injury\.contingencies: its own evidence cannot run/.test(w)));
+  // once the scenario input exists the same chapter runs and its dependency is fetched as support
+  const chi = dir.players.find((p) => p.team === "CHI" && p.position === "WR" && p.name !== "Rome Odunze")!;
+  const c2 = spy(); const ok = await researchChapters(s, ["injury.contingencies"], { snap, client: c2, now: NOW, scenario: { unavailable: [chi.gsis_id] } });
+  assert.ok(c2.calls.some((x) => x.topic === "opp.scenario")); assert.equal(ok.session.chapters["team.competition"]!.status, "NOT_OPENED"); assert.equal(ok.session.chapters["team.competition"]!.used_as_support.length, 1);
+});
