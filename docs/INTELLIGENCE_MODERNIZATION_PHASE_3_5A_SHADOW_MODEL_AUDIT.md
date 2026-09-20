@@ -297,3 +297,71 @@ Candidates predict **residual decision error in the production baseline**; targe
 
 ## 25. FINAL PHASE 3.5A VERDICT
 **CERTIFIED — RESEARCH INFRASTRUCTURE READY, CURRENT-SEASON EVIDENCE INSUFFICIENT, LIVE PRODUCTION CAPTURE VERIFICATION PENDING DEPLOYMENT.** The shadow model itself is **not validated**: it remains frozen, SHADOW_ONLY and, against a production-like baseline, a net loser at every position.
+
+---
+
+## 26. Deployment & production certification (2026-09-20)
+
+Original findings above are unchanged. This section records the merge, deploy and the production verification that could not be done on an undeployed branch.
+
+### 26.1 Pre-merge concurrency audit
+| | |
+|---|---|
+| Certified branch tip | `32f2178` |
+| local `main` / `origin/main` (before) | `cf4dbb1` / `cf4dbb1` (fetched; equal to the merge-base) |
+| On `origin/main`, not in branch | none |
+| On branch, not in `origin/main` | 7 commits (`93fce87` … `32f2178`) |
+| Working tree | clean |
+No drift, so no reconciliation. Merge was a **fast-forward** (`git merge --ff-only`), pushed `cf4dbb1..32f2178`. No force-push, no history rewrite, no tag.
+
+### 26.2 Rollback reference (recorded before merge)
+Production deployment `dpl_936UzXWbqcpaBXzrJKeFd3vNZPoD` @ `cf4dbb1` (READY; isRollbackCandidate). Aliases: `bloodline-bowl-sleeper-bridge.vercel.app`, `…-supyo29s-projects.vercel.app`, `…-git-main-supyo29s-projects.vercel.app`. `/api/health` 200. Intelligence (bloodline-bowl/supyo29, wk 2): lineup total 113.54, shadow `ri-startsit-2026.1` `SHADOW_ONLY`, FI `fi:2026:w02:351c149735ed`, baseline `sleeper-weekly-rotowire`, `eligible_to_influence_production=false`. `/api/football-intel/startsit-evidence` was 404 (route did not exist). Re-eval manifest `NOT_ELIGIBLE`, 0 weeks. Rollback = promote that deployment.
+
+### 26.3 Deployment
+Vercel built on push automatically: `dpl_AN1qt3wYbWJTmw2HwBAcxQVbYjkZ`, state **READY**, `githubCommitSha` = `32f21789db5b113388e34187bf3507d7e3b4160c` (**exact match** to merged main), target production, all three production aliases attached, `aliasError: null`. No manual promotion.
+
+### 26.4 Contract preserved
+`start_sit_model.json` sha256 `85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293` — verified before merge, after merge, and unmodified in git. Deployed diagnostic route: `fi_may_influence_production` false for QB/RB/WR/TE, `any_fi_production_influence` false, deployment `SHADOW_ONLY`, evidence gate `evidence-gate-2026.2` `NOT_ELIGIBLE`. `--force` ignored, legacy writers refuse, capture classes distinct (DB `CHECK` enforces the four values).
+
+### 26.5 Live production capture — ordinary runtime, read-only requests
+Only `GET /api/intelligence/{league}/{manager}/week/2` was issued (no rows written by hand, no league mutation). The deployed runtime resolved `store.kind = supabase`, `durable = true`. All times UTC, season 2026, week 2, model `ri-startsit-2026.1`, FI `fi:2026:w02:351c149735ed`, baseline `sleeper-weekly-rotowire`:
+
+| Manager (league) | Decision time | Applicable games | Class | capture_id | Scoring fingerprint |
+|---|---|---|---|---|---|
+| supyo29 (bloodline-bowl) | 05:29:58 | BUF, DET `complete`; rest `pre_game` | `LIVE_POST_LOCK` (`GAME_NOT_PRE_GAME:BUF:complete`) | `ssc:22ea4e73…` | `scoring:v1:29acc6bc…` |
+| bijimac (bloodline-bowl) | 05:30:54 | BUF, DET `complete` | `LIVE_POST_LOCK` | `ssc:35692733…` | `scoring:v1:29acc6bc…` |
+| darthmarker (devoted-to-the-game) | 05:30:56 | all 16 involved teams `pre_game` | **`LIVE_CAPTURED`** (`PRE_KICKOFF_VERIFIED`) | `ssc:6eef0492…` | `scoring:v1:d4795fa7…` |
+| supyo29 (later, see 26.7) | 05:31:41 | as above | `LIVE_POST_LOCK` | `ssc:8e5fe36d…` | `scoring:v1:29acc6bc…` |
+
+The classes came from the real lock state, not from selection: the two Bloodline Bowl rosters include Thursday-game teams (BUF/DET) so they are correctly post-lock, while `darthmarker`'s roster has none, so its record is a **genuine pristine pre-kickoff `LIVE_CAPTURED` record** (Sunday ~01:30 ET, before any Sunday game). Nothing was fabricated.
+
+### 26.6 Durability
+Direct SQL on the production project, after the requests had completed: rows exist with `record_schema_version=2`, deterministic `ssc:` ids, correct model/FI/baseline/scoring fields, `decision_timestamp` and `captured_at` set, `lock_evidence` (with per-game statuses) present, 16 adjustments each, `decisions` present (0/1), `model_fingerprint` `ade8f9e3de21c1f1`, `fi_generated_at` present, and `actual_fantasy_points` **null** (0 rows with actuals, 0 outcome rows). Runtime logs for the deployment: no errors/warnings.
+
+### 26.7 Idempotency (deployed path, actual row counts)
+* supyo29: 3 identical requests → **1 row**; original `decision_timestamp` preserved.
+* darthmarker and bijimac: repeated, including cache-busted requests that re-executed (~1 s vs ~0.15 s cached) → **still 1 row each**.
+* The only extra row (`ssc:8e5fe36d…`) is a *different decision context*: a diff of the two supyo29 records shows exactly one changed field, SF DEF `baseline_projection` 9.17 → 9.20 (a live projection update) → new `content_hash` → new id. This is the designed behaviour, not a duplicate.
+* Final: 4 rows = 1 `LIVE_CAPTURED` + 3 `LIVE_POST_LOCK`, 4 distinct ids.
+
+### 26.8 Recommendations unchanged / production parity
+Pre-merge production reference (supyo29 wk2, `dpl_936U…`) vs post-deploy (`dpl_AN1q…`), volatile `*_at` and `age_seconds` stripped: lineup, start_sit, waivers, matchup, matchup_leverage, positional_needs **all identical**; lineup total 113.54 both; shadow adjustments identical. One apparent waivers hash difference was traced to a single freshness counter (`readiness.canonical.age_seconds` 3 vs 2), i.e. live-data noise, not code. Repeated requests (with and without capture) returned identical recommendations, including darthmarker's. Capture failure/timeout isolation was proven deterministically (tests 17/17b) and by the earlier throwing/hanging-store parity; no credentials were broken in production.
+
+### 26.9 Live eligibility state
+NFL reality: week 1 16/16 COMPLETE; week 2 1/16 PARTIAL; week 3 not started. FI `fi:2026:w02:351c149735ed` (wk 2, PARTIAL 1/16). Qualifying weeks: **none** (min 4, preferred 6). Rejected: week 1 (no prior current-season week; FI as-of unbuildable before wk 3) and week 2 (`WEEK_PARTIAL_1_OF_16_GAMES`, FI as-of floor, actuals not final). Week 2 now satisfies `PRODUCTION_BASELINE_AVAILABLE` (a real pre-kickoff capture exists) but is still rejected. Counts: LIVE_CAPTURED 1, LIVE_POST_LOCK 3, LIVE_UNVERIFIED 0, HISTORICALLY_RECONSTRUCTED 0. Re-evaluation status **NOT_ELIGIBLE**. No v2 trained.
+
+### 26.10 Database verification (production `ijpfjdzmaztofawhwepf`)
+Migration list shows exactly one new migration, `startsit_shadow_evidence` (applied version `20260919161844`; the repo file is named `20260919120000` because `apply_migration` re-stamps versions — same SQL). Not reapplied. Schema matches the design (16-column captures table, outcomes table); `capture_kind` CHECK on the four classes; `PRIMARY KEY (capture_id)` (deterministic uniqueness), outcomes `PRIMARY KEY (capture_id, source)` + FK to captures; RLS **on** for both, **0 policies**, no RLS-bypass for `anon`/`authenticated`; `BEFORE UPDATE OR DELETE` triggers on both. In a block that always rolled back, against a real production row: kind UPDATE blocked, record UPDATE blocked, DELETE blocked, orphan outcome rejected by FK. No existing table/object was altered by this work.
+
+### 26.11 Regression on merged main
+TypeScript `npm test`: 2105 tests / **2101 pass / 0 fail** / 4 skipped; `tsc --noEmit` 0 errors; `eslint` 0 errors; R: candidate-method, discontinuity-asof, evidence-gate, reevaluate-e2e all pass; Football Intelligence R invariants + week-completion pass. Includes Phase 1 frozen-contract, production-isolation and capture tests. No test was weakened.
+
+### 26.12 Limitations after deployment
+* **L1 — CLOSED for its stated scope:** the deployed production runtime durably persists correctly classified, immutable, idempotent evidence with no recommendation change. Precision: from outside, a same-instance short-circuit cannot be distinguished from a database `ON CONFLICT`; database uniqueness/immutability were verified directly in production, and no duplicate appeared under repeated and cache-busted requests.
+* L3 (partial coverage) stands. New note: `PRODUCTION_BASELINE_AVAILABLE` is satisfied by a *single* pre-kickoff record; it says a baseline exists, not that coverage is adequate for evaluation.
+* New (design observation, not changed): capture identity covers the whole decision content, so **any one player's projection tick creates a new full record per manager** (seen: 9.17→9.20). Volume/retention should be reviewed before a busy Sunday; this is a follow-up, not a defect in correctness.
+* Capture-health counters are per serverless instance (the diagnostic route showed zeros on a different instance than the one that wrote); the database is the source of truth.
+* L2 (status-based lock, no kickoff time), L4 (v1 provenance; model not validated), L8–L10 unchanged.
+
+### 26.13 Verdict
+**A. FULLY PRODUCTION-CERTIFIED INFRASTRUCTURE.** Phase 3.5A production certification complete. Research infrastructure is deployed and operational; current-season evidence remains insufficient for model tuning. `ri-startsit-2026.1` remains frozen and SHADOW_ONLY.
