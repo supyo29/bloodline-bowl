@@ -39,6 +39,9 @@ export const TOPIC_META: Record<string, TopicMeta> = {
   "waiver.status": { surface: "waiver-foundations", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 4000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "roster_health.team": { surface: "roster-health", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "schedule_planning.team": { surface: "schedule-planning", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "waiver2.actions": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "waiver2.market": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "waiver2.replacement": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "trade.evaluation": { surface: "trade-foundations", required: ["league", "manager"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 100, scope: "MANAGER", history_capable: false, comparison_capable: false },
 };
 
@@ -59,7 +62,6 @@ export const UNSUPPORTED_CAPABILITIES: Record<string, string> = {
   player_explosive_play_rate: "no player-level explosive-play evidence",
   expected_fantasy_points_model: "no expected-vs-actual fantasy points model",
   player_projection_distribution: "Book-Ready serves no player projection / floor / median / ceiling topic (production projections are not exposed through /api/evidence)",
-  replacement_level_evidence: "replacement value is computed inside the weekly engine but is not exposed as Book-Ready evidence",
   slot_boundary_alignment_data: "no receiver alignment (slot vs boundary) evidence",
   safety_help_bracket_data: "no safety-help / bracket coverage evidence",
   cornerback_assignment_data: "no CB-to-receiver assignment (shadow) data",
@@ -73,10 +75,8 @@ export const UNSUPPORTED_CAPABILITIES: Record<string, string> = {
   run_fit_evidence: "defense rush-gap data exists in Player-Scheme files but has NO Book-Ready topic",
   defense_position_vulnerability: "defense pass-vulnerability-by-position data exists in Player-Scheme files but has NO Book-Ready topic",
   qb_pressure_profile: "QB pressure-response data exists in Player-Scheme files but has NO Book-Ready topic",
-  manager_competition_evidence: "no league-wide manager-need evidence through Book-Ready",
   manager_weekly_results: "no manager weekly-result history evidence",
   manager_incentive_evidence: "no manager-incentive evidence",
   positional_scarcity_evidence: "no league-wide positional-scarcity evidence",
   betting_lines: "no spread / total / implied-team-total evidence",
-  drop_cost_evidence: "no drop-cost evidence beyond the waiver route itself",
 };

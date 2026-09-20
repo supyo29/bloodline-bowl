@@ -53,7 +53,7 @@ export type DeploymentState = "SHADOW_ONLY" | "SHARED_CONTEXT" | "SHARED_DESCRIP
 // ------------------------------------------------------------------------------------------------- units
 export type UnitKind =
   | "count" | "fraction" | "percentage" | "percentile" | "rate" | "ratio" | "index"
-  | "points" | "yards" | "seconds" | "categorical" | "ordinal" | "probability";
+  | "points" | "yards" | "seconds" | "categorical" | "ordinal" | "probability" | "currency";
 
 export interface UnitSpec {
   kind: UnitKind;

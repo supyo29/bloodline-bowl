@@ -120,7 +120,7 @@ export function buildResearchPlan(s: AnalysisBookSession, keys: string[], snap: 
 }
 
 /** startsit.shadow, matchup.shadow and waiver.status each run their OWN weekly build in Book-Ready today; the plan reports that instead of pretending to share it. */
-const WEEKLY_BUILD_TOPICS = new Set(["startsit.shadow", "matchup.shadow", "waiver.status"]);
+const WEEKLY_BUILD_TOPICS = new Set(["startsit.shadow", "matchup.shadow", "waiver.status", "waiver2.actions", "waiver2.market", "waiver2.replacement"]);
 function sharedBuildWarnings(queries: PlannedQuery[]): string[] {
   const g = new Map<string, string[]>(); for (const q of queries) if (WEEKLY_BUILD_TOPICS.has(q.topic) && !q.deferred) { const k = `${q.params.league}/${q.params.manager}`; g.set(k, [...(g.get(k) ?? []), q.topic]); }
   return [...g].filter(([, t]) => t.length > 1).map(([k, t]) => `${t.length} topics (${t.join(", ")}) for ${k} each re-run the weekly build inside Book-Ready (not shared today); expect ~${t.length}× the single-topic latency`);

@@ -58,6 +58,12 @@ const REGISTRY: Record<string, UnitSpec> = {
   "health.vor_points": points("VOR (fantasy points over replacement)"), "health.count": count("count"),
   "schedule.week": U({ kind: "ordinal", display_unit: "NFL week", raw_unit: "week number", valid_range: [1, 22], may_exceed_one: true }),
   "schedule.points": points(),
+  // ---- Waiver Intelligence 2.0 (Phase 4)
+  "waiver2.points": U({ kind: "points", display_unit: "league-scoring fantasy points (over the stated horizon)", raw_unit: "league-scoring fantasy points", valid_range: null, may_exceed_one: true, note: "signed: a net action value can be negative" }),
+  "waiver2.points_per_week": U({ kind: "points", display_unit: "fantasy points per week", raw_unit: "league-scoring fantasy points / week", valid_range: null, may_exceed_one: true, note: "signed" }),
+  "waiver2.faab_dollars": U({ kind: "currency", display_unit: "FAAB dollars", raw_unit: "whole FAAB dollars", valid_range: [0, null], may_exceed_one: true, note: "a budget amount — never a fraction of the budget" }),
+  "waiver2.fraction": U({ kind: "fraction", display_unit: "fraction (0-1)", raw_unit: "fraction", valid_range: [0, 1], may_exceed_one: false }),
+  "waiver2.count": U({ kind: "count", display_unit: "count", raw_unit: "count", valid_range: [0, null], may_exceed_one: true, note: "a COUNT — never a fraction" }),
   "category": U({ kind: "categorical", display_unit: "category", raw_unit: "source-native label", valid_range: null, may_exceed_one: false }),
 };
 

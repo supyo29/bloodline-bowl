@@ -6,6 +6,7 @@
  * populations are explicit opt-ins, and decision topics run exactly one request-scoped build. Ordinary
  * recommendation endpoints never import this module (asserted by test/book-ready-isolation.test.ts).
  */
+import { waiver2ActionsEvidence, waiver2MarketEvidence, waiver2ReplacementEvidence } from "./families/waiver2";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EVIDENCE_CONTRACT_VERSION, type EvidenceBlock } from "./schema";
@@ -53,6 +54,13 @@ async function weekly(p: Record<string, string>) {
   const r = await buildWeeklyIntelligence(p.league!, p.manager!, p.week ? { week: Number(p.week) } : {});
   return r.intelligence;
 }
+/** Waiver 2.0 (Phase 4): one request-scoped evaluation per topic call. Read-only; SHADOW_ONLY; nothing is submitted. */
+async function waiver2Eval(p: Record<string, string>) {
+  const { buildWaiverInputForManager } = await import("@/lib/waiver2/adapter"); const { evaluateWaiver2 } = await import("@/lib/waiver2/actions");
+  const r = await buildWaiverInputForManager(p.league!, p.manager!, p.week ? { week: Number(p.week) } : {});
+  return r.ok ? evaluateWaiver2(r.input) : null;
+}
+const w2meta = (p: Record<string, string>) => ({ league_slug: p.league!, manager_slug: p.manager!, season: Number(p.season ?? 2026), illustrative: p.illustrative === "1" });
 async function managerContext(p: Record<string, string>) {
   const { resolveManagerRoute } = await import("@/lib/leagues/api");
   const r = await resolveManagerRoute(Promise.resolve({ leagueSlug: p.league!, managerSlug: p.manager! }));
@@ -72,6 +80,9 @@ export const TOPICS: Record<string, TopicSpec> = {
   "startsit.shadow": { surface: "start-sit-fi", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const i = await weekly(p); return i?.start_sit_shadow ? startSitShadowEvidence(i.start_sit_shadow, { ...decisionMeta(p), week: i.week, season: Number(p.season ?? 2026) }) : []; } },
   "matchup.shadow": { surface: "matchup-intelligence", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const i = await weekly(p); return matchupEvidence(i?.matchup_intelligence, { ...decisionMeta(p), week: i?.week ?? 0 }); } },
   "waiver.status": { surface: "waiver-foundations", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const i = await weekly(p); return i ? waiverEvidence(i.waivers, { ...decisionMeta(p), week: i.week }) : []; } },
+  "waiver2.actions": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ActionsEvidence(ev, w2meta(p)) : []; } },
+  "waiver2.market": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2MarketEvidence(ev, w2meta(p)) : []; } },
+  "waiver2.replacement": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ReplacementEvidence(ev, w2meta(p)) : []; } },
   "roster_health.team": { surface: "roster-health", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => {
     const r = await managerContext(p); if (!r) return [];
     const { buildRosterHealthContext } = await import("@/lib/roster-health");

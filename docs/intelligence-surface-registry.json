@@ -1,5 +1,5 @@
 {
-  "registry_version": "intelligence-surface-registry-2026.2",
+  "registry_version": "intelligence-surface-registry-2026.3",
   "generated_by": "Phase 3.5B \u2014 verified against the repository by test/intelligence-surface-registry.test.ts",
   "surfaces": [
     {
@@ -132,7 +132,8 @@
       "consumers": [
         "weekly/start-sit-fi",
         "weekly/matchup-intelligence",
-        "book-ready"
+        "book-ready",
+        "waiver2"
       ],
       "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact.",
       "book_ready": {
@@ -307,7 +308,8 @@
       "consumers": [
         "opportunity-propagation-intelligence",
         "book-ready",
-        "analysis-book"
+        "analysis-book",
+        "waiver2"
       ],
       "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) \u2014 documented, not a defect.",
       "book_ready": {
@@ -402,7 +404,8 @@
         "test/injury-opportunity-propagation-isolation.test.ts"
       ],
       "consumers": [
-        "book-ready"
+        "book-ready",
+        "waiver2"
       ],
       "notes": "No consumer and no route, by documented design. Inheritance 'rates' are ratios that may exceed 1.0 by design (not probabilities).",
       "book_ready": {
@@ -942,7 +945,8 @@
       ],
       "consumers": [
         "orchestrator",
-        "book-ready"
+        "book-ready",
+        "waiver2"
       ],
       "book_ready": {
         "query_topics": [
@@ -1214,6 +1218,91 @@
           [
             "TRADE_ENGINE_PHASE",
             "6"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "waiver-intelligence-2",
+      "name": "Waiver Intelligence 2.0 (Phase 4)",
+      "owning_module": "lib/waiver2",
+      "status": [
+        "SHADOW"
+      ],
+      "nature": "manager-specific waiver TRANSACTION intelligence (add + drop + cost): asset value by horizon, role trajectory, conditional OPP, drop cost, optionality, market/FAAB, alternatives, pass. Weights are PRIOR_UNVALIDATED.",
+      "deployment": "SHADOW_ONLY (production waiver-engine-2026.1 unchanged; no auto-promotion)",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/waiver2/actions.ts",
+        "lib/waiver2/adapter.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "canonical league snapshot + weekly projections + Role / Opportunity Propagation / Football Intelligence (consumed, never recomputed) + NFL schedule",
+      "data_cutoff_field": null,
+      "confidence_semantics": "decomposed uncertainty (role, sample, projection, source lag, pool certification, injury contingency, ROS disagreement, depth chart); no calibrated interval",
+      "freshness_owner": "lib/waiver2/actions.ts (context timestamp = weekly.generated_at)",
+      "lineage_owner": "lib/waiver2/actions.ts (snapshot, scoring fingerprint, role/fi/opp versions, params hash, content identity)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_4_WAIVER_INTELLIGENCE_2.md"
+      ],
+      "tests": [
+        "test/waiver2-engine.test.ts",
+        "test/waiver2-bookready.test.ts"
+      ],
+      "consumers": [
+        "book-ready"
+      ],
+      "notes": "Gated on the canonical free_agent_pool capability: with an uncertified pool every topic is UNAVAILABLE unless illustrative=1 (labelled non-actionable).",
+      "book_ready": {
+        "query_topics": [
+          "waiver2.actions",
+          "waiver2.market",
+          "waiver2.replacement"
+        ],
+        "capability_state": "PARTIAL",
+        "note": "runtime availability is gated on the canonical free-agent pool (not materialized in production today); flips to AVAILABLE only when the pool is certified",
+        "current": "PARTIAL",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "per-request; prospective shadow capture is defined (lib/waiver2/capture.ts) but not retrievable through /api/evidence yet"
+        },
+        "comparison_populations": [
+          "MANAGER_CANDIDATE_ACTIONS"
+        ],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": true,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "per-request; no history"
+        },
+        "chart_ready": [
+          "bar",
+          "uncertainty"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live",
+          "snapshot_policy": "NONE",
+          "rationale": "request-scoped evaluation over the canonical snapshot"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "4"
           ]
         ]
       }
