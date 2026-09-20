@@ -147,7 +147,7 @@ All three aliases attached, `aliasError: null`, health 200. The Analysis Book ha
 Beyond `lib/analysis-book/`, its tests and this doc, `main` differs from `3b0c8bb` in exactly three files: `docs/intelligence-surface-registry.json` (one consumer entry), `test/book-ready-isolation.test.ts`, `test/startsit-capture-integrity.test.ts`. No `lib/weekly`, projection, scoring, trade, model coefficient, R or data file changed. `ri-startsit-2026.1` sha256 pinned by test, deployed `shadow_deployment=SHADOW_ONLY`, `eligible_to_influence_production=false`.
 
 ## M5. Contract versions and session/taxonomy binding
-Final `main` contains exactly `analysis-book-2026.1`, `analysis-taxonomy-2026.1`, `analysis-planner-rules-2026.1`. A serialized session round-trips byte-identically with its taxonomy retained; re-labelling a saved session to `analysis-taxonomy-2025.9` is **reported as drift while its frozen Contents (33 chapters) are not reinterpreted**; a tampered document is rejected by hash.
+Final `main` contains exactly `analysis-book-2026.1`, `analysis-taxonomy-2026.1`, `analysis-planner-rules-2026.1`. A serialized session round-trips byte-identically with its taxonomy retained; re-labelling a saved session to `analysis-taxonomy-2025.9` is **reported as drift while its frozen Contents (34 chapters) are not reinterpreted**; a tampered document is rejected by hash.
 
 ## M6. Contents certification (final main, manager context supplied where a book needs one)
 | Book | Parts | Chapters | Researchability | Unsupported chapters present + labelled |
