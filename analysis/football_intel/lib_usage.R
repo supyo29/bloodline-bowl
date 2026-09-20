@@ -70,7 +70,12 @@ build_player_usage_profile <- function(pgu, ff_playerids, rosters_weekly, season
   long %>% transmute(
     season = season, through_week = through_week,
     gsis_id, sleeper_id, pfr_id, full_name, position, team,
-    metric, output_class = "OBSERVED",
+    metric,
+    # Phase 3.5B (deferred defect #3): a row whose `observed` value is absent publishes ONLY the
+    # prior/position-shrunk `modeled` value, so it is MODELED -- never OBSERVED (spec guardrail 5:
+    # every published numeric is exactly one class). Whole families whose source is unpublished
+    # (e.g. route_participation while nflverse participation lags) were previously mislabelled.
+    output_class = ifelse(is.finite(obs), "OBSERVED", "MODELED"),
     observed = obs, modeled, position_mean = pos_val, prior_season = prior_val,
     games, eff_games, prior_weight, recent_weight, confidence, last_week
   )

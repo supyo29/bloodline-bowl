@@ -307,6 +307,9 @@ if (!is.null(tp) && nrow(tp) > 0) {
 pu <- cand_csv[["player_usage_profile.csv"]]
 if (!is.null(pu) && nrow(pu) > 0) {
   dupe_key <- pu %>% count(gsis_id, metric) %>% filter(n > 1)
+  add("player_usage_profile.csv never labels an absent observation OBSERVED",
+      if (!any(pu$output_class == "OBSERVED" & !is.finite(suppressWarnings(as.numeric(pu$observed))), na.rm = TRUE)) PASS else FAIL,
+      "rows with observed = NA publish only `modeled` and must be class MODELED (Phase 3.5B)")
   add("player_usage_profile.csv has no duplicate (gsis_id, metric) rows",
       if (nrow(dupe_key) == 0) PASS else FAIL, if (nrow(dupe_key)) sprintf("%d duplicate keys", nrow(dupe_key)) else "")
 }

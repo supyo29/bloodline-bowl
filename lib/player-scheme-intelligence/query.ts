@@ -13,6 +13,7 @@
  * profiles, not an out-of-sample-validated effect).
  */
 
+import { createHash } from "node:crypto";
 import {
   defensePassMatrix,
   defenseRushProfile,
@@ -52,6 +53,34 @@ import {
 const DEPTHS = ["BEHIND_LOS", "SHORT", "INTERMEDIATE", "DEEP"] as const;
 const THIRDS = ["LEFT", "MIDDLE", "RIGHT"] as const;
 
+export interface PlayerSchemeContentIdentity {
+  /**
+   * Deterministic identity of EVERYTHING served (all tiers). `player_scheme_version` is the hash of the Tier A
+   * frames only, so a Tier B/C/D rebuild (e.g. the FTN progression relabel) leaves it unchanged; this does not.
+   */
+  served_content_id: string;
+  tiers: Record<string, { built_at: string | null; content_id: string | null }>;
+  note: string;
+}
+
+/** Pure: derive the all-tier identity from the manifest alone (single owner: the manifest). */
+export function playerSchemeContentIdentity(m: unknown): PlayerSchemeContentIdentity {
+  const x = m as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const short = (h: unknown) => (typeof h === "string" && h.length >= 12 ? h.slice(0, 12) : null);
+  const tiers: PlayerSchemeContentIdentity["tiers"] = {
+    A: { built_at: typeof x.generated_at === "string" ? x.generated_at : null, content_id: short(String(x.player_scheme_version ?? "").split(":")[3] ?? "") },
+    B: { built_at: x.tier_b?.built_at ?? null, content_id: short(x.tier_b?.served_content_sha256) },
+    C: { built_at: x.tier_c?.built_at ?? null, content_id: short(x.tier_c?.served_content_sha256) },
+    D: { built_at: x.tier_d?.built_at ?? null, content_id: short(x.tier_d?.served_content_sha256) },
+  };
+  const material = Object.keys(tiers).map((t) => `${t}=${tiers[t]!.content_id ?? "none"}`).join("|");
+  return {
+    served_content_id: `psc:${createHash("sha256").update(material).digest("hex").slice(0, 12)}`,
+    tiers,
+    note: "player_scheme_version identifies the Tier A substrate only; served_content_id changes when ANY tier's served content changes.",
+  };
+}
+
 function manifestMeta() {
   const psi = loadPlayerSchemeIntelligence();
   if (!psi) return null;
@@ -69,6 +98,7 @@ function manifestMeta() {
     seasons_used: m.seasons_used,
     deployment: "SHARED_DESCRIPTIVE" as const,
     fantasy_adjustment_enabled: false as const,
+    content_identity: playerSchemeContentIdentity(m),
   };
 }
 

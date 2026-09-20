@@ -85,6 +85,18 @@ export interface FootballIntelligence {
 let cached: FootballIntelligence | null | undefined;
 
 /** Load the current published snapshot. Returns null if nothing is published. */
+/**
+ * Phase 3.5B: a usage row with no `observed` value publishes only the shrunk `modeled` number, so it is
+ * MODELED whatever an older artifact declared (spec guardrail 5). Served artifacts built before the
+ * builder fix (`lib_usage.R`) labelled such rows OBSERVED -- notably the whole `route_participation`
+ * family while nflverse participation is unpublished. The builder and the daily publish gate now enforce
+ * this; this keeps the reader truthful for any artifact still in circulation.
+ */
+export function usageOutputClass(declared: string | undefined, observed: number | null): PlayerUsageMetric["output_class"] {
+  const d = (declared as PlayerUsageMetric["output_class"] | undefined) ?? "OBSERVED";
+  return d === "OBSERVED" && observed === null ? "MODELED" : d;
+}
+
 export function loadFootballIntelligence(opts?: { force?: boolean }): FootballIntelligence | null {
   if (!opts?.force && cached !== undefined) return cached;
   const manifestPath = join(DATA_DIR, "football_intelligence_manifest.json");
@@ -172,7 +184,7 @@ export function loadFootballIntelligence(opts?: { force?: boolean }): FootballIn
     const p = usageByGsis.get(gsis)!;
     const m: PlayerUsageMetric = {
       metric: r.metric!,
-      output_class: (r.output_class as PlayerUsageMetric["output_class"]) ?? "OBSERVED",
+      output_class: usageOutputClass(r.output_class, n(r.observed)),
       observed: n(r.observed),
       modeled: n(r.modeled),
       position_mean: n(r.position_mean),

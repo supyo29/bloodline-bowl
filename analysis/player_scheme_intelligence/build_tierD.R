@@ -273,7 +273,7 @@ manifest$tier_d <- list(
     unstable = r$n_unstable, rejected = r$n_rejected, insufficient = r$n_insufficient),
   reconciliation_all_pass = r$all_pass,
   served_content_sha256 = served_hash,
-  files = c("player_scheme_interactions.csv"),
+  files = list("player_scheme_interactions.csv"),   # list => JSON array even for one element (Phase 3.5B: was a bare string)
   notes = c(
     "SHADOW_ONLY research layer. numeric_fantasy_adjustment == 0 for every family, always.",
     "Chronology-safe walk-forward: profiles use seasons <= S-1; coefficients train on seasons < S.",

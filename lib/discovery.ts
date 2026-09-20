@@ -310,6 +310,161 @@ export const CAPABILITIES: Capability[] = [
     query_params: ["season", "week"],
   },
   {
+    id: "player_scheme_index",
+    title: "Player-Scheme index + manifest",
+    description:
+      "Phase 9 Player-Scheme Intelligence. SHARED_DESCRIPTIVE only: it never adjusts a projection or recommendation (fantasy_adjustment_enabled=false). Tier data is PRIOR_ONLY through the 2025 season (no live 2026 signal); the FTN read_thrown progression is exposed as raw RAW_0/RAW_1/RAW_2 codes with UNVERIFIED semantics. Index of the namespace with the served manifest and per-tier content identity.",
+    scope: "service",
+    route_template: "/api/player-scheme",
+    canonical: true,
+    temporality: "historical",
+  },
+  {
+    id: "player_scheme_player",
+    title: "Player-Scheme player profile",
+    description:
+      "Phase 9 Player-Scheme Intelligence. SHARED_DESCRIPTIVE only: it never adjusts a projection or recommendation (fantasy_adjustment_enabled=false). Tier data is PRIOR_ONLY through the 2025 season (no live 2026 signal); the FTN read_thrown progression is exposed as raw RAW_0/RAW_1/RAW_2 codes with UNVERIFIED semantics. One player's spatial / charting / tendency profile.",
+    scope: "service",
+    route_template: "/api/player-scheme/players/{playerId}",
+    canonical: true,
+    temporality: "historical",
+    query_params: ["view"],
+  },
+  {
+    id: "player_scheme_matchup",
+    title: "Player-Scheme player-vs-defense descriptors",
+    description:
+      "Phase 9 Player-Scheme Intelligence. SHARED_DESCRIPTIVE only: it never adjusts a projection or recommendation (fantasy_adjustment_enabled=false). Tier data is PRIOR_ONLY through the 2025 season (no live 2026 signal); the FTN read_thrown progression is exposed as raw RAW_0/RAW_1/RAW_2 codes with UNVERIFIED semantics. Descriptive player-by-opponent scheme overlap; Tier D interaction research is SHADOW_ONLY with a zero numeric adjustment.",
+    scope: "service",
+    route_template: "/api/player-scheme/matchups/{playerId}/{opponent}",
+    canonical: true,
+    temporality: "historical",
+    query_params: ["window"],
+  },
+  {
+    id: "player_scheme_team_offense",
+    title: "Player-Scheme team offense profile",
+    description:
+      "Phase 9 Player-Scheme Intelligence. SHARED_DESCRIPTIVE only: it never adjusts a projection or recommendation (fantasy_adjustment_enabled=false). Tier data is PRIOR_ONLY through the 2025 season (no live 2026 signal); the FTN read_thrown progression is exposed as raw RAW_0/RAW_1/RAW_2 codes with UNVERIFIED semantics. Team offensive tendency profile.",
+    scope: "service",
+    route_template: "/api/player-scheme/teams/{team}/offense",
+    canonical: true,
+    temporality: "historical",
+  },
+  {
+    id: "player_scheme_team_defense",
+    title: "Player-Scheme team defense profile",
+    description:
+      "Phase 9 Player-Scheme Intelligence. SHARED_DESCRIPTIVE only: it never adjusts a projection or recommendation (fantasy_adjustment_enabled=false). Tier data is PRIOR_ONLY through the 2025 season (no live 2026 signal); the FTN read_thrown progression is exposed as raw RAW_0/RAW_1/RAW_2 codes with UNVERIFIED semantics. Team defensive scheme profile.",
+    scope: "service",
+    route_template: "/api/player-scheme/teams/{team}/defense",
+    canonical: true,
+    temporality: "historical",
+  },
+  {
+    id: "league_roster_health",
+    title: "Roster health (league)",
+    description:
+      "SHARED_CONTEXT roster fragility, depth and contingency conditions for every team in the league. Conditions inform; this is not a recommendation and never fabricates a remedy.",
+    scope: "league",
+    route_template: "/api/leagues/{leagueSlug}/roster-health",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "manager_roster_health",
+    title: "Roster health (manager)",
+    description:
+      "SHARED_CONTEXT roster fragility, depth and contingency conditions for one manager. Conditions inform; this is not a recommendation and never fabricates a remedy.",
+    scope: "manager",
+    route_template: "/api/leagues/{leagueSlug}/managers/{managerSlug}/roster-health",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "league_schedule_planning",
+    title: "Schedule planning (league)",
+    description:
+      "SHARED_CONTEXT schedule / opponent-difficulty / playoff-window planning conditions for the league. Conditions inform; not a recommendation.",
+    scope: "league",
+    route_template: "/api/leagues/{leagueSlug}/schedule-planning",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "manager_schedule_planning",
+    title: "Schedule planning (manager)",
+    description:
+      "SHARED_CONTEXT schedule / opponent-difficulty / playoff-window planning conditions for one manager. Conditions inform; not a recommendation.",
+    scope: "manager",
+    route_template: "/api/leagues/{leagueSlug}/managers/{managerSlug}/schedule-planning",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "league_orchestrate",
+    title: "Team-management orchestrator (league)",
+    description:
+      "ADVISORY_ONLY composition of team-state, roster-health, schedule-planning and shadow layers over ONE canonical snapshot per request. Conditions inform and shadow layers never influence production numbers.",
+    scope: "league",
+    route_template: "/api/leagues/{leagueSlug}/orchestrate",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "manager_orchestrate",
+    title: "Team-management orchestrator (manager)",
+    description:
+      "ADVISORY_ONLY composition of team-state, roster-health, schedule-planning and shadow layers for one manager over ONE canonical snapshot. Conditions inform and shadow layers never influence production numbers.",
+    scope: "manager",
+    route_template: "/api/leagues/{leagueSlug}/managers/{managerSlug}/orchestrate",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "startsit_evidence_diagnostics",
+    title: "Start/Sit shadow evidence diagnostics",
+    description:
+      "READ-ONLY diagnostics for the SHADOW Start/Sit model (ri-startsit-2026.1, frozen, SHADOW_ONLY): evidence-gate state, capture-store durability/health and evidence counts by capture class (LIVE_CAPTURED / LIVE_POST_LOCK / LIVE_UNVERIFIED / HISTORICALLY_RECONSTRUCTED). Reports no outcome metrics and never changes deployment state.",
+    scope: "service",
+    route_template: "/api/football-intel/startsit-evidence",
+    canonical: true,
+    temporality: "live",
+  },
+  {
+    id: "trade_analyze",
+    title: "Trade analysis (POST)",
+    description:
+      "POST endpoint. Evaluates one explicit trade proposal with the trade engine. READ-ONLY analytics: it never submits, accepts or modifies a trade.",
+    scope: "league",
+    route_template: "/api/trades/analyze",
+    canonical: true,
+    temporality: "live",
+    method: "POST",
+  },
+  {
+    id: "trade_discover",
+    title: "Trade discovery (POST)",
+    description:
+      "POST endpoint. Searches for mutually beneficial trade candidates (legacy discovery; distinct from /api/trades/competitive). READ-ONLY analytics: it never submits a trade.",
+    scope: "league",
+    route_template: "/api/trades/discover",
+    canonical: true,
+    temporality: "live",
+    method: "POST",
+  },
+  {
+    id: "trade_negotiate",
+    title: "Trade negotiation (POST)",
+    description:
+      "POST endpoint. Negotiation-envelope analysis for a base trade. READ-ONLY analytics: it never submits or sends anything.",
+    scope: "league",
+    route_template: "/api/trades/negotiate",
+    canonical: true,
+    temporality: "live",
+    method: "POST",
+  },
+  {
     id: "competitive_trade",
     title: "Competitive trade intelligence",
     description:
