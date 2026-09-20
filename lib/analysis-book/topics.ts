@@ -1,0 +1,79 @@
+/**
+ * Static metadata about the Book-Ready evidence topics the planner may use. It is a MIRROR, not a source of truth:
+ * test/analysis-book-capability.test.ts asserts every entry against the real Book-Ready TOPICS and registry, so the
+ * planner can never quietly invent (or forget) a capability. Nothing here queries evidence.
+ */
+import type { CostClass } from "./schema";
+
+export interface TopicMeta {
+  surface: string;
+  /** request params Book-Ready requires */
+  required: string[];
+  /** Book-Ready cost_class */
+  bookready_cost: "ARTIFACT_READ" | "REQUEST_SCOPED_BUILD";
+  /** planner cost, from 3.5C production measurements (artifact ~0.1-0.3 s; matchup/roster/schedule ~1 s; Start/Sit ~1-6 s; waiver up to ~4 s) */
+  cost: CostClass;
+  est_ms: number;
+  /** known standing caveats surfaced as researchability reasons */
+  flags?: Array<"SOURCE_CONFLICT_PARTIAL">;
+  flag_reason?: string;
+  /** what the topic is scoped to (used to reject nonsense bindings) */
+  scope: "PLAYER" | "TEAM" | "QB" | "MANAGER" | "SCENARIO";
+}
+
+export const TOPIC_META: Record<string, TopicMeta> = {
+  "fi.team_metric": { surface: "football-intelligence", required: ["team"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "TEAM" },
+  "fi.player_usage": { surface: "football-intelligence", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "PLAYER" },
+  "role.player_profile": { surface: "role-opportunity", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "PLAYER" },
+  "role.role_change": { surface: "role-opportunity", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 150, scope: "PLAYER" },
+  "opp.scenario": { surface: "opportunity-propagation", required: ["team", "season", "week", "unavailable"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 300, scope: "SCENARIO" },
+  "scheme.qb_progression": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB", flags: ["SOURCE_CONFLICT_PARTIAL"], flag_reason: "numeric RAW_* read codes are an unresolved source conflict (no first/second/third-read mapping); named buckets are verified" },
+  "scheme.qb_spatial": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB" },
+  "scheme.qb_formation": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB" },
+  "scheme.defense_coverage": { surface: "player-scheme", required: ["team"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "TEAM" },
+  "startsit.shadow": { surface: "start-sit-fi", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 6000, scope: "MANAGER" },
+  "matchup.shadow": { surface: "matchup-intelligence", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER" },
+  "waiver.status": { surface: "waiver-foundations", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 4000, scope: "MANAGER" },
+  "roster_health.team": { surface: "roster-health", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER" },
+  "schedule_planning.team": { surface: "schedule-planning", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER" },
+  "trade.evaluation": { surface: "trade-foundations", required: ["league", "manager"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 100, scope: "MANAGER" },
+};
+
+/**
+ * Analytical capabilities the system does NOT have as Book-Ready evidence. A chapter may name one to expose an
+ * important question honestly (state UNSUPPORTED) instead of dropping the question or pretending. The test asserts none
+ * of these is also a Book-Ready topic and the reason is stated. 3.5C carry-forward limitations are listed explicitly.
+ */
+export const UNSUPPORTED_CAPABILITIES: Record<string, string> = {
+  player_biographical_profile: "no age / draft-capital / biography evidence topic",
+  multi_season_route_history: "Role history covers preserved 2026 states only; earlier seasons exist only in the R cache",
+  receiver_scheme_profile: "receiver spatial / route / coverage-split data exists in Player-Scheme files but has NO Book-Ready topic (3.5C carry-forward; placeholder XX/blank identities' evidence lives there)",
+  rb_scheme_profile: "RB gap / box / rush-matrix data exists in Player-Scheme files but has NO Book-Ready topic (3.5C carry-forward)",
+  ol_player_level_pass_block: "no player-level offensive-line evidence; only team pressure/sack rates allowed",
+  coach_specific_profile: "no coach-level tendency evidence beyond team FI tendencies",
+  game_script_splits: "no leading/trailing or win-probability split evidence",
+  player_efficiency_metrics: "no player-level efficiency evidence (yards/route, YAC, etc.); FI serves usage and team-level EPA only",
+  player_explosive_play_rate: "no player-level explosive-play evidence",
+  expected_fantasy_points_model: "no expected-vs-actual fantasy points model",
+  player_projection_distribution: "Book-Ready serves no player projection / floor / median / ceiling topic (production projections are not exposed through /api/evidence)",
+  replacement_level_evidence: "replacement value is computed inside the weekly engine but is not exposed as Book-Ready evidence",
+  slot_boundary_alignment_data: "no receiver alignment (slot vs boundary) evidence",
+  safety_help_bracket_data: "no safety-help / bracket coverage evidence",
+  cornerback_assignment_data: "no CB-to-receiver assignment (shadow) data",
+  nfl_schedule_strength: "no NFL opponent-schedule evidence by team; schedule-planning is roster-level bye / lineup value",
+  injury_probability: "no injury-probability evidence",
+  play_call_intent: "no play-call intent evidence",
+  personnel_groupings: "no personnel-grouping evidence",
+  defensive_front_alignment: "no defensive front / alignment evidence",
+  in_game_adjustments: "no in-game adjustment evidence",
+  drive_level_scoring_data: "no drive-level scoring evidence",
+  run_fit_evidence: "defense rush-gap data exists in Player-Scheme files but has NO Book-Ready topic",
+  defense_position_vulnerability: "defense pass-vulnerability-by-position data exists in Player-Scheme files but has NO Book-Ready topic",
+  qb_pressure_profile: "QB pressure-response data exists in Player-Scheme files but has NO Book-Ready topic",
+  manager_competition_evidence: "no league-wide manager-need evidence through Book-Ready",
+  manager_weekly_results: "no manager weekly-result history evidence",
+  manager_incentive_evidence: "no manager-incentive evidence",
+  positional_scarcity_evidence: "no league-wide positional-scarcity evidence",
+  betting_lines: "no spread / total / implied-team-total evidence",
+  drop_cost_evidence: "no drop-cost evidence beyond the waiver route itself",
+};
