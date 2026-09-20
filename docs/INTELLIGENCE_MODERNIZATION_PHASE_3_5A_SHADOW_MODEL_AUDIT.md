@@ -363,5 +363,9 @@ TypeScript `npm test`: 2105 tests / **2101 pass / 0 fail** / 4 skipped; `tsc --n
 * Capture-health counters are per serverless instance (the diagnostic route showed zeros on a different instance than the one that wrote); the database is the source of truth.
 * L2 (status-based lock, no kickoff time), L4 (v1 provenance; model not validated), L8–L10 unchanged.
 
-### 26.13 Verdict
+### 26.13 Later observations (post-record) — drift vs code
+* `origin/main` gained an automated FI refresh (`fbf9d26`, `github-actions[bot]`, `fi:2026:w02:351c…` → `afa8f98be61e`; three `lib/football-intel/data` files, no Phase 3.5A overlap). Inspected, safe; my docs commit was rebased on it (unpublished commit only) and re-tested (2105 / 2101 pass / 0 fail, tsc 0, model sha unchanged) before a fast-forward push (`57a45f3`). Production is READY on `57a45f3` (`dpl_3eNgSqQ2…`); the Phase 3.5A code deployment remains `dpl_AN1qt3wYbWJTmw2HwBAcxQVbYjkZ` @ `32f2178`.
+* A later supyo29 request differed from the pre-merge reference in lineup / matchup / positional_needs (lineup total 113.54 → 113.57). Every one of the differences traces to a single upstream input: SF DEF `current_projected` 9.17 → 9.20 (cascading into totals, margin, gap) — the same projection tick recorded in the database at 05:31:41. The request made **after** the code deployed but **before** that tick showed **0** differences in all six sections, so this is live-data drift, not a code-induced change. The new FI version was captured as separate evidence (`LIVE_POST_LOCK|fi:2026:w02:afa8f98be61e`), and final totals were 1 `LIVE_CAPTURED` + 4 `LIVE_POST_LOCK`.
+
+### 26.14 Verdict
 **A. FULLY PRODUCTION-CERTIFIED INFRASTRUCTURE.** Phase 3.5A production certification complete. Research infrastructure is deployed and operational; current-season evidence remains insufficient for model tuning. `ri-startsit-2026.1` remains frozen and SHADOW_ONLY.
