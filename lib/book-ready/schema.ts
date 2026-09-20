@@ -200,6 +200,8 @@ export interface EvidenceBlock {
   freshness: {
     as_of: string | null; through_week: number | null; generated_at: string | null;
     week_completion?: unknown; canonical_verdict?: unknown | null;
+    /** completed NFL weeks the artifact is behind the completed-week frontier (0 = current; null = cannot be determined). Freshness is NOT availability. */
+    refresh_lag_weeks?: number | null;
   };
 
   temporal: TemporalIdentity;

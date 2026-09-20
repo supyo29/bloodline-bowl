@@ -432,6 +432,17 @@ export const CAPABILITIES: Capability[] = [
     temporality: "live",
   },
   {
+    id: "book_ready_evidence",
+    title: "Book-Ready evidence retrieval",
+    description:
+      "READ-ONLY analytical retrieval of structured EvidenceBlocks (Phase 3.5C). ?capabilities=1 lists topics, required parameters and per-surface Book-Ready capability (current / history / comparison / decomposition / confidence / freshness / lineage / units / chart-readiness) and the refresh status of each artifact. ?topic=<fi.team_metric|fi.player_usage|role.player_profile|role.role_change|opp.scenario|scheme.qb_progression|scheme.qb_spatial|scheme.qb_formation|scheme.defense_coverage|startsit.shadow|matchup.shadow|waiver.status|roster_health.team|schedule_planning.team|trade.evaluation>. Source-native values are preserved next to a normalized analysis class; confidence, sample support, freshness, deployment and predictive status are INDEPENDENT axes; units/scale are explicit per metric (values above 1 can be legitimate); every comparison states its population; history comes only from immutable published snapshots and is labelled; Opportunity Propagation is CONDITIONAL, never an unconditional projection; SHADOW and DESCRIPTIVE evidence is never presented as production-predictive. history=1 and comparisons=1 are opt-in. Never ranks decisions, writes prose, or changes any recommendation.",
+    scope: "service",
+    route_template: "/api/evidence",
+    canonical: true,
+    temporality: "live+historical",
+    query_params: ["topic", "capabilities", "history", "comparisons", "team", "side", "metrics", "gsis_id", "sleeper_id", "dimensions", "season", "week", "unavailable", "window", "league", "manager"],
+  },
+  {
     id: "competitive_trade",
     title: "Competitive trade intelligence",
     description:

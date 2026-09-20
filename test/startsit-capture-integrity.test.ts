@@ -237,6 +237,8 @@ test("23-24: only the shadow builder/capture layer consumes Start/Sit FI numbers
   for (const dir of ["lib", "app"]) for (const f of walk(join(ROOT, dir))) {
     const rel = f.slice(ROOT.length + 1);
     if (rel.startsWith("lib/weekly/start-sit-fi/")) continue;
+    // Phase 3.5C: the read-only Book-Ready evidence layer describes shadow output; only app/api/evidence imports it (book-ready-isolation.test.ts).
+    if (rel.startsWith("lib/book-ready/")) continue;
     const src = readFileSync(f, "utf8");
     if (/start-sit-fi/.test(src) && !allowedImporters.has(rel)) offenders.push(rel);
   }

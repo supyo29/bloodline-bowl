@@ -256,6 +256,9 @@ test("progression: no production model / decision module imports progression dat
       if (!/\.(ts|tsx)$/.test(name)) continue;
       const rel = full.replace(process.cwd() + "/", "");
       if (allowed.includes(rel)) continue;
+      // Phase 3.5C: the read-only Book-Ready evidence layer OBSERVES progression data; it is itself unreachable from
+      // every production path (test/book-ready-isolation.test.ts).
+      if (rel.startsWith("lib/book-ready/")) continue;
       const src = readFileSync(full, "utf8");
       if (/receiverProgression|summarizeReceiverProgression|football-intel\/progression|receiver_progression/.test(src)) {
         offenders.push(rel);

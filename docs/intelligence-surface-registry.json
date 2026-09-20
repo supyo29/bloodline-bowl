@@ -1,6 +1,6 @@
 {
-  "registry_version": "intelligence-surface-registry-2026.1",
-  "generated_by": "Phase 3.5B — verified against the repository by test/intelligence-surface-registry.test.ts",
+  "registry_version": "intelligence-surface-registry-2026.2",
+  "generated_by": "Phase 3.5B \u2014 verified against the repository by test/intelligence-surface-registry.test.ts",
   "surfaces": [
     {
       "id": "canonical-spine",
@@ -46,7 +46,43 @@
         "weekly/waivers.ts",
         "trades/competitive"
       ],
-      "notes": "Phase 3.5A added additive per-week completion in nfl-reality-frontier.ts that reuses the same isCompleted predicate."
+      "notes": "Phase 3.5A added additive per-week completion in nfl-reality-frontier.ts that reuses the same isCompleted predicate.",
+      "book_ready": {
+        "query_topics": [],
+        "capability_state": "NOT_A_DATA_SURFACE",
+        "note": "contracts consumed by every evidence block (lineage, freshness, readiness, frontier); not itself retrievable as evidence",
+        "current": "NOT_APPLICABLE",
+        "history": {
+          "class": "UNSUPPORTED",
+          "source": "none",
+          "note": "not a data surface"
+        },
+        "comparison_populations": [],
+        "decomposition": false,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": false,
+        "evidence_class_explicit": false,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "n/a"
+        },
+        "chart_ready": [],
+        "refresh_policy": {
+          "cadence": "NONE",
+          "trigger": "n/a",
+          "snapshot_policy": "NONE",
+          "rationale": "computed per request"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "1"
+          ]
+        ]
+      }
     },
     {
       "id": "football-intelligence",
@@ -95,9 +131,55 @@
       ],
       "consumers": [
         "weekly/start-sit-fi",
-        "weekly/matchup-intelligence"
+        "weekly/matchup-intelligence",
+        "book-ready"
       ],
-      "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact."
+      "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact.",
+      "book_ready": {
+        "query_topics": [
+          "fi.team_metric",
+          "fi.player_usage"
+        ],
+        "capability_state": "AVAILABLE",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "NATIVE_HISTORY",
+          "source": "snapshot_store",
+          "note": "immutable snapshots of COMPLETE-week published states; coverage starts with 2026 week 1; earlier seasons not preserved; the current partial week is labelled CURRENT_UNSNAPSHOTTED"
+        },
+        "comparison_populations": [
+          "NFL_OFFENSE_TEAMS",
+          "NFL_DEFENSE_TEAMS"
+        ],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": true,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": true,
+          "note": "same metric across preserved states is comparable; percentile ORIENTATION is per-metric (see unit registry) and 'modeled' is a deviation from the league mean"
+        },
+        "chart_ready": [
+          "line",
+          "percentile",
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "DAILY",
+          "trigger": "cron 13:00 UTC + push to analysis/football_intel/**",
+          "snapshot_policy": "COMPLETE_WEEK",
+          "rationale": "nflverse publishes daily and FI is cheap to rebuild (~5 min CI); the preserved weekly state is taken after the refresh (intelligence-snapshot workflow, 13:40 UTC)"
+        },
+        "phase_refs": [
+          [
+            "FOOTBALL_INTELLIGENCE_PHASE",
+            "3"
+          ]
+        ]
+      }
     },
     {
       "id": "fi-receiver-progression",
@@ -141,7 +223,43 @@
         "test/football-intel-read.test.ts",
         "analysis/football_intel/tests/testthat/test-invariants.R"
       ],
-      "consumers": []
+      "consumers": [],
+      "book_ready": {
+        "query_topics": [],
+        "capability_state": "SOURCE_CONFLICT",
+        "note": "numeric read_thrown semantics are UNVERIFIED_SOURCE_CONFLICT; the QB-side view is served as scheme.qb_progression. No Book-Ready topic for the receiver-side rows yet.",
+        "current": "PARTIAL",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "not retrievable through the query layer; the store preserves receiver_progression.csv per complete week"
+        },
+        "comparison_populations": [],
+        "decomposition": false,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": false,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "numeric codes have unverified meaning"
+        },
+        "chart_ready": [],
+        "refresh_policy": {
+          "cadence": "DAILY",
+          "trigger": "same as football-intelligence",
+          "snapshot_policy": "COMPLETE_WEEK",
+          "rationale": "published with FI"
+        },
+        "phase_refs": [
+          [
+            "FOOTBALL_INTELLIGENCE_PHASE",
+            "3"
+          ]
+        ]
+      }
     },
     {
       "id": "role-opportunity",
@@ -187,9 +305,54 @@
         "test/player-role-intelligence.test.ts"
       ],
       "consumers": [
-        "opportunity-propagation-intelligence"
+        "opportunity-propagation-intelligence",
+        "book-ready"
       ],
-      "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) — documented, not a defect."
+      "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) \u2014 documented, not a defect.",
+      "book_ready": {
+        "query_topics": [
+          "role.player_profile",
+          "role.role_change"
+        ],
+        "capability_state": "AVAILABLE",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "NATIVE_HISTORY",
+          "source": "snapshot_store+native_observation",
+          "note": "published Role states per completed week (2026+) and per-game observed facts from the preserved substrate; earlier seasons exist only in the R cache, not in the served artifact"
+        },
+        "comparison_populations": [
+          "NFL_<POSITION>",
+          "<TEAM>_<POSITION>"
+        ],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": true,
+          "note": "snap-share-like values may legitimately exceed 1.0 (QB kneel exclusion); route participation is a proxy and null while the source lags"
+        },
+        "chart_ready": [
+          "line",
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "WEEKLY_AFTER_COMPLETE_WEEK",
+          "trigger": "dependency: FI reports week W COMPLETE and the served Role through_week < W; heavy R build (run_build.R \u2192 run_role_profile.R \u2192 serve_role_intelligence.R), run once per completed week",
+          "snapshot_policy": "COMPLETE_WEEK",
+          "rationale": "role observations only change when games complete, so daily rebuilds would only re-emit identical state; the R build needs multi-season pbp/participation caches that CI does not hold. Staleness is detected and surfaced (refresh_lag_weeks) rather than assumed away"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "2"
+          ]
+        ]
+      }
     },
     {
       "id": "opportunity-propagation",
@@ -198,7 +361,7 @@
       "status": [
         "SHADOW"
       ],
-      "nature": "CONDITIONAL scenario allocator (IF player X is unavailable) — never P(unavailable); production numeric influence PROHIBITED",
+      "nature": "CONDITIONAL scenario allocator (IF player X is unavailable) \u2014 never P(unavailable); production numeric influence PROHIBITED",
       "deployment": "SHADOW_ONLY",
       "builder": {
         "command": "Rscript analysis/opportunity_propagation/run_build.R && Rscript analysis/opportunity_propagation/serve_opportunity_propagation.R",
@@ -237,8 +400,50 @@
         "test/opportunity-propagation-r-ts-parity.test.ts",
         "test/injury-opportunity-propagation-isolation.test.ts"
       ],
-      "consumers": [],
-      "notes": "No consumer and no route, by documented design. Inheritance 'rates' are ratios that may exceed 1.0 by design (not probabilities)."
+      "consumers": [
+        "book-ready"
+      ],
+      "notes": "No consumer and no route, by documented design. Inheritance 'rates' are ratios that may exceed 1.0 by design (not probabilities).",
+      "book_ready": {
+        "query_topics": [
+          "opp.scenario"
+        ],
+        "capability_state": "PARTIAL",
+        "note": "CONDITIONAL scenario evidence only; not an observed weekly series",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "UNSUPPORTED",
+          "source": "none",
+          "note": "scenario results are not an observed history; re-evaluating a scenario against a prior Role snapshot is not implemented (the snapshots preserve the model inputs)"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "conditional on a consumer-supplied absence; never comparable to an unconditional projection"
+        },
+        "chart_ready": [
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "WEEKLY_AFTER_ROLE",
+          "trigger": "dependency: rebuilt after Role Intelligence for the same through_week (its manifest pins the Role version); inheritance priors are fit on 2019-2025 and do not change weekly",
+          "snapshot_policy": "COMPLETE_WEEK",
+          "rationale": "depends entirely on the Role snapshot; the training-window priors are static"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "3"
+          ]
+        ]
+      }
     },
     {
       "id": "player-scheme",
@@ -251,7 +456,7 @@
       "nature": "SHARED_DESCRIPTIVE; no fantasy adjustment; Tier B is PRIOR_ONLY/DESCRIPTIVE_ONLY; FTN progression is UNVERIFIED_SOURCE_CONFLICT",
       "deployment": "SHARED_DESCRIPTIVE",
       "builder": {
-        "command": "Rscript analysis/player_scheme_intelligence/build_tierA.R && …build_tierB.R && …build_tierC.R",
+        "command": "Rscript analysis/player_scheme_intelligence/build_tierA.R && \u2026build_tierB.R && \u2026build_tierC.R",
         "entrypoints": [
           "analysis/player_scheme_intelligence/build_tierA.R",
           "analysis/player_scheme_intelligence/build_tierB.R",
@@ -298,8 +503,57 @@
         "test/player-scheme-tierc.test.ts",
         "test/player-scheme-isolation.test.ts"
       ],
-      "consumers": [],
-      "notes": "player_scheme_version identifies Tier A only; content_identity.served_content_id identifies all tiers (Phase 3.5B)."
+      "consumers": [
+        "book-ready"
+      ],
+      "notes": "player_scheme_version identifies Tier A only; content_identity.served_content_id identifies all tiers (Phase 3.5B).",
+      "book_ready": {
+        "query_topics": [
+          "scheme.qb_progression",
+          "scheme.qb_spatial",
+          "scheme.qb_formation",
+          "scheme.defense_coverage"
+        ],
+        "capability_state": "CURRENT_ONLY",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "snapshot_store(identity)",
+          "note": "one served content identity per rebuild; windows (career/recent/current_team) are cumulative and PRIOR_ONLY through 2025 \u2014 no in-season history exists"
+        },
+        "comparison_populations": [
+          "NFL_QB_FTN_<WINDOW>",
+          "NFL_DEFENSES"
+        ],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": false,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "cumulative windows, single content identity"
+        },
+        "chart_ready": [
+          "heatmap",
+          "stacked_distribution",
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "SEASONAL",
+          "trigger": "rebuild at season rollover (once the final regular-season week is in nflverse) or when current-season charting reaches the sample thresholds; PRIOR_ONLY until then",
+          "snapshot_policy": "CONTENT_CHANGE",
+          "rationale": "source lag (participation/FTN publish behind pbp), hours-long 19 MB build, and career/recent windows that move slowly: a scheduled rebuild adds compute without new information"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "9"
+          ]
+        ]
+      }
     },
     {
       "id": "player-scheme-interactions",
@@ -331,7 +585,7 @@
       "reachability": "FULLY_REACHABLE",
       "source_data": "walk-forward over 2019-2025 against a reconstructable production-like baseline",
       "data_cutoff_field": "data_cutoff",
-      "confidence_semantics": "verdict per family (PREDICTIVE_INCREMENTAL / EXPLANATORY_ONLY / REJECTED / …)",
+      "confidence_semantics": "verdict per family (PREDICTIVE_INCREMENTAL / EXPLANATORY_ONLY / REJECTED / \u2026)",
       "freshness_owner": "n/a (research)",
       "lineage_owner": "lib/player-scheme-intelligence/query.ts",
       "reproducibility": "PINNED_STATIC",
@@ -341,7 +595,43 @@
       "tests": [
         "test/player-scheme-tierd.test.ts"
       ],
-      "consumers": []
+      "consumers": [],
+      "book_ready": {
+        "query_topics": [],
+        "capability_state": "UNSUPPORTED",
+        "note": "RESEARCH_ONLY / SHADOW_ONLY with a zero numeric adjustment; intentionally not retrievable as evidence",
+        "current": "NOT_APPLICABLE",
+        "history": {
+          "class": "UNSUPPORTED",
+          "source": "none",
+          "note": "research layer"
+        },
+        "comparison_populations": [],
+        "decomposition": false,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": false,
+        "lineage": true,
+        "unit_scale_explicit": false,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "research only"
+        },
+        "chart_ready": [],
+        "refresh_policy": {
+          "cadence": "SEASONAL",
+          "trigger": "with player-scheme",
+          "snapshot_policy": "CONTENT_CHANGE",
+          "rationale": "same build"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "9"
+          ]
+        ]
+      }
     },
     {
       "id": "start-sit-fi",
@@ -392,9 +682,50 @@
       ],
       "consumers": [
         "persistence/supabase/shadow-capture.ts",
-        "weekly/intelligence.ts"
+        "weekly/intelligence.ts",
+        "book-ready"
       ],
-      "notes": "Model frozen: sha256 85d2ddd5…6293. start_sit_manifest.json / start_sit_validation.csv / start_sit_feature_status.csv are training provenance with no runtime reader (INTERNAL)."
+      "notes": "Model frozen: sha256 85d2ddd5\u20266293. start_sit_manifest.json / start_sit_validation.csv / start_sit_feature_status.csv are training provenance with no runtime reader (INTERNAL).",
+      "book_ready": {
+        "query_topics": [
+          "startsit.shadow"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "request-scoped build; SHADOW_ONLY",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "NATIVE_HISTORY",
+          "source": "durable_capture_store",
+          "note": "LIVE_CAPTURED / LIVE_POST_LOCK records (Phase 3.5A) are immutable point-in-time decisions; the query layer converts a live comparison, captured-record retrieval is a follow-up"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "shadow model; not validated"
+        },
+        "chart_ready": [
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live comparison",
+          "snapshot_policy": "NONE (captured by the Phase 3.5A evidence store)",
+          "rationale": "decision evidence is captured at request time"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "4"
+          ]
+        ]
+      }
     },
     {
       "id": "matchup-intelligence",
@@ -406,7 +737,7 @@
       "nature": "SHADOW calibrated score distributions + correlations; never changes the production matchup",
       "deployment": "SHADOW_ONLY",
       "builder": {
-        "command": "Rscript analysis/football_intel_matchup/fit_distributions.R && …/fit_correlations.R",
+        "command": "Rscript analysis/football_intel_matchup/fit_distributions.R && \u2026/fit_correlations.R",
         "entrypoints": [
           "analysis/football_intel_matchup/fit_distributions.R",
           "analysis/football_intel_matchup/fit_correlations.R"
@@ -442,7 +773,47 @@
         "test/weekly-matchup.test.ts"
       ],
       "consumers": [],
-      "notes": "Model JSONs carry per-model version fields (distribution_model_version / correlation_model_version) instead of a manifest."
+      "notes": "Model JSONs carry per-model version fields (distribution_model_version / correlation_model_version) instead of a manifest.",
+      "book_ready": {
+        "query_topics": [
+          "matchup.shadow"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "request-scoped build; SHADOW_ONLY",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "per-request distributions"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": true,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "per-request simulation"
+        },
+        "chart_ready": [
+          "uncertainty"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live",
+          "snapshot_policy": "NONE",
+          "rationale": "computed from the live lineup and projections"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "5"
+          ]
+        ]
+      }
     },
     {
       "id": "roster-health",
@@ -484,8 +855,51 @@
       ],
       "consumers": [
         "schedule-planning",
-        "orchestrator"
-      ]
+        "orchestrator",
+        "book-ready"
+      ],
+      "book_ready": {
+        "query_topics": [
+          "roster_health.team"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "request-scoped build",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "the model computes the current roster only; league-relative percentiles are whole-percent source values converted to a 0-1 fraction with an explicit league population"
+        },
+        "comparison_populations": [
+          "<LEAGUE>_TEAMS"
+        ],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "current roster only"
+        },
+        "chart_ready": [
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live",
+          "snapshot_policy": "NONE",
+          "rationale": "computed from the canonical league snapshot"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "6"
+          ]
+        ]
+      }
     },
     {
       "id": "schedule-planning",
@@ -526,8 +940,49 @@
         "test/schedule-planning.test.ts"
       ],
       "consumers": [
-        "orchestrator"
-      ]
+        "orchestrator",
+        "book-ready"
+      ],
+      "book_ready": {
+        "query_topics": [
+          "schedule_planning.team"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "request-scoped build; assumes a static roster over the horizon",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "forward-looking plan"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": true,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "forward plan"
+        },
+        "chart_ready": [
+          "line"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live",
+          "snapshot_policy": "NONE",
+          "rationale": "computed from the canonical snapshot"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "7"
+          ]
+        ]
+      }
     },
     {
       "id": "orchestrator",
@@ -567,7 +1022,43 @@
         "test/orchestrator.test.ts",
         "test/orchestrator-isolation.test.ts"
       ],
-      "consumers": []
+      "consumers": [],
+      "book_ready": {
+        "query_topics": [],
+        "capability_state": "UNSUPPORTED",
+        "note": "composition of other surfaces; its components are retrievable through their own topics",
+        "current": "NOT_APPLICABLE",
+        "history": {
+          "class": "UNSUPPORTED",
+          "source": "none",
+          "note": "composition"
+        },
+        "comparison_populations": [],
+        "decomposition": false,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": false,
+        "lineage": true,
+        "unit_scale_explicit": false,
+        "evidence_class_explicit": false,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "composition"
+        },
+        "chart_ready": [],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live",
+          "snapshot_policy": "NONE",
+          "rationale": "composition"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "8"
+          ]
+        ]
+      }
     },
     {
       "id": "waiver-foundations",
@@ -606,7 +1097,45 @@
         "test/weekly-waivers.test.ts",
         "test/weekly-waiver-readiness.test.ts"
       ],
-      "consumers": []
+      "consumers": [],
+      "book_ready": {
+        "query_topics": [
+          "waiver.status"
+        ],
+        "capability_state": "PARTIAL",
+        "note": "currently UNAVAILABLE by the waiver-readiness contract (free-agent pool not materialized); reported as such, never fabricated",
+        "current": "PARTIAL",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "per-request"
+        },
+        "comparison_populations": [],
+        "decomposition": false,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "per-request"
+        },
+        "chart_ready": [],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "live",
+          "snapshot_policy": "NONE",
+          "rationale": "live"
+        },
+        "phase_refs": [
+          [
+            "TEAM_MANAGEMENT_PHASE",
+            "2"
+          ]
+        ]
+      }
     },
     {
       "id": "trade-foundations",
@@ -636,7 +1165,7 @@
       "reachability": "FULLY_REACHABLE",
       "source_data": "canonical snapshot, market values, league history",
       "data_cutoff_field": null,
-      "confidence_semantics": "VERY_LOW…HIGH passed through, never upgraded; transaction_readiness separate from classification",
+      "confidence_semantics": "VERY_LOW\u2026HIGH passed through, never upgraded; transaction_readiness separate from classification",
       "freshness_owner": "snapshot lineage",
       "lineage_owner": "lib/canonical/lineage.ts",
       "reproducibility": "NO_ARTIFACT",
@@ -648,7 +1177,53 @@
         "test/trade-engine.test.ts",
         "test/competitive-trade-api.test.ts"
       ],
-      "consumers": []
+      "consumers": [],
+      "book_ready": {
+        "query_topics": [
+          "trade.evaluation"
+        ],
+        "capability_state": "UNSUPPORTED",
+        "note": "evaluation is request-body driven (POST); the topic exists only to state that explicitly",
+        "current": "NOT_APPLICABLE",
+        "history": {
+          "class": "UNSUPPORTED",
+          "source": "none",
+          "note": "POST-body driven"
+        },
+        "comparison_populations": [],
+        "decomposition": false,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": false,
+        "lineage": false,
+        "unit_scale_explicit": false,
+        "evidence_class_explicit": false,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "n/a"
+        },
+        "chart_ready": [],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "POST",
+          "snapshot_policy": "NONE",
+          "rationale": "request-body driven"
+        },
+        "phase_refs": [
+          [
+            "TRADE_ENGINE_PHASE",
+            "6"
+          ]
+        ]
+      }
     }
-  ]
+  ],
+  "book_ready_contract_version": "book-ready-evidence-2026.1",
+  "phase_namespaces": {
+    "INTELLIGENCE_MODERNIZATION_PHASE": "Intelligence Modernization phases (1-3, 3.5A-C, then 4+). 'Phase 4' unqualified is ambiguous; use INTELLIGENCE_MODERNIZATION_PHASE:4 or TEAM_MANAGEMENT_PHASE:4.",
+    "TEAM_MANAGEMENT_PHASE": "Team Management phases 1-9",
+    "TRADE_ENGINE_PHASE": "Trade Engine phases 1-6 and 3.5",
+    "FOOTBALL_INTELLIGENCE_PHASE": "the FI engine (built as Team Management Phase 3)",
+    "BRIDGE_REALTIME_STATE_STAGE": "Bridge real-time state stages A-F"
+  }
 }

@@ -68,3 +68,20 @@ export interface IntelligenceSurface {
   consumers: string[];
   notes?: string;
 }
+
+/** Phase 3.5C: per-surface Book-Ready capability map (machine-checkable; verified against the query layer by test). */
+export type BookReadyCapabilityState = "AVAILABLE" | "PARTIAL" | "EXPECTED_SOURCE_LAG" | "CURRENT_ONLY" | "HISTORICAL_UNAVAILABLE" | "UNSUPPORTED" | "SOURCE_CONFLICT" | "NOT_A_DATA_SURFACE";
+export interface BookReadyCapability {
+  query_topics: string[];
+  capability_state: BookReadyCapabilityState;
+  current: "AVAILABLE" | "PARTIAL" | "NOT_APPLICABLE";
+  history: { class: "NATIVE_HISTORY" | "RECONSTRUCTABLE_AS_OF" | "RETROSPECTIVE_ONLY" | "CURRENT_ONLY" | "UNSUPPORTED"; source: string; note: string };
+  comparison_populations: string[];
+  decomposition: boolean; confidence: boolean; uncertainty: boolean; freshness: boolean; lineage: boolean;
+  unit_scale_explicit: boolean; evidence_class_explicit: boolean;
+  safe_for_historical_comparison: { value: boolean; note: string };
+  chart_ready: string[];
+  refresh_policy: { cadence: string; trigger: string; snapshot_policy: "COMPLETE_WEEK" | "CONTENT_CHANGE" | "NONE" | string; rationale: string };
+  phase_refs: Array<[string, string]>;
+  note?: string;
+}
