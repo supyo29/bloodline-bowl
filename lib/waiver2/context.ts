@@ -96,7 +96,7 @@ export function buildWaiverContext(input: WaiverInput): WaiverContext {
     replacement[pos] = {
       position: pos, free_agent_replacement: lvl?.replacement_points ?? null, free_agent_depth: faPts.length,
       rostered_replacement: benchPts.length ? benchPts[0]! : null, starter_baseline, bench_replacement: benchPts.length ? benchPts[0]! : null,
-      scarcity: round3(1 / (1 + useful)), basis: lvl ? `FA ${lvl.basis} (rank ${lvl.derived_from_rank ?? "?"}, n=${lvl.sample_size}); ${useful} free agent(s) at or above my ${pos} starter baseline` : "no free-agent replacement level",
+      scarcity: round3(1 / (1 + useful)), fa_basis: lvl?.basis ?? "unavailable", basis: lvl ? `FA ${lvl.basis} (rank ${lvl.derived_from_rank ?? "?"}, n=${lvl.sample_size}); ${useful} free agent(s) at or above my ${pos} starter baseline` : "no free-agent replacement level",
     };
   }
   const byeWeek = (p: CanonicalPlayer): number | null => (p.nfl_team && input.schedule ? input.schedule.bye_week(p.nfl_team) : (w.byes.by_player[p.canonical_player_id] ?? null));

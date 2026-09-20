@@ -135,9 +135,11 @@ export function assetValue(ctx: WaiverContext, p: CanonicalPlayer, opts: AssetOp
   const seed = lNow ?? rosPerWeek; const fut = rosPerWeek ?? seed;
   const rva = realizedVsOpportunity(ctx, p, role);
   const haircut = rva.signal === "POINTS_ABOVE_ROLE" ? 0.25 : 0;
-  // margin: what this player must beat on THIS roster
-  const margin = opts.role === "CANDIDATE" ? (ctx.marginalStarter(p) ?? rep?.starter_baseline ?? rep?.free_agent_replacement ?? 0)
-    : Math.max(0, ...[...ctx.activeIds].filter((x) => x !== id && ctx.players.get(x)?.position === pos && !ctx.startersByPlayer.has(x)).map((x) => ctx.proj(x)?.projected_points ?? 0));
+  // margin: what this player must beat on THIS roster. A candidate or a rostered BENCH player must beat the marginal starter he could displace;
+  // a rostered STARTER's replacement is the best bench alternative (a starter is only worth what he adds over his cover).
+  const benchAt = (excl: string | null) => Math.max(0, ...ctx.activeIds.filter((x) => x !== excl && ctx.players.get(x)?.position === pos && !ctx.startersByPlayer.has(x)).map((x) => ctx.proj(x)?.projected_points ?? 0));
+  const isMyStarter = opts.role === "ROSTERED" && ctx.startersByPlayer.has(id);
+  const margin = isMyStarter ? benchAt(id) : (ctx.marginalStarter(p) ?? rep?.starter_baseline ?? rep?.free_agent_replacement ?? 0);
   const avail0 = wp?.expected_availability ?? 1; const bye = sched.bye_week; const d = PARAMS.horizon_discount_per_week.value;
   const weeks: Array<{ week: number; level: number; sv: number }> = [];
   for (let w = ctx.week; w <= ctx.lastWeek; w++) {
@@ -158,7 +160,11 @@ export function assetValue(ctx: WaiverContext, p: CanonicalPlayer, opts: AssetOp
   const pStart = clamp(0.5 + ((lNow ?? seed ?? 0) - margin) / (2 * Math.max(sd, 3)), 0, 1);
   const growth = Math.max(0, role.persisted_points) * ow.role_growth; const variance = ceil != null && lNow != null ? Math.max(0, ceil - lNow) * pStart * ow.variance_upside : 0;
   const dcu = role.evidence && role.evidence !== "OBSERVED" && role.trend !== "STABLE" && (lNow ?? 0) > 0 ? (lNow ?? 0) * 0.15 * ow.depth_chart_uncertainty : 0;
-  const bench_option = round2(H * (growth + variance + dcu));
+  // positional DEPTH: the price of insurance — chance a bench player is needed x how much better he is than the cover already on hand (or the free-agent level)
+  const obtainable = rep?.fa_basis === "available_pool_marginal" ? (rep.free_agent_replacement ?? 0) : 0; // a fallback replacement level is not something a manager can actually add
+  const coverAlt = Math.max(benchAt(opts.role === "ROSTERED" ? id : null), obtainable);
+  const depth = isMyStarter ? 0 : DECISION_HORIZON_WEEKS * PARAMS.depth_need_probability.value * Math.max(0, (lNow ?? seed ?? 0) - coverAlt);
+  const bench_option = round2(H * (growth + variance + dcu) + depth);
   // own-roster injury insurance: counted only from OFFICIAL designations of my starters at eligible slots; unweighted payoff reported
   let insuranceCounted = 0; let insurancePayoff = 0;
   if (opts.role === "CANDIDATE") {
@@ -174,7 +180,7 @@ export function assetValue(ctx: WaiverContext, p: CanonicalPlayer, opts: AssetOp
   comps.push({ key: "margin", label: `Level to beat on this roster at ${pos}`, value: round2(margin), unit: "points/week", status: "AVAILABLE", note: opts.role === "CANDIDATE" ? "lowest current optimal starter this player is eligible to displace (else starter baseline / FA replacement)" : "best bench alternative at the position if this player is dropped" });
   comps.push({ key: "starter_value", label: `Starter value over the ${DECISION_HORIZON_WEEKS}-week decision horizon`, value: starter, unit: "points", status: "AVAILABLE" });
   comps.push({ key: "role_persisted", label: "Role trajectory (persisted, capped)", value: role.persisted_points, unit: "points/week", status: role.status, note: role.capped ? "capped" : undefined });
-  comps.push({ key: "bench_option", label: "Bench optionality", value: bench_option, unit: "points", status: "AVAILABLE", note: `growth ${round2(growth)}, variance ${round2(variance)}, depth-chart ${round2(dcu)} per week x ${H} weeks` });
+  comps.push({ key: "bench_option", label: "Bench optionality", value: bench_option, unit: "points", status: "AVAILABLE", note: `growth ${round2(growth)}, variance ${round2(variance)}, depth-chart ${round2(dcu)} per week x ${H} weeks; positional depth (insurance) ${round2(depth)}` });
   comps.push({ key: "opp_counted", label: "Opportunity Propagation (counted: established teammate absence only)", value: opp.counted_points, unit: "points (next week)", status: opp.status === "UNAVAILABLE" ? "UNAVAILABLE" : "AVAILABLE", note: opp.condition ?? undefined });
   comps.push({ key: "contingency_payoff", label: "Contingent payoff if the condition occurred (NOT counted)", value: contingency_payoff, unit: "points", status: "AVAILABLE", note: "conditional; carries zero weight unless an official designation establishes the condition" });
   const total = round2(starter + bench_option + contingency_counted);

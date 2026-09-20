@@ -64,6 +64,8 @@ export interface AssetValue {
 export interface ReplacementView {
   position: string; free_agent_replacement: number | null; free_agent_depth: number; rostered_replacement: number | null; starter_baseline: number | null;
   bench_replacement: number | null; scarcity: number; basis: string;
+  /** how the free-agent level was derived: only `available_pool_marginal` means an OBTAINABLE replacement exists */
+  fa_basis: string;
 }
 
 export interface CompetitorView { team_id: string; manager: string | null; need_strength: number; marginal_starter_gap: number; positional_weakness: string; budget_remaining: number | null; budget_context: string; evidence: string[] }
