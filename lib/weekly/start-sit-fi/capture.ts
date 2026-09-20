@@ -612,5 +612,8 @@ export function summarize(recs: ShadowDecisionRecord[], outcomes: number, store_
   s.by_week_kind = [...wk.entries()].map(([k, n]) => { const [season, week, kind] = k.split("|"); return { season: Number(season), week: Number(week), kind: kind!, n }; })
     .sort((a, b) => a.season - b.season || a.week - b.week || a.kind.localeCompare(b.kind));
   s.outcomes_attached = outcomes;
+  s.record_count = recs.length;
+  s.per_position_truncated = false; // full records supplied: nothing is truncated
+  s.counts_truncated = false;
   return s;
 }

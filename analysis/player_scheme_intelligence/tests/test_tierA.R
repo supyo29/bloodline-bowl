@@ -14,6 +14,9 @@ if (!file.exists(file.path(PSI$CACHE_DIR, "pbp.rds"))) stop("run from repo root;
 pbp <- readRDS(file.path(PSI$CACHE_DIR, "pbp.rds"))
 reg <- pbp %>% filter(season_type == "REG")
 S <- 2025L; W <- 18L
+# Phase 3.5B: the as-of window is NOT an arbitrary constant -- it must equal the served artifact's own lineage.
+.psm <- jsonlite::fromJSON(file.path(PSI$ROOT, "lib", "player-scheme-intelligence", "data", "player_scheme_manifest.json"))
+stopifnot(identical(as.integer(.psm$current_season), S), identical(as.integer(.psm$as_of_week), W))
 pass <- psi_pass_plays(reg, c(short_hi = 10, int_hi = 20)) %>% psi_asof(S, W)
 rush <- psi_rush_plays(reg) %>% psi_asof(S, W)
 

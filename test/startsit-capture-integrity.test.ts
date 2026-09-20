@@ -288,3 +288,14 @@ test("supabase summary: narrow select for counts; heavy JSON only for capped LIV
     assert.match(captureCalls.find((u) => u.includes("capture_kind=eq.LIVE_CAPTURED"))!, /limit=300/);
   } finally { globalThis.fetch = origFetch; }
 });
+
+test("evidence report surfaces the bounded-diagnostic semantics explicitly (record_count / *_truncated), never silently", async () => {
+  const { buildStartSitEvidenceReport } = await import("@/lib/weekly/start-sit-fi/evidence-report");
+  const store = new MemoryShadowCaptureStore(); setShadowCaptureStore(store);
+  await persistShadowRecord(rec());
+  const r = await buildStartSitEvidenceReport();
+  assert.equal(r.evidence_by_class.record_count, 1);
+  assert.equal(r.evidence_by_class.per_position_truncated, false);
+  assert.equal(r.evidence_by_class.counts_truncated, false);
+  assert.ok("record_count" in r.evidence_by_class && "per_position_truncated" in r.evidence_by_class && "counts_truncated" in r.evidence_by_class);
+});

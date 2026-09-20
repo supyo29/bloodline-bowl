@@ -61,6 +61,11 @@ export async function buildStartSitEvidenceReport() {
       /** valid pre-kickoff evidence only (LIVE_CAPTURED). */
       per_position_valid_live: capture.by_position,
       outcomes_attached: capture.outcomes_attached,
+      // Phase 3.5B: bounded-diagnostic semantics are EXPLICIT. `per_position_truncated` = per-position decision counts
+      // cover only the most recent LIVE_CAPTURED rows (detail cap); `counts_truncated` = class counts hit the row cap.
+      record_count: capture.record_count ?? null,
+      per_position_truncated: capture.per_position_truncated ?? null,
+      counts_truncated: capture.counts_truncated ?? null,
     },
     outcome_metrics: "WITHHELD -- reported only once a class has complete actuals AND passes the evidence gate",
   };

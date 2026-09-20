@@ -121,10 +121,23 @@ test_that("determinism: rebuilding on the same input data reproduces byte-identi
   # refreshed daily and can legitimately hold a newer completed game than the Role substrate the stored events were
   # built from; those later events are new evidence, not a determinism failure. (A local refresh that added the 2026
   # wk2 Thursday game produced exactly two such events: BUF RB INA, BUF WR RES.)
-  max_s <- max(events_distinct$season); max_w <- max(events_distinct$week[events_distinct$season == max_s])
+  # The temporal boundary is the SUBSTRATE the stored events were built from (the Role player-game table), and it must
+  # agree with the served manifests -- it is not derived from the events themselves and not chosen to make the test pass.
+  max_s <- max(player_game_role$season); max_w <- max(player_game_role$week[player_game_role$season == max_s])
+  opp_m  <- jsonlite::fromJSON(file.path(FI$ROOT, "lib", "opportunity-propagation-intelligence", "data", "opportunity_propagation_manifest.json"))
+  role_m <- jsonlite::fromJSON(file.path(FI$ROOT, "lib", "player-role-intelligence", "data", "role_opportunity_manifest.json"))
+  expect_identical(c(max_s, max_w), c(as.integer(role_m$season), as.integer(role_m$through_week)))   # substrate == Role lineage
+  expect_identical(c(max_s, max_w), c(as.integer(opp_m$season),  as.integer(opp_m$through_week)))    # == OPP lineage
+  expect_identical(as.integer(opp_m$role_opportunity_dependency$through_week), as.integer(max_w))    # == declared dependency
   in_window <- rebuilt$absence_events %>% distinct(absence_event_id, season, week) %>%
     filter(season < max_s | (season == max_s & week <= max_w))
   expect_equal(sort(unique(in_window$absence_event_id)), sort(unique(events_distinct$absence_event_id)))
+  # Negative control: a change INSIDE the window still fails determinism (the boundary is not a blanket exclusion).
+  tampered <- setdiff(unique(in_window$absence_event_id), in_window$absence_event_id[1])
+  expect_false(setequal(tampered, unique(events_distinct$absence_event_id)))
+  # ...and everything beyond the substrate window is by definition not part of the stored artifact.
+  beyond <- rebuilt$absence_events %>% distinct(absence_event_id, season, week) %>% filter(season > max_s | (season == max_s & week > max_w))
+  expect_false(any(beyond$absence_event_id %in% events_distinct$absence_event_id))
 })
 
 test_that("no fantasy points or scoring concept appears anywhere in the substrate (spec #23/#40)", {
