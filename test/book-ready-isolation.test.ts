@@ -10,13 +10,17 @@ const importsBookReady = (s: string) => /from\s+["'](?:@\/lib\/book-ready|(?:\.\
 
 test("only app/api/evidence/route.ts imports lib/book-ready from app/ or lib/ (outside book-ready itself)", () => {
   const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/book-ready/")).filter((f) => importsBookReady(readFileSync(f, "utf8")));
-  assert.deepEqual(offenders, ["app/api/evidence/route.ts"]);
+  // the analytical route, and the Analysis Book EXECUTOR (the single planner module that reads evidence; test/analysis-book-isolation.test.ts)
+  assert.deepEqual(offenders, ["app/api/evidence/route.ts", "lib/analysis-book/executor.ts"]);
 });
 test("no file outside lib/book-ready (and the one route) mentions book-ready in ANY form: import, require, dynamic import, string path", () => {
-  const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/book-ready/") && f !== "app/api/evidence/route.ts").filter((f) => /book-ready|book_ready/.test(readFileSync(f, "utf8")));
+  const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/book-ready/") && f !== "app/api/evidence/route.ts" && f !== "lib/analysis-book/executor.ts" && f !== "lib/analysis-book/capability.ts").filter((f) => /book-ready|book_ready/.test(readFileSync(f, "utf8")));
   // the registry TYPES and discovery manifest describe the capability; neither may import runtime code
   assert.deepEqual(offenders.filter((f) => !["lib/canonical/intelligence-surface-registry.ts", "lib/discovery.ts"].includes(f)), []);
   for (const f of ["lib/canonical/intelligence-surface-registry.ts", "lib/discovery.ts"]) assert.doesNotMatch(readFileSync(f, "utf8"), /from\s+["'][^"']*book-ready/, f);
+});
+test("the Analysis Book capability reader names book_ready ONLY as the registry JSON key (no import, no module path)", () => {
+  const src = readFileSync("lib/analysis-book/capability.ts", "utf8"); assert.doesNotMatch(src, /book-ready/); assert.doesNotMatch(src, /from\s+["'][^"']*book/);
 });
 test("recommendation routes never reach the query layer: lib/weekly, lib/trades, lib/lineup and the recommendation routes do not reference it", () => {
   for (const f of [...walk("lib/weekly"), ...walk("lib/trades"), ...walk("app/api/intelligence"), ...walk("app/api/lineup"), ...walk("app/api/waivers"), ...walk("app/api/matchup")]) assert.doesNotMatch(readFileSync(f, "utf8"), /book-ready|book_ready/, f);

@@ -306,7 +306,8 @@
       ],
       "consumers": [
         "opportunity-propagation-intelligence",
-        "book-ready"
+        "book-ready",
+        "analysis-book"
       ],
       "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) \u2014 documented, not a defect.",
       "book_ready": {
