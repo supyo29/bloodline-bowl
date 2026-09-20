@@ -55,7 +55,8 @@ export async function executePlan(plan: ResearchPlan, o: { client?: EvidenceClie
     try {
       const r = await client.get({ topic: q.topic, params: q.params, history: q.history, comparisons: q.comparisons });
       const ok = r.status === "OK"; const refs = ok ? r.blocks.map(refOf) : [];
-      const lim = [...new Set(r.blocks.flatMap((b) => b.limitations))].slice(0, 8);
+      // the reason a block is NOT available leads the limitations (it is why a chapter is blocked); general caveats follow
+      const lim = [...new Set([...r.blocks.filter((b) => b.availability.state !== "AVAILABLE").map((b) => b.availability.reason ?? b.availability.state), ...r.blocks.flatMap((b) => b.limitations)])].slice(0, 8);
       const scales = ok ? r.blocks.filter((b) => b.availability.state === "AVAILABLE").map((b) => ({ metric: b.metric, subject_id: b.subject.id, unit_kind: b.unit?.kind ?? null, population: b.comparison?.[0]?.population.id ?? null })) : [];
       const res: QueryResult = { key: q.key, topic: q.topic, status: ok ? "OK" : "ERROR", detail: ok ? null : `${r.status}${r.detail ? `: ${r.detail}` : ""}`, refs, identities: identitiesOf(refs), available: refs.filter((x) => x.availability === "AVAILABLE").length, total: refs.length, limitations: ok ? lim : [r.detail ?? r.status], ms: Math.round(performance.now() - t), bytes: r.performance?.approx_bytes ?? 0, from_cache: false, history: q.history, comparisons: q.comparisons, scales };
       results.set(q.key, res); if (ok) cache.set(res);

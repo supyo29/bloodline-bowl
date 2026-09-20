@@ -28,7 +28,7 @@ export const PARAMS = {
   designation_play_probability: P({ OUT: 0, IR: 0, DOUBTFUL: 0.2, QUESTIONABLE: 0.75, PROBABLE: 0.95 } as Record<string, number>, "POLICY", "conventional game-status semantics; used only to weight a scenario whose condition an official designation establishes"),
   /** value of bench optionality per point of raw upside */
   option_weights: P({ role_growth: 0.35, variance_upside: 0.12, depth_chart_uncertainty: 0.2 }, "PRIOR_UNVALIDATED", "policy weights on optionality components; expressed in points/week-equivalent"),
-  depth_need_probability: P(0.12, "PRIOR_UNVALIDATED", "weekly chance a bench player at a position is actually needed (starter injury, bye, rest); prices positional depth, not a projection"),
+  depth_need_probability: P({ QB: 0.07, RB: 0.16, WR: 0.13, TE: 0.12, K: 0.06, DEF: 0.06 } as Record<string, number>, "PRIOR_UNVALIDATED", "weekly chance a bench player at a position is actually needed (starter injury, bye, rest), by position; prices positional depth, not a projection"),
   option_horizon_weeks: P(6, "POLICY", "weeks over which optionality is realistically exercised"),
   horizon_discount_per_week: P(0.04, "PRIOR_UNVALIDATED", "forecast decay: further weeks are less certain"),
   bye_value: P(0, "POLICY", "a bye week contributes zero starter value"),

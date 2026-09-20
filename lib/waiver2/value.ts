@@ -163,7 +163,7 @@ export function assetValue(ctx: WaiverContext, p: CanonicalPlayer, opts: AssetOp
   // positional DEPTH: the price of insurance — chance a bench player is needed x how much better he is than the cover already on hand (or the free-agent level)
   const obtainable = rep?.fa_basis === "available_pool_marginal" ? (rep.free_agent_replacement ?? 0) : 0; // a fallback replacement level is not something a manager can actually add
   const coverAlt = Math.max(benchAt(opts.role === "ROSTERED" ? id : null), obtainable);
-  const depth = isMyStarter ? 0 : DECISION_HORIZON_WEEKS * PARAMS.depth_need_probability.value * Math.max(0, (lNow ?? seed ?? 0) - coverAlt);
+  const depth = isMyStarter ? 0 : DECISION_HORIZON_WEEKS * (PARAMS.depth_need_probability.value[pos] ?? 0.1) * Math.max(0, (lNow ?? seed ?? 0) - coverAlt);
   const bench_option = round2(H * (growth + variance + dcu) + depth);
   // own-roster injury insurance: counted only from OFFICIAL designations of my starters at eligible slots; unweighted payoff reported
   let insuranceCounted = 0; let insurancePayoff = 0;
@@ -185,7 +185,8 @@ export function assetValue(ctx: WaiverContext, p: CanonicalPlayer, opts: AssetOp
   comps.push({ key: "contingency_payoff", label: "Contingent payoff if the condition occurred (NOT counted)", value: contingency_payoff, unit: "points", status: "AVAILABLE", note: "conditional; carries zero weight unless an official designation establishes the condition" });
   const total = round2(starter + bench_option + contingency_counted);
   const uncertainty = uncertaintyFor(ctx, p, total, role, opp);
-  const { archetype, evidence } = classify(ctx, p, { role, opp, sched, starter, bench_option, contingency_payoff, contingency_counted, rva, lNow, margin, rep });
+  const upsideOnly = round2(H * (growth + variance + dcu));
+  const { archetype, evidence } = classify(ctx, p, { role, opp, sched, starter, bench_option: upsideOnly, contingency_payoff, contingency_counted, rva, lNow, margin, rep });
   return { player_id: id, name: p.full_name || id, position: pos, weekly_level: lNow == null ? null : round2(lNow), level_basis, horizons, by_kind, role, opp, schedule: sched, components: comps, uncertainty, archetype, archetype_evidence: evidence, realized_vs_opportunity: rva };
 }
 
@@ -215,7 +216,7 @@ function classify(ctx: WaiverContext, p: CanonicalPlayer, x: { role: RoleAssessm
     ["IMMEDIATE_STARTER", x.starter >= 6 && (x.lNow ?? 0) > x.margin + 1, `starter value ${x.starter} over the decision horizon`],
     ["ROLE_GROWTH_BREAKOUT", x.role.persisted_points >= 1 && x.role.trend === "EXPANDING" && (CONF_RANK[x.role.confidence ?? ""] ?? 0) >= 2, `persisted role growth ${x.role.persisted_points} pts/week, trend EXPANDING, ${x.role.confidence}`],
     ["SPECULATIVE_ROOKIE", prof?.receiving?.target_share.discontinuity === "ROOKIE_OR_NO_PRIOR_SEASON" || prof?.rushing?.rush_share.discontinuity === "ROOKIE_OR_NO_PRIOR_SEASON", "no prior-season role evidence (rookie/new)"],
-    ["CONTINGENT_HANDCUFF", x.contingency_payoff >= 1.5 && x.contingency_counted === 0, `conditional payoff ${x.contingency_payoff} if a teammate were unavailable (no designation establishes it: not counted)`],
+    ["CONTINGENT_HANDCUFF", x.opp.conditional_payoff_points >= 1.5 && x.opp.counted_points === 0, `conditional Opportunity Propagation payoff ${x.opp.conditional_payoff_points} if the team's lead player were unavailable (no designation establishes it: not counted)`],
     ["RETURN_SPECIALIST_VALUE", ret >= 0.5 && offRole < 0.3, `return role share ${round2(ret)} with little offensive participation`],
     ["UPSIDE_BENCH_STASH", x.bench_option >= 1, `bench optionality ${x.bench_option}`],
     ["SCHEDULE_STREAMER", ["K", "DEF"].includes(p.position) && x.starter > 0, "streamable position with starter value this horizon"],
