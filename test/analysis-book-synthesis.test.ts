@@ -6,7 +6,7 @@ import { loadCapabilitySnapshot, type CapabilitySnapshot } from "@/lib/analysis-
 import { createBook } from "@/lib/analysis-book/contents";
 import { researchChapters } from "@/lib/analysis-book/research";
 import { addFinding, synthesize, synthesisIsCurrent, renderSynthesisText, vintageStatement, rangesOf } from "@/lib/analysis-book/synthesis";
-import { recordSupport } from "@/lib/analysis-book/session";
+import { recordSupport, recordChapterResearch } from "@/lib/analysis-book/session";
 import type { AnalysisBookSession, EvidenceRef } from "@/lib/analysis-book/schema";
 
 const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(); const NOW = "2026-09-20T12:00:00.000Z";
@@ -115,4 +115,15 @@ test("cross-chapter findings are first-class, cite their supporting chapters + e
 test("request-scoped live builds are described as live builds, not as a fake NFL week", () => {
   const v = vintageStatement([{ surface: "role-opportunity", version: "roi:2026:w01:x", season: 2026, through_week: 1, week_state: "COMPLETE" }, { surface: "matchup-intelligence", version: "ri-matchup-2026.1", season: 2026, through_week: null, week_state: null }]);
   assert.equal(v.mixed, true); assert.match(v.statement, /live request-scoped build \(no NFL through-week\)/); assert.doesNotMatch(v.statement, /week \?|wnull|week null/);
+});
+
+test("cross-player comparison: incompatible SCALES are rejected, different comparison POPULATIONS force TENTATIVE (never a silent comparison)", () => {
+  const mk = (subject: string, over: Partial<EvidenceRef>): EvidenceRef => ({ evidence_id: `eb:${subject}`, surface: "role-opportunity", topic: "role.player_profile", metric: "receiving.target_share", subject_id: subject, availability: "AVAILABLE", analysis_class: "OBSERVED", version: snap.vintage["role-opportunity"]!.version, season: 2026, through_week: 1, week_state: "COMPLETE", unit_kind: "fraction", population: "NFL_WR", ...over });
+  const idOf = { surface: "role-opportunity", version: snap.vintage["role-opportunity"]!.version, season: 2026, through_week: 1, week_state: "COMPLETE" };
+  const base = (refs: EvidenceRef[]) => { let s = make(); s = recordChapterResearch(s, "player.role.playing_time", { depth: 1, identities: [idOf], evidence_refs: refs, query_keys: ["q"], coverage: { satisfied: ["role.player_profile"], unsatisfied: [] }, limitations: [] }, NOW); return s; };
+  const claim = (s: AnalysisBookSession, ids: string[]) => addFinding(s, { kind: "ANALYST_SYNTHESIS", text: "The two players' target work is comparable in size", chapters: ["player.role.playing_time"], evidence_ids: ids }, snap);
+  const ok = base([mk("A", {}), mk("B", {})]); const a = claim(ok, ["eb:A", "eb:B"]); assert.ok(a.ok && a.finding.claim_strength === "STRONG", "same scale + same population -> a normal claim");
+  const pops = base([mk("A", {}), mk("B", { population: "NFL_RB" })]); const b = claim(pops, ["eb:A", "eb:B"]); assert.ok(b.ok && b.finding.claim_strength === "TENTATIVE"); assert.match(b.ok ? b.finding.strength_reasons.join() : "", /different comparison populations \(NFL_WR vs NFL_RB\)/);
+  const units = base([mk("A", {}), mk("B", { unit_kind: "count" })]); const c = claim(units, ["eb:A", "eb:B"]); assert.equal(c.ok, false); assert.match(c.ok ? "" : c.errors.join(), /INCOMPARABLE.*unit kinds differ \(fraction vs count\).*no scale conversion/);
+  const single = claim(units, ["eb:A"]); assert.ok(single.ok, "one subject's own evidence is never affected");
 });

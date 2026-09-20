@@ -42,6 +42,18 @@ const NEW_SCORE = /\b(score|rating|grade|projection|projected points?|value)\s*(
 const latestRefs = (s: AnalysisBookSession, chapter: string): EvidenceRef[] => { const st = s.chapters[chapter]; const rev = st?.revisions[st.revisions.length - 1]; return rev ? rev.evidence_refs : []; };
 const allRefs = (s: AnalysisBookSession, chapter: string): EvidenceRef[] => (s.chapters[chapter]?.revisions ?? []).flatMap((r) => r.evidence_refs);
 
+/** Same metric cited for DIFFERENT subjects: unit kinds that differ are incomparable (hard); populations that differ are only relatively comparable (soft). */
+export function crossSubjectIssues(refs: EvidenceRef[]): { units: string[]; populations: string[] } {
+  const g = new Map<string, EvidenceRef[]>(); for (const r of refs) g.set(`${r.topic}:${r.metric}`, [...(g.get(`${r.topic}:${r.metric}`) ?? []), r]);
+  const units: string[] = []; const populations: string[] = [];
+  for (const [k, list] of g) {
+    if (new Set(list.map((r) => r.subject_id)).size < 2) continue;
+    const u = new Set(list.map((r) => r.unit_kind ?? null)); if (u.size > 1) units.push(`${k}: unit kinds differ (${[...u].join(" vs ")})`);
+    const p = new Set(list.map((r) => r.population).filter((x): x is string => !!x)); if (p.size > 1) populations.push(`cross-subject evidence for ${k} uses different comparison populations (${[...p].join(" vs ")}): ranks/percentiles are relative to different groups`);
+  }
+  return { units, populations };
+}
+
 export function assessFinding(s: AnalysisBookSession, f: { chapters: string[]; evidence_refs: string[]; kind: FindingKind; claims_trend?: boolean }, snap: CapabilitySnapshot | null): { strength: ClaimStrength; reasons: string[]; identities: EvidenceIdentity[]; mixed: boolean; statement: string } {
   const stale = snap ? staleMap(s, snap) : new Map();
   const reasons: string[] = []; const refs = new Map<string, EvidenceRef>();
@@ -56,6 +68,8 @@ export function assessFinding(s: AnalysisBookSession, f: { chapters: string[]; e
   }
   for (const r of refs.values()) { if (NO_STRONG_CLASSES.includes(r.analysis_class)) reasons.push(`cites ${r.analysis_class} evidence (${r.surface}/${r.metric})`); if (r.availability !== "AVAILABLE") reasons.push(`cites ${r.availability} evidence (${r.surface}/${r.metric})`); }
   const identities = [...refs.values()].map((r) => ({ surface: r.surface, version: r.version, season: r.season, through_week: r.through_week, week_state: r.week_state }));
+  // cross-subject comparability: same metric, different subjects, different comparison populations -> never STRONG
+  for (const msg of crossSubjectIssues([...refs.values()]).populations) reasons.push(msg);
   const v = vintageStatement(identities); if (v.mixed) reasons.push("cited evidence spans different vintages");
   return { strength: reasons.length ? "TENTATIVE" : "STRONG", reasons: [...new Set(reasons)], identities: [...new Map(identities.map((i) => [`${i.surface}|${i.version}|${i.through_week}`, i])).values()], mixed: v.mixed, statement: v.statement };
 }
@@ -84,6 +98,7 @@ export function addFinding(s: AnalysisBookSession, input: FindingInput, snap: Ca
     if (NEW_SCORE.test(input.text)) errors.push("an ANALYST_SYNTHESIS may not state a new score, rating or projection value");
   }
   if (input.kind !== "ANALYST_SYNTHESIS" && input.numeric !== undefined && input.kind === "OBSERVATION") errors.push("cite the numeric evidence by id; do not restate it");
+  const incomp = crossSubjectIssues(cited); for (const u of incomp.units) errors.push(`INCOMPARABLE: refusing a cross-subject claim — ${u}; no scale conversion is attempted`);
   const a = assessFinding(s, { chapters: input.chapters, evidence_refs: input.evidence_ids, kind: input.kind, claims_trend: input.claims_trend }, snap);
   if (a.mixed && CURRENT_CLAIM.test(input.text)) errors.push(`this finding rests on mixed-vintage evidence and must not be described as current: ${a.statement}`);
   void stale;

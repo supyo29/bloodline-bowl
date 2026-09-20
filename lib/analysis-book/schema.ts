@@ -122,6 +122,8 @@ export interface ContentsChapter {
 export interface EvidenceRef {
   evidence_id: string; surface: string; topic: string; metric: string; subject_id: string;
   availability: string; analysis_class: string; version: string | null; season: number | null; through_week: number | null; week_state: string | null;
+  /** scale facts, so cross-subject claims can be checked without carrying payloads */
+  unit_kind?: string | null; population?: string | null;
 }
 
 export interface ChapterRevision {

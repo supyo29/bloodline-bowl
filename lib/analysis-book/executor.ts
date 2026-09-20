@@ -25,6 +25,7 @@ export interface QueryResult {
 export const refOf = (b: EvidenceBlock): EvidenceRef => ({
   evidence_id: b.evidence_id, surface: b.surface, topic: b.topic, metric: b.metric, subject_id: b.subject.id, availability: b.availability.state, analysis_class: b.origin.analysis_class,
   version: b.lineage.surface_version, season: b.temporal.season, through_week: b.freshness.through_week, week_state: (b.freshness.week_completion as { week_state?: string } | null | undefined)?.week_state ?? b.temporal.week_state ?? null,
+  unit_kind: b.unit?.kind ?? null, population: b.comparison?.[0]?.population.id ?? null,
 });
 const identitiesOf = (refs: EvidenceRef[]): EvidenceIdentity[] => {
   const m = new Map<string, EvidenceIdentity>(); for (const r of refs) { const k = `${r.surface}|${r.version}|${r.through_week}`; if (!m.has(k)) m.set(k, { surface: r.surface, version: r.version, season: r.season, through_week: r.through_week, week_state: r.week_state }); } return [...m.values()];
