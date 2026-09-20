@@ -7,7 +7,7 @@
  * merely USED AS SUPPORT. The Book never computes a model score: it plans, tracks state and organizes evidence.
  */
 export const ANALYSIS_BOOK_CONTRACT = "analysis-book-2026.1";
-export const TAXONOMY_VERSION = "analysis-taxonomy-2026.1";
+export const TAXONOMY_VERSION = "analysis-taxonomy-2026.2";
 export const PLANNER_RULES_VERSION = "analysis-planner-rules-2026.1";
 
 export type BookType =

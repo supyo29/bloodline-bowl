@@ -68,3 +68,11 @@ test("ANALYSIS BOOK: opening a waiver chapter plans exactly one Waiver 2.0 reque
   const one = buildResearchPlan(r.session, ["waiver.drop_cost"], loadCapabilitySnapshot()); assert.equal(one.queries.filter((q) => q.topic === "waiver2.actions").length, 1); assert.equal(one.cost.class, "EXPENSIVE");
   const three = buildResearchPlan(r.session, ["waiver.drop_cost", "waiver.manager_competition", "decision.replacement_value"], loadCapabilitySnapshot()); assert.ok(three.warnings.some((w) => /waiver2\./.test(w) && /re-run the weekly build/.test(w)));
 });
+
+test("TAXONOMY VERSION: the chapter needs changed, so the taxonomy version moved (2026.2) while the contract stays 2026.1 — a saved 2026.1 book is REPORTED as drifted, never reinterpreted", async () => {
+  const { TAXONOMY_VERSION, ANALYSIS_BOOK_CONTRACT } = await import("@/lib/analysis-book/schema"); const { serializeSession, deserializeSession } = await import("@/lib/analysis-book/session");
+  assert.equal(TAXONOMY_VERSION, "analysis-taxonomy-2026.2"); assert.equal(ANALYSIS_BOOK_CONTRACT, "analysis-book-2026.1");
+  const r = createBook({ question: "Should I pick up Rome Odunze off waivers?", ...CTX }, loadPlayerDirectory(), loadCapabilitySnapshot(), NOW); assert.ok(r.ok); const s = (r as { ok: true; session: AnalysisBookSession }).session;
+  const old = { ...s, taxonomy_version: "analysis-taxonomy-2026.1" }; const d = deserializeSession(serializeSession(old));
+  assert.equal(d.drift.drifted, true); assert.equal(d.drift.stored_taxonomy, "analysis-taxonomy-2026.1"); assert.equal(d.session.contents.find((c) => c.chapter_id === "waiver.drop_cost")!.needs.some((n) => n.topic === "waiver2.actions"), true, "contents are frozen as saved (here re-serialized from the new book)");
+});
