@@ -167,5 +167,31 @@ The branch is not deployed, so the fixes (discovery, lineage, `content_identity`
 * `start_sit_model.json` sha256 unchanged (pinned); `fiMayInfluenceProduction`/`anyFiProductionInfluence` false; isolation tests (start-sit, player-scheme, injury-opportunity, orchestrator) green; no waiver/trade/matchup/lineup file modified.
 * Drift log: `origin/main` re-fetched after each checkpoint; see final report.
 
-## 17. Test results, limitations, 3.5C prerequisites, verdict
-(Filled in at certification — see the end of this file.)
+## 17. Test results
+* TypeScript `npm test`: **2150 tests / 2146 pass / 0 fail / 4 skipped** (Phase 3.5A baseline 2105 → +45). `tsc --noEmit`: 0 errors. `eslint app lib test`: 0 errors.
+* R: FI invariants + week-completion + team-normalizer parity ✔; Start/Sit evidence-gate/candidate/e2e ✔; Player Role ✔; **Opportunity Propagation ✔ (exit 0, after T2)**; Player-Scheme Tier A/D/read-semantics ✔ (after T1).
+* Artifact reproducibility: FI isolated rebuild classified (§4); static artifacts hash-pinned.
+* Live read-only verification: §15. Production isolation: §16 (main vs branch, two managers, all six sections identical).
+* `start_sit_model.json` sha256 `85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293` unchanged.
+* Drift: `origin/main` re-fetched at every checkpoint; no commits landed during the phase (last local base `1c64ecb`).
+
+## 18. Limitations
+* Fixes S1 (served CSV labels), L1, L2, R1 and C1 are **not live** until merge/deploy; the served usage CSV corrects itself at the next daily FI refresh.
+* The bounded-summary PostgREST alias syntax is verified by a stubbed contract test only, not against the deployed PostgREST.
+* FI rebuild parity is float-noise-level, not byte identity, because local `nflreadr` (1.5.0) differs from CI (1.5.1).
+* Role/OPP/Player-Scheme have no scheduled refresh; the R suites depend on local raw-cache vintage and need consistent caches.
+* Directory metadata gaps (S4), differing evidence vocabularies (S5), duplicated lifecycle/normalizer (§8) are guarded, not consolidated.
+* Legacy trade POST routes remain unadvertised (R2). Deferred-defect entries 1–2 remain open.
+
+## 19. Phase 3.5C (Book-Ready) prerequisites discovered
+1. Extend the surface registry rather than build a parallel one; give each surface a declared retrieval shape.
+2. A single evidence-strength vocabulary mapping (confidence vs `evidence_class`) before percentiles/comparison sets span surfaces.
+3. Decide how consumers must treat `XX`/blank directory identities and source-native labels (`UNDER CENTER`, compound `predictive_status`).
+4. Scale rules (fraction/count/ratio) from the scale audit must travel with any chart-ready dataset (e.g. inheritance ratios >1, QB snap share >1).
+5. Every Book-Ready response should embed the canonical lineage plus `content_identity`-style all-tier identity, not just a Tier-A version.
+6. Body schemas for trade POST routes if they are to be advertised.
+7. Role/OPP/Player-Scheme refresh cadence before historical series are built on them (series over PINNED_STATIC artifacts are frozen at their last build).
+8. Phase numbering: three parallel schemes exist; Intelligence Modernization "Phase 4" is not Team Management Phase 4.
+
+## 20. Certification verdict
+**CERTIFIED WITH DOCUMENTED LIMITATIONS.** All gates hold: no served field has knowingly incorrect semantics (S1 fixed; unresolved semantics labelled, FTN conflict permanently guarded); builders and served artifacts agree and unrelated rewrites are now detected; lineage uses canonical owners and every tier's content is identifiable; intended surfaces are reachable and internal ones classified; production behaviour is unchanged (six-section parity); no shadow model activated; `ri-startsit-2026.1` frozen. Limitations in §18 are why this is not an unqualified CERTIFIED. Not merged or deployed.
