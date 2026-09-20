@@ -84,10 +84,12 @@ export function evaluateNeed(need: Need, s: BookSubject, snap: CapabilitySnapsho
   const b = bindNeed(need, s); if (b.missing.length) return { kind: "MISSING_CONTEXT", missing: b.missing, need };
   const flags: Researchability[] = []; const reasons: string[] = [];
   if (need.scenario) { flags.push("CONDITIONAL"); reasons.push("conditional scenario evidence: needs a consumer-supplied scenario; never an unconditional projection"); }
-  if (need.history) {
+  if (need.history && !meta.history_capable) { flags.push("CURRENT_ONLY"); reasons.push(`${need.topic}: serves no history through /api/evidence (current values only)`); }
+  else if (need.history) {
     if (sc.history_class === "NATIVE_HISTORY") { const n = snap.history_weeks[meta.surface] ?? 0; if (n < HISTORY_MIN_POINTS) { flags.push("HISTORY_LIMITED"); reasons.push(`${meta.surface}: only ${n} preserved complete-week state(s) (need ≥${HISTORY_MIN_POINTS} for a series)`); } }
     else { flags.push("CURRENT_ONLY"); reasons.push(`${meta.surface}: history class ${sc.history_class} — no retrievable history through /api/evidence`); }
   }
+  if (need.comparisons && !meta.comparison_capable) reasons.push(`${need.topic}: serves no comparison populations through /api/evidence`);
   if (sc.capability_state === "PARTIAL" && !need.scenario) { flags.push("PARTIAL"); reasons.push(`${meta.surface}: registry capability PARTIAL; runtime availability is decided by its readiness contract`); }
   if (sc.capability_state === "SOURCE_CONFLICT" || meta.flags?.includes("SOURCE_CONFLICT_PARTIAL")) { flags.push("SOURCE_CONFLICT"); reasons.push(meta.flag_reason ?? `${meta.surface}: source conflict`); }
   if (sc.capability_state === "EXPECTED_SOURCE_LAG") flags.push("SOURCE_LAG");

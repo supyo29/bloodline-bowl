@@ -19,24 +19,27 @@ export interface TopicMeta {
   flag_reason?: string;
   /** what the topic is scoped to (used to reject nonsense bindings) */
   scope: "PLAYER" | "TEAM" | "QB" | "MANAGER" | "SCENARIO";
+  /** the topic actually returns history points / comparison populations when asked (verified against Book-Ready by test) */
+  history_capable: boolean;
+  comparison_capable: boolean;
 }
 
 export const TOPIC_META: Record<string, TopicMeta> = {
-  "fi.team_metric": { surface: "football-intelligence", required: ["team"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "TEAM" },
-  "fi.player_usage": { surface: "football-intelligence", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "PLAYER" },
-  "role.player_profile": { surface: "role-opportunity", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "PLAYER" },
-  "role.role_change": { surface: "role-opportunity", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 150, scope: "PLAYER" },
-  "opp.scenario": { surface: "opportunity-propagation", required: ["team", "season", "week", "unavailable"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 300, scope: "SCENARIO" },
-  "scheme.qb_progression": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB", flags: ["SOURCE_CONFLICT_PARTIAL"], flag_reason: "numeric RAW_* read codes are an unresolved source conflict (no first/second/third-read mapping); named buckets are verified" },
-  "scheme.qb_spatial": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB" },
-  "scheme.qb_formation": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB" },
-  "scheme.defense_coverage": { surface: "player-scheme", required: ["team"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "TEAM" },
-  "startsit.shadow": { surface: "start-sit-fi", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 6000, scope: "MANAGER" },
-  "matchup.shadow": { surface: "matchup-intelligence", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER" },
-  "waiver.status": { surface: "waiver-foundations", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 4000, scope: "MANAGER" },
-  "roster_health.team": { surface: "roster-health", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER" },
-  "schedule_planning.team": { surface: "schedule-planning", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER" },
-  "trade.evaluation": { surface: "trade-foundations", required: ["league", "manager"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 100, scope: "MANAGER" },
+  "fi.team_metric": { surface: "football-intelligence", required: ["team"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "TEAM", history_capable: true, comparison_capable: true },
+  "fi.player_usage": { surface: "football-intelligence", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "PLAYER", history_capable: false, comparison_capable: false },
+  "role.player_profile": { surface: "role-opportunity", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "PLAYER", history_capable: true, comparison_capable: true },
+  "role.role_change": { surface: "role-opportunity", required: [], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 150, scope: "PLAYER", history_capable: false, comparison_capable: false },
+  "opp.scenario": { surface: "opportunity-propagation", required: ["team", "season", "week", "unavailable"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 300, scope: "SCENARIO", history_capable: false, comparison_capable: false },
+  "scheme.qb_progression": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB", history_capable: false, comparison_capable: true, flags: ["SOURCE_CONFLICT_PARTIAL"], flag_reason: "numeric RAW_* read codes are an unresolved source conflict (no first/second/third-read mapping); named buckets are verified" },
+  "scheme.qb_spatial": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB", history_capable: false, comparison_capable: false },
+  "scheme.qb_formation": { surface: "player-scheme", required: ["gsis_id"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "QB", history_capable: false, comparison_capable: false },
+  "scheme.defense_coverage": { surface: "player-scheme", required: ["team"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 250, scope: "TEAM", history_capable: false, comparison_capable: true },
+  "startsit.shadow": { surface: "start-sit-fi", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 6000, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "matchup.shadow": { surface: "matchup-intelligence", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "waiver.status": { surface: "waiver-foundations", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 4000, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "roster_health.team": { surface: "roster-health", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "schedule_planning.team": { surface: "schedule-planning", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "trade.evaluation": { surface: "trade-foundations", required: ["league", "manager"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 100, scope: "MANAGER", history_capable: false, comparison_capable: false },
 };
 
 /**
