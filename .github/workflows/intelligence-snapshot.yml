@@ -1,0 +1,57 @@
+name: Intelligence History Snapshot
+
+# Phase 3.5C. Preserves the CURRENTLY SERVED intelligence artifacts as immutable, content-addressed history
+# (data/intelligence-history). Policy (lib/book-ready/snapshots.ts): Football Intelligence / Role / Opportunity
+# Propagation are stored only when the published state's week is COMPLETE; Player-Scheme only when its all-tier
+# content identity changes. Idempotent and append-only: a run with nothing new commits nothing.
+#
+# Cadence rationale: FI publishes daily (13:00 UTC), so the state to preserve can only change after that run;
+# this runs shortly after. Role / Opportunity Propagation are rebuilt by hand once per completed NFL week (see the
+# refresh policy in docs/intelligence-surface-registry.json) and are snapshotted here as soon as they are committed.
+#
+# The data-only commit this workflow makes touches only data/intelligence-history/**, which no other workflow's
+# path filter matches, so it cannot start a refresh loop.
+
+on:
+  schedule:
+    - cron: "40 13 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: intelligence-history-snapshot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Snapshot the currently served state (policy-gated, idempotent)
+        run: npx tsx scripts/intelligence-snapshot.ts
+      - name: Verify the whole history store (fail closed)
+        run: npx tsx -e 'import {verifyHistoryStore} from "./lib/book-ready/snapshots"; const bad = verifyHistoryStore(); if (bad.length) { console.error(bad); process.exit(1); } console.log("history store verified")'
+      - name: Publish (only if something new was preserved)
+        run: |
+          if git diff --quiet -- data/intelligence-history && [ -z "$(git ls-files --others --exclude-standard data/intelligence-history)" ]; then
+            echo "nothing new to preserve"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/intelligence-history
+          git commit -m "intelligence-history: preserve served state snapshot(s)"
+          for i in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep 5
+          done
+          exit 1

@@ -1,0 +1,620 @@
+{
+ "history_manifest_version": "intelligence-history-2026.1",
+ "entries": [
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w01:0b4a94fa807c#3f7e26b7d66e",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w01:0b4a94fa807c",
+   "content_id": "3f7e26b7d66e9edeb46d61cef1083fac932b71b2a719be1799e1868af3e7937e",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-16T00:32:20-0500",
+   "source_cutoff": {
+    "ftn_charting": 1,
+    "ngs_passing": 1,
+    "ngs_receiving": 1,
+    "ngs_rushing": 1,
+    "pbp": 1,
+    "pfr_def": 1,
+    "pfr_pass": 1,
+    "snap_counts": 1
+   },
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "ec1acb68cb69",
+    "committed_at": "2026-09-16T00:33:57-05:00"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "38303444a55e6ee0fb644bd5044ada61712c58d6c0e2178da318a7be1e94a64a",
+     "bytes": 1695,
+     "gz_bytes": 809
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "15a0a7250d73e41cf87996e8181a5c518d6a81704c5b924ebb2ef0c83cdd3c90",
+     "bytes": 215134,
+     "gz_bytes": 50972
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "f8688c668a145bf52302bda75e70de192b5435ee76e27fbc861f87340af9ad2e",
+     "bytes": 1680738,
+     "gz_bytes": 143428
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "7fc8daad632252690c41d1c8c1b9a5a2b276a14adde8dffa0ecb86e06be8f998",
+     "bytes": 15373,
+     "gz_bytes": 3714
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "67e65fc774024059a82465ceb743bb0693685bc2d4351003b644bf63e4e1235d",
+     "bytes": 843345,
+     "gz_bytes": 77884
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "d9907d47a5a3663ea97507870c242877cdadb0af4c89b02284eead9cc0bc911a",
+     "bytes": 20190,
+     "gz_bytes": 1276
+    }
+   ]
+  },
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w01:2d953dc8544b#dd124195cebd",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w01:2d953dc8544b",
+   "content_id": "dd124195cebd89730d82f84a699153389711605db919d0e2a688be98153477ca",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-16T00:48:20-0500",
+   "source_cutoff": {
+    "ftn_charting": 1,
+    "ngs_passing": 1,
+    "ngs_receiving": 1,
+    "ngs_rushing": 1,
+    "pbp": 1,
+    "pfr_def": 1,
+    "pfr_pass": 1,
+    "snap_counts": 1
+   },
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "f1258a088d07",
+    "committed_at": "2026-09-16T00:50:19-05:00"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "f824e108ea79b61083a8d6b2e768fd4ddbe431af296edf01524a0e93ed247d5c",
+     "bytes": 1695,
+     "gz_bytes": 807
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "15a0a7250d73e41cf87996e8181a5c518d6a81704c5b924ebb2ef0c83cdd3c90",
+     "bytes": 215134,
+     "gz_bytes": 50972
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "f8688c668a145bf52302bda75e70de192b5435ee76e27fbc861f87340af9ad2e",
+     "bytes": 1680738,
+     "gz_bytes": 143428
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "7fc8daad632252690c41d1c8c1b9a5a2b276a14adde8dffa0ecb86e06be8f998",
+     "bytes": 15373,
+     "gz_bytes": 3714
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "67e65fc774024059a82465ceb743bb0693685bc2d4351003b644bf63e4e1235d",
+     "bytes": 843345,
+     "gz_bytes": 77884
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "d9907d47a5a3663ea97507870c242877cdadb0af4c89b02284eead9cc0bc911a",
+     "bytes": 20190,
+     "gz_bytes": 1276
+    }
+   ]
+  },
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w01:ab802a853780#95e3036fdeef",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w01:ab802a853780",
+   "content_id": "95e3036fdeef174e1633860de17c804e01381dbaf37513a29cc6c750d8140a02",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-16T17:27:34+0000",
+   "source_cutoff": {
+    "ftn_charting": 1,
+    "ngs_passing": 1,
+    "ngs_receiving": 1,
+    "ngs_rushing": 1,
+    "pbp": 1,
+    "pfr_def": 1,
+    "pfr_pass": 1,
+    "snap_counts": 1
+   },
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "b56061eef3c1",
+    "committed_at": "2026-09-16T17:28:55Z"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "00854a2605e3558e9edb2decd962d102e2cbe87a30877bc8a34dee4b3d0cf650",
+     "bytes": 1695,
+     "gz_bytes": 805
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "dea67c47443fd1b0477fda48e7d5b7046d9cda7fbe699c715b29fe0fba132053",
+     "bytes": 215150,
+     "gz_bytes": 50948
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "ace6074b1cba78d3f2f2b7b7b83bb5f18293f6effd3524bf7962c7df831f489f",
+     "bytes": 1680689,
+     "gz_bytes": 143456
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "fdb7c8c3e6a1f13911346de0a52b4aeafd57ddb92f6e1265ef47b5a6063b2d0a",
+     "bytes": 15389,
+     "gz_bytes": 3738
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "67e65fc774024059a82465ceb743bb0693685bc2d4351003b644bf63e4e1235d",
+     "bytes": 843345,
+     "gz_bytes": 77884
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "d9907d47a5a3663ea97507870c242877cdadb0af4c89b02284eead9cc0bc911a",
+     "bytes": 20190,
+     "gz_bytes": 1276
+    }
+   ]
+  },
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w01:890f7aefd53f#22b45ae4bd70",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w01:890f7aefd53f",
+   "content_id": "22b45ae4bd70c0475605f99e5f3619a20320d38894dad891fc9cbcc3dd26b2d5",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-17T17:27:16+0000",
+   "source_cutoff": {
+    "ftn_charting": 1,
+    "ngs_passing": 1,
+    "ngs_receiving": 1,
+    "ngs_rushing": 1,
+    "pbp": 1,
+    "pfr_def": 1,
+    "pfr_pass": 1,
+    "snap_counts": 1
+   },
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "76ee903d5b3d",
+    "committed_at": "2026-09-17T17:28:32Z"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "9f100d34758f1d42df7200e6a34aeaf9229f4e6fa5292eff6b1b32199fa0f5bc",
+     "bytes": 1695,
+     "gz_bytes": 808
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "9fd38ca143e9b9f48fbe3817c9dd5b421b6cc2479ab775c496ce4a9d6dbc4f03",
+     "bytes": 215085,
+     "gz_bytes": 50959
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "ace6074b1cba78d3f2f2b7b7b83bb5f18293f6effd3524bf7962c7df831f489f",
+     "bytes": 1680689,
+     "gz_bytes": 143456
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "fdb7c8c3e6a1f13911346de0a52b4aeafd57ddb92f6e1265ef47b5a6063b2d0a",
+     "bytes": 15389,
+     "gz_bytes": 3738
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "67e65fc774024059a82465ceb743bb0693685bc2d4351003b644bf63e4e1235d",
+     "bytes": 843345,
+     "gz_bytes": 77884
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "b3a2dd1584332e21402954285a770b6cb90980dc4586ee8ced0e5f3cad104f37",
+     "bytes": 20189,
+     "gz_bytes": 1277
+    }
+   ]
+  },
+  {
+   "snapshot_id": "opportunity-propagation@opi:2026:w01:bef17990fe91#421e3ef9b460",
+   "surface": "opportunity-propagation",
+   "version": "opi:2026:w01:bef17990fe91",
+   "content_id": "421e3ef9b460d0d8293f8589db4ca9a9f6599343db8a109d956f53d36725bef1",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-18T18:29:50+0000",
+   "source_cutoff": null,
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "554a63dfdf3a",
+    "committed_at": "2026-09-18T13:32:45-05:00"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "opportunity_propagation_manifest.json",
+     "sha256": "78e79c45387eaa169daebe6ed143c65ccf7a6a4d2488891155e2792ecb4c9569",
+     "bytes": 5040,
+     "gz_bytes": 2263
+    },
+    {
+     "name": "inheritance_priors_league.csv",
+     "sha256": "648e9233a34880c45ce6a7038ded7935ed0a01fc5902c438c78e4189fb1822bd",
+     "bytes": 435,
+     "gz_bytes": 262
+    },
+    {
+     "name": "inheritance_priors_position.csv",
+     "sha256": "a29406b2dd7a39854bf30d8034d22cfcaf705cc32d685f7ffee1e49ab314101d",
+     "bytes": 981,
+     "gz_bytes": 405
+    },
+    {
+     "name": "inheritance_priors_team.csv",
+     "sha256": "d73584e773d5ed4a390b24a991cb6aff87f1f166a4a4bfe7c41a48ae186a1237",
+     "bytes": 23666,
+     "gz_bytes": 5147
+    },
+    {
+     "name": "position_relationship_weights.csv",
+     "sha256": "23df52020bf4d2dbeb15f9117cd63b613d742d24d67cf84829d6a2b86a16a526",
+     "bytes": 397,
+     "gz_bytes": 236
+    },
+    {
+     "name": "supported_dimensions.csv",
+     "sha256": "dfea32622011e2f57b69d77568091ccb30084e5a56eea91cc5e24c8a69d4ed44",
+     "bytes": 445,
+     "gz_bytes": 203
+    }
+   ]
+  },
+  {
+   "snapshot_id": "player-scheme@psi:2025:w18:08123edd58c9#f2f907e90918",
+   "surface": "player-scheme",
+   "version": "psi:2025:w18:08123edd58c9",
+   "content_id": "f2f907e909185fd211049dd9824d4656139ef4ede29fd5c8b9f3ef986db2b494",
+   "season": 2025,
+   "through_week": 18,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-08T16:50:36-0500",
+   "source_cutoff": {
+    "pbp": 18
+   },
+   "provenance": {
+    "kind": "LIVE_SNAPSHOT"
+   },
+   "policy": "CONTENT_CHANGE",
+   "files": [
+    {
+     "name": "defense_archetype_vector.csv",
+     "sha256": "4d5e989ddb162e45a4f4d346c38f3689259121eec1a04b93c3708e8a2621ffe5",
+     "bytes": 7902,
+     "gz_bytes": 2618
+    },
+    {
+     "name": "defense_pass_vulnerability.csv",
+     "sha256": "412009f220829b6b1c527b8c22d831d08ff8edc1cc4b65d388f897a3a5d00a8d",
+     "bytes": 160395,
+     "gz_bytes": 46321
+    },
+    {
+     "name": "defense_rush_gap.csv",
+     "sha256": "d063b842c499112c4dd87a308d4fb0a5c8c723d6dfb2c7fb2638cea9cfc997bd",
+     "bytes": 22965,
+     "gz_bytes": 7548
+    },
+    {
+     "name": "defense_rush_profile.csv",
+     "sha256": "f13be1faef2261430d50a397d88a79054a1c2552b9341a317fa5022797d92bc9",
+     "bytes": 32029,
+     "gz_bytes": 11344
+    },
+    {
+     "name": "defense_team_profile.csv",
+     "sha256": "1ddebd344bc22e8da5400001692ba71d0070b122c187ac1873b4b42a76624c52",
+     "bytes": 24518,
+     "gz_bytes": 10646
+    },
+    {
+     "name": "league_baselines.csv",
+     "sha256": "edbd4159a2ca280facbe700acb65671d726fd3e120c1c44af6264d6a44494fb0",
+     "bytes": 8788,
+     "gz_bytes": 3724
+    },
+    {
+     "name": "offense_team_profile.csv",
+     "sha256": "8471aed62df86703723adcdf1cd9c8b1db5bd7567fa526951fcc79b43c6b55e2",
+     "bytes": 30011,
+     "gz_bytes": 13190
+    },
+    {
+     "name": "player_directory.csv",
+     "sha256": "b8918ac31b2a400d79676f0f75c274afb62495940efc654104de805023560133",
+     "bytes": 112693,
+     "gz_bytes": 40006
+    },
+    {
+     "name": "player_scheme_interactions.csv",
+     "sha256": "e6b1ac620bfb3ee1ede9f9523fd4e49cd25a3d7a599ce6e65eed6f74d08774e6",
+     "bytes": 1571,
+     "gz_bytes": 488
+    },
+    {
+     "name": "player_scheme_manifest.json",
+     "sha256": "48825c3446e09c45810b1f4f4a062b56e8451c5d03d035ec6747d06a8e790cb5",
+     "bytes": 9916,
+     "gz_bytes": 3324
+    },
+    {
+     "name": "qb_archetype_vector.csv",
+     "sha256": "e926c8685321e4a4ae0d037e4a5e83d0803d01a473aa380abb77de812370f729",
+     "bytes": 50263,
+     "gz_bytes": 14094
+    },
+    {
+     "name": "qb_concept_profile.csv",
+     "sha256": "102d848350cba60b8880912d4e69c6aa4d3e00123a24e154c3fd9276f98ce7cd",
+     "bytes": 435412,
+     "gz_bytes": 107781
+    },
+    {
+     "name": "qb_coverage_family.csv",
+     "sha256": "52d10bbcfa888731208617b69c4cd6f94f1d6b53946e325ed4c274f7f23e0403",
+     "bytes": 589628,
+     "gz_bytes": 126283
+    },
+    {
+     "name": "qb_coverage_profile.csv",
+     "sha256": "2756373933e38f38d87a02b418caa33f17b84454591ebd5b460c867051dcb781",
+     "bytes": 210934,
+     "gz_bytes": 61705
+    },
+    {
+     "name": "qb_directional.csv",
+     "sha256": "9320200038e176d1002aa6325dd5735184ffd10aa0f7bb19fcbe8d20e73ae8b5",
+     "bytes": 219941,
+     "gz_bytes": 82872
+    },
+    {
+     "name": "qb_formation_profile.csv",
+     "sha256": "7e2f9a2df7d8982ec89e75ae751e3e2b5be27a38ca16f20821f1f2f3e4523b22",
+     "bytes": 381543,
+     "gz_bytes": 95002
+    },
+    {
+     "name": "qb_pressure_profile.csv",
+     "sha256": "56a4644f058b7fcfc977b9e59eb6b86a01d48ced5ae1e2a4c6542310ef043135",
+     "bytes": 172282,
+     "gz_bytes": 47248
+    },
+    {
+     "name": "qb_progression_profile.csv",
+     "sha256": "d70646f2301ea64000d5d5f3d3649f352c3a8cb3a4a4ed6843544d6a64b51b71",
+     "bytes": 393590,
+     "gz_bytes": 94941
+    },
+    {
+     "name": "qb_rusher_count_profile.csv",
+     "sha256": "f8fec87770c1e63eabd47a819a6ace5de7e0c4ef5c4f113ac5426f1bbf990c5b",
+     "bytes": 428216,
+     "gz_bytes": 89484
+    },
+    {
+     "name": "qb_spatial_matrix.csv",
+     "sha256": "5b346e285de791db19b9a5d1f701bb3c01f091cc245baf04e487b02e6c7a13da",
+     "bytes": 1444247,
+     "gz_bytes": 344993
+    },
+    {
+     "name": "rb_box_profile.csv",
+     "sha256": "900b8c2592a6bfd0866330c606838c1aa338edfba8a8e6044f208f6c958240fe",
+     "bytes": 566975,
+     "gz_bytes": 118048
+    },
+    {
+     "name": "rb_rush_gap.csv",
+     "sha256": "f99288964c41536ed8c72566b5c59e47dc8e412f89bc6cf9ac1d0eab65e6497c",
+     "bytes": 578030,
+     "gz_bytes": 146439
+    },
+    {
+     "name": "rb_rush_matrix.csv",
+     "sha256": "35be93dc3934ad4ab6e14b750890c93f51864a78b862a6cb7bf163985100e877",
+     "bytes": 804916,
+     "gz_bytes": 203221
+    },
+    {
+     "name": "receiver_coverage_profile.csv",
+     "sha256": "2776454b14df08b91e737dc367c3cf1ea453297c2cce1b32b49b4c90bfebbb43",
+     "bytes": 759519,
+     "gz_bytes": 164195
+    },
+    {
+     "name": "receiver_route_profile.csv",
+     "sha256": "732a0c10f85b0810f2849355f7a437f7cd3139ce380967d1699a4b1ff438afff",
+     "bytes": 6134154,
+     "gz_bytes": 678245
+    },
+    {
+     "name": "receiver_spatial_matrix.csv",
+     "sha256": "b98d51439c7bff6e37c6dc514c7414885c2f292303423ae59cd75cd525820471",
+     "bytes": 6231587,
+     "gz_bytes": 1229675
+    },
+    {
+     "name": "scheme_era.csv",
+     "sha256": "087f4309448379b4ce10a860427537457a06bfff1f1851ebe21a2bba73b7a275",
+     "bytes": 25183,
+     "gz_bytes": 2594
+    }
+   ]
+  },
+  {
+   "snapshot_id": "role-opportunity@roi:2026:w01:ff33921ee088#9a559f203cad",
+   "surface": "role-opportunity",
+   "version": "roi:2026:w01:ff33921ee088",
+   "content_id": "9a559f203cadf9fcf01a115e5f5f387812b6728a63dc110deabd34c6afcb96cb",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-17T20:49:45+0000",
+   "source_cutoff": null,
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "32b372256149",
+    "committed_at": "2026-09-17T15:56:56-05:00"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "role_opportunity_manifest.json",
+     "sha256": "ab2dde20d4663de34eec742d6c6c02b17ac2212b3700961787028636c4942524",
+     "bytes": 4011,
+     "gz_bytes": 1060
+    },
+    {
+     "name": "player_game_role.csv",
+     "sha256": "a8c17687283a21a244d3968f725d76028eb6f3026ef89c61b006ab4d62d071b8",
+     "bytes": 360721,
+     "gz_bytes": 52906
+    }
+   ]
+  },
+  {
+   "snapshot_id": "role-opportunity@roi:2026:w01:819dc3166607#fb02804d7c37",
+   "surface": "role-opportunity",
+   "version": "roi:2026:w01:819dc3166607",
+   "content_id": "fb02804d7c3792539b41856513cdf201d87b0decab1dbf741eeba9863dae3cb4",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-18T00:08:44+0000",
+   "source_cutoff": {
+    "pbp": 1,
+    "snap_counts": 1
+   },
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "423721f04e9d",
+    "committed_at": "2026-09-17T19:21:27-05:00"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "role_opportunity_manifest.json",
+     "sha256": "758d6256b6d6277809d17b71ce3790e3cd4fd3ef4cda447ae2d0a3965a8385c8",
+     "bytes": 2669,
+     "gz_bytes": 1002
+    },
+    {
+     "name": "player_game_role.csv",
+     "sha256": "a8c17687283a21a244d3968f725d76028eb6f3026ef89c61b006ab4d62d071b8",
+     "bytes": 360721,
+     "gz_bytes": 52906
+    },
+    {
+     "name": "player_role_profile.csv",
+     "sha256": "da5183be12b1b48830f5396b1159ea936f41402989f15aa87ad7f251c66b059d",
+     "bytes": 901662,
+     "gz_bytes": 111209
+    },
+    {
+     "name": "player_role_change.csv",
+     "sha256": "1fb33a5be8c71d88d1aa82f794057b272fc293a5b1a6bbd7e49295a16da174cb",
+     "bytes": 81197,
+     "gz_bytes": 20193
+    }
+   ]
+  },
+  {
+   "snapshot_id": "role-opportunity@roi:2026:w01:819dc3166607#af5af8f124c5",
+   "surface": "role-opportunity",
+   "version": "roi:2026:w01:819dc3166607",
+   "content_id": "af5af8f124c5c26e4361d96eeddb93f4cc09f95c387fb39c999d600b98a0cc09",
+   "season": 2026,
+   "through_week": 1,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-09-18T03:02:41+0000",
+   "source_cutoff": {
+    "pbp": 1,
+    "snap_counts": 1
+   },
+   "provenance": {
+    "kind": "GIT_PUBLICATION",
+    "commit": "45da80aa324e",
+    "committed_at": "2026-09-17T22:08:38-05:00"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "role_opportunity_manifest.json",
+     "sha256": "19514ccb175042c90d2200355e0f02b12e98adb5ec19b60986a9a002957b27f1",
+     "bytes": 3321,
+     "gz_bytes": 1353
+    },
+    {
+     "name": "player_game_role.csv",
+     "sha256": "a8c17687283a21a244d3968f725d76028eb6f3026ef89c61b006ab4d62d071b8",
+     "bytes": 360721,
+     "gz_bytes": 52906
+    },
+    {
+     "name": "player_role_profile.csv",
+     "sha256": "da5183be12b1b48830f5396b1159ea936f41402989f15aa87ad7f251c66b059d",
+     "bytes": 901662,
+     "gz_bytes": 111209
+    },
+    {
+     "name": "player_role_change.csv",
+     "sha256": "1fb33a5be8c71d88d1aa82f794057b272fc293a5b1a6bbd7e49295a16da174cb",
+     "bytes": 81197,
+     "gz_bytes": 20193
+    }
+   ]
+  }
+ ]
+}
