@@ -25,6 +25,15 @@ Living record of latent defects discovered in shared (Phase-1-adjacent) infrastr
 - **Phase 2 workaround:** Phase 2 never reads `player_usage_profile.csv` at all (a hard architectural boundary set in Checkpoint B and re-verified structurally in Checkpoint C's test suite — `test-role-profile-invariants.R` test 14 greps Phase 2's own code to confirm no reference to the file exists). Phase 2's own substrate represents 2026 route data as genuinely `NULL`/`AVAILABLE_WITH_LAG`, never mislabeled.
 - **Recommended remediation:** this one may be worth a small, dedicated, low-risk data-quality fix in `lib_usage.R` — either (a) suppress `output_class = "OBSERVED"` in favor of a distinct tag (e.g. `"UNAVAILABLE"` or `"SOURCE_NOT_YET_PUBLISHED"`) when the underlying raw source has zero rows for that season, or (b) add a `value_available: boolean` field alongside `output_class` so a consumer can check both. This should be scoped as its own small PR with its own tests, reviewed and merged independently of Phase 2's certification — not bundled into Phase 2's own commits, per the instruction to keep Phase 2 isolated from FI modifications. Medium priority: the risk is latent (no current consumer trips over it) but the fix is cheap and removes a real trap for the next person who builds against `player_usage_profile.csv`.
 
+### Later correction to entry 3 (Phase 3.5B) — the original finding above is preserved unchanged
+
+**Status: FIXED in the builder, the publish gate and the reader.** `lib_usage.R` now emits `output_class = MODELED` whenever
+`observed` is absent (existing `OBSERVED | MODELED | DESCRIPTIVE_ONLY` vocabulary — no new class was invented);
+`validate_snapshot.R` fails a candidate that labels an absent observation `OBSERVED`; and `lib/football-intel/read.ts`
+(`usageOutputClass`) applies the same rule to any artifact still in circulation. An isolated rebuild against fresh
+sources showed 6,584 rows change `OBSERVED → MODELED` (all with `observed = NA`, including all 1,210
+`route_participation` rows) and none remain mislabelled. Entries 1 and 2 remain open and unchanged.
+
 ---
 
 *Checkpoint history: entries 1-3 discovered during Checkpoint B (player-game substrate) and Checkpoint C (role profiles). No entries have required an in-scope fix in either checkpoint.*

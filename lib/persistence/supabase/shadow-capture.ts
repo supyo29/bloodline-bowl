@@ -19,6 +19,8 @@ import { SupabaseRest } from "./rest";
 const CAPTURES = "bridge_startsit_shadow_captures";
 const OUTCOMES = "bridge_startsit_shadow_outcomes";
 const SUMMARY_ROW_CAP = 5000;
+/** max LIVE_CAPTURED rows whose decision/adjustment JSON the diagnostic will read. */
+export const LIVE_DETAIL_CAP = 300;
 
 export function captureRow(rec: ShadowDecisionRecord): Record<string, unknown> {
   return {
@@ -83,12 +85,44 @@ export class SupabaseShadowCaptureStore implements ShadowCaptureStore {
     return { records: rows.map((r) => r.record), outcomes: outs };
   }
 
+  /**
+   * Bounded, lightweight diagnostics. Phase 3.5B: the previous version pulled the FULL ~14 KB `record` for up to
+   * 5000 rows on an unauthenticated route (unbounded read amplification as evidence grows). Now:
+   *   1. counts by class / week / model / FI / scoring come from a NARROW column select (no JSON payload);
+   *   2. per-position decision counts (valid LIVE_CAPTURED evidence only) read just the decisions+adjustments
+   *      JSON of at most LIVE_DETAIL_CAP recent live rows, and are flagged `per_position_truncated` if more exist.
+   * Evidence fidelity is untouched: nothing is compacted, deleted or rewritten.
+   */
   async summary(): Promise<CaptureSummary> {
     try {
-      const rows = await this.rest.select<{ record: ShadowDecisionRecord }>(CAPTURES, { select: "record", order: "decision_timestamp.desc", limit: SUMMARY_ROW_CAP });
+      const light = await this.rest.select<{
+        capture_id: string; capture_kind: string; season: number; week: number;
+        start_sit_model_version: string; football_intelligence_version: string | null; scoring_fingerprint: string | null;
+      }>(CAPTURES, {
+        select: "capture_id,capture_kind,season,week,start_sit_model_version,football_intelligence_version,scoring_fingerprint",
+        order: "decision_timestamp.desc",
+        limit: SUMMARY_ROW_CAP,
+      });
+      const liveCount = light.filter((r) => r.capture_kind === "LIVE_CAPTURED").length;
+      const heavy = liveCount === 0 ? [] : await this.rest.select<{ capture_id: string; decisions: ShadowDecisionRecord["decisions"]; adjustments: ShadowDecisionRecord["adjustments"] }>(CAPTURES, {
+        select: "capture_id,decisions:record->decisions,adjustments:record->adjustments",
+        filter: { capture_kind: "eq.LIVE_CAPTURED" },
+        order: "decision_timestamp.desc",
+        limit: LIVE_DETAIL_CAP,
+      });
+      const detail = new Map(heavy.map((h) => [h.capture_id, h]));
+      const recs = light.map((r) => ({
+        capture_kind: r.capture_kind, season: r.season, week: r.week,
+        start_sit_model_version: r.start_sit_model_version, football_intelligence_version: r.football_intelligence_version,
+        scoring_fingerprint: r.scoring_fingerprint,
+        decisions: detail.get(r.capture_id)?.decisions ?? [], adjustments: detail.get(r.capture_id)?.adjustments ?? [],
+      })) as unknown as ShadowDecisionRecord[];
       const outcomes = await this.rest.select<{ capture_id: string }>(OUTCOMES, { select: "capture_id", limit: SUMMARY_ROW_CAP });
-      const s = summarize(rows.map((r) => r.record), outcomes.length, this.kind, true);
-      if (rows.length >= SUMMARY_ROW_CAP) s.error = `summary truncated at ${SUMMARY_ROW_CAP} rows`;
+      const s = summarize(recs, outcomes.length, this.kind, true);
+      s.record_count = light.length;
+      s.counts_truncated = light.length >= SUMMARY_ROW_CAP;
+      s.per_position_truncated = liveCount > heavy.length;
+      if (s.counts_truncated) s.error = `class counts truncated at ${SUMMARY_ROW_CAP} rows`;
       return s;
     } catch (e) {
       return emptySummary(this.kind, true, false, e instanceof Error ? e.message : String(e));

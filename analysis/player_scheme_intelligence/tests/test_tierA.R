@@ -42,7 +42,9 @@ test_that("sacks are NOT pass attempts; spikes/kneels/scrambles excluded (docume
   expect_gt(reg %>% filter(play_type == "pass", sack == 1) %>% nrow(), 0)   # sacks exist in raw pbp
   # the normalized pass universe re-derived with sack rows kept would differ; ours has none:
   raw_pass <- reg %>% filter(play_type == "pass", qb_spike == 0, coalesce(two_point_attempt, 0) == 0,
-                             !is.na(passer_player_id))
+                             !is.na(passer_player_id)) %>%
+    psi_asof(S, W)   # Phase 3.5B: compare over the SAME as-of window as `pass` (this test silently depended on the
+                     # shared FI cache holding no post-2025-w18 plays; any cache refresh with 2026 data broke it)
   expect_equal(nrow(pass), raw_pass %>% filter(sack == 0) %>% nrow())
   # scramble plays never enter the designed-rush universe
   expect_equal(nrow(psi_rush_plays(reg %>% filter(coalesce(qb_scramble, 0) == 1))), 0)

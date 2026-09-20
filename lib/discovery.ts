@@ -432,39 +432,6 @@ export const CAPABILITIES: Capability[] = [
     temporality: "live",
   },
   {
-    id: "trade_analyze",
-    title: "Trade analysis (POST)",
-    description:
-      "POST endpoint. Evaluates one explicit trade proposal with the trade engine. READ-ONLY analytics: it never submits, accepts or modifies a trade.",
-    scope: "league",
-    route_template: "/api/trades/analyze",
-    canonical: true,
-    temporality: "live",
-    method: "POST",
-  },
-  {
-    id: "trade_discover",
-    title: "Trade discovery (POST)",
-    description:
-      "POST endpoint. Searches for mutually beneficial trade candidates (legacy discovery; distinct from /api/trades/competitive). READ-ONLY analytics: it never submits a trade.",
-    scope: "league",
-    route_template: "/api/trades/discover",
-    canonical: true,
-    temporality: "live",
-    method: "POST",
-  },
-  {
-    id: "trade_negotiate",
-    title: "Trade negotiation (POST)",
-    description:
-      "POST endpoint. Negotiation-envelope analysis for a base trade. READ-ONLY analytics: it never submits or sends anything.",
-    scope: "league",
-    route_template: "/api/trades/negotiate",
-    canonical: true,
-    temporality: "live",
-    method: "POST",
-  },
-  {
     id: "competitive_trade",
     title: "Competitive trade intelligence",
     description:

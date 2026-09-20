@@ -8,6 +8,7 @@
  * (UNVERIFIED_SOURCE_CONFLICT).
  */
 import { loadFootballIntelligence } from "@/lib/football-intel";
+import { buildFootballIntelligenceLineage } from "@/lib/football-intel/lineage";
 import { receiverProgression, summarizeReceiverProgression } from "@/lib/football-intel/progression";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
@@ -50,6 +51,7 @@ export async function GET(
     playerId,
     { season, ...(week == null ? {} : { week }) },
   );
+  const canonicalLineage = buildFootballIntelligenceLineage(fi);
   const ftnCutoff = fi.manifest.data_cutoff.ftn_charting ?? null;
   const currentSeasonSourceLag =
     season === fi.manifest.season &&
@@ -64,8 +66,12 @@ export async function GET(
       season,
       week,
       lineage: {
-        football_intelligence_version: fi.manifest.football_intelligence_version,
-        snapshot_through_week: fi.manifest.through_week,
+        // Phase 3.5B: the ONE canonical FI lineage (version, model_tag, season, through_week, week_completion,
+        // data_cutoff, generated_at) -- never hand-assembled. The flat fields below are kept for compatibility
+        // and are derived from it, not recomputed from the manifest independently.
+        football_intelligence: canonicalLineage,
+        football_intelligence_version: canonicalLineage?.version ?? fi.manifest.football_intelligence_version,
+        snapshot_through_week: canonicalLineage?.through_week ?? fi.manifest.through_week,
         ftn_charting_through_week: ftnCutoff,
         output_class: "DESCRIPTIVE_ONLY",
         source: "FTN Data via nflverse",

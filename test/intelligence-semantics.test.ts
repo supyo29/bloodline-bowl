@@ -194,3 +194,33 @@ test("PERMANENT: no downstream logic treats progression buckets as a predictive 
   }
   assert.doesNotMatch(read("analysis/football_intel_startsit/config.R"), /progression|read_thrown/);
 });
+
+/* ------------------------------- directory metadata gaps are known, pinned, and never papered over ------------------------------- */
+/**
+ * Phase 3.5B finding (DIRECTORY_METADATA_GAP, P3): the Player-Scheme player directory has entries whose identity
+ * metadata is source-incomplete — position `XX` (nflverse's "no position" code) or a fully blank row — while
+ * profile files still hold real data for that gsis_id. We do NOT invent identities or rewrite `XX` (source-native).
+ * The gap is pinned here so growth is noticed, and consumers must treat `XX` / blank as UNKNOWN, not a position.
+ */
+const KNOWN_DIRECTORY_GAPS: Record<string, string> = {
+  "00-0036936": "Rondale Moore: directory position 'XX' although rushing/route profile rows exist",
+  "00-0023968": "blank directory row (no name/team/position) although receiver_spatial_matrix has rows",
+  "00-0028049": "blank directory row (no name/team/position) although profile rows exist",
+  "00-0027713": "Aaron Hernandez: directory position 'XX' / team FA (retired) although historical profile rows exist",
+};
+
+test("Player-Scheme directory: placeholder identities (XX / blank) that own profile data are exactly the pinned known gaps", () => {
+  const dir = "lib/player-scheme-intelligence/data";
+  const d = parseCsv(read(`${dir}/player_directory.csv`)); const gi = d.head.indexOf("gsis_id"); const pi = d.head.indexOf("position");
+  const placeholders = new Set(d.rows.filter((r) => r[pi] === "XX" || r[pi] === "").map((r) => r[gi]!));
+  assert.ok(placeholders.size > 0);
+  const withData = new Set<string>();
+  for (const f of readdirSync(join(ROOT, dir)).filter((x) => x.endsWith(".csv") && x !== "player_directory.csv")) {
+    const t = parseCsv(read(`${dir}/${f}`)); const ci = t.head.indexOf("gsis_id"); if (ci < 0) continue;
+    for (const r of t.rows) if (placeholders.has(r[ci]!)) withData.add(r[ci]!);
+  }
+  assert.deepEqual([...withData].sort(), Object.keys(KNOWN_DIRECTORY_GAPS).sort(), "a new (or resolved) directory metadata gap — update KNOWN_DIRECTORY_GAPS and the 3.5B doc");
+  // the four real positions are the only real positions; XX / '' must be treated as unknown by consumers
+  const real = new Set(d.rows.filter((r) => r[pi] !== "XX" && r[pi] !== "").map((r) => r[pi]));
+  assert.deepEqual([...real].sort(), ["QB", "RB", "TE", "WR"]);
+});

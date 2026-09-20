@@ -1,5 +1,11 @@
 # Injury → Opportunity Propagation Intelligence — Phase 3 — CHECKPOINT B
 
+> **Path note (Phase 3.5B, later correction — the findings below are unchanged):** this document was written while the
+> module was planned as `lib/injury-opportunity-propagation/`. It shipped as **`lib/opportunity-propagation-intelligence/`**
+> (`schema.ts`, `read.ts`, `lineage.ts`, `scenario.ts`, `model.ts`, `format.ts`, `index.ts`, `data/`). Read every
+> `lib/injury-opportunity-propagation/…` path below as that directory. The product is deliberately *not* called an
+> "injury model": it is a conditional scenario allocator (see the served manifest's `scenario_semantics`).
+
 ## Historical Full-Game Nonparticipation & Opportunity Redistribution Substrate
 
 Status: **descriptive only**. No predictive model, no scenario engine, no fantasy-facing output, no production code path exists yet. This checkpoint builds the historical event/redistribution substrate Checkpoint C will later train and backtest against.

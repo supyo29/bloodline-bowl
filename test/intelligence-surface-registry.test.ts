@@ -5,9 +5,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve, relative } from "node:path";
-import { INTELLIGENCE_SURFACES, type IntelligenceSurface } from "@/lib/canonical/intelligence-surface-registry";
+import type { IntelligenceSurface } from "@/lib/canonical/intelligence-surface-registry";
 
 const ROOT = process.cwd();
+const REGISTRY = JSON.parse(readFileSync(join(ROOT, "docs/intelligence-surface-registry.json"), "utf8")) as { registry_version: string; surfaces: IntelligenceSurface[] };
+const INTELLIGENCE_SURFACES: IntelligenceSurface[] = REGISTRY.surfaces;
 const has = (p: string) => existsSync(join(ROOT, p));
 const json = (p: string) => JSON.parse(readFileSync(join(ROOT, p), "utf8")) as Record<string, unknown>;
 const walk = (dir: string, ext: string[]): string[] =>

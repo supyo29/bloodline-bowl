@@ -1,5 +1,11 @@
 # Injury → Opportunity Propagation Intelligence — Phase 3 — CHECKPOINT C
 
+> **Path note (Phase 3.5B, later correction — the findings below are unchanged):** this document was written while the
+> module was planned as `lib/injury-opportunity-propagation/`. It shipped as **`lib/opportunity-propagation-intelligence/`**
+> (`schema.ts`, `read.ts`, `lineage.ts`, `scenario.ts`, `model.ts`, `format.ts`, `index.ts`, `data/`). Read every
+> `lib/injury-opportunity-propagation/…` path below as that directory. The product is deliberately *not* called an
+> "injury model": it is a conditional scenario allocator (see the served manifest's `scenario_semantics`).
+
 ## Opportunity Redistribution Model, Uncertainty, and Walk-Forward Backtesting
 
 **Historical training events are all-cause qualified full-game nonparticipation, not confirmed injuries.** No source in this repository distinguishes injury from any other cause of nonparticipation (Checkpoint A/B finding, unchanged). Every model in this checkpoint predicts redistribution *conditional on* a specified `FULL_GAME_NONPARTICIPATION` scenario — it never estimates the probability a player is hurt, out, or unavailable, and it is never described internally as an "injury model." The internal name for what this checkpoint builds is **Opportunity Propagation under Full-Game Nonparticipation**.

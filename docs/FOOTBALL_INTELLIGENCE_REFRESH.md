@@ -26,7 +26,7 @@ Every morning, and on demand:
    (`tests/run.R`, `adversarial_audit.R`).
 5. Compares the candidate's content-hash version against the published one.
    - Same version → **NO_CHANGE**, exit successfully, nothing committed.
-   - Different version → stage the six served files, run the Node
+   - Different version → stage the six served data files (`SERVED_FILES` in the workflow; the manifest is staged with them), run the Node
      read-contract test against the staged (not yet committed) files, and
      only then commit + push to the branch that triggered the run.
 
@@ -182,6 +182,7 @@ git add lib/football-intel/data/team_profile.csv \
         lib/football-intel/data/unit_coverage_profile.csv \
         lib/football-intel/data/contextual_matchup_feature.csv \
         lib/football-intel/data/ftn_descriptive.csv \
+        lib/football-intel/data/receiver_progression.csv \
         lib/football-intel/data/football_intelligence_manifest.json
 git commit -m "football-intel: manual refresh <season> week <week>"
 git push
@@ -350,3 +351,16 @@ completion state and game counts, previous vs new version, generated_at,
 source cutoffs, every validation gate's PASS/FAIL/WARN line, and the full
 per-source `EXPECTED_SOURCE_LAG` / `BROKEN_OR_MISSING_DATA` / `AT_CUTOFF`
 classification, all in one place.
+
+
+---
+
+## Phase 3.5B correction notes (current contract)
+
+* The manual `git add` example above previously omitted `receiver_progression.csv`, the sixth served data
+  file. Someone following it verbatim would have left that artifact stale while refreshing the others. The
+  workflow (`SERVED_FILES`) and `validate_snapshot.R` were always correct; only this example drifted.
+* `player_usage_profile.csv` `output_class`: a row whose `observed` value is absent publishes only the shrunk
+  `modeled` number and is therefore `MODELED`, never `OBSERVED` (fixed in `lib_usage.R`, enforced by
+  `validate_snapshot.R`, and applied by the reader until the next daily refresh republishes the artifact).
+  Before this, the entire `route_participation` family (source unpublished for 2026) was labelled `OBSERVED`.

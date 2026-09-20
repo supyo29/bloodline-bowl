@@ -117,7 +117,14 @@ test_that("return role dimensions never inflate offensive dimensions (spec #10/#
 
 test_that("determinism: rebuilding on the same input data reproduces byte-identical absence_event_id sets", {
   rebuilt <- build_absence_events(player_game_role, rosters_weekly, schedules, OPP, ROLE, FI)
-  expect_equal(sort(unique(rebuilt$absence_events$absence_event_id)), sort(unique(events_distinct$absence_event_id)))
+  # Phase 3.5B: compare over the window the STORED artifact covers. The shared FI raw cache (rosters/schedules) is
+  # refreshed daily and can legitimately hold a newer completed game than the Role substrate the stored events were
+  # built from; those later events are new evidence, not a determinism failure. (A local refresh that added the 2026
+  # wk2 Thursday game produced exactly two such events: BUF RB INA, BUF WR RES.)
+  max_s <- max(events_distinct$season); max_w <- max(events_distinct$week[events_distinct$season == max_s])
+  in_window <- rebuilt$absence_events %>% distinct(absence_event_id, season, week) %>%
+    filter(season < max_s | (season == max_s & week <= max_w))
+  expect_equal(sort(unique(in_window$absence_event_id)), sort(unique(events_distinct$absence_event_id)))
 })
 
 test_that("no fantasy points or scoring concept appears anywhere in the substrate (spec #23/#40)", {

@@ -1,0 +1,654 @@
+{
+  "registry_version": "intelligence-surface-registry-2026.1",
+  "generated_by": "Phase 3.5B — verified against the repository by test/intelligence-surface-registry.test.ts",
+  "surfaces": [
+    {
+      "id": "canonical-spine",
+      "name": "Canonical intelligence spine (lineage, freshness, readiness, reality frontier, scoring identity)",
+      "owning_module": "lib/canonical",
+      "status": [
+        "ACTIVE"
+      ],
+      "nature": "contracts (not a model): the one owner of lineage, freshness, readiness, NFL reality",
+      "deployment": "ACTIVE (frozen Phase 1 contracts)",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/canonical/lineage.ts",
+        "lib/canonical/intelligence-freshness.ts",
+        "lib/canonical/recommendation-readiness.ts",
+        "lib/canonical/nfl-reality-frontier.ts",
+        "lib/canonical/scoring-fingerprint.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "Sleeper /schedule/nfl/regular/{season} (completion status); provider league state",
+      "data_cutoff_field": null,
+      "confidence_semantics": "ConfidenceCap on freshness verdicts; readiness never upgrades confidence",
+      "freshness_owner": "lib/canonical/intelligence-freshness.ts",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_1_CERTIFICATION.md"
+      ],
+      "tests": [
+        "test/canonical-lineage.test.ts",
+        "test/intelligence-freshness.test.ts"
+      ],
+      "consumers": [
+        "weekly/start-sit-fi",
+        "weekly/matchup-intelligence",
+        "weekly/waivers.ts",
+        "trades/competitive"
+      ],
+      "notes": "Phase 3.5A added additive per-week completion in nfl-reality-frontier.ts that reuses the same isCompleted predicate."
+    },
+    {
+      "id": "football-intelligence",
+      "name": "Football Intelligence (FI) team/usage/coverage/matchup ratings",
+      "owning_module": "lib/football-intel",
+      "status": [
+        "ACTIVE",
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "MODELED team-unit ratings + OBSERVED/MODELED player usage; no fantasy adjustment",
+      "deployment": "SHARED_DESCRIPTIVE (consumed only by SHADOW layers; never a production input)",
+      "builder": {
+        "command": "bash analysis/football_intel/build_candidate.sh <root>  (daily: .github/workflows/football-intel-daily-refresh.yml)",
+        "entrypoints": [
+          "analysis/football_intel/fetch_raw.R",
+          "analysis/football_intel/build_snapshot.R",
+          "analysis/football_intel/validate_snapshot.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/football-intel/data/team_profile.csv",
+        "lib/football-intel/data/player_usage_profile.csv",
+        "lib/football-intel/data/unit_coverage_profile.csv",
+        "lib/football-intel/data/contextual_matchup_feature.csv",
+        "lib/football-intel/data/ftn_descriptive.csv"
+      ],
+      "manifest": "lib/football-intel/data/football_intelligence_manifest.json",
+      "version_field": "football_intelligence_version",
+      "readers": [
+        "lib/football-intel/read.ts",
+        "lib/football-intel/lineage.ts"
+      ],
+      "routes": [],
+      "reachability": "LIBRARY_ONLY_INTENTIONAL",
+      "source_data": "nflverse pbp, snap_counts, NGS, PFR, FTN charting (via nflreadr)",
+      "data_cutoff_field": "data_cutoff",
+      "confidence_semantics": "per-row HIGH/MEDIUM/LOW/INSUFFICIENT_SAMPLE from effective sample size; predictive_status per family",
+      "freshness_owner": "lib/canonical/intelligence-freshness.ts (compares manifest week_completion to NflRealityFrontier)",
+      "lineage_owner": "lib/canonical/lineage.ts via lib/football-intel/lineage.ts",
+      "reproducibility": "AUTO_REFRESHED",
+      "docs": [
+        "docs/FOOTBALL_INTELLIGENCE_REFRESH.md"
+      ],
+      "tests": [
+        "test/football-intel-read.test.ts"
+      ],
+      "consumers": [
+        "weekly/start-sit-fi",
+        "weekly/matchup-intelligence"
+      ],
+      "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact."
+    },
+    {
+      "id": "fi-receiver-progression",
+      "name": "FI receiver target progression (FTN read_thrown)",
+      "owning_module": "lib/football-intel",
+      "status": [
+        "ACTIVE",
+        "DESCRIPTIVE_ONLY",
+        "SOURCE_CONFLICT"
+      ],
+      "nature": "DESCRIPTIVE_ONLY raw FTN codes on actual targets; numeric semantics UNVERIFIED_SOURCE_CONFLICT",
+      "deployment": "SHARED_DESCRIPTIVE",
+      "builder": {
+        "command": "Rscript analysis/football_intel/build_snapshot.R (via build_candidate.sh)",
+        "entrypoints": [
+          "analysis/football_intel/lib_interactions.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/football-intel/data/receiver_progression.csv"
+      ],
+      "manifest": "lib/football-intel/data/football_intelligence_manifest.json",
+      "version_field": "football_intelligence_version",
+      "readers": [
+        "lib/football-intel/progression.ts"
+      ],
+      "routes": [
+        "/api/football-intel/players/[playerId]/progression"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "FTN charting read_thrown via nflverse",
+      "data_cutoff_field": "data_cutoff",
+      "confidence_semantics": "none claimed; read_coverage_rate exposed; numeric codes are RAW_0/RAW_1/RAW_2 (meaning unverified)",
+      "freshness_owner": "lib/canonical/intelligence-freshness.ts",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "AUTO_REFRESHED",
+      "docs": [
+        "docs/FOOTBALL_INTELLIGENCE_REFRESH.md"
+      ],
+      "tests": [
+        "test/football-intel-read.test.ts",
+        "analysis/football_intel/tests/testthat/test-invariants.R"
+      ],
+      "consumers": []
+    },
+    {
+      "id": "role-opportunity",
+      "name": "Player Role & Opportunity Intelligence (Phase 2)",
+      "owning_module": "lib/player-role-intelligence",
+      "status": [
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "observed role/usage shares with EWMA trend + change detection; SHARED_CONTEXT, not a projection model",
+      "deployment": "SHARED_CONTEXT (eligible_to_influence_production=false)",
+      "builder": {
+        "command": "Rscript analysis/player_role/run_build.R && Rscript analysis/player_role/run_role_profile.R && Rscript analysis/player_role/serve_role_intelligence.R",
+        "entrypoints": [
+          "analysis/player_role/run_build.R",
+          "analysis/player_role/run_role_profile.R",
+          "analysis/player_role/serve_role_intelligence.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/player-role-intelligence/data/player_game_role.csv",
+        "lib/player-role-intelligence/data/player_role_profile.csv",
+        "lib/player-role-intelligence/data/player_role_change.csv"
+      ],
+      "manifest": "lib/player-role-intelligence/data/role_opportunity_manifest.json",
+      "version_field": "role_opportunity_version",
+      "readers": [
+        "lib/player-role-intelligence/read.ts",
+        "lib/player-role-intelligence/lineage.ts"
+      ],
+      "routes": [],
+      "reachability": "LIBRARY_ONLY_INTENTIONAL",
+      "source_data": "nflverse pbp + snap_counts (participation proxy; routes flagged UNRELIABLE)",
+      "data_cutoff_field": "source_cutoffs",
+      "confidence_semantics": "confidence tiers require games AND corroboration; never above MEDIUM after one game",
+      "freshness_owner": "lib/canonical/intelligence-freshness.ts (assessRoleOpportunityFreshness)",
+      "lineage_owner": "lib/canonical/lineage.ts via lib/player-role-intelligence/lineage.ts",
+      "reproducibility": "PINNED_STATIC",
+      "docs": [
+        "docs/PLAYER_ROLE_OPPORTUNITY_PHASE_2_CERTIFICATION.md",
+        "docs/PLAYER_ROLE_OPPORTUNITY_PHASE_2_DEFERRED_DEFECTS.md"
+      ],
+      "tests": [
+        "test/player-role-intelligence.test.ts"
+      ],
+      "consumers": [
+        "opportunity-propagation-intelligence"
+      ],
+      "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) — documented, not a defect."
+    },
+    {
+      "id": "opportunity-propagation",
+      "name": "Injury / Opportunity Propagation (Phase 3)",
+      "owning_module": "lib/opportunity-propagation-intelligence",
+      "status": [
+        "SHADOW"
+      ],
+      "nature": "CONDITIONAL scenario allocator (IF player X is unavailable) — never P(unavailable); production numeric influence PROHIBITED",
+      "deployment": "SHADOW_ONLY",
+      "builder": {
+        "command": "Rscript analysis/opportunity_propagation/run_build.R && Rscript analysis/opportunity_propagation/serve_opportunity_propagation.R",
+        "entrypoints": [
+          "analysis/opportunity_propagation/run_build.R",
+          "analysis/opportunity_propagation/serve_opportunity_propagation.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/opportunity-propagation-intelligence/data/inheritance_priors_league.csv",
+        "lib/opportunity-propagation-intelligence/data/inheritance_priors_position.csv",
+        "lib/opportunity-propagation-intelligence/data/inheritance_priors_team.csv",
+        "lib/opportunity-propagation-intelligence/data/position_relationship_weights.csv",
+        "lib/opportunity-propagation-intelligence/data/supported_dimensions.csv"
+      ],
+      "manifest": "lib/opportunity-propagation-intelligence/data/opportunity_propagation_manifest.json",
+      "version_field": "opportunity_propagation_version",
+      "readers": [
+        "lib/opportunity-propagation-intelligence/read.ts",
+        "lib/opportunity-propagation-intelligence/scenario.ts",
+        "lib/opportunity-propagation-intelligence/lineage.ts"
+      ],
+      "routes": [],
+      "reachability": "LIBRARY_ONLY_INTENTIONAL",
+      "source_data": "Phase 2 role vectors + 2019-2025 qualified full-game nonparticipation episodes",
+      "data_cutoff_field": "through_week",
+      "confidence_semantics": "evidence_count + historical_error only; no calibrated intervals (uncertainty_ranges_supported=false); multi-absence EXPERIMENTAL",
+      "freshness_owner": "lib/canonical/intelligence-freshness.ts",
+      "lineage_owner": "lib/canonical/lineage.ts via lib/opportunity-propagation-intelligence/lineage.ts",
+      "reproducibility": "PINNED_STATIC",
+      "docs": [
+        "docs/INJURY_OPPORTUNITY_PROPAGATION_PHASE_3_CERTIFICATION.md"
+      ],
+      "tests": [
+        "test/opportunity-propagation-reader.test.ts",
+        "test/opportunity-propagation-r-ts-parity.test.ts",
+        "test/injury-opportunity-propagation-isolation.test.ts"
+      ],
+      "consumers": [],
+      "notes": "No consumer and no route, by documented design. Inheritance 'rates' are ratios that may exceed 1.0 by design (not probabilities)."
+    },
+    {
+      "id": "player-scheme",
+      "name": "Player-Scheme Intelligence Tiers A-C (spatial, charting, team tendencies)",
+      "owning_module": "lib/player-scheme-intelligence",
+      "status": [
+        "DESCRIPTIVE_ONLY",
+        "SOURCE_CONFLICT"
+      ],
+      "nature": "SHARED_DESCRIPTIVE; no fantasy adjustment; Tier B is PRIOR_ONLY/DESCRIPTIVE_ONLY; FTN progression is UNVERIFIED_SOURCE_CONFLICT",
+      "deployment": "SHARED_DESCRIPTIVE",
+      "builder": {
+        "command": "Rscript analysis/player_scheme_intelligence/build_tierA.R && …build_tierB.R && …build_tierC.R",
+        "entrypoints": [
+          "analysis/player_scheme_intelligence/build_tierA.R",
+          "analysis/player_scheme_intelligence/build_tierB.R",
+          "analysis/player_scheme_intelligence/build_tierC.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/player-scheme-intelligence/data/qb_spatial_matrix.csv",
+        "lib/player-scheme-intelligence/data/qb_directional.csv",
+        "lib/player-scheme-intelligence/data/qb_progression_profile.csv",
+        "lib/player-scheme-intelligence/data/qb_coverage_profile.csv",
+        "lib/player-scheme-intelligence/data/qb_pressure_profile.csv",
+        "lib/player-scheme-intelligence/data/receiver_route_profile.csv",
+        "lib/player-scheme-intelligence/data/offense_team_profile.csv",
+        "lib/player-scheme-intelligence/data/defense_team_profile.csv",
+        "lib/player-scheme-intelligence/data/player_directory.csv"
+      ],
+      "manifest": "lib/player-scheme-intelligence/data/player_scheme_manifest.json",
+      "version_field": "player_scheme_version",
+      "readers": [
+        "lib/player-scheme-intelligence/read.ts",
+        "lib/player-scheme-intelligence/query.ts"
+      ],
+      "routes": [
+        "/api/player-scheme",
+        "/api/player-scheme/players/[playerId]",
+        "/api/player-scheme/matchups/[playerId]/[opponent]",
+        "/api/player-scheme/teams/[team]/offense",
+        "/api/player-scheme/teams/[team]/defense"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "nflverse pbp + participation + FTN charting, through 2025 (PRIOR_ONLY for 2026)",
+      "data_cutoff_field": "data_cutoff",
+      "confidence_semantics": "sample-size based; charted-play denominators with coverage_rate exposed; uncharted plays never relabelled",
+      "freshness_owner": "manifest current_season_status=PRIOR_ONLY (no live 2026 signal); Phase 1 freshness not applied",
+      "lineage_owner": "lib/player-scheme-intelligence/query.ts (manifestMeta + content_identity)",
+      "reproducibility": "PINNED_STATIC",
+      "docs": [
+        "docs/TEAM_MANAGEMENT_PHASE_9_PLAYER_SCHEME_INTELLIGENCE.md"
+      ],
+      "tests": [
+        "test/player-scheme-read.test.ts",
+        "test/player-scheme-tierb.test.ts",
+        "test/player-scheme-tierc.test.ts",
+        "test/player-scheme-isolation.test.ts"
+      ],
+      "consumers": [],
+      "notes": "player_scheme_version identifies Tier A only; content_identity.served_content_id identifies all tiers (Phase 3.5B)."
+    },
+    {
+      "id": "player-scheme-interactions",
+      "name": "Player-Scheme Tier D interaction research",
+      "owning_module": "lib/player-scheme-intelligence",
+      "status": [
+        "RESEARCH_ONLY",
+        "SHADOW"
+      ],
+      "nature": "SHADOW_ONLY research; numeric_fantasy_adjustment == 0 always; clean null result",
+      "deployment": "SHADOW_ONLY",
+      "builder": {
+        "command": "Rscript analysis/player_scheme_intelligence/build_tierD.R",
+        "entrypoints": [
+          "analysis/player_scheme_intelligence/build_tierD.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/player-scheme-intelligence/data/player_scheme_interactions.csv"
+      ],
+      "manifest": "lib/player-scheme-intelligence/data/player_scheme_manifest.json",
+      "version_field": "player_scheme_version",
+      "readers": [
+        "lib/player-scheme-intelligence/read.ts"
+      ],
+      "routes": [
+        "/api/player-scheme/matchups/[playerId]/[opponent]"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "walk-forward over 2019-2025 against a reconstructable production-like baseline",
+      "data_cutoff_field": "data_cutoff",
+      "confidence_semantics": "verdict per family (PREDICTIVE_INCREMENTAL / EXPLANATORY_ONLY / REJECTED / …)",
+      "freshness_owner": "n/a (research)",
+      "lineage_owner": "lib/player-scheme-intelligence/query.ts",
+      "reproducibility": "PINNED_STATIC",
+      "docs": [
+        "docs/TEAM_MANAGEMENT_PHASE_9_PLAYER_SCHEME_INTELLIGENCE.md"
+      ],
+      "tests": [
+        "test/player-scheme-tierd.test.ts"
+      ],
+      "consumers": []
+    },
+    {
+      "id": "start-sit-fi",
+      "name": "Start/Sit Football-Intelligence shadow model (ri-startsit-2026.1)",
+      "owning_module": "lib/weekly/start-sit-fi",
+      "status": [
+        "SHADOW"
+      ],
+      "nature": "SHADOW residual/tie-break model; frozen; a net loser vs a production-like baseline (Phase 3.5A)",
+      "deployment": "SHADOW_ONLY (no position PRODUCTION_ACTIVE)",
+      "builder": {
+        "command": "frozen; research pipeline analysis/football_intel_startsit (scratch-only for v1)",
+        "entrypoints": [
+          "analysis/football_intel_startsit/reevaluate.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/weekly/data/start_sit_model.json",
+        "lib/weekly/data/start_sit_reevaluation_manifest.json"
+      ],
+      "manifest": "lib/weekly/data/start_sit_manifest.json",
+      "version_field": "start_sit_model_version",
+      "readers": [
+        "lib/weekly/start-sit-fi/translate.ts",
+        "lib/weekly/start-sit-fi/reevaluation.ts",
+        "lib/weekly/start-sit-fi/evidence-report.ts"
+      ],
+      "routes": [
+        "/api/football-intel/startsit-evidence",
+        "/api/intelligence/[league]/[manager]/week/[week]"
+      ],
+      "reachability": "EMBEDDED_IN_ROUTE",
+      "source_data": "FI + baseline weekly projection; durable capture in Supabase",
+      "data_cutoff_field": "football_intel_data_cutoff (lineage)",
+      "confidence_semantics": "per-family confidence weights + prior-dominated haircut; adjustment capped at 25% of baseline",
+      "freshness_owner": "lib/canonical/recommendation-readiness.ts (deployment permission kept separate)",
+      "lineage_owner": "lib/canonical/lineage.ts (shadow_football_intelligence.lineage)",
+      "reproducibility": "PINNED_STATIC",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_3_5A_SHADOW_MODEL_AUDIT.md",
+        "docs/TEAM_MANAGEMENT_PHASE_4.md"
+      ],
+      "tests": [
+        "test/start-sit-fi.test.ts",
+        "test/start-sit-fi-isolation.test.ts",
+        "test/startsit-capture-integrity.test.ts",
+        "test/startsit-evidence-gate.test.ts"
+      ],
+      "consumers": [
+        "persistence/supabase/shadow-capture.ts",
+        "weekly/intelligence.ts"
+      ],
+      "notes": "Model frozen: sha256 85d2ddd5…6293. start_sit_manifest.json / start_sit_validation.csv / start_sit_feature_status.csv are training provenance with no runtime reader (INTERNAL)."
+    },
+    {
+      "id": "matchup-intelligence",
+      "name": "Matchup Intelligence (score distributions, win probability, leverage)",
+      "owning_module": "lib/weekly/matchup-intelligence",
+      "status": [
+        "SHADOW"
+      ],
+      "nature": "SHADOW calibrated score distributions + correlations; never changes the production matchup",
+      "deployment": "SHADOW_ONLY",
+      "builder": {
+        "command": "Rscript analysis/football_intel_matchup/fit_distributions.R && …/fit_correlations.R",
+        "entrypoints": [
+          "analysis/football_intel_matchup/fit_distributions.R",
+          "analysis/football_intel_matchup/fit_correlations.R"
+        ]
+      },
+      "served_artifacts": [
+        "lib/weekly/data/matchup_distribution_model.json",
+        "lib/weekly/data/matchup_correlation_model.json"
+      ],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/weekly/matchup-intelligence/distributions.ts",
+        "lib/weekly/matchup-intelligence/correlations.ts",
+        "lib/weekly/matchup-intelligence/deployment.ts"
+      ],
+      "routes": [
+        "/api/intelligence/[league]/[manager]/week/[week]",
+        "/api/matchup/[league]/[manager]/week/[week]"
+      ],
+      "reachability": "EMBEDDED_IN_ROUTE",
+      "source_data": "weekly projections + FI context; 2021-2025 residual calibration",
+      "data_cutoff_field": null,
+      "confidence_semantics": "degradation vector + calibration status; never upgraded",
+      "freshness_owner": "lib/canonical/recommendation-readiness.ts",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "PINNED_STATIC",
+      "docs": [
+        "docs/TEAM_MANAGEMENT_PHASE_5.md"
+      ],
+      "tests": [
+        "test/matchup-intelligence.test.ts",
+        "test/weekly-matchup.test.ts"
+      ],
+      "consumers": [],
+      "notes": "Model JSONs carry per-model version fields (distribution_model_version / correlation_model_version) instead of a manifest."
+    },
+    {
+      "id": "roster-health",
+      "name": "Roster Health (fragility, depth, contingency)",
+      "owning_module": "lib/roster-health",
+      "status": [
+        "ACTIVE",
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "SHARED_CONTEXT conditions engine; not a recommendation",
+      "deployment": "SHARED_CONTEXT",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/roster-health/build.ts",
+        "lib/roster-health/evaluate.ts"
+      ],
+      "routes": [
+        "/api/leagues/[leagueSlug]/roster-health",
+        "/api/leagues/[leagueSlug]/managers/[managerSlug]/roster-health"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "canonical league snapshot + team-state",
+      "data_cutoff_field": null,
+      "confidence_semantics": "per-condition evidence level",
+      "freshness_owner": "canonical snapshot lineage",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/TEAM_MANAGEMENT_PHASE_6.md"
+      ],
+      "tests": [
+        "test/roster-health.test.ts"
+      ],
+      "consumers": [
+        "schedule-planning",
+        "orchestrator"
+      ]
+    },
+    {
+      "id": "schedule-planning",
+      "name": "Schedule / opponent-difficulty / playoff-window planning",
+      "owning_module": "lib/schedule-planning",
+      "status": [
+        "ACTIVE",
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "SHARED_CONTEXT planning conditions; never fabricates a remedy",
+      "deployment": "SHARED_CONTEXT",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/schedule-planning/build.ts",
+        "lib/schedule-planning/evaluate.ts"
+      ],
+      "routes": [
+        "/api/leagues/[leagueSlug]/schedule-planning",
+        "/api/leagues/[leagueSlug]/managers/[managerSlug]/schedule-planning"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "canonical snapshot + Sleeper schedule",
+      "data_cutoff_field": null,
+      "confidence_semantics": "per-condition evidence level",
+      "freshness_owner": "canonical snapshot lineage",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/TEAM_MANAGEMENT_PHASE_7.md"
+      ],
+      "tests": [
+        "test/schedule-planning.test.ts"
+      ],
+      "consumers": [
+        "orchestrator"
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "name": "Team Management Orchestrator (Phase 8)",
+      "owning_module": "lib/orchestrator",
+      "status": [
+        "ACTIVE"
+      ],
+      "nature": "ADVISORY_ONLY composition of team-state, roster-health, schedule-planning and shadow layers",
+      "deployment": "ADVISORY_ONLY",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/orchestrator/build.ts"
+      ],
+      "routes": [
+        "/api/leagues/[leagueSlug]/orchestrate",
+        "/api/leagues/[leagueSlug]/managers/[managerSlug]/orchestrate"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "one canonical snapshot per request",
+      "data_cutoff_field": null,
+      "confidence_semantics": "gate-based; conditions inform, never fabricate remedies",
+      "freshness_owner": "canonical snapshot lineage",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/TEAM_MANAGEMENT_PHASE_8_ORCHESTRATOR.md",
+        "docs/TEAM_MANAGEMENT_SYSTEM_TRUST_AUDIT.md"
+      ],
+      "tests": [
+        "test/orchestrator.test.ts",
+        "test/orchestrator-isolation.test.ts"
+      ],
+      "consumers": []
+    },
+    {
+      "id": "waiver-foundations",
+      "name": "Waiver engine (pre-Phase-4)",
+      "owning_module": "lib/weekly",
+      "status": [
+        "ACTIVE"
+      ],
+      "nature": "production baseline decision engine; gated on the canonical free-agent-pool capability",
+      "deployment": "ACTIVE (production)",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/weekly/waivers.ts"
+      ],
+      "routes": [
+        "/api/waivers/[league]/[manager]/week/[week]",
+        "/api/intelligence/[league]/[manager]/week/[week]"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "weekly projections + canonical snapshot",
+      "data_cutoff_field": null,
+      "confidence_semantics": "readiness contract (WAIVER_READINESS_CONTRACT)",
+      "freshness_owner": "lib/canonical/recommendation-readiness.ts",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/WAIVER_READINESS_CONTRACT.md"
+      ],
+      "tests": [
+        "test/weekly-waivers.test.ts",
+        "test/weekly-waiver-readiness.test.ts"
+      ],
+      "consumers": []
+    },
+    {
+      "id": "trade-foundations",
+      "name": "Trade engine + Competitive Trade Intelligence",
+      "owning_module": "lib/trades",
+      "status": [
+        "ACTIVE"
+      ],
+      "nature": "valuation + competitive optimisation; read-only analytics, never submits a trade",
+      "deployment": "ACTIVE (engine); competitive stack read-only",
+      "builder": {
+        "command": null,
+        "entrypoints": []
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/trades/competitive/api.ts"
+      ],
+      "routes": [
+        "/api/trades/analyze",
+        "/api/trades/discover",
+        "/api/trades/negotiate",
+        "/api/trades/competitive"
+      ],
+      "reachability": "FULLY_REACHABLE",
+      "source_data": "canonical snapshot, market values, league history",
+      "data_cutoff_field": null,
+      "confidence_semantics": "VERY_LOW…HIGH passed through, never upgraded; transaction_readiness separate from classification",
+      "freshness_owner": "snapshot lineage",
+      "lineage_owner": "lib/canonical/lineage.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/TRADE_ENGINE_PRODUCTION.md",
+        "docs/COMPETITIVE_TRADE_INTELLIGENCE.md"
+      ],
+      "tests": [
+        "test/trade-engine.test.ts",
+        "test/competitive-trade-api.test.ts"
+      ],
+      "consumers": []
+    }
+  ]
+}

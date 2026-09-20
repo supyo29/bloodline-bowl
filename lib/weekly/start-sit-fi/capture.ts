@@ -154,6 +154,12 @@ export interface CaptureSummary {
   by_scoring_fingerprint: Record<string, number>;
   by_position: Record<string, { decisions: number; reversals: number }>;
   outcomes_attached: number;
+  /** total durable records (all classes). */
+  record_count?: number;
+  /** true when per-position decision counts cover only the most recent LIVE_CAPTURED rows (never silently partial). */
+  per_position_truncated?: boolean;
+  /** true when the class/version counts themselves hit the row cap. */
+  counts_truncated?: boolean;
 }
 
 export interface ShadowCaptureStore {

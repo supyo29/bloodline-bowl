@@ -24,6 +24,9 @@ function routes(dir = "app/api", acc: string[] = []): string[] {
 /** Routes intentionally NOT advertised to AI clients, with the reason. */
 const UNADVERTISED: Record<string, string> = {
   "/api/ai": "the discovery entry point itself",
+  "/api/trades/analyze": "legacy trade-engine POST analytics with a request body; discovery advertises only /api/trades/competitive (body schema + modes documented). Advertising these needs documented request schemas (Phase 3.5C prerequisite)",
+  "/api/trades/discover": "legacy trade-engine POST analytics (see /api/trades/analyze)",
+  "/api/trades/negotiate": "legacy trade-engine POST analytics (see /api/trades/analyze)",
   "/api/health": "operational probe, not a data capability",
   "/api/auth/yahoo/callback": "OAuth plumbing", "/api/auth/yahoo/connect": "OAuth plumbing", "/api/auth/yahoo/status": "OAuth plumbing",
   "/api/yahoo/auth/start": "OAuth plumbing", "/api/yahoo/oauth/callback": "OAuth plumbing", "/api/yahoo/status": "provider auth status",
@@ -65,7 +68,7 @@ test("every advertised capability resolves to a real route file, and the newly a
     "/api/leagues/{leagueSlug}/roster-health", "/api/leagues/{leagueSlug}/managers/{managerSlug}/roster-health",
     "/api/leagues/{leagueSlug}/schedule-planning", "/api/leagues/{leagueSlug}/managers/{managerSlug}/schedule-planning",
     "/api/leagues/{leagueSlug}/orchestrate", "/api/leagues/{leagueSlug}/managers/{managerSlug}/orchestrate",
-    "/api/football-intel/startsit-evidence", "/api/trades/analyze", "/api/trades/discover", "/api/trades/negotiate",
+    "/api/football-intel/startsit-evidence",
   ]) assert.ok(t.has(must), `discovery is missing ${must}`);
 });
 

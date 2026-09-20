@@ -256,3 +256,35 @@ test("25: no research verdict / R script writes an activation or promotes deploy
     assert.ok(!/"PRODUCTION_ACTIVE"\s*[,)]?\s*$/m.test(src.replace(/#.*$/gm, "")) || f === "x", `${f} assigns PRODUCTION_ACTIVE`);
   }
 });
+
+/* ---------------- Phase 3.5B: bounded diagnostics (capture-volume follow-up) ---------------- */
+test("supabase summary: narrow select for counts; heavy JSON only for capped LIVE rows; truncation is flagged, not silent", async () => {
+  const urls: string[] = [];
+  const origFetch = globalThis.fetch;
+  const light = Array.from({ length: 5 }, (_, i) => ({
+    capture_id: `c${i}`, capture_kind: i < 2 ? "LIVE_CAPTURED" : "LIVE_POST_LOCK", season: 2026, week: 2,
+    start_sit_model_version: "ri-startsit-2026.1", football_intelligence_version: "fi:x", scoring_fingerprint: "s",
+  }));
+  globalThis.fetch = (async (url: string) => {
+    urls.push(String(url));
+    const u = String(url);
+    if (u.includes("bridge_startsit_shadow_outcomes")) return new Response("[]", { status: 200 });
+    if (u.includes("record-%3Edecisions") || u.includes("record->decisions")) {
+      return new Response(JSON.stringify([{ capture_id: "c0", decisions: [{ baseline_start: "p1", reversal: true }], adjustments: [{ canonical_player_id: "p1", position: "RB" }] }]), { status: 200 });
+    }
+    return new Response(JSON.stringify(light), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const store = new SupabaseShadowCaptureStore(new SupabaseRest({ url: "https://x.supabase.co", serviceRoleKey: "k" }));
+    const s = await store.summary();
+    assert.equal(s.available, true); assert.equal(s.record_count, 5);
+    assert.deepEqual(s.totals_by_kind, { LIVE_CAPTURED: 2, LIVE_POST_LOCK: 3 });
+    // c0 detailed, c1 not (only one detail row returned for two live rows) => truncation is reported
+    assert.equal(s.per_position_truncated, true);
+    assert.equal(s.by_position.RB!.decisions, 1); assert.equal(s.by_position.RB!.reversals, 1);
+    const captureCalls = urls.filter((u) => u.includes("bridge_startsit_shadow_captures"));
+    assert.ok(captureCalls.length === 2, "exactly one narrow + one capped detail query");
+    assert.ok(!captureCalls.some((u) => /select=record(&|$)/.test(decodeURIComponent(u).replace(/^.*\?/, "")) ), "never selects the full record column");
+    assert.match(captureCalls.find((u) => u.includes("capture_kind=eq.LIVE_CAPTURED"))!, /limit=300/);
+  } finally { globalThis.fetch = origFetch; }
+});
