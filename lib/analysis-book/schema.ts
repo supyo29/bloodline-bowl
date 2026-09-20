@@ -171,6 +171,8 @@ export interface AnalysisBookSession {
   subject: BookSubject;
   classification: { primary: BookType; secondary: BookType[]; matched_rules: string[] };
   contents_version: string;
+  /** the capability/vintage basis the Contents was generated against (researchability is re-derivable; this is what it was at creation) */
+  capability_basis: { registry_version: string; season: number; vintage: EvidenceIdentity[] };
   parts: Array<{ id: string; title: string }>;
   /** frozen at creation: a taxonomy change never reinterprets a saved book */
   contents: ContentsChapter[];
