@@ -115,9 +115,9 @@ export function resolveSelector(s: AnalysisBookSession, sel: Selector): Resoluti
     }
     case "all": return { ok: true, keys: order(s), notes };
     case "remaining": {
-      const open = s.contents.filter((c) => c.kind === "EVIDENCE" && s.chapters[c.chapter_id]!.status === "NOT_OPENED"); const keys = open.filter((c) => isResearchable(s, c.chapter_id)).map((c) => c.chapter_id);
+      const open = s.contents.filter((c) => c.kind === "EVIDENCE" && s.chapters[c.chapter_id]!.status === "NOT_OPENED"); const keys = open.filter((c) => isResearchable(s, c.chapter_id) && !s.chapters[c.chapter_id]!.blocked_reason).map((c) => c.chapter_id);
       const skipped = open.filter((c) => !keys.includes(c.chapter_id)).map((c) => c.display_number);
-      if (skipped.length) notes.push(`not researchable with current evidence, left out: ${skipped.join(", ")}`);
+      if (skipped.length) notes.push(`not researchable with current evidence (or blocked pending input), left out: ${skipped.join(", ")}`);
       if (!keys.length) return { ok: false, message: "no researchable chapters remain" };
       return { ok: true, keys, notes };
     }
@@ -131,7 +131,8 @@ export function resolveSelector(s: AnalysisBookSession, sel: Selector): Resoluti
 /** Next n chapters in BOOK ORDER after the current chapter that have not been opened and can be researched (never assumes linear reading). */
 export function nextChapters(s: AnalysisBookSession, count: number): Resolution {
   const ids = order(s); const start = s.current_chapter ? ids.indexOf(s.current_chapter) + 1 : 0;
-  const pick = (from: number, to: number) => ids.slice(from, to).filter((id) => s.chapters[id]!.status === "NOT_OPENED" && isResearchable(s, id));
+  // a chapter that was already attempted and is BLOCKED (e.g. needs a scenario input) is not proposed again by Next; open it by number once the input exists
+  const pick = (from: number, to: number) => ids.slice(from, to).filter((id) => s.chapters[id]!.status === "NOT_OPENED" && !s.chapters[id]!.blocked_reason && isResearchable(s, id));
   const after = pick(start, ids.length); const before = pick(0, start);
   const keys = [...after, ...before].slice(0, count); const notes: string[] = [];
   if (!keys.length) return { ok: false, message: "every researchable chapter has been opened; try \"contents\", \"go deeper\", \"refresh …\" or \"final synthesis\"" };

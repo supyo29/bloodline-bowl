@@ -6,7 +6,7 @@
 import type { CapabilitySnapshot } from "./capability";
 import { CHAPTER_LIBRARY } from "./library";
 import { buildResearchPlan, type PlanOptions, type ResearchPlan } from "./plan";
-import { executePlan, QueryCache, type EvidenceClient, type Execution, type QueryResult } from "./executor";
+import { executePlan, incomparabilities, QueryCache, type EvidenceClient, type Execution, type QueryResult } from "./executor";
 import { beginResearch, recordChapterResearch, recordSupport, type ChapterResearchResult } from "./session";
 import type { AnalysisBookSession, EvidenceRef, Need } from "./schema";
 
@@ -35,7 +35,7 @@ export async function researchChapters(s0: AnalysisBookSession, keys: string[], 
       const rs = qs.map((q) => exec.results.get(q.key)!);
       if (rs.some((r) => r.status === "DEFERRED")) unsatisfied.push(`${l} (scenario input required)`); else if (rs.every((r) => r.status === "OK" && r.available > 0)) satisfied.push(l); else unsatisfied.push(`${l} (no available evidence)`);
     }
-    const limitations = [...new Set([...results.flatMap((r) => (r.detail ? [r.detail] : [])), ...results.flatMap((r) => r.limitations), ...plan.unsupported_requirements.filter((u) => u.chapter === key).map((u) => u.reason), ...plan.partial_requirements.filter((u) => u.chapter === key).map((u) => u.reason)])];
+    const limitations = [...new Set([...results.flatMap((r) => (r.detail ? [r.detail] : [])), ...results.flatMap((r) => r.limitations), ...incomparabilities(results), ...plan.unsupported_requirements.filter((u) => u.chapter === key).map((u) => u.reason), ...plan.partial_requirements.filter((u) => u.chapter === key).map((u) => u.reason)])];
     const res: ChapterResearchResult = { depth: plan.depth[key] ?? 1, identities: [...identities.values()], evidence_refs: [...refs.values()], query_keys: primary.map((q) => q.key), coverage: { satisfied, unsatisfied }, limitations };
     s = recordChapterResearch(s, key, res, o.now);
     chapters[key] = { status: s.chapters[key]!.status, satisfied, unsatisfied, evidence_refs: refs.size };

@@ -129,3 +129,12 @@ test("serialization is canonical and deterministic; round-trips; detects tamperi
   const d2 = deserializeSession(reser); assert.equal(d2.drift.drifted, true); assert.equal(d2.drift.stored_taxonomy, "analysis-taxonomy-2025.9"); assert.equal(d2.session.taxonomy_version, "analysis-taxonomy-2025.9", "interpretation is not silently rewritten");
   assert.equal(d2.session.contents.length, s.contents.length);
 });
+
+test("Next/remaining do not re-propose a chapter that was already attempted and BLOCKED (e.g. scenario input missing)", () => {
+  let s = make(); const id = "injury.contingencies";
+  assert.ok(nextChapters(s, 40).ok && (nextChapters(s, 40) as { keys: string[] }).keys.includes(id));
+  s = recordChapterResearch(beginResearch(s, [id]), id, { ...result("opportunity-propagation"), evidence_refs: [] , limitations: ["scenario input required"] }, NOW);
+  assert.ok(s.chapters[id]!.blocked_reason); assert.equal(s.chapters[id]!.status, "NOT_OPENED");
+  assert.ok(!(nextChapters(s, 40) as { keys: string[] }).keys.includes(id)); const rem = resolveSelector(s, { kind: "remaining" }); assert.ok(rem.ok && !rem.keys.includes(id));
+  assert.deepEqual(keys(s, String(num(s, id))), [id], "but the user can still open it by number");
+});

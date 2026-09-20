@@ -111,3 +111,8 @@ test("cross-chapter findings are first-class, cite their supporting chapters + e
   const more = await researchChapters(done.session, ["player.role.trajectory"], { snap, now: NOW }); assert.equal(synthesisIsCurrent(more.session), false, "new research makes the old synthesis out of date");
   assert.equal(synthesize(s, snap, { final: true, now: NOW }).session.synthesis_state.status, "FINAL");
 });
+
+test("request-scoped live builds are described as live builds, not as a fake NFL week", () => {
+  const v = vintageStatement([{ surface: "role-opportunity", version: "roi:2026:w01:x", season: 2026, through_week: 1, week_state: "COMPLETE" }, { surface: "matchup-intelligence", version: "ri-matchup-2026.1", season: 2026, through_week: null, week_state: null }]);
+  assert.equal(v.mixed, true); assert.match(v.statement, /live request-scoped build \(no NFL through-week\)/); assert.doesNotMatch(v.statement, /week \?|wnull|week null/);
+});

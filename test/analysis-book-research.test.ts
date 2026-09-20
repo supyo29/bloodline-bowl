@@ -122,3 +122,21 @@ test("INTEGRATION: an unsupported chapter is reported blocked (not researched); 
   assert.ok(st.revisions[0]!.evidence_refs.every((r) => r.analysis_class === "CONDITIONAL"), "OPP evidence stays conditional in the refs");
   assert.ok(st.revisions[0]!.coverage.unsatisfied.length === 0 || true);
 });
+
+test("COMPARISON book: per-player evidence keeps independent lineage; mixed-position populations are flagged as not directly comparable", async () => {
+  const s = make("Rome or Bhayshul Tuten?", CTX); assert.equal(s.subject.players.length, 2);
+  const c = spy(); const out = await researchChapters(s, ["compare.role_certainty", "player.role.playing_time"], { snap, client: c, now: NOW });
+  const role = c.calls.filter((x) => x.topic === "role.player_profile"); assert.equal(role.length, 2, "one Role query per player, each with its own lineage"); assert.equal(new Set(role.map((x) => x.params.gsis_id)).size, 2);
+  const rev = out.session.chapters["player.role.playing_time"]!.revisions[0]!; assert.equal(new Set(rev.evidence_refs.map((r) => r.subject_id)).size, 2, "evidence refs are per player");
+  assert.match(rev.limitations.join(" | "), /NOT DIRECTLY COMPARABLE.*NFL_WR vs NFL_RB|NOT DIRECTLY COMPARABLE.*NFL_RB vs NFL_WR/, "WR vs RB comparison populations differ and are stated");
+  const two = make("Rome or Deebo?", CTX); const o2 = await researchChapters(two, ["player.role.playing_time"], { snap, now: NOW });
+  assert.doesNotMatch(o2.session.chapters["player.role.playing_time"]!.revisions[0]!.limitations.join(" | "), /NOT DIRECTLY COMPARABLE.*populations/, "two WRs share the NFL_WR population -> comparable");
+});
+test("SUBCHAPTERS are optional handles: opening 20A explores only that subchapter, never its parent", async () => {
+  const s = make("Analyze Rome Odunze this week"); const n = s.contents.find((x) => x.chapter_id === "matchup.coverage_interaction")!.display_number;
+  const out = await researchChapters(s, [`matchup.coverage_interaction/A`], { snap, now: NOW });
+  assert.equal(out.session.chapters["matchup.coverage_interaction/A"]!.status, "EXPLORED"); assert.equal(out.session.chapters["matchup.coverage_interaction"]!.status, "NOT_OPENED");
+  assert.equal(out.plan.queries.length, 1); assert.equal(out.plan.queries[0]!.topic, "scheme.defense_coverage");
+  const text = contentsView(out.session, snap, { subchapters: true }).parts.flatMap((p) => p.rows).filter((r) => r.is_subchapter && r.number === n); assert.equal(text.length, 5); assert.equal(text.find((r) => r.label === `${n}A`)!.status, "EXPLORED");
+  const c = text.find((r) => r.label === `${n}C`)!; assert.equal(c.researchability, "UNSUPPORTED", "slot/boundary is an honest UNSUPPORTED subchapter");
+});

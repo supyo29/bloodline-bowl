@@ -24,7 +24,9 @@ const NO_STRONG_CLASSES = ["CONDITIONAL", "SHADOW", "PROJECTED"];
 export interface FindingInput { kind: FindingKind; text: string; chapters: string[]; evidence_ids: string[]; model_value_ref?: string; numeric?: number; claims_trend?: boolean }
 export type AddFindingResult = { ok: true; session: AnalysisBookSession; finding: Finding } | { ok: false; errors: string[] };
 
-const label = (i: EvidenceIdentity) => `${i.surface} ${i.season ?? "?"} week ${i.through_week ?? "?"}${i.week_state ? ` (${i.week_state})` : ""}${i.version ? ` [${i.version}]` : ""}`;
+/** request-scoped surfaces (matchup, roster health, schedule) are live builds with NO NFL through-week; say that instead of a fake week */
+const when = (i: EvidenceIdentity) => (i.through_week === null ? `${i.season ?? "?"} live request-scoped build (no NFL through-week)` : `${i.season ?? "?"} week ${i.through_week}${i.week_state ? ` (${i.week_state})` : ""}`);
+const label = (i: EvidenceIdentity) => `${i.surface} ${when(i)}${i.version ? ` [${i.version}]` : ""}`;
 /** Per-source temporal statement. Never says "current week N intelligence" — every source keeps its own vintage. */
 export function vintageStatement(ids: EvidenceIdentity[]): { mixed: boolean; statement: string } {
   const uniq = [...new Map(ids.map((i) => [`${i.surface}|${i.version}|${i.through_week}`, i])).values()].sort((a, b) => a.surface.localeCompare(b.surface));
@@ -131,7 +133,7 @@ export function synthesize(s: AnalysisBookSession, snap: CapabilitySnapshot, o: 
   const assessed = s.findings.map((f) => { const a = assessFinding(s, f, snap); return { ...f, claim_strength: a.strength, strength_reasons: a.reasons, temporal_context: a.identities, mixed_vintage: a.mixed, vintage_statement: a.statement } as Finding; });
   const ids = researchedAll.flatMap((r) => (s.chapters[r.chapter_id]!.revisions[s.chapters[r.chapter_id]!.revisions.length - 1]?.identities ?? []));
   const vs = vintageStatement(ids); const bySurface = new Map<string, EvidenceIdentity>(); for (const i of ids) if (!bySurface.has(i.surface)) bySurface.set(i.surface, i);
-  const mism: string[] = []; const list = [...bySurface.values()]; for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) { const a = list[i]!, b = list[j]!; if (a.season !== b.season || a.through_week !== b.through_week || (a.week_state ?? "") !== (b.week_state ?? "")) mism.push(`${a.surface} (${a.season} w${a.through_week}${a.week_state ? ` ${a.week_state}` : ""}) vs ${b.surface} (${b.season} w${b.through_week}${b.week_state ? ` ${b.week_state}` : ""})`); }
+  const mism: string[] = []; const list = [...bySurface.values()]; for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) { const a = list[i]!, b = list[j]!; if (a.season !== b.season || a.through_week !== b.through_week || (a.week_state ?? "") !== (b.week_state ?? "")) mism.push(`${a.surface} (${when(a)}) vs ${b.surface} (${when(b)})`); }
   const explored = new Set(researchedAll.flatMap((r) => s.contents.find((c) => c.chapter_id === r.chapter_id)!.tags));
   const unexamined = Object.entries(SEMANTIC_GROUPS).filter(([, g]) => s.contents.some((c) => c.tags.some((t) => g.tags.includes(t))) && !g.tags.some((t) => explored.has(t))).map(([k]) => k);
   const unresolved = [...notResearched, ...supportOnly, ...partial, ...notResearchable].map((r) => ({ chapter: r.chapter_id, number: r.number, question: s.contents.find((c) => c.chapter_id === r.chapter_id)!.question, why: r.reason ?? (r.status === "NOT_OPENED" ? "not researched" : r.status) }));
