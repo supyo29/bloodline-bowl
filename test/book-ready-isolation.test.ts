@@ -12,6 +12,15 @@ test("only app/api/evidence/route.ts imports lib/book-ready from app/ or lib/ (o
   const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/book-ready/")).filter((f) => importsBookReady(readFileSync(f, "utf8")));
   assert.deepEqual(offenders, ["app/api/evidence/route.ts"]);
 });
+test("no file outside lib/book-ready (and the one route) mentions book-ready in ANY form: import, require, dynamic import, string path", () => {
+  const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/book-ready/") && f !== "app/api/evidence/route.ts").filter((f) => /book-ready|book_ready/.test(readFileSync(f, "utf8")));
+  // the registry TYPES and discovery manifest describe the capability; neither may import runtime code
+  assert.deepEqual(offenders.filter((f) => !["lib/canonical/intelligence-surface-registry.ts", "lib/discovery.ts"].includes(f)), []);
+  for (const f of ["lib/canonical/intelligence-surface-registry.ts", "lib/discovery.ts"]) assert.doesNotMatch(readFileSync(f, "utf8"), /from\s+["'][^"']*book-ready/, f);
+});
+test("recommendation routes never reach the query layer: lib/weekly, lib/trades, lib/lineup and the recommendation routes do not reference it", () => {
+  for (const f of [...walk("lib/weekly"), ...walk("lib/trades"), ...walk("app/api/intelligence"), ...walk("app/api/lineup"), ...walk("app/api/waivers"), ...walk("app/api/matchup")]) assert.doesNotMatch(readFileSync(f, "utf8"), /book-ready|book_ready/, f);
+});
 test("book-ready contains no writes to production stores or network calls", () => {
   for (const f of walk("lib/book-ready")) { const s = readFileSync(f, "utf8"); assert.doesNotMatch(s, /\bfetch\(|supabase|\.insert\(|\.upsert\(|writeFileSync|process\.env\.[A-Z_]*(KEY|TOKEN|SECRET)/i, f); }
 });

@@ -341,8 +341,8 @@
           "bar"
         ],
         "refresh_policy": {
-          "cadence": "WEEKLY_AFTER_COMPLETE_WEEK",
-          "trigger": "dependency: FI reports week W COMPLETE and the served Role through_week < W; heavy R build (run_build.R \u2192 run_role_profile.R \u2192 serve_role_intelligence.R), run once per completed week",
+          "cadence": "MANUAL_WEEKLY_RUNBOOK",
+          "trigger": "NO scheduled workflow rebuilds Role: an operator runs run_build.R -> run_role_profile.R -> serve_role_intelligence.R after each completed week and commits the artifact; the intelligence-snapshot workflow then preserves the served state if its week is COMPLETE. Weekly history therefore accrues only when that manual rebuild happens; lag is surfaced as refresh_lag_weeks.",
           "snapshot_policy": "COMPLETE_WEEK",
           "rationale": "role observations only change when games complete, so daily rebuilds would only re-emit identical state; the R build needs multi-season pbp/participation caches that CI does not hold. Staleness is detected and surfaced (refresh_lag_weeks) rather than assumed away"
         },
@@ -432,8 +432,8 @@
           "bar"
         ],
         "refresh_policy": {
-          "cadence": "WEEKLY_AFTER_ROLE",
-          "trigger": "dependency: rebuilt after Role Intelligence for the same through_week (its manifest pins the Role version); inheritance priors are fit on 2019-2025 and do not change weekly",
+          "cadence": "MANUAL_WEEKLY_RUNBOOK",
+          "trigger": "NO scheduled workflow: rebuilt manually after Role for the same through_week (its manifest pins the Role version); the snapshot workflow preserves the served state. Scenario history is UNSUPPORTED regardless (scenarios are consumer-supplied).",
           "snapshot_policy": "COMPLETE_WEEK",
           "rationale": "depends entirely on the Role snapshot; the training-window priors are static"
         },
@@ -690,13 +690,13 @@
         "query_topics": [
           "startsit.shadow"
         ],
-        "capability_state": "AVAILABLE",
+        "capability_state": "PARTIAL",
         "note": "request-scoped build; SHADOW_ONLY",
         "current": "AVAILABLE",
         "history": {
-          "class": "NATIVE_HISTORY",
-          "source": "durable_capture_store",
-          "note": "LIVE_CAPTURED / LIVE_POST_LOCK records (Phase 3.5A) are immutable point-in-time decisions; the query layer converts a live comparison, captured-record retrieval is a follow-up"
+          "class": "CURRENT_ONLY",
+          "source": "none_via_query_layer",
+          "note": "Phase 3.5A durable captures (LIVE_CAPTURED / LIVE_POST_LOCK) exist in the Supabase capture store, but /api/evidence does not retrieve them: it converts the live comparison only. Captured-record retrieval is a carried-forward follow-up."
         },
         "comparison_populations": [],
         "decomposition": true,

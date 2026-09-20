@@ -19,7 +19,10 @@ export const defaultContext = (over: Partial<QueryContext> = {}): QueryContext =
 
 export function mk(b: Omit<EvidenceBlock, "evidence_id" | "contract_version">, key: unknown[] = []): EvidenceBlock {
   const id = createHash("sha256").update(JSON.stringify([b.surface, b.topic, b.metric, b.subject.id, b.temporal.snapshot_id ?? null, b.temporal.through_week, b.temporal.week, b.temporal.as_of, b.subject.kind, ...key])).digest("hex").slice(0, 20);
-  return { evidence_id: `eb:${id}`, contract_version: EVIDENCE_CONTRACT_VERSION, ...b };
+  const lag = b.freshness.refresh_lag_weeks;
+  // A lagging substrate is never presented as current: the vintage mismatch is stated on the block itself.
+  const limitations = lag && lag > 0 ? [...b.limitations, `NOT_YET_REFRESHED: served through_week ${String(b.freshness.through_week)} is ${lag} complete week(s) behind the Football Intelligence completed-week frontier; this evidence has a different vintage than newer sources and must not be combined with them as if synchronized`] : b.limitations;
+  return { evidence_id: `eb:${id}`, contract_version: EVIDENCE_CONTRACT_VERSION, ...b, limitations };
 }
 
 /** A block for something that cannot be provided. Value absent; the availability STATE says why (never collapsed). */

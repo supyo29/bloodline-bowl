@@ -54,7 +54,7 @@ function fileList(spec: SurfaceSnapshotSpec, read: Reader, commit?: string): str
   return out.map((p) => p.split("/").pop()!).filter((f) => /\.(csv|json)$/.test(f));
 }
 
-let manifest: HistoryManifest = loadHistoryManifest(ROOT);
+const manifest: HistoryManifest = loadHistoryManifest(ROOT);
 const written: string[] = []; const skipped: string[] = [];
 const objects: Array<{ sha: string; gz: Buffer }> = [];
 

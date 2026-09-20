@@ -218,3 +218,19 @@ test("refresh lag is a FRESHNESS fact, separate from availability: Role/OPP repo
   assert.ok(ROLE_DIMENSION_PATHS.length >= 11);
   void unitFor; void all;
 });
+
+test("mixed vintage: when FI's completed-week frontier is ahead, Role/OPP blocks state NOT_YET_REFRESHED and keep their own version/through_week", () => {
+  const root = mkdtempSync(join(tmpdir(), "mv-")); cpSync(join(ROOT, "lib"), join(root, "lib"), { recursive: true }); cpSync(join(ROOT, "docs"), join(root, "docs"), { recursive: true });
+  const mp = join(root, "lib/football-intel/data/football_intelligence_manifest.json"); const m = JSON.parse(readFileSync(mp, "utf8"));
+  m.week_completion = { ...m.week_completion, latest_week: 2, week_state: "COMPLETE" }; writeFileSync(mp, JSON.stringify(m));
+  const role = loadRoleOpportunitySnapshot()!; const wr = role.profiles.find((p) => p.identity.position === "WR")!;
+  const cwd = process.cwd(); process.chdir(root);
+  try {
+    const b = roleProfileEvidence({ gsis_id: wr.identity.gsis_id }, defaultContext())[0]!;
+    assert.equal(b.freshness.refresh_lag_weeks, 1); assert.equal(b.freshness.through_week, 1); assert.match(b.lineage.surface_version!, /^roi:2026:w01:/);
+    assert.match(b.limitations.join(), /NOT_YET_REFRESHED.*must not be combined/); assert.deepEqual(validateEvidenceBlock(b), []);
+    const caps = getCapabilities(root) as { refresh_status: Array<{ surface: string; state: string }> };
+    assert.equal(caps.refresh_status.find((s) => s.surface === "role-opportunity")!.state, "NOT_YET_REFRESHED");
+    assert.equal(caps.refresh_status.find((s) => s.surface === "football-intelligence")!.state, "CURRENT");
+  } finally { process.chdir(cwd); }
+});
