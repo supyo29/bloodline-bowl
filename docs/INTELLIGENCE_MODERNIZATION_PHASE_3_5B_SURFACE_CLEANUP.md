@@ -195,3 +195,73 @@ The branch is not deployed, so the fixes (discovery, lineage, `content_identity`
 
 ## 20. Certification verdict
 **CERTIFIED WITH DOCUMENTED LIMITATIONS.** All gates hold: no served field has knowingly incorrect semantics (S1 fixed; unresolved semantics labelled, FTN conflict permanently guarded); builders and served artifacts agree and unrelated rewrites are now detected; lineage uses canonical owners and every tier's content is identifiable; intended surfaces are reachable and internal ones classified; production behaviour is unchanged (six-section parity); no shadow model activated; `ri-startsit-2026.1` frozen. Limitations in §18 are why this is not an unqualified CERTIFIED. Not merged or deployed.
+
+
+---
+
+## 21. Merge, deployment & production verification (2026-09-20)
+
+The branch-certification findings above are unchanged. This section records what happened on `main` and in production.
+
+### 21.1 Reconciliation and merge
+| | |
+|---|---|
+| Certified branch tip | `bec37cd` (`5fa68c8`, `689c48a`, `bec37cd`) |
+| `origin/main` before merge | `1c64ecb` = merge-base; 0 commits on main not on branch → **fast-forward** `1c64ecb..bec37cd`, no force-push |
+| Drift after merge | **`265dabd`** `github-actions[bot]` FI refresh (`fi:2026:w02:afa8f98be61e` → `bfd77c9959a6`): `football_intelligence_manifest.json`, `player_usage_profile.csv`, `team_profile.csv`, `unit_coverage_profile.csv`. Inspected, integrated by fast-forward, affected gates rerun (below). |
+| Final commits | `db5f969` = fix commit on top of `265dabd`; `main == origin/main == db5f969`, tree clean |
+| Frozen model sha256 | `85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293` verified before merge, after merge, on final main |
+Rollback reference (pre-merge): `dpl_EEv5hKawZa7QXRJhkfK4cXjQFvMU` @ `1c64ecb`, discovery 24 capabilities, FI `fi:2026:w02:afa8f98be61e`, `psi:2025:w18:08123edd58c9`.
+
+### 21.2 Deployment
+`dpl_6rwGW53L…` READY on `bec37cd`; the bot's `265dabd` deployed as `dpl_3hZZLR4s…`; **final `dpl_7cLpd9UH2LYAoTHjKP5os2THiirx` READY, `githubCommitSha = db5f969d…` (exact match to final main)**, all three production aliases attached, `aliasError: null`.
+
+### 21.3 FI usage label (S1) — verified in three distinct layers
+1. **Code deployed correctly:** reader (`usageOutputClass`), builder (`lib_usage.R`) and publish gate (`validate_snapshot.R`) are in the deployed SHA.
+2. **Existing served artifact was stale** (as documented): pre-merge `player_usage_profile.csv` had 6,584 rows labelled `OBSERVED` with no observation.
+3. **The repository's normal guarded refresh republished it, with no manual edit.** Merging touched `analysis/football_intel/**`, which triggers the refresh workflow (run `35516363277`, success; it builds with the fixed builder and runs the fixed validation gate). Published `265dabd`: **0** `OBSERVED` rows with `observed = NA`; **all 1,210 `route_participation` rows `MODELED`**; 6,584 `MODELED` (no observation) and 4,306 `OBSERVED` (all with real values). Versus the previously served artifact the only change in that file is exactly the 6,584 labels; `team_profile` / `unit_coverage_profile` numeric changes are ≤ 5e-14 (within the certified 1e-13 tolerance); `data_cutoff` PFR 1→2 is upstream drift.
+* **Evidence limit, stated plainly:** no HTTP route exposes usage rows, and the CSV (1.7 MB) is too large to pull through the tooling. The deployed artifact identity therefore rests on: Vercel *git* deployment of exactly `db5f969` whose blob (sha256 `8d5b9b289ccbf0e5f9adff3ec82f76dc1b46e42e8ec05dfaa014f2cb74eab030`) has the corrected labels, plus the reader/semantics tests. It was not fetched byte-wise from Vercel.
+
+### 21.4 Player-Scheme content identity (L1)
+Production: `content_identity.served_content_id = psc:a7280380b358`, identical across 3 reads; recomputes exactly from the tier ids `A=08123edd58c9 B=5a10eac5bd1d C=39d7b6d7de7d D=37bd7bc3770c` (B/C/D = first 12 hex of the manifest's `served_content_sha256`; A = the version hash). `player_scheme_version` is still `psi:2025:w18:08123edd58c9` (unchanged semantics). A Tier B/C/D change moves the id (test, all three tiers).
+
+### 21.5 Canonical lineage on progression (L2)
+Production response embeds `lineage.football_intelligence` = canonical `{version, model_tag, season 2026, through_week 2, generated_at, data_cutoff, week_completion (PARTIAL 1/16), output_classes}`; flat `football_intelligence_version`, `snapshot_through_week`, `ftn_charting_through_week` all equal the embedded values — one lineage answer, no conflict.
+
+### 21.6 FTN progression safety
+Production buckets `CHECKDOWN`, `RAW_1` (numeric codes stay `RAW_*`); `numeric_read_semantics_status: UNVERIFIED_SOURCE_CONFLICT`, `output_class: DESCRIPTIVE_ONLY`. Final merged tree search for `FIRST_READ|SECOND_READ|THIRD_*|PRE_SNAP_OR_ZERO` outside test/validator guards: none. Permanent regression tests pass.
+
+### 21.7 AI discovery (R1)
+**24 → 36 capabilities (+12, none removed):** `league_orchestrate`, `manager_orchestrate`, `league_roster_health`, `manager_roster_health`, `league_schedule_planning`, `manager_schedule_planning`, `player_scheme_index`, `player_scheme_player`, `player_scheme_matchup`, `player_scheme_team_offense`, `player_scheme_team_defense`, `startsit_evidence_diagnostics`. `/api/trades/competitive` still advertised; **`/api/trades/analyze|discover|negotiate` intentionally not advertised** (no request-body schema; allowlisted with reason).
+
+### 21.8 Surface registry
+`docs/intelligence-surface-registry.json` (single registry) validated on final main: 10/10 registry tests (artifacts, readers, builders, docs, tests exist; declared routes exist; reachability agrees with routes; consumers equal the real import graph both directions; library-only surfaces verified route-free; every served data file accounted for). No new unregistered intelligence route appeared through the FI-refresh reconciliation. Static artifacts (Role, Opportunity Propagation, Player-Scheme, weekly models) are byte-unchanged since `1c64ecb`; only code files and FI data changed.
+
+### 21.9 Capture diagnostic against real PostgREST (the principal production-only uncertainty)
+* **Query syntax is valid.** Supabase API logs show production issuing (all HTTP 200): a **narrow-column** count query (`select=capture_id,capture_kind,season,week,start_sit_model_version,football_intelligence_version,scoring_fingerprint&limit=5000`) and a **capped detail** query (`select=capture_id,decisions:record->decisions,adjustments:record->adjustments&capture_kind=eq.LIVE_CAPTURED&limit=300`). **No request selects the full `record` column.** Counts correct (7 rows: 2 `LIVE_CAPTURED`, 5 `LIVE_POST_LOCK`; per-position `WR` decisions 2, reversals 0).
+* **Defect found and fixed in this deployment task:** the route did not surface the truncation semantics — `record_count` / `per_position_truncated` / `counts_truncated` were computed but dropped by the report builder. Fixed (`db5f969`) with a test; production now reports `record_count: 7`, `per_position_truncated: false`, `counts_truncated: false`.
+* Failure mode (query rejection → `summary_available:false`, no fabricated count, recommendations unaffected) remains covered by the stubbed/error-path tests; not exercised in production because the query succeeded.
+
+### 21.10 Artifact parity and the as-of boundary
+FI: published artifacts reproduce within tolerance (≤5e-14) — the FI rebuild remains float-noise-level. Static pins valid (12/12 parity tests); Player-Scheme B/C/D builders still write only their own manifest keys.
+**As-of invariant (strengthened, not merely relaxed):** *data beyond an artifact's certified substrate window is not an artifact mismatch; a change inside the same window still fails determinism.* Proven, not assumed: (a) Player-Scheme Tier A test asserts its `S=2025, W=18` equals the served manifest's `current_season`/`as_of_week` (`stopifnot`); (b) OPP determinism derives its boundary from the **Role substrate** (`player_game_role` max season/week) and asserts it equals the Role manifest lineage, the OPP manifest lineage and OPP's declared Role dependency `through_week`; (c) a **negative control** proves that removing one in-window event makes the sets differ; (d) events beyond the window are asserted absent from the stored artifact.
+
+### 21.11 Production parity
+Pre-merge live reference (`dpl_EEv5…`) vs final (`dpl_7cLp…`), volatile `*_at`/`age_seconds` stripped, two managers in two leagues: **lineup, start_sit, waivers, matchup, matchup_leverage, positional_needs all identical**; lineup totals 113.78 and 130.62 unchanged; shadow `SHADOW_ONLY`, `eligible_to_influence_production=false` — identical even though FI moved `afa8…`→`bfd7…` (production sections do not consume FI). No projection movement occurred between the observations, so no drift needed to be separated out. No fantasy transaction, lineup or trade was submitted.
+
+### 21.12 Duplicate-semantics guards
+Lifecycle matrix parity 2/2 (full 6×6 transition matrix identical between Start/Sit FI and Matchup). Team-alias normalizer parity 3/3 (R). Not consolidated.
+
+### 21.13 Test counts (final main `db5f969`)
+* TypeScript `npm test`: **2151 tests / 2147 pass / 0 fail / 4 skipped**; `tsc` 0 errors; `eslint` 0 errors.
+* Targeted TS: registry 10, discovery coverage 3, artifact parity 12, semantics 14, route lineage 3, lifecycle parity 2, capture integrity 16, start-sit isolation 4, player-scheme isolation 3, injury-opportunity isolation 6, orchestrator isolation 3 — all pass.
+* R (0 failures each): Football Intelligence 52 expectations; Start/Sit 136; Player Role 71; Opportunity Propagation 19,396; Player-Scheme 28 successes across 16 blocks.
+
+### 21.14 Remaining limitations
+* Usage-label verification is by deployed-commit blob + guarded publish + reader, not a byte fetch from Vercel (no route exposes the rows).
+* The PostgREST failure path was not exercised in production (the query succeeded).
+* Role, Opportunity Propagation and Player-Scheme still have no scheduled refresh; local R suites depend on cache vintage.
+* Carried forward, **not** solved here (Phase 3.5C): common evidence vocabulary and `confidence` ↔ `evidence_class` mapping; `XX`/blank directory identity treatment; source-native categories (`UNDER CENTER`); compound `predictive_status`; scale rules for ratios/shares that may exceed 1; Role/OPP/Player-Scheme refresh cadence; phase-number namespace collision; historical / chart-ready output design. Legacy trade POST advertising and deferred-defect entries 1–2 also remain open.
+
+### 21.15 Final verdict
+**A. PHASE 3.5B FULLY PRODUCTION-CERTIFIED.** Corrected usage semantics are live (republished by the guarded refresh); all-tier Player-Scheme content identity is live; canonical lineage is live on the progression route; discovery coverage is live without exposing unsafe routes; the bounded diagnostic works against real PostgREST and now reports truncation explicitly; parity and regression gates pass; production decision math is unchanged; `ri-startsit-2026.1` is frozen and `SHADOW_ONLY`. One documented evidence limit (§21.3) does not leave any known incorrect label in production.
