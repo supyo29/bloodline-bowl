@@ -96,7 +96,8 @@ function common(ev: WaiverEvaluation, input: WaiverInput, o: BuildOpts) {
 const a_isEstablished = (c: string) => !/no teammate designation establishes/.test(c);
 
 /** Identity covers the whole decision but NOT wall-clock read times (schedule fetch time / decision date): the same decision must not re-capture every minute. The lock VERDICT and involved teams are identity. */
-const identityBody = (body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">) => ({ ...body, lock: body.lock ? { verdict: body.lock.verdict, reason: body.lock.reason, involved_teams: body.lock.involved_teams } : null });
+// A BLOCKED readiness record is a fact about (league, manager, week, pool state, scoring, roster, evidence versions): the canonical snapshot id changes on every read, so it is NOT identity there (otherwise every request would write a new row).
+const identityBody = (body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">) => ({ ...body, snapshot: body.record_type === "POOL_READINESS_BLOCKED" ? { id: null, content_hash: null } : body.snapshot, lock: body.lock ? { verdict: body.lock.verdict, reason: body.lock.reason, involved_teams: body.lock.involved_teams } : null });
 function finish(body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">, capturedAt: string): WaiverShadowCaptureRecord {
   const idb = identityBody(body); const content_hash = hashOf(idb, 16); return { ...body, captured_at: capturedAt, capture_id: `w2cap:${hashOf({ b: idb, c: content_hash }, 16)}`, content_hash };
 }

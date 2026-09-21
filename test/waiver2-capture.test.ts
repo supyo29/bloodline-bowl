@@ -112,18 +112,18 @@ test("RUNTIME: never changes the evaluation; illustrative is never persisted; un
 });
 test("RUNTIME: uncertified pool -> ONLY a NOT_ACTIONABLE readiness record; certified + verified lock -> LIVE_CAPTURED; certified + unverifiable -> LIVE_UNVERIFIED (no code change needed when the pool becomes certified)", async () => {
   const mem = new MemoryWaiverCaptureStore(); __setWaiver2CaptureStore(mem);
-  const uin = fx({ cert: "UNCERTIFIED_UNROSTERED" }); const r1 = await persistWaiver2Evidence(evaluateWaiver2(uin), uin, meta(), { fetchSchedule: okSchedule }); assert.equal(r1.capture_class, "NOT_ACTIONABLE"); assert.equal(r1.status, "INSERTED");
-  const cin = fx(); const r2 = await persistWaiver2Evidence(evaluateWaiver2(cin), cin, meta(), { fetchSchedule: okSchedule }); assert.equal(r2.capture_class, "LIVE_CAPTURED"); assert.equal(r2.status, "INSERTED");
-  __clearWaiver2SeenCache(); const r3 = await persistWaiver2Evidence(evaluateWaiver2(cin), cin, meta(), { fetchSchedule: async () => ({ games: null, fetched_at: null }) }); assert.equal(r3.capture_class, "LIVE_UNVERIFIED");
+  const uin = fx({ cert: "UNCERTIFIED_UNROSTERED" }); const r1 = await persistWaiver2Evidence(evaluateWaiver2(uin), uin, meta(), { fetchSchedule: okSchedule, minIntervalMs: 0 }); assert.equal(r1.capture_class, "NOT_ACTIONABLE"); assert.equal(r1.status, "INSERTED");
+  const cin = fx(); const r2 = await persistWaiver2Evidence(evaluateWaiver2(cin), cin, meta(), { fetchSchedule: okSchedule, minIntervalMs: 0 }); assert.equal(r2.capture_class, "LIVE_CAPTURED"); assert.equal(r2.status, "INSERTED");
+  __clearWaiver2SeenCache(); const r3 = await persistWaiver2Evidence(evaluateWaiver2(cin), cin, meta(), { fetchSchedule: async () => ({ games: null, fetched_at: null }), minIntervalMs: 0 }); assert.equal(r3.capture_class, "LIVE_UNVERIFIED");
   const recs = mem.list(); assert.deepEqual(recs.map((r) => r.capture_class).sort(), ["LIVE_CAPTURED", "LIVE_UNVERIFIED", "NOT_ACTIONABLE"]); const blocked = recs.find((r) => r.capture_class === "NOT_ACTIONABLE")!; assert.deepEqual(blocked.actions, []); assert.deepEqual(blocked.pool.candidate_ids, []);
-  const r4 = await persistWaiver2Evidence(evaluateWaiver2(cin), cin, meta(), { fetchSchedule: okSchedule }); assert.ok(["DUPLICATE_IDENTICAL", "INSERTED"].includes(r4.status));
+  const r4 = await persistWaiver2Evidence(evaluateWaiver2(cin), cin, meta(), { fetchSchedule: okSchedule, minIntervalMs: 0 }); assert.ok(["DUPLICATE_IDENTICAL", "INSERTED"].includes(r4.status));
   assert.equal(mem.list().filter((r) => r.capture_class === "LIVE_CAPTURED").length, 1, "a deterministic capture never duplicates");
 });
 test("RUNTIME FAILURE ISOLATION: a throwing / erroring / hanging store never throws, never alters the evaluation, and is COUNTED as a failure", async () => {
   const input = fx(); const ev = evaluateWaiver2(input); const before = JSON.stringify(ev);
-  __setWaiver2CaptureStore({ kind: "x", durable: true, record: () => { throw new Error("db down"); }, attachOutcome: () => ({ status: "ERROR" }) }); const a = await persistWaiver2Evidence(ev, input, meta(), { fetchSchedule: okSchedule }); assert.equal(a.status, "ERROR"); assert.match(a.error!, /db down/);
-  __clearWaiver2SeenCache(); __setWaiver2CaptureStore({ kind: "x", durable: true, record: () => ({ status: "ERROR", reason: "500" }), attachOutcome: () => ({ status: "ERROR" }) }); const b = await persistWaiver2Evidence(ev, input, meta(), { fetchSchedule: okSchedule }); assert.equal(b.status, "ERROR");
-  __clearWaiver2SeenCache(); __setWaiver2CaptureStore({ kind: "x", durable: true, record: () => new Promise(() => undefined), attachOutcome: () => ({ status: "ERROR" }) }); const c = await persistWaiver2Evidence(ev, input, meta(), { fetchSchedule: okSchedule, timeoutMs: 30 }); assert.equal(c.status, "TIMEOUT");
+  __setWaiver2CaptureStore({ kind: "x", durable: true, record: () => { throw new Error("db down"); }, attachOutcome: () => ({ status: "ERROR" }) }); const a = await persistWaiver2Evidence(ev, input, meta(), { fetchSchedule: okSchedule, minIntervalMs: 0 }); assert.equal(a.status, "ERROR"); assert.match(a.error!, /db down/);
+  __clearWaiver2SeenCache(); __setWaiver2CaptureStore({ kind: "x", durable: true, record: () => ({ status: "ERROR", reason: "500" }), attachOutcome: () => ({ status: "ERROR" }) }); const b = await persistWaiver2Evidence(ev, input, meta(), { fetchSchedule: okSchedule, minIntervalMs: 0 }); assert.equal(b.status, "ERROR");
+  __clearWaiver2SeenCache(); __setWaiver2CaptureStore({ kind: "x", durable: true, record: () => new Promise(() => undefined), attachOutcome: () => ({ status: "ERROR" }) }); const c = await persistWaiver2Evidence(ev, input, meta(), { fetchSchedule: okSchedule, timeoutMs: 30, minIntervalMs: 0 }); assert.equal(c.status, "TIMEOUT");
   const h = getWaiver2CaptureHealth(); assert.equal(h.failures, 3); assert.equal(h.inserted, 0, "failures are never counted as evidence collected"); assert.equal(JSON.stringify(ev), before);
   const bl = waiver2ActionsEvidence(ev, { ...M, illustrative: false }); assert.ok(bl.length > 5, "Book-Ready output is unaffected by capture failure");
 });
@@ -138,4 +138,16 @@ test("STORE CODE has no mutation APIs (insert-only + reads) and the applied migr
   const sql = readFileSync("supabase/migrations/20260920190000_waiver2_shadow_captures.sql", "utf8");
   assert.match(sql, /before update or delete/); assert.match(sql, /bridge_waiver2_live_requires_certified_pool/); assert.match(sql, /bridge_waiver2_blocked_is_not_actionable/); assert.match(sql, /bridge_waiver2_live_captured_requires_lock/); assert.match(sql, /enable row level security/); assert.match(sql, /revoke all on public\.bridge_waiver2_shadow_captures from anon, authenticated/); assert.match(sql, /ROLLBACK/); assert.doesNotMatch(sql, /PRODUCTION_ACTIVE'\)/);
   for (const k of ["LIVE_CAPTURED", "LIVE_POST_LOCK", "LIVE_UNVERIFIED", "HISTORICALLY_RECONSTRUCTED", "ILLUSTRATIVE", "NOT_ACTIONABLE"]) assert.ok(sql.includes(`'${k}'`), k);
+});
+
+test("WRITE BOUNDS: a blocked readiness record is identified by the readiness fact (not the per-read snapshot id), and repeated requests are throttled", async () => {
+  const mem = new MemoryWaiverCaptureStore(); __setWaiver2CaptureStore(mem); const a = fx({ cert: "UNCERTIFIED_UNROSTERED" });
+  const ev = evaluateWaiver2(a); const r1 = buildBlockedRecord(ev, a, { ...M, kind: "NOT_ACTIONABLE", lock: null });
+  const b = fx({ cert: "UNCERTIFIED_UNROSTERED" }); (b.weekly.lineage as { snapshot: { league_snapshot_id: string; content_hash: string } }).snapshot = { league_snapshot_id: "snap:other", content_hash: "zzzz" };
+  const r2 = buildBlockedRecord(evaluateWaiver2(b), b, { ...M, kind: "NOT_ACTIONABLE", lock: null }); assert.equal(r2.capture_id, r1.capture_id, "a different snapshot read of the same blocked fact is the SAME capture");
+  assert.equal(mem.record(r1).status, "INSERTED"); assert.equal(mem.record(r2).status, "DUPLICATE_IDENTICAL");
+  const ranked1 = live(a === a ? fx() : a), ranked2 = live(fx()); assert.equal(ranked1.capture_id, ranked2.capture_id);
+  const thr = new MemoryWaiverCaptureStore(); __setWaiver2CaptureStore(thr); __clearWaiver2SeenCache(); const inp = fx(); const e = evaluateWaiver2(inp);
+  const x1 = await persistWaiver2Evidence(e, inp, meta(), { fetchSchedule: okSchedule }); const x2 = await persistWaiver2Evidence(e, inp, { ...meta() }, { fetchSchedule: okSchedule }); assert.equal(x1.status, "INSERTED"); assert.equal(x2.status, "DUPLICATE_IDENTICAL");
+  const inp2 = fx({ freeAgents: [{ id: "fa1", pos: "WR", pts: 12.5, team: "CHI", ros: 150 }] }); const x3 = await persistWaiver2Evidence(evaluateWaiver2(inp2), inp2, meta(), { fetchSchedule: okSchedule }); assert.equal(x3.status, "THROTTLED", "a changed evaluation within the interval is throttled, not written"); assert.equal(thr.list().length, 1); assert.ok(getWaiver2CaptureHealth().throttled >= 1);
 });

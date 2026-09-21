@@ -27,12 +27,14 @@ function resolveStore(): WaiverCaptureStore | null {
   return (store = new SupabaseWaiverCaptureStore(new SupabaseRest(cfg.config)));
 }
 const seen = new Set<string>();
+/** Per-instance write throttle: at most one attempt per (league, manager, week, class) per interval — bounds write amplification from repeated requests. */
+export const WAIVER2_CAPTURE_MIN_INTERVAL_MS = 10 * 60 * 1000; const lastWrite = new Map<string, number>();
 
 async function fetchSchedule(season: number): Promise<{ games: ScheduleGame[] | null; fetched_at: string | null }> {
   try { const g = await fetchSleeper<ScheduleGame[]>(`/schedule/nfl/regular/${season}`, { baseUrl: SLEEPER_ROOT_URL, noStore: true, timeoutMs: 2000 }); return Array.isArray(g) ? { games: g, fetched_at: new Date().toISOString() } : { games: null, fetched_at: null }; } catch { return { games: null, fetched_at: null }; }
 }
-export interface PersistDeps { fetchSchedule?: typeof fetchSchedule; timeoutMs?: number }
-export interface PersistOutcome { status: "SKIPPED_ILLUSTRATIVE" | "NOT_CONFIGURED" | "INSERTED" | "DUPLICATE_IDENTICAL" | "REFUSED" | "ERROR" | "TIMEOUT"; capture_id: string | null; capture_class: string | null; error?: string }
+export interface PersistDeps { fetchSchedule?: typeof fetchSchedule; timeoutMs?: number; minIntervalMs?: number }
+export interface PersistOutcome { status: "SKIPPED_ILLUSTRATIVE" | "THROTTLED" | "NOT_CONFIGURED" | "INSERTED" | "DUPLICATE_IDENTICAL" | "REFUSED" | "ERROR" | "TIMEOUT"; capture_id: string | null; capture_class: string | null; error?: string }
 
 export async function persistWaiver2Evidence(ev: WaiverEvaluation, input: WaiverInput, meta: { league_slug: string; manager_slug: string; season: number; illustrative: boolean }, deps: PersistDeps = {}): Promise<PersistOutcome> {
   try {
@@ -45,8 +47,10 @@ export async function persistWaiver2Evidence(ev: WaiverEvaluation, input: Waiver
     }
     const kind = captureKindFor(ev, { illustrative: false, is_reconstruction: false, lock });
     const rec = buildCaptureRecord(ev, input, { kind, league_slug: meta.league_slug, manager_slug: meta.manager_slug, season: meta.season, lock });
+    const tk = `${rec.league_slug}|${rec.manager_slug}|${rec.season}|${rec.week}|${rec.capture_class}`; const nowMs = Date.now();
+    if (!seen.has(rec.capture_id) && nowMs - (lastWrite.get(tk) ?? 0) < (deps.minIntervalMs ?? WAIVER2_CAPTURE_MIN_INTERVAL_MS)) { health.throttled += 1; return { status: "THROTTLED", capture_id: rec.capture_id, capture_class: rec.capture_class }; }
     if (seen.has(rec.capture_id)) { health.duplicates += 1; return { status: "DUPLICATE_IDENTICAL", capture_id: rec.capture_id, capture_class: rec.capture_class }; }
-    health.attempts += 1; health.last_class = rec.capture_class; health.by_class[rec.capture_class] = (health.by_class[rec.capture_class] ?? 0) + 1;
+    lastWrite.set(tk, nowMs); health.attempts += 1; health.last_class = rec.capture_class; health.by_class[rec.capture_class] = (health.by_class[rec.capture_class] ?? 0) + 1;
     const res = await Promise.race([Promise.resolve(st.record(rec)), new Promise<"TIMEOUT">((r) => setTimeout(() => r("TIMEOUT"), deps.timeoutMs ?? WAIVER2_CAPTURE_TIMEOUT_MS))]);
     if (res === "TIMEOUT") { health.failures += 1; health.last_status = "TIMEOUT"; health.last_error = "capture timed out"; return { status: "TIMEOUT", capture_id: rec.capture_id, capture_class: rec.capture_class, error: "capture timed out" }; }
     health.last_status = res.status;
@@ -55,7 +59,7 @@ export async function persistWaiver2Evidence(ev: WaiverEvaluation, input: Waiver
     return { status: res.status, capture_id: rec.capture_id, capture_class: rec.capture_class, ...(res.reason ? { error: res.reason } : {}) };
   } catch (e) { health.failures += 1; health.last_status = "ERROR"; health.last_error = e instanceof Error ? e.message : String(e); return { status: "ERROR", capture_id: null, capture_class: null, error: health.last_error }; }
 }
-export function __clearWaiver2SeenCache(): void { seen.clear(); }
+export function __clearWaiver2SeenCache(): void { seen.clear(); lastWrite.clear(); }
 
 /** Installs the durable capture as the process hook. Called once by the server route at startup. */
 import { installWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
