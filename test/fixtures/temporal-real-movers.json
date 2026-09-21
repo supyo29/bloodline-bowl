@@ -1,0 +1,2021 @@
+{
+"_provenance": "Verbatim rows from Supabase public.player_lab_game_logs (recorded 2026-09-21 by Phase 7): real player-seasons around real transactions. Team codes are the source's raw codes (the Rams are 'LA'). Never edited.",
+"rows": [
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 1,
+"team": "CAR",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 2,
+"team": "CAR",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 3,
+"team": "CAR",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 9,
+"team": "CAR",
+"opponent_team": "NE"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 10,
+"team": "CAR",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 11,
+"team": "CAR",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2021,
+"week": 12,
+"team": "CAR",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 1,
+"team": "CAR",
+"opponent_team": "CLE"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 2,
+"team": "CAR",
+"opponent_team": "NYG"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 3,
+"team": "CAR",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 4,
+"team": "CAR",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 5,
+"team": "CAR",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 6,
+"team": "CAR",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 7,
+"team": "SF",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 8,
+"team": "SF",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 10,
+"team": "SF",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 11,
+"team": "SF",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 12,
+"team": "SF",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 13,
+"team": "SF",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 14,
+"team": "SF",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 15,
+"team": "SF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 16,
+"team": "SF",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 17,
+"team": "SF",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 18,
+"team": "SF",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 19,
+"team": "SF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 20,
+"team": "SF",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2022,
+"week": 21,
+"team": "SF",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 1,
+"team": "SF",
+"opponent_team": "PIT"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 2,
+"team": "SF",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 3,
+"team": "SF",
+"opponent_team": "NYG"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 4,
+"team": "SF",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 5,
+"team": "SF",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 6,
+"team": "SF",
+"opponent_team": "CLE"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 7,
+"team": "SF",
+"opponent_team": "MIN"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 8,
+"team": "SF",
+"opponent_team": "CIN"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 10,
+"team": "SF",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 11,
+"team": "SF",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 12,
+"team": "SF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 13,
+"team": "SF",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 14,
+"team": "SF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 15,
+"team": "SF",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 16,
+"team": "SF",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 17,
+"team": "SF",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 20,
+"team": "SF",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 21,
+"team": "SF",
+"opponent_team": "DET"
+},
+{
+"gsis_id": "00-0033280",
+"name": "Christian McCaffrey",
+"season": 2023,
+"week": 22,
+"team": "SF",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 1,
+"team": "PHI",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 2,
+"team": "PHI",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 3,
+"team": "PHI",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 4,
+"team": "PHI",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 5,
+"team": "PHI",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 6,
+"team": "PHI",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 7,
+"team": "ARI",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 8,
+"team": "ARI",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 9,
+"team": "ARI",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 10,
+"team": "ARI",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 11,
+"team": "ARI",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 13,
+"team": "ARI",
+"opponent_team": "CHI"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 14,
+"team": "ARI",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 15,
+"team": "ARI",
+"opponent_team": "DET"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 16,
+"team": "ARI",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 17,
+"team": "ARI",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 18,
+"team": "ARI",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0030061",
+"name": "Zach Ertz",
+"season": 2021,
+"week": 19,
+"team": "ARI",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 1,
+"team": "DEN",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 2,
+"team": "DEN",
+"opponent_team": "CHI"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 3,
+"team": "DEN",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 4,
+"team": "DEN",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 5,
+"team": "DEN",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 6,
+"team": "DEN",
+"opponent_team": "TEN"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 7,
+"team": "DEN",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 8,
+"team": "SF",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 9,
+"team": "SF",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 10,
+"team": "SF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 11,
+"team": "SF",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 12,
+"team": "SF",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 13,
+"team": "SF",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 14,
+"team": "SF",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 15,
+"team": "SF",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 16,
+"team": "SF",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 17,
+"team": "SF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 19,
+"team": "SF",
+"opponent_team": "MIN"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 20,
+"team": "SF",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0027685",
+"name": "Emmanuel Sanders",
+"season": 2019,
+"week": 21,
+"team": "SF",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 1,
+"team": "NYJ",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 5,
+"team": "NYJ",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 7,
+"team": "KC",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 8,
+"team": "KC",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 9,
+"team": "KC",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 11,
+"team": "KC",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 12,
+"team": "KC",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 13,
+"team": "KC",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 14,
+"team": "KC",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 15,
+"team": "KC",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 16,
+"team": "KC",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2020,
+"week": 19,
+"team": "KC",
+"opponent_team": "CLE"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 4,
+"team": "BAL",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 6,
+"team": "BAL",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 7,
+"team": "BAL",
+"opponent_team": "CIN"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 9,
+"team": "BAL",
+"opponent_team": "MIN"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 10,
+"team": "BAL",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 16,
+"team": "TB",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 17,
+"team": "TB",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0030496",
+"name": "Le'Veon Bell",
+"season": 2021,
+"week": 18,
+"team": "TB",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 1,
+"team": "HOU",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 2,
+"team": "HOU",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 3,
+"team": "HOU",
+"opponent_team": "PIT"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 4,
+"team": "HOU",
+"opponent_team": "MIN"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 5,
+"team": "HOU",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 6,
+"team": "HOU",
+"opponent_team": "TEN"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 7,
+"team": "HOU",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 9,
+"team": "HOU",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 10,
+"team": "HOU",
+"opponent_team": "CLE"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 12,
+"team": "CHI",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 13,
+"team": "CHI",
+"opponent_team": "DET"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 16,
+"team": "CHI",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 17,
+"team": "CHI",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0031763",
+"name": "DeAndre Carter",
+"season": 2020,
+"week": 18,
+"team": "CHI",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 7,
+"team": "ARI",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 8,
+"team": "ARI",
+"opponent_team": "MIN"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 9,
+"team": "ARI",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 10,
+"team": "ARI",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 11,
+"team": "ARI",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 12,
+"team": "ARI",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 14,
+"team": "ARI",
+"opponent_team": "NE"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 15,
+"team": "ARI",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2022,
+"week": 16,
+"team": "ARI",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 1,
+"team": "TEN",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 2,
+"team": "TEN",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 3,
+"team": "TEN",
+"opponent_team": "CLE"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 4,
+"team": "TEN",
+"opponent_team": "CIN"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 5,
+"team": "TEN",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 6,
+"team": "TEN",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 8,
+"team": "TEN",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 9,
+"team": "TEN",
+"opponent_team": "PIT"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 10,
+"team": "TEN",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 11,
+"team": "TEN",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 12,
+"team": "TEN",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 13,
+"team": "TEN",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 14,
+"team": "TEN",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 15,
+"team": "TEN",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 16,
+"team": "TEN",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 17,
+"team": "TEN",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2023,
+"week": 18,
+"team": "TEN",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 1,
+"team": "TEN",
+"opponent_team": "CHI"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 2,
+"team": "TEN",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 3,
+"team": "TEN",
+"opponent_team": "GB"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 4,
+"team": "TEN",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 6,
+"team": "TEN",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 7,
+"team": "TEN",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 8,
+"team": "KC",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 9,
+"team": "KC",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 10,
+"team": "KC",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 11,
+"team": "KC",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 12,
+"team": "KC",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 13,
+"team": "KC",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 14,
+"team": "KC",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 15,
+"team": "KC",
+"opponent_team": "CLE"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 16,
+"team": "KC",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 17,
+"team": "KC",
+"opponent_team": "PIT"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 20,
+"team": "KC",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 21,
+"team": "KC",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0030564",
+"name": "DeAndre Hopkins",
+"season": 2024,
+"week": 22,
+"team": "KC",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 1,
+"team": "LV",
+"opponent_team": "NE"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 2,
+"team": "LV",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 3,
+"team": "LV",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 4,
+"team": "LV",
+"opponent_team": "CHI"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 5,
+"team": "LV",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 6,
+"team": "LV",
+"opponent_team": "TEN"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 9,
+"team": "LV",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 10,
+"team": "JAX",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 11,
+"team": "JAX",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 12,
+"team": "JAX",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 13,
+"team": "JAX",
+"opponent_team": "TEN"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 14,
+"team": "JAX",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 15,
+"team": "JAX",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 16,
+"team": "JAX",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 17,
+"team": "JAX",
+"opponent_team": "IND"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 18,
+"team": "JAX",
+"opponent_team": "TEN"
+},
+{
+"gsis_id": "00-0034960",
+"name": "Jakobi Meyers",
+"season": 2025,
+"week": 19,
+"team": "JAX",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 2,
+"team": "NYJ",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 6,
+"team": "NYJ",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 7,
+"team": "KC",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 8,
+"team": "KC",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 9,
+"team": "KC",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 11,
+"team": "KC",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 18,
+"team": "KC",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 19,
+"team": "KC",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 20,
+"team": "KC",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0035140",
+"name": "Mecole Hardman",
+"season": 2023,
+"week": 22,
+"team": "KC",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 1,
+"team": "ARI",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 2,
+"team": "ARI",
+"opponent_team": "NYG"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 3,
+"team": "ARI",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 4,
+"team": "ARI",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 5,
+"team": "ARI",
+"opponent_team": "CIN"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 6,
+"team": "ARI",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 7,
+"team": "ARI",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 8,
+"team": "ARI",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 9,
+"team": "MIN",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 10,
+"team": "MIN",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 11,
+"team": "MIN",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 12,
+"team": "MIN",
+"opponent_team": "CHI"
+},
+{
+"gsis_id": "00-0033949",
+"name": "Joshua Dobbs",
+"season": 2023,
+"week": 14,
+"team": "MIN",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 1,
+"team": "DAL",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 2,
+"team": "DAL",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 3,
+"team": "DAL",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 4,
+"team": "DAL",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 5,
+"team": "DAL",
+"opponent_team": "NYG"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 6,
+"team": "DAL",
+"opponent_team": "NE"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 8,
+"team": "DAL",
+"opponent_team": "MIN"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 9,
+"team": "DAL",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 10,
+"team": "DAL",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 13,
+"team": "DAL",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 14,
+"team": "DAL",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 15,
+"team": "DAL",
+"opponent_team": "NYG"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 16,
+"team": "DAL",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 17,
+"team": "DAL",
+"opponent_team": "ARI"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 18,
+"team": "DAL",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2021,
+"week": 19,
+"team": "DAL",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 1,
+"team": "CLE",
+"opponent_team": "CAR"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 2,
+"team": "CLE",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 3,
+"team": "CLE",
+"opponent_team": "PIT"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 4,
+"team": "CLE",
+"opponent_team": "ATL"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 5,
+"team": "CLE",
+"opponent_team": "LAC"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 6,
+"team": "CLE",
+"opponent_team": "NE"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 7,
+"team": "CLE",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 8,
+"team": "CLE",
+"opponent_team": "CIN"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 10,
+"team": "CLE",
+"opponent_team": "MIA"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 11,
+"team": "CLE",
+"opponent_team": "BUF"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 12,
+"team": "CLE",
+"opponent_team": "TB"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 13,
+"team": "CLE",
+"opponent_team": "HOU"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 14,
+"team": "CLE",
+"opponent_team": "CIN"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 15,
+"team": "CLE",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 16,
+"team": "CLE",
+"opponent_team": "NO"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 17,
+"team": "CLE",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2022,
+"week": 18,
+"team": "CLE",
+"opponent_team": "PIT"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 1,
+"team": "CLE",
+"opponent_team": "DAL"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 2,
+"team": "CLE",
+"opponent_team": "JAX"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 3,
+"team": "CLE",
+"opponent_team": "NYG"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 4,
+"team": "CLE",
+"opponent_team": "LV"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 5,
+"team": "CLE",
+"opponent_team": "WAS"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 6,
+"team": "CLE",
+"opponent_team": "PHI"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 7,
+"team": "BUF",
+"opponent_team": "TEN"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 8,
+"team": "BUF",
+"opponent_team": "SEA"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 11,
+"team": "BUF",
+"opponent_team": "KC"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 13,
+"team": "BUF",
+"opponent_team": "SF"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 14,
+"team": "BUF",
+"opponent_team": "LA"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 16,
+"team": "BUF",
+"opponent_team": "NE"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 17,
+"team": "BUF",
+"opponent_team": "NYJ"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 19,
+"team": "BUF",
+"opponent_team": "DEN"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 20,
+"team": "BUF",
+"opponent_team": "BAL"
+},
+{
+"gsis_id": "00-0031544",
+"name": "Amari Cooper",
+"season": 2024,
+"week": 21,
+"team": "BUF",
+"opponent_team": "KC"
+}
+]
+}

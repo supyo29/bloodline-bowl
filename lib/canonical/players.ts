@@ -16,6 +16,7 @@
  * (`lib/persistence/supabase/crosswalk-source.ts`) is used in production.
  */
 
+import { normalizeTeamCode } from "./team-codes";
 import {
   normalizeName,
   playerId,
@@ -314,7 +315,11 @@ function buildPlayer(
     last_name: observed.last_name ?? (parts.length > 1 ? parts.slice(1).join(" ") : null),
     position: isDef ? "DEF" : position,
     eligible_positions: eligible.length > 0 ? eligible : [isDef ? "DEF" : position],
-    nfl_team: row?.nfl_team ?? observed.nfl_team,
+    // Phase 7: the crosswalk answers WHO the player is; it must not overwrite a provider's live observation of WHICH TEAM he is on now. Real audit: the
+    // identity table's `latest_team` is a dated snapshot (2026-03-18) that disagreed with 2026 week-1 game participation for 10.1% of players, and it
+    // uses a different code vocabulary (Rams = "LA", not "LAR") so a crosswalk-supplied team also broke team-keyed joins. Observed team wins; the
+    // crosswalk team is only a normalized FALLBACK when the provider supplied none (that fallback is snapshot-stale-risk — see lib/temporal-identity).
+    nfl_team: observed.nfl_team ?? normalizeTeamCode(row?.nfl_team) ?? null,
     is_team_defense: isDef,
     status: observed.status ?? null,
     injury_status: observed.injury_status ?? null,
