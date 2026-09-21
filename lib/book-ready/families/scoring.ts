@@ -16,7 +16,6 @@ const matFor = (fp: string): string => { const m = (materiality.by_fingerprint a
 
 export const SCORING_SURFACE = "league-scoring-contract"; export const SCORING_CONTRACT_VERSION = "scoring-contract-2026.1";
 const BUILT_IN = phaseRef("INTELLIGENCE_MODERNIZATION_PHASE", "6");
-const cat = (v: string): Component["unit"] => unitFor("category"); void cat;
 const c = (key: string, value: string | number, note?: string): Component => ({ key, value, unit: typeof value === "number" ? unitFor("scoring.count") : unitFor("category"), ...(note ? { note } : {}) });
 
 export function scoringContractEvidence(i: { league_slug: string; season: number; raw_scoring: Record<string, number> }): EvidenceBlock[] {

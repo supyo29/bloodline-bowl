@@ -68,9 +68,9 @@ export function classifyScoringKey(key: string): RuleSupport {
   const meta = SCORING_CATALOG[key]; const fam = familyOf(key); const live = liveNonzero(key);
   const seenProj = inAny(proj, ["QB", "RB", "WR", "TE", "K", "DEF"], key); const seenAct = inAny(act, ["QB", "RB", "WR", "TE", "K", "DEF"], key);
   const base = { key, label: meta?.label ?? key.replace(/_/g, " "), category: meta?.category ?? "other", family: fam.family, linearity: fam.linearity, positions: fam.positions, requires_position: fam.family === "POSITION_BONUS", requires_whole_game: fam.whole_game, derived_event: fam.derived, in_catalog: !!meta, live_leagues_scoring_nonzero: live };
-  let weekly: Layer, season: Layer, hist: Layer, waiver: RuleSupport["waiver_role_pricing"] = "NOT_APPLICABLE", cls: SupportClass, exact: RuleSupport["exact_vs_approximate"], limitation: string;
+  let weekly: Layer, season: Layer, waiver: RuleSupport["waiver_role_pricing"] = "NOT_APPLICABLE", cls: SupportClass, exact: RuleSupport["exact_vs_approximate"], limitation: string;
   const kdef = isKdef(fam.family);
-  hist = seenAct ? "EXACT_NATIVE" : fam.family === "THRESHOLD_BONUS" ? "EXACT_DERIVABLE" : "NOT_OBSERVED";
+  const hist: Layer = seenAct ? "EXACT_NATIVE" : fam.family === "THRESHOLD_BONUS" ? "EXACT_DERIVABLE" : "NOT_OBSERVED";
   if (fam.family === "IDP") { weekly = "ABSENT"; season = "ABSENT"; cls = "UNSUPPORTED"; exact = "NOT_PROJECTED"; limitation = "No IDP player positions, projection rows, or roster slots exist in the product (weekly feed is requested for QB/RB/WR/TE/K/DEF only); cataloged for label portability only."; }
   else if (fam.family === "UNKNOWN") { weekly = "ABSENT"; season = "ABSENT"; cls = meta || seenProj || seenAct ? "CATALOG_ONLY" : "UNSUPPORTED"; exact = "NOT_PROJECTED"; limitation = meta || seenProj || seenAct ? "Recognized but no family contract: never treated as scored by a projection." : "Unrecognized scoring key: not scored by any projection; calculator warns and skips it."; }
   else if (kdef) {

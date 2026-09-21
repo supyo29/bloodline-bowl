@@ -197,3 +197,12 @@ describe("support contract: every rule has an explicit state; catalog presence n
 test("architecture: calculateFantasyPoints stays the ONLY arithmetic authority (no second multiplier in derived-events or the contract)", () => {
   for (const f of ["lib/scoring/derived-events.ts", "lib/scoring/support-contract.ts"]) assert.doesNotMatch(readFileSync(f, "utf8"), /\*\s*(?:multiplier|rate|points_per)/, `${f} must not multiply by a scoring rate`);
 });
+
+describe("trade/ROS inputs: rest-of-season points (a trade-value input) reflect a TE premium exactly, WR unaffected", () => {
+  it("same season line, premium vs base league: TE ROS differs by 0.5 x receptions x weeks-left fraction; WR identical", async (t) => {
+    const rows = ["TE", "WR"].map((pos) => ({ player_id: pos, team: "KC", opponent: "LV", week: 3, stats: { rec: 80, rec_yd: 800, rec_td: 6 }, player: { first_name: pos, last_name: "P", position: pos, team: "KC" } }));
+    const go = async (raw_scoring: Record<string, number>) => { t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => rows }) as unknown as Response); const b = await new SleeperWeeklyProjectionProvider().getWeeklyProjections({ league: { league_slug: "l", season: 2026, raw_scoring, scoring_rules: [] }, week: 3, crosswalk: new PlayerCrosswalk(NoCrosswalk), canonical_player_ids: [], want_rest_of_season: true }); mock.restoreAll(); const by = (n: string) => [...b.by_player.values()].find((p) => p.position === n)!; return { te: by("TE").rest_of_season_points!, wr: by("WR").rest_of_season_points! }; };
+    const base = { rec: 1, rec_yd: 0.1, rec_td: 6 }; const a = await go(base), b = await go({ ...base, bonus_rec_te: 0.5 });
+    const frac = 15 / 17; /* REGULAR_SEASON_WEEKS = 17; week 3 -> (17 - 2) / 17 */ assert.ok(Math.abs((b.te - a.te) - 40 * frac) < 0.02, `TE ROS delta ${b.te - a.te} vs ${40 * frac}`); assert.equal(b.wr, a.wr); assert.equal(a.te, a.wr);
+  });
+});
