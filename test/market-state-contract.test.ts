@@ -48,7 +48,7 @@ test("integrity: a clean available player passes; ownership≠availability contr
   assert.ok(validatePlayerState(base({ ownership: "UNKNOWN" })).some((x) => x.code === "AVAILABLE_NOT_VERIFIED_UNROSTERED"));
   assert.ok(validatePlayerState(base({ owner_team_id: "t1" })).some((x) => x.code === "OWNED_BUT_NOT_ROSTERED_STATUS"));
   assert.ok(validatePlayerState(base({ status: "ROSTERED", ownership: "ROSTERED", owner_team_id: "t1" })).some((x) => x.code === "ROSTERED_ADDABLE"));
-  assert.ok(validatePlayerState(base({ lock: "LOCKED" })).some((x) => x.code === "AVAILABLE_BUT_LOCKED"));
+  assert.equal(validatePlayerState(base({ lock: "LOCKED" })).length, 0, "a started game is a lock fact, not a contradiction");
   assert.ok(validatePlayerState(base({ waiver_clears_at: "2026-09-22T00:00:00Z" })).some((x) => x.code === "CLEAR_TIME_FABRICATED_RISK"));
   assert.ok(validatePlayerState(base({ status: "WAIVER_CLAIM_PENDING" })).some((x) => x.code === "PENDING_CLAIM_UNSUPPORTED"));
   assert.ok(validatePlayerState(base({ status: "ON_WAIVERS", acquisition: { status: "WAIVER", mechanism: "WAIVER_CLAIM" }, eligible_to_add: false })).some((x) => x.code === "WAIVER_WITHOUT_WINDOW"));

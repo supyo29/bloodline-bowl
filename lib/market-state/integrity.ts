@@ -16,7 +16,6 @@ export function validatePlayerState(p: PlayerMarketState): IntegrityViolation[] 
     if (p.ownership !== "UNROSTERED") bad("AVAILABLE_NOT_VERIFIED_UNROSTERED", "AVAILABLE requires ownership UNROSTERED (verified), never UNKNOWN");
     if (!p.eligible_to_add) bad("AVAILABLE_NOT_ADDABLE", "AVAILABLE requires eligible_to_add");
     if (p.acquisition.status !== "FREE_AGENT" || p.acquisition.mechanism !== "FREE_AGENT_ADD") bad("AVAILABLE_WRONG_MECHANISM", "AVAILABLE requires FREE_AGENT / FREE_AGENT_ADD");
-    if (p.lock === "LOCKED") bad("AVAILABLE_BUT_LOCKED", "a locked player is not AVAILABLE");
     if (p.waiver_window) bad("AVAILABLE_IN_WAIVER_WINDOW", "a player inside a waiver window is not a plain free agent");
   }
   if (p.status === "ON_WAIVERS" && (p.acquisition.status !== "WAIVER" || !p.waiver_window)) bad("WAIVER_WITHOUT_WINDOW", "ON_WAIVERS requires WAIVER and a provable drop window");

@@ -23,7 +23,7 @@ export type PlayerMarketStatus =
   | "AVAILABLE_FREE_AGENT"
   | "ON_WAIVERS"
   | "WAIVER_CLAIM_PENDING"
-  | "LOCKED"
+  | "LOCKED" // vocabulary only: emitted when a provider states an add-lock; Sleeper does not, so this builder never emits it
   | "INELIGIBLE"
   | "UNKNOWN_AVAILABILITY"
   | "SOURCE_UNAVAILABLE";
@@ -50,7 +50,10 @@ export type UnknownReason =
 /** Facts that do NOT change availability but that a consumer may need (a poor or injured player is still available). */
 export type PlayerCaveat = "NFL_INJURED_RESERVE_DESIGNATION" | "NFL_INACTIVE_DESIGNATION" | "SUSPENDED" | "PUP_OR_NFI" | "INJURY_DESIGNATION_PRESENT";
 
-/** Sleeper's game-lock rule is not published as data; lock is derived from schedule status or is UNKNOWN. */
+/**
+ * Game state of the player's NFL team THIS WEEK, from the schedule: OPEN = pre_game (or bye), LOCKED = in progress or complete, UNKNOWN = unverifiable.
+ * A fact about this week's scoring, NOT an add-eligibility verdict: the provider publishes no add-lock rule.
+ */
 export type LockState = "OPEN" | "LOCKED" | "UNKNOWN";
 
 export type SourceStatus = "OK" | "UNAVAILABLE" | "PARTIAL";
