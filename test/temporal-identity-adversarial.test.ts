@@ -147,7 +147,7 @@ describe("determinism, as-of reconstruction, versioning, index", () => {
     assert.notEqual(new TeamMembershipIndex(OBS.slice(2)).version, idx.version); assert.equal(resolvePlayerTeamAt("00-0033280", idx, G(2022, 7)).team, "SF");
   });
   it("failure codes follow the unresolved status; resolved statuses carry none", () => {
-    assert.equal(failureCodeFor("NO_EVIDENCE"), "MEMBERSHIP_UNKNOWN"); assert.equal(failureCodeFor("CONFLICT"), "SOURCE_CONFLICT"); for (const s of ["AMBIGUOUS_TRANSITION", "BRACKET_GAP_TOO_LONG", "CURRENT_ONLY_OUT_OF_SCOPE"] as const) assert.equal(failureCodeFor(s), "GRANULARITY_INSUFFICIENT"); assert.equal(failureCodeFor("SUPPORTED_GAME"), null);
+    assert.equal(failureCodeFor("NO_EVIDENCE"), "MEMBERSHIP_UNKNOWN"); assert.equal(failureCodeFor("CONFLICT"), "SOURCE_CONFLICT"); assert.equal(failureCodeFor("AMBIGUOUS_TRANSITION"), "GRANULARITY_INSUFFICIENT"); assert.equal(failureCodeFor("BRACKET_GAP_TOO_LONG"), "BRACKET_GAP_TOO_LONG"); assert.equal(failureCodeFor("CURRENT_ONLY_OUT_OF_SCOPE"), "CURRENT_ONLY_FOR_HISTORICAL_QUERY"); assert.equal(failureCodeFor("SUPPORTED_GAME"), null);
     assert.equal(resolvePlayerTeamAt("00-0030496", OBS, G(2020, 6)).failure_code, "GRANULARITY_INSUFFICIENT"); assert.equal(resolvePlayerTeamAt("nobody", OBS, G(2020, 6)).failure_code, "MEMBERSHIP_UNKNOWN");
   });
   it("an unavailable temporal SOURCE is reported as TEMPORAL_SOURCE_UNAVAILABLE (absence of a source is not absence of evidence)", () => {

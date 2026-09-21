@@ -27,7 +27,11 @@ function meta(ctx: QueryContext) {
   const temporal: TemporalIdentity = { season: m.current_season, week: null, through_week: m.as_of_week, as_of: m.generated_at, generated_at: m.generated_at, source_cutoff: m.data_cutoff, point_kind: "CUMULATIVE", as_of_kind: "CURRENT_SNAPSHOT", week_state: "COMPLETE", snapshot_id: null, player_team_temporal_identity: PHASE7 };
   return { m, cid, fiLineage, temporal };
 }
-const commonLimits = (m: { current_season_status: string; as_of_week: number; current_season: number }) => [`current_season_status=${m.current_season_status}: data runs through ${m.current_season} week ${m.as_of_week}; there is no live in-season signal for the following season`];
+const commonLimits = (m: { current_season_status: string; as_of_week: number; current_season: number }) => [
+  `current_season_status=${m.current_season_status}: data runs through ${m.current_season} week ${m.as_of_week}; there is no live in-season signal for the following season`,
+  // Phase 7 (Step 17): the window label must never imply "the player's team today".
+  `window semantics: 'current_team' = career rows on the player's AS-OF team at the source cutoff (the team of his last charted game through ${m.current_season} week ${m.as_of_week}), NOT the team he is on today; a player who changed clubs since that cutoff has a current_team window that belongs to his FORMER club (see player.team_membership → membership.scheme_window_vintage). career/recent windows carry no team assignment`,
+];
 
 function identityFor(gsis: string, ctx: QueryContext) {
   const r = readCurrentCsv(ctx.root, `${DIR}/player_directory.csv`).find((x) => x.gsis_id === gsis);

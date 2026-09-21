@@ -55,11 +55,12 @@ export interface TeamResolution {
   team: string | null; granularity: ResolvedGranularity | null; evidence_class: EvidenceClass | null;
   candidates: Candidate[]; selected_by_policy: string | null; gap_weeks: number | null; reasons: string[]; evidence_ids: string[]; policy: string;
   /** deterministic version of the evidence records this resolution CITED (order/metadata independent; unchanged by unrelated evidence) */ evidence_version: string;
+  /** the distinct source vintages/cutoffs of the cited evidence (lineage of the temporal dataset) */ source_vintages: string[];
   basis: "RETROSPECTIVE" | "KNOWN_THROUGH"; /** repository-style failure code for an unresolved status; null when resolved (or NO_TEAM_OBSERVED, a legitimate answer) */ failure_code: MembershipFailureCode | null;
 }
-export type MembershipFailureCode = "MEMBERSHIP_UNKNOWN" | "SOURCE_CONFLICT" | "GRANULARITY_INSUFFICIENT" | "TEMPORAL_SOURCE_UNAVAILABLE" | "IDENTITY_UNRESOLVED";
+export type MembershipFailureCode = "MEMBERSHIP_UNKNOWN" | "SOURCE_CONFLICT" | "GRANULARITY_INSUFFICIENT" | "BRACKET_GAP_TOO_LONG" | "CURRENT_ONLY_FOR_HISTORICAL_QUERY" | "TEMPORAL_SOURCE_UNAVAILABLE" | "IDENTITY_UNRESOLVED";
 export function failureCodeFor(status: MembershipStatus): MembershipFailureCode | null {
-  switch (status) { case "NO_EVIDENCE": return "MEMBERSHIP_UNKNOWN"; case "CONFLICT": return "SOURCE_CONFLICT"; case "AMBIGUOUS_TRANSITION": case "BRACKET_GAP_TOO_LONG": case "CURRENT_ONLY_OUT_OF_SCOPE": return "GRANULARITY_INSUFFICIENT"; default: return null; }
+  switch (status) { case "NO_EVIDENCE": return "MEMBERSHIP_UNKNOWN"; case "CONFLICT": return "SOURCE_CONFLICT"; case "AMBIGUOUS_TRANSITION": return "GRANULARITY_INSUFFICIENT"; case "BRACKET_GAP_TOO_LONG": return "BRACKET_GAP_TOO_LONG"; case "CURRENT_ONLY_OUT_OF_SCOPE": return "CURRENT_ONLY_FOR_HISTORICAL_QUERY"; default: return null; }
 }
 /** Deterministic version of a membership evidence set. Independent of input order, key order, raw code spelling, vintage labels and any query that ran; changes when any
  *  (player, season, week, normalized team, source, granularity, source record) fact is added, removed or altered. Kept distinct from canonical_player_id, player_data_version, scoring fingerprint. */
@@ -86,7 +87,7 @@ function candidatesOf(obs: TeamObservation[], chronological = false): Candidate[
   for (const o of obs) { const key = o.no_team ? "∅" : (o.team ?? "?"); const c = by.get(key) ?? { team: o.no_team ? null : o.team, sources: [], weeks: [], record_ids: [], granularity: o.granularity }; if (!c.sources.includes(o.source)) c.sources.push(o.source); if (o.week != null && !c.weeks.includes(o.week)) c.weeks.push(o.week); c.record_ids.push(o.source_record_id); by.set(key, c); }
   const list = [...by.values()]; return chronological ? list : list.sort((a, b) => Math.min(...a.sources.map(rank)) - Math.min(...b.sources.map(rank)) || String(a.team).localeCompare(String(b.team)));
 }
-const base = (gsis: string, q: TemporalQuery, ev: string, basis: TeamResolution["basis"]): Omit<TeamResolution, "status" | "team" | "granularity" | "evidence_class" | "reasons" | "failure_code"> => ({ version: TEMPORAL_IDENTITY_VERSION, gsis_id: gsis, query: q, candidates: [], selected_by_policy: null, gap_weeks: null, evidence_ids: [], policy: POLICY, evidence_version: ev, basis });
+const base = (gsis: string, q: TemporalQuery, ev: string, basis: TeamResolution["basis"]): Omit<TeamResolution, "status" | "team" | "granularity" | "evidence_class" | "reasons" | "failure_code"> => ({ version: TEMPORAL_IDENTITY_VERSION, gsis_id: gsis, query: q, candidates: [], selected_by_policy: null, gap_weeks: null, evidence_ids: [], policy: POLICY, evidence_version: ev, source_vintages: [], basis });
 const done = (b: ReturnType<typeof base>, status: MembershipStatus, team: string | null, granularity: ResolvedGranularity | null, cls: EvidenceClass | null, reasons: string[], over: Partial<TeamResolution> = {}): TeamResolution => ({ ...b, status, team, granularity, evidence_class: cls, reasons, failure_code: failureCodeFor(status), ...over });
 
 /**
@@ -102,7 +103,7 @@ function withinCutoff(o: TeamObservation, k: { season: number; week: number }): 
 /** The resolution's `evidence_version` identifies the evidence it CITED (so unrelated future/current-only rows cannot change a historical result); the dataset-level version lives on the index. */
 function resolveFrom(gsisId: string, all: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions): TeamResolution {
   const r = resolveCore(gsisId, all, query, opts); const cited = new Set(r.evidence_ids); const used = all.filter((o) => cited.has(o.source_record_id));
-  return { ...r, evidence_version: temporalDataVersion(used) };
+  return { ...r, evidence_version: temporalDataVersion(used), source_vintages: [...new Set(used.map((o) => `${o.source}:${o.source_vintage ?? "unversioned"}`))].sort() };
 }
 function resolveCore(gsisId: string, all: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions): TeamResolution {
   const maxGap = opts.maxBracketGapWeeks ?? DEFAULT_MAX_BRACKET_GAP_WEEKS; const k = opts.knownThrough;

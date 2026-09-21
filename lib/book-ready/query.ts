@@ -156,9 +156,9 @@ export const TOPICS: Record<string, TopicSpec> = {
     const { getNflState } = await import("@/lib/sleeper/client"); const st = await getNflState().catch(() => null); const season = Number(p.season ?? st?.season ?? 2026); const nowWeek = Math.max(1, Number(st?.week ?? 1));
     const query = p.week ? ({ kind: "GAME", season, week: Number(p.week) } as const) : ({ kind: "CURRENT", season, week: nowWeek } as const);
     const ev = await loadMembershipEvidence({ gsis_id: p.gsis_id!, season, sleeper_id: p.sleeper_id ?? null, current: query.kind === "CURRENT" }); const obs = ev.observations;
-    let schemeTeam: string | null | undefined; try { const { fileMatchupSource } = await import("@/lib/matchup2/source-files"); schemeTeam = fileMatchupSource().resolvePlayer(p.gsis_id!)?.team ?? null; } catch { schemeTeam = undefined; }
+    let schemeTeam: string | null | undefined; try { const { schemeAsOfTeam } = await import("@/lib/temporal-identity/sources"); const { readFileSync } = await import("node:fs"); const { join } = await import("node:path"); const m = JSON.parse(readFileSync(join(process.cwd(), "lib", "player-scheme-intelligence", "data", "player_scheme_manifest.json"), "utf8")) as { current_season: number; as_of_week: number }; schemeTeam = schemeAsOfTeam(obs, p.gsis_id!, { season: m.current_season, week: m.as_of_week }); } catch { schemeTeam = undefined; }
     const r = resolvePlayerTeamAt(p.gsis_id!, obs, query); const opp = query.kind === "GAME" ? resolveOpponentAt(p.gsis_id!, obs, scheduleFromObservations(obs), query) : null;
-    return teamMembershipEvidence(r, { opponent: opp, sources: ev.sources, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
+    return teamMembershipEvidence(r, { opponent: opp, sources: ev.sources, identity_unresolved: ev.identity_known === false && obs.length === 0, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
   } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };

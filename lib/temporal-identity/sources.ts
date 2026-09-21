@@ -53,3 +53,15 @@ export function schemeVintageFlag(schemeAsOfTeamRaw: string | null | undefined, 
   const a = normalize(schemeAsOfTeamRaw), b = normalize(resolvedNow); if (!b) return "CURRENT_TEAM_UNKNOWN"; if (!a) return "SCHEME_TEAM_UNKNOWN_AT_VINTAGE"; return a === b ? "SAME_TEAM_AS_SCHEME_VINTAGE" : "TEAM_CHANGED_SINCE_SCHEME_VINTAGE";
 }
 import { normalizeTeamCode as normalize } from "@/lib/canonical/team-codes";
+
+/**
+ * The team a Player-Scheme `current_team` WINDOW actually belongs to: the team of the player's last game-level observation at or before the Player-Scheme cutoff (2025 week 18).
+ * NOT the Player-Scheme directory's `nfl_team` — the directory carries the CURRENT-season (2026) label, while the window rows are the as-of team's (real audit: A.J. Brown directory
+ * `NEP`, window team PHI; Deebo Samuel directory `SFO`, window team WAS). Approximation note: the R builder takes the team of his last charted pass/rush play; a last game-level team
+ * differs only if he changed clubs after his last charted play but before his last game.
+ */
+export function schemeAsOfTeam(observations: readonly TeamObservation[], gsis_id: string, cutoff: { season: number; week: number }): string | null {
+  let best: TeamObservation | null = null;
+  for (const o of observations) { if (o.gsis_id !== gsis_id || o.granularity !== "GAME_OBSERVED" || o.week == null || !o.team) continue; if (o.season > cutoff.season || (o.season === cutoff.season && o.week > cutoff.week)) continue; if (!best || o.season > best.season || (o.season === best.season && o.week! > best.week!)) best = o; }
+  return best?.team ?? null;
+}
