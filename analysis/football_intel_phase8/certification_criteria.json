@@ -1,0 +1,71 @@
+{
+  "criteria_version": "fi-recert-criteria-2026.1",
+  "preregistered_at": "2026-09-21",
+  "status": "FROZEN_BEFORE_EVALUATION",
+  "principle": "EVIDENCE EARNS ACTIVATION. No evidence -> no activation. Weak -> shadow only. Strong but incomplete -> CERTIFICATION_PASSED. Strong, stable, chronology-safe AND prospectively confirmed -> PRODUCTION_ELIGIBLE. PRODUCTION_ACTIVE is never set by research.",
+  "unit_of_candidate": "feature family x position x decision(START_SIT). Consumer scope is START_SIT only.",
+  "lanes": {
+    "TRUE_AS_OF": "immutable pre-kickoff FI snapshot + captured pre-kickoff production baseline. Exists only for 2026 live captures (currently 0 qualifying weeks).",
+    "RECONSTRUCTED_CHRONOLOGY_SAFE": "FI features rebuilt from primitives truncated at week W-1 (AS_OF discontinuity mode); target/actuals never predictors. Used for 2021-2025.",
+    "CURRENT_REBUILD_NOT_HISTORICAL": "today's FI files applied to the past. NEVER used as evidence."
+  },
+  "baselines": {
+    "PRIMARY": "baseline_sleeper = Sleeper weekly projection history (RotoWire-backed). Production's actual baseline projection is 'sleeper-weekly-rotowire'; the historical series is a RECONSTRUCTED_PRODUCTION_LIKE baseline (2021 no timestamp, 2022 bulk-backfilled, 2023-25 revision-possible). It is NOT the historical production output and is never called that.",
+    "NAIVE_CONTROL": "baseline_trailing = exponentially weighted trailing PPG of prior completed weeks (half-life 4). Reported for context only. Certification is NEVER decided against the naive control.",
+    "consequence": "Because no lane provides a captured pre-kickoff production baseline for historical weeks, historical evidence alone can never justify PRODUCTION_ELIGIBLE. Highest state reachable from historical evidence = CERTIFICATION_PASSED."
+  },
+  "chronology": {
+    "training_seasons": "strictly earlier than the evaluated season",
+    "development_folds": [ { "train": [2021, 2022], "test": 2023 }, { "train": [2021, 2022, 2023], "test": 2024 } ],
+    "holdout": { "train": [2021, 2022, 2023, 2024], "test": 2025, "rule": "touched exactly once, only for candidates that passed ALL development gates; parameters (beta, lambda, tau, cap) frozen and committed before the holdout is read" },
+    "evaluation_rows": "test-season rows only; 2021/2022 rows are TRAINING ONLY (their baseline vintage is the weakest)",
+    "weeks": "4-17 (>=3 played weeks of trailing form exist)",
+    "no_random_split": true
+  },
+  "candidate_model": {
+    "target": "residual = actual - baseline_sleeper (per scoring archetype: std, half, ppr separately fitted)",
+    "single_family_translation": "adjustment = clip(beta * z * cw, -cap*|baseline|, +cap*|baseline|); z = (x - mean_train)/sd_train; cw = served confidence weight (HIGH 1, MEDIUM .5, LOW .2, INSUFFICIENT 0) x prior-dominated haircut 0.6",
+    "beta": "ridge on the sum scale: sum(u*r)/(sum(u^2)+lambda), u = z*cw; lambda chosen from {0, 100, 1000, 10000} on the latest prior season only",
+    "cap": 0.25,
+    "tau_grid": [0.5, 1.0, 1.5, 2.0, 3.0],
+    "tau_selection": "maximise pooled development-fold mean close-call regret improvement subject to >= 100 reversals; then frozen",
+    "families_evaluated": "every PREDICTIVE / WEAKLY_PREDICTIVE family listed for the position in analysis/football_intel_startsit/config.R SS$POSITION_FAMILIES (QB 7, RB 8, WR 9, TE 6 = 30 tests)",
+    "not_evaluated": { "def_pass_epa_allowed": "NOT_PREDICTIVE (Phase 3)", "def_rush_epa_allowed": "NOT_PREDICTIVE (Phase 3)", "ftn_play_action_rate": "DESCRIPTIVE_ONLY", "def_man_rate": "DESCRIPTIVE_ONLY", "PFR pressure / NGS / coverage-unit / FTN / contextual matchup / receiver progression": "no reconstructable as-of historical series in the decision dataset -> NOT_EVALUABLE -> remain SHADOW_ONLY / DESCRIPTIVE_ONLY" },
+    "combination_rule": "ablation first (baseline + family X). A position bundle of the surviving families is evaluated only after individual results and can never promote a family that failed individually."
+  },
+  "decision_evaluation": {
+    "unit": "same-position player pairs within (season, week, position, archetype), both with baseline and actual",
+    "close_call_region": "|baseline edge| < tau; outside it FI may not flip a decision",
+    "regret": "max(actual_a, actual_b) - actual(chosen)",
+    "reported": ["reversals", "reversal_win_rate", "mean_regret_baseline", "mean_regret_candidate", "median_regret_delta", "pct_improved", "pct_worsened", "severe_miss_rate (regret increase >= 8 fantasy points)"],
+    "uncertainty": "cluster bootstrap over (season, week) clusters, 2000 resamples, seed 20260921, 90% interval"
+  },
+  "gates": {
+    "G1_chronology": "training seasons < test season; lane RECONSTRUCTED_CHRONOLOGY_SAFE; future-mutation invariance test passes",
+    "G2_sample": "each development fold >= 12 weeks and >= 1000 rows; pooled development reversals >= 300; holdout reversals >= 100. Failure => RESEARCH_ELIGIBLE (inconclusive), not FAILED",
+    "G3_incremental_value": "pooled development MAE improvement >= +0.03 fantasy points AND 90% CI lower bound > 0 AND Benjamini-Hochberg q <= 0.10 across all 30 candidate tests",
+    "G4_stability": "MAE improvement > 0 in BOTH development folds and in EACH scoring archetype pooled",
+    "G5_decision_value": "pooled development mean close-call regret improvement > 0 with 90% CI lower bound > 0; reversal win rate >= 0.52; severe-miss rate on reversals <= large-win rate",
+    "G6_holdout": "2025 holdout: MAE improvement >= +0.03 with 90% CI lower bound > 0 AND close-call regret improvement > 0 with 90% CI lower bound > 0 (Bonferroni over the number of holdout-tested candidates)",
+    "G7_calibration": "calibration slope of realised residual on predicted adjustment in [0.5, 1.5] with 90% CI lower bound > 0; quintile-mean residual monotone (Spearman >= 0.6)",
+    "G8_subgroup_harm": "no archetype, season-half (wk 4-9 / 10-17) or baseline-level tercile cell whose 90% CI upper bound of MAE improvement is < -0.03",
+    "G9_redundancy": "reported: |corr(z, baseline_sleeper)| and |corr(z, baseline_trailing)|; a family whose signal is >= 0.9 correlated with the baseline cannot claim incremental value",
+    "G10_to_G15": "temporal identity, scoring contract, freshness (canonical evaluator, family-level), source quality, family isolation, consumer scope, reversibility, lineage: verified by deterministic tests, not by data"
+  },
+  "state_rules": {
+    "SHADOW_ONLY -> RESEARCH_ELIGIBLE": "family is PREDICTIVE/WEAKLY_PREDICTIVE and has a reconstructable as-of historical series (evaluable)",
+    "RESEARCH_ELIGIBLE -> CERTIFICATION_FAILED": "adequate sample (G2) but any of G3-G8 failed (including 'effectively zero' improvement)",
+    "RESEARCH_ELIGIBLE -> RESEARCH_ELIGIBLE": "G2 inadequate: inconclusive, no verdict",
+    "RESEARCH_ELIGIBLE -> CERTIFICATION_PASSED": "G1-G9 all pass on development AND holdout",
+    "CERTIFICATION_PASSED -> PRODUCTION_ELIGIBLE": "prospective gate below AND freshness/readiness/reversibility/lineage tests pass",
+    "PRODUCTION_ELIGIBLE -> PRODUCTION_ACTIVE": "NEVER by research. Explicit human-reviewed merge/deploy with an activation_log entry."
+  },
+  "prospective_gate": {
+    "derivation": "Derived from FI Start/Sit, not copied from Phase 5. Historical close-call reversals occur in ~3% of pairs and per-reversal outcome SD is ~3-4 fantasy points, so n=150 reversal-eligible decisions gives a standard error of ~0.3 points, the smallest effect worth acting on.",
+    "requires": ["existing evidence gate (evidence-gate-2026.2): >= 4 qualifying 2026 weeks (NFL week COMPLETE, FI as-of buildable, actuals final, pre-kickoff production baseline captured)", ">= 150 live-captured reversal-eligible decisions for the candidate family x position across >= 3 distinct weeks", "prospective mean regret improvement point estimate >= 0"],
+    "current_state": "0 qualifying weeks, 0 live-captured decisions (verified in Checkpoint A)"
+  },
+  "multiple_testing": "Benjamini-Hochberg (q<=0.10) over the 30 development tests; holdout tests Bonferroni-corrected over survivors. Effect size and stability outrank p-values.",
+  "safety_bounds": "Cap 0.25 x |baseline| retained as an upper bound only; the certified cap for any eligible family must be the smallest of {0.25, evidence-supported fraction}. Tie-break-only usage (|edge| < tau) is mandatory unless evidence shows benefit outside the close-call region.",
+  "immutability": "This file is committed before evaluate.R is run. Any change after results are visible must be a NEW criteria_version with the reason recorded; the original is never edited."
+}
