@@ -1,0 +1,10 @@
+{
+  "amends": "fi-recert-criteria-2026.1",
+  "new_version": "fi-recert-criteria-2026.1+A1",
+  "recorded_after": "development stage results were visible (holdout NOT opened, and will not be for any candidate that fails development)",
+  "reason": "The original G2 rule marks a candidate INCONCLUSIVE when pooled development reversals < 300. Ten candidates hit that rule because their fitted adjustment is ~0 (p95 |adjustment| ~ 0.01 fantasy points): they barely move any decision, so reversals are scarce BECAUSE the signal has no effect. The operator's instruction (Step 11) is explicit that an effectively-zero improvement fails certification. Treating 'no measurable effect' as 'inconclusive' would leave a permanently open question about families that provably do nothing.",
+  "amendment": "A1: if a candidate's pooled-development 90% cluster-bootstrap CI for MAE improvement has an UPPER bound below the pre-registered minimum effect (+0.03 fantasy points), the effect gate G3 cannot be met by any sample size the data supports; the candidate is CERTIFICATION_FAILED (reason EFFECTIVELY_ZERO_OR_HARMFUL), regardless of G2.",
+  "direction_of_change": "STRICTLY CONSERVATIVE. It can only convert INCONCLUSIVE -> CERTIFICATION_FAILED. It cannot promote any candidate, cannot relax any threshold, and does not alter which candidates reach the holdout (none did).",
+  "thresholds_unchanged": true,
+  "holdout_status": "untouched by Phase 8 (note: season 2025 was used as the evaluation season of the earlier ri-startsit-2026.1 backtest, so 'untouched' is relative to Phase 8)"
+}

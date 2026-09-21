@@ -17,7 +17,10 @@ suppressWarnings(suppressMessages({ library(dplyr); library(jsonlite) }))
 args  <- commandArgs(trailingOnly = TRUE)
 stage <- if (length(args)) args[[1]] else "dev"
 stopifnot(stage %in% c("dev", "holdout"))
-ROOT <- getwd(); OUT <- file.path(ROOT, "analysis", "football_intel_phase8", "results"); dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
+ROOT <- getwd()
+# plumbing only (Phase 8 future-mutation test): P8_DATASET / P8_OUT default to the real dataset and the committed results dir.
+OUT <- Sys.getenv("P8_OUT", file.path(ROOT, "analysis", "football_intel_phase8", "results")); dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
+DATASET <- Sys.getenv("P8_DATASET", file.path(ROOT, "outputs", "startsit-2026", "decision_dataset.rds"))
 crit <- fromJSON(file.path(ROOT, "analysis", "football_intel_phase8", "certification_criteria.json"), simplifyVector = FALSE)
 
 B        <- 2000L
@@ -43,7 +46,7 @@ cols_for <- function(f) {
   else                               list(v = paste0("fi_", f, "_modeled"), c = paste0("fi_", f, "_confidence"), pd = NA_character_)
 }
 
-d <- readRDS(file.path(ROOT, "outputs", "startsit-2026", "decision_dataset.rds")) %>%
+d <- readRDS(DATASET) %>%
   filter(position %in% names(POS_FAMILIES), is.finite(baseline_sleeper), is.finite(actual), week >= 4, week <= 17) %>%
   mutate(resid = actual - baseline_sleeper, half = ifelse(week <= 9, "wk4-9", "wk10-17"))
 cat(sprintf("dataset rows %d | seasons %s\n", nrow(d), paste(sort(unique(d$season)), collapse = ",")))
