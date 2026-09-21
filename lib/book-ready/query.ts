@@ -8,6 +8,7 @@
  */
 import { runWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
 import { attachMarketRef } from "@/lib/waiver2/market-pool";
+import { getMatchup2CaptureHealth } from "@/lib/persistence/supabase/matchup2-capture";
 import { runMarketSnapshotHook } from "@/lib/market-state/snapshot-hook";
 import { getWaiver2CaptureHealth } from "@/lib/waiver2/capture-health";
 import { WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";
@@ -140,7 +141,7 @@ export function getCapabilities(root = process.cwd()): unknown {
   const manifestThrough = (rel: string, key = "through_week"): number | null => { try { return (JSON.parse(readFileSync(join(root, rel), "utf8")) as Record<string, number>)[key] ?? null; } catch { return null; } };
   const frontier = completedFrontier(root);
   const stat = (id: string, tw: number | null) => ({ surface: id, through_week: tw, completed_week_frontier: frontier, refresh_lag_weeks: refreshLag(tw, root), state: refreshLag(tw, root) === null ? "UNKNOWN" : refreshLag(tw, root) === 0 ? "CURRENT" : "NOT_YET_REFRESHED" });
-  return { registry_version: reg.registry_version, contract_version: EVIDENCE_CONTRACT_VERSION, waiver2: { lifecycle_state: WAIVER2_LIFECYCLE_STATE, may_influence_production: false, capture_health: getWaiver2CaptureHealth() },
+  return { registry_version: reg.registry_version, contract_version: EVIDENCE_CONTRACT_VERSION, matchup2: { model_version: "matchup-2-2026.1", lifecycle_state: "SHADOW_ONLY", may_influence_production: false, numeric_adjustment: null, capture_health: getMatchup2CaptureHealth() }, waiver2: { lifecycle_state: WAIVER2_LIFECYCLE_STATE, may_influence_production: false, capture_health: getWaiver2CaptureHealth() },
     refresh_status: [stat("football-intelligence", manifestThrough("lib/football-intel/data/football_intelligence_manifest.json")), stat("role-opportunity", manifestThrough("lib/player-role-intelligence/data/role_opportunity_manifest.json")), stat("opportunity-propagation", manifestThrough("lib/opportunity-propagation-intelligence/data/opportunity_propagation_manifest.json"))], topics: Object.fromEntries(Object.entries(TOPICS).map(([k, v]) => [k, { surface: v.surface, required_params: v.required, cost_class: v.cost }])), surfaces: reg.surfaces.map((s) => ({ id: s.id, book_ready: s.book_ready ?? null })) };
 }
 

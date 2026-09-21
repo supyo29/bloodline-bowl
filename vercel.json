@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/waiver2-capture",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/matchup2-capture",
+      "schedule": "15 14 * * *"
     }
   ]
 }

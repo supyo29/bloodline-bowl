@@ -9,6 +9,7 @@ import { familyById } from "./registry";
 import type { MatchupContext } from "./context";
 import type { DefenseEvidence, PlayerEvidence, SplitRow } from "./source";
 import { mean, minTier, rankDesc, round, sd, tierAtLeast, zAmong } from "./stats";
+import { evaluationFor, evaluationLine } from "./evaluation";
 import { MATERIAL_VALUE, DEF_CHARTED_MODERATE, DEF_CHARTED_STRONG, DEF_CHARTED_WEAK, MAJOR_CELL_SHARE, MIN_COVERED_SHARE, MIN_DEFENSES_FOR_Z, MINOR_RECEIVING_ROLE, RZ_ROLE_MATERIAL_REC, RZ_ROLE_MATERIAL_RUSH, Z_MATERIAL } from "./thresholds";
 
 interface Calc { value: number | null; inputs: Record<string, number | string | null>; evidence: EvidenceTier; window: string | null; limitations?: string[]; sens?: InteractionComponent["sensitivity"] }
@@ -18,7 +19,8 @@ const fiTier = (c: string | null | undefined): EvidenceTier => (c === "HIGH" ? "
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** prefer the recent window when both sides have usable rows; otherwise career. */
-function windowFor(windows: string[]): string | null { return windows.includes("recent") ? "recent" : windows.includes("career") ? "career" : windows[0] ?? null; }
+/** Only the two prior-season-aggregate windows are admissible: any other window label (a current/future window) is ignored, never used as-of evidence. */
+function windowFor(windows: string[]): string | null { return windows.includes("recent") ? "recent" : windows.includes("career") ? "career" : null; }
 const defWin = (d: DefenseEvidence, w: string | null): string | null => (w && d.tendency[w] ? w : d.tendency.career ? "career" : Object.keys(d.tendency)[0] ?? null);
 
 export function uncertaintyFor(ctx: MatchupContext, o: { evidence: EvidenceTier; position?: Position | "TEAM"; player?: PlayerEvidence | null; generic?: boolean; expectation?: boolean }): UncertaintySource[] {
@@ -44,16 +46,16 @@ function component(ctx: MatchupContext, d: Def, fn: ValueFn, extraLimits: string
   const enough = all.length >= MIN_DEFENSES_FOR_Z; const z = enough ? zAmong(mine?.value ?? null, all) : null;
   const usable = mine != null && mine.value != null && tierAtLeast(mine.evidence, "WEAK");
   const material = mine?.value != null && Math.abs(mine.value) >= d.material; const direction: Direction = !usable || z == null ? "UNDETERMINED" : !material ? "NEUTRAL" : z >= Z_MATERIAL ? "ADVANTAGE" : z <= -Z_MATERIAL ? "DISADVANTAGE" : "NEUTRAL";
-  const evidence = mine?.evidence ?? "INSUFFICIENT";
-  return { id: d.id, family: d.registry, position: d.position, title: d.title, origin: d.origin ?? fam?.origin ?? "DESCRIPTIVE_CONTEXT", history_class: fam?.history_class ?? "UNSAFE_FOR_BACKTEST", predictive_class: fam?.predictive_class ?? "DESCRIPTIVE_CONTEXT",
+  const evidence = mine?.evidence ?? "INSUFFICIENT"; const evalRow = d.position === "TEAM" ? null : evaluationFor(d.registry, d.position);
+  return { id: d.id, family: d.registry, position: d.position, title: d.title, origin: d.origin ?? fam?.origin ?? "DESCRIPTIVE_CONTEXT", history_class: fam?.history_class ?? "UNSAFE_FOR_BACKTEST", predictive_class: evalRow && evalRow.status !== "PREDICTIVE_INCREMENTAL" && (fam?.predictive_class ?? "") === "PREDICTIVE_CANDIDATE_UNVALIDATED" ? "EVALUATED_NO_INCREMENTAL_VALUE" : fam?.predictive_class ?? "DESCRIPTIVE_CONTEXT",
     direction, value: round(mine?.value ?? null), unit: d.unit, z: round(z, 3), rank_among_defenses: enough ? rankDesc(mine?.value ?? null, all) : null, evidence, window: mine?.window ?? null,
     inputs: mine?.inputs ?? {}, sensitivity: mine?.sens ?? [], uncertainty: uncertaintyFor(ctx, { evidence, position: d.position, player: d.player, generic: d.generic, expectation: d.expectation }),
-    limitations: [...(mine?.limitations ?? []), ...(fam?.note ? [fam.note] : []), ...(enough ? [] : ["fewer than 20 comparable defenses: no standardization"]), ...(mine == null ? ["required evidence is unavailable for this player or defense"] : []), ...extraLimits] };
+    limitations: [...(mine?.limitations ?? []), ...(evalRow ? [evaluationLine(evalRow)] : []), ...(fam?.note ? [fam.note] : []), ...(enough ? [] : ["fewer than 20 comparable defenses: no standardization"]), ...(mine == null ? ["required evidence is unavailable for this player or defense"] : []), ...extraLimits] };
 }
 
 /* ------------------------------------------------------------------------------------------ coverage (man/zone) */
 function edgeRows(rows: SplitRow[], key: string): { window: string; man: SplitRow; zone: SplitRow } | null {
-  const ws = [...new Set(rows.map((r) => r.window))]; const order = ["recent", "career", ...ws];
+  const order = ["recent", "career"];
   for (const w of order) { const man = rows.find((r) => r.window === w && r.bucket === "MAN"); const zone = rows.find((r) => r.window === w && r.bucket === "ZONE"); if (man && zone && num(man.values[key]) != null && num(zone.values[key]) != null && tierAtLeast(minTier(man.evidence, zone.evidence), "WEAK")) return { window: w, man, zone }; }
   return null;
 }

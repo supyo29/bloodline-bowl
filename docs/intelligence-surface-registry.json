@@ -1428,7 +1428,9 @@
       "readers": [
         "lib/matchup2/source-files.ts",
         "lib/matchup2/engine.ts",
-        "lib/matchup2/defense.ts"
+        "lib/matchup2/defense.ts",
+        "lib/matchup2/capture.ts",
+        "lib/matchup2/evaluation.ts"
       ],
       "routes": [],
       "reachability": "COMPUTED_AT_REQUEST",
@@ -1444,12 +1446,15 @@
       "tests": [
         "test/matchup2-context.test.ts",
         "test/matchup2-engine.test.ts",
-        "test/matchup2-bookready.test.ts"
+        "test/matchup2-bookready.test.ts",
+        "test/matchup2-evaluation.test.ts",
+        "test/matchup2-capture.test.ts"
       ],
       "consumers": [
-        "book-ready"
+        "book-ready",
+        "persistence"
       ],
-      "notes": "Unsupported by design: cornerback assignment, receiver alignment, front alignment, personnel groupings, coach history, run-scheme splits, current-season charting. No fitted numeric adjustment (Phase 9 Tier D clean null).",
+      "notes": "Unsupported by design: cornerback assignment, receiver alignment, front alignment, personnel groupings, coach history, run-scheme splits, current-season charting. No fitted numeric adjustment (Phase 9 Tier D clean null). Prospective shadow capture: scheduled job only (supabase table bridge_matchup2_shadow_captures, immutable); public evidence requests cannot create records.",
       "book_ready": {
         "query_topics": [
           "matchup2.player.coverage",
@@ -1469,7 +1474,7 @@
         "history": {
           "class": "CURRENT_ONLY",
           "source": "none",
-          "note": "prior-season aggregates only; per-week as-of history is not served (prospective shadow capture is defined in Checkpoint G)"
+          "note": "prior-season aggregates only; per-week as-of history is not served. Prospective PRE-GAME shadow captures accumulate from the scheduled job (LIVE_CAPTURED only with a server-derived baseline and a verified pre-kickoff lock); they are not retrievable through /api/evidence."
         },
         "comparison_populations": [
           "NFL_DEFENSES"

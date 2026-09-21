@@ -16,7 +16,8 @@ export type EvidenceOrigin = "OBSERVED_DEFENSIVE_TENDENCY" | "OBSERVED_PLAYER_PR
 export type Direction = "ADVANTAGE" | "DISADVANTAGE" | "NEUTRAL" | "UNDETERMINED";
 export type EvidenceTier = "STRONG" | "MODERATE" | "WEAK" | "INSUFFICIENT";
 export type HistoryClass = "TRUE_AS_OF" | "RECONSTRUCTABLE_AS_OF" | "RETROSPECTIVE_ONLY" | "UNSAFE_FOR_BACKTEST";
-export type PredictiveClass = "PREDICTIVE_CANDIDATE_UNVALIDATED" | "DESCRIPTIVE_CONTEXT" | "UNSUPPORTED";
+/** EVALUATED_NO_INCREMENTAL_VALUE: a candidate family whose walk-forward study found no gain over the production-like baseline (contextual evidence only). */
+export type PredictiveClass = "PREDICTIVE_CANDIDATE_UNVALIDATED" | "EVALUATED_NO_INCREMENTAL_VALUE" | "DESCRIPTIVE_CONTEXT" | "UNSUPPORTED";
 export type Availability = "LIVE_CURRENT" | "PRIOR_ONLY" | "DESCRIPTIVE_ONLY" | "UNAVAILABLE";
 
 export interface SourceVintage { source: "football-intelligence" | "player-scheme" | "role-opportunity" | "opportunity-propagation" | "schedule"; version: string | null; season: number | null; through_week: number | null; availability: Availability }

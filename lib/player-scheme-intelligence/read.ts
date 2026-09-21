@@ -18,7 +18,7 @@
  *   - a cell below publication threshold    -> present, evidence_class "INSUFFICIENT"
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type {
   AvailabilityState,
@@ -71,10 +71,12 @@ const num = (v: string | undefined): number | null => {
 };
 const str = (v: string | undefined): string | null => (v === undefined || v === "" || v === "NA" ? null : v);
 
+/** Phase 5 (performance only): parsed CSVs are cached per file + mtime, so a full-roster evaluation does not re-parse a 30k-row file per player. Callers only filter/map; nothing mutates a parsed row. */
+const csvCache = new Map<string, { mtime: number; rows: Array<Record<string, string>> }>();
 function readCsv(name: string): Array<Record<string, string>> {
   const p = join(DATA_DIR, name);
   if (!existsSync(p)) return [];
-  try { return parseCsv(readFileSync(p, "utf8")); } catch { return []; }
+  try { const m = statSync(p).mtimeMs; const hit = csvCache.get(p); if (hit && hit.mtime === m) return hit.rows; const rows = parseCsv(readFileSync(p, "utf8")); csvCache.set(p, { mtime: m, rows }); return rows; } catch { return []; }
 }
 
 // ---------------------------------------------------------------------------
