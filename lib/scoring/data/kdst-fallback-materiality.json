@@ -1,0 +1,45 @@
+{
+ "_note": "Bound on the weekly K/D-ST standard-points fallback error, keyed by canonical scoring fingerprint. 'Partial' = the league's scoring applied ONLY to components the provider supplies (unsupplied league rules are not represented), so this bounds — never replaces — the limitation.",
+ "by_fingerprint": {
+  "scoring:v1:29acc6bcd911df090b5b9b9c": {
+   "league_slug": "bloodline-bowl",
+   "season": 2026,
+   "week": 2,
+   "measured_on": "projection feed rows with a standard-points total",
+   "DEF": {
+    "n": 32,
+    "mean_partial_minus_standard": 0.71,
+    "mean_abs_error": 1.54,
+    "rank_correlation": 0.839,
+    "materiality": "MATERIAL_DIVERGENCE"
+   },
+   "K": {
+    "n": 32,
+    "mean_partial_minus_standard": 1.21,
+    "mean_abs_error": 1.23,
+    "rank_correlation": 0.739,
+    "materiality": "MATERIAL_DIVERGENCE"
+   }
+  },
+  "scoring:v1:d4795fa723cdd12d9ba3bfb1": {
+   "league_slug": "sportys-alumni",
+   "season": 2026,
+   "week": 2,
+   "measured_on": "projection feed rows with a standard-points total",
+   "DEF": {
+    "n": 32,
+    "mean_partial_minus_standard": -0.01,
+    "mean_abs_error": 0.02,
+    "rank_correlation": 0.999,
+    "materiality": "IMMATERIAL_FOR_SUPPLIED_COMPONENTS"
+   },
+   "K": {
+    "n": 32,
+    "mean_partial_minus_standard": 0.01,
+    "mean_abs_error": 0.02,
+    "rank_correlation": 0.997,
+    "materiality": "IMMATERIAL_FOR_SUPPLIED_COMPONENTS"
+   }
+  }
+ }
+}

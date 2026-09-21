@@ -15,7 +15,7 @@ const byMetric = (bs: ReturnType<typeof ev>, m: string) => bs.find((b) => b.metr
 test("every live league's contract validates against the shared evidence contract and carries fingerprint lineage", () => {
   for (const [slug, s] of Object.entries(LIVE)) {
     const bs = ev(s, slug); assert.ok(bs.length > 5, slug);
-    for (const b of bs) { assert.deepEqual(validateEvidenceBlock(b), [], `${slug} ${b.metric}`); assert.match(b.lineage.content_identity, /^scoring:v1:[0-9a-f]{24}$/); assert.equal(b.deployment.may_influence_production, false); assert.equal(b.predictive?.class, "DESCRIPTIVE_ONLY"); }
+    for (const b of bs) { assert.deepEqual(validateEvidenceBlock(b), [], `${slug} ${b.metric}`); assert.match(String(b.lineage.content_identity), /^scoring:v1:[0-9a-f]{24}$/); assert.equal(b.deployment.may_influence_production, false); assert.equal(b.predictive?.class, "DESCRIPTIVE_ONLY"); }
   }
 });
 test("each rule block states its support class exactly as the contract classifies it, with exact-vs-approximate and the limitation on the block", () => {
@@ -44,3 +44,17 @@ test("IDP, thresholds and unknown keys are never presented as modeled", () => {
   for (const b of bs) assert.deepEqual(validateEvidenceBlock(b), []);
 });
 test("topic is registered on the shared query layer (no second registry)", () => { assert.equal(TOPICS["scoring.league_contract"]!.surface, "league-scoring-contract"); assert.deepEqual(TOPICS["scoring.league_contract"]!.required, ["league"]); });
+
+import { CHAPTER_LIBRARY } from "@/lib/analysis-book/library";
+test("Analysis Book: scoring evidence ENRICHES existing chapters only — no chapter id added/renamed, never a required need (a chapter cannot be promoted or demoted by it)", () => {
+  assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99, "chapter id count unchanged since Phase 5"); assert.ok(!Object.keys(CHAPTER_LIBRARY).some((id) => id.startsWith("scoring.")));
+  const withScoring = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "scoring.league_contract")).map((c) => c.id).sort();
+  assert.deepEqual(withScoring, ["decision.market_value", "decision.replacement_value", "decision.roster_fit", "trade.player_value"]);
+  for (const c of Object.values(CHAPTER_LIBRARY)) for (const n of c.needs.filter((x) => x.topic === "scoring.league_contract")) assert.equal(n.role, "enrich", c.id);
+});
+
+test("K/D-ST fallback size is a MEASURED bound keyed by the canonical fingerprint: material for Bloodline Bowl, immaterial for the standard-equivalent leagues, and 'not measured' otherwise", () => {
+  const lim = (sc: Record<string, number>) => byMetric(ev(sc), "contract.weekly_basis.k_dst").limitations.join(" | ");
+  assert.match(lim(LIVE["bloodline-bowl"]!), /MATERIAL_DIVERGENCE/); assert.match(lim(LIVE["devoted-to-the-game"]!), /IMMATERIAL_FOR_SUPPLIED_COMPONENTS/);
+  assert.match(lim({ rec: 1, fgm: 3 }), /has NOT been measured/);
+});

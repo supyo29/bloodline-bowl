@@ -9,6 +9,10 @@ import { unitFor } from "../units";
 import { phaseRef } from "../phase-namespaces";
 import type { Component, EvidenceBlock, TemporalIdentity } from "../schema";
 import { PHASE7, mk as mkRaw } from "../common";
+import materiality from "@/lib/scoring/data/kdst-fallback-materiality.json";
+
+type Mat = { league_slug: string; season: number; week: number; DEF: { n: number; mean_abs_error: number; rank_correlation: number; materiality: string }; K: { n: number; mean_abs_error: number; rank_correlation: number; materiality: string } };
+const matFor = (fp: string): string => { const m = (materiality.by_fingerprint as Record<string, Mat>)[fp]; return m ? `Measured bound (${m.season} wk ${m.week} provider feed, scoring ${fp}): applying THIS league's scoring to the components the provider supplies vs the standard-points fallback — D/ST mean |diff| ${m.DEF.mean_abs_error} pts, rank corr ${m.DEF.rank_correlation} (${m.DEF.materiality}); K mean |diff| ${m.K.mean_abs_error} pts, rank corr ${m.K.rank_correlation} (${m.K.materiality}). Partial components: a bound, not an exact value.` : `The size of the fallback divergence has NOT been measured for scoring ${fp}.`; };
 
 export const SCORING_SURFACE = "league-scoring-contract"; export const SCORING_CONTRACT_VERSION = "scoring-contract-2026.1";
 const BUILT_IN = phaseRef("INTELLIGENCE_MODERNIZATION_PHASE", "6");
@@ -29,7 +33,7 @@ export function scoringContractEvidence(i: { league_slug: string; season: number
   out.push(mk({ ...base, metric: "contract.weekly_basis.offense", availability: { state: "AVAILABLE" }, value: k.weekly_basis.offense, unit: unitFor("category"), category: { raw: k.weekly_basis.offense, normalized: k.weekly_basis.offense, mapping_status: "VERIFIED" },
     limitations: [...base.limitations, "QB/RB/WR/TE weekly projections re-score the provider's component statistics with THIS league's scoring; provider precomputed pts_* totals are not used for offense.", ...(k.offense_rules_not_reaching_weekly_projection.length ? [`league scores offense rules the weekly provider does not supply (they add nothing to weekly projections): ${k.offense_rules_not_reaching_weekly_projection.join(", ")}`] : [])] }, ["offense"]));
   out.push(mk({ ...base, metric: "contract.weekly_basis.k_dst", availability: { state: "AVAILABLE" }, value: k.weekly_basis.k_dst, unit: unitFor("category"), category: { raw: k.weekly_basis.k_dst, normalized: k.weekly_basis.k_dst, mapping_status: "VERIFIED" },
-    limitations: [...base.limitations, "Weekly K and D/ST values are Sleeper's STANDARD precomputed points: they do NOT reflect this league's K/D-ST scoring. The provider's K/D-ST components are partial and internally inconsistent, and its tier keys are plug-in point estimates, so exact league-specific reconstruction is not trustworthy.", `league K/D-ST rules NOT reflected in weekly values (${k.k_dst_rules_not_reflected_in_weekly_values.length}): ${k.k_dst_rules_not_reflected_in_weekly_values.join(", ") || "none"}`, ...k.approximations] }, ["kdst"]));
+    limitations: [...base.limitations, "Weekly K and D/ST values are Sleeper's STANDARD precomputed points: they do NOT reflect this league's K/D-ST scoring. The provider's K/D-ST components are partial and internally inconsistent, and its tier keys are plug-in point estimates, so exact league-specific reconstruction is not trustworthy.", `league K/D-ST rules NOT reflected in weekly values (${k.k_dst_rules_not_reflected_in_weekly_values.length}): ${k.k_dst_rules_not_reflected_in_weekly_values.join(", ") || "none"}`, matFor(fp), ...k.approximations] }, ["kdst"]));
   for (const r of k.rules) out.push(mk(ruleBlock(base, r, i.raw_scoring[r.key]!), ["rule", r.key]));
   return out;
 }
