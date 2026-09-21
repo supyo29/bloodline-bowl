@@ -50,12 +50,14 @@ export function classifyUniversePlayer(p: UniversePlayer, startable: ReadonlySet
   // A team defense is a TEAM entity keyed by its team abbreviation; it never passes through individual-player status logic.
   if (isDef) { const t = (p.team ?? p.player_id ?? "").toUpperCase(); return t ? { kind: "ELIGIBLE", entity: "TEAM_DEFENSE", position: "DEF", team: t, caveats: [] } : { kind: "INELIGIBLE", reason: "NO_NFL_TEAM" }; }
   if (!p.team) return { kind: "INELIGIBLE", reason: "NO_NFL_TEAM" };
+  // The provider database carries placeholder rows for merged/stale identities (live example: "Duplicate Player", team CHI, active=false). Never a real acquisition target.
+  if (/^\s*duplicate\b/i.test(p.full_name ?? "")) return { kind: "INELIGIBLE", reason: "DUPLICATE_OR_STALE_IDENTITY" };
   const status = (p.status ?? "").trim().toLowerCase();
   if (status === "retired") return { kind: "INELIGIBLE", reason: "RETIRED_OR_INACTIVE_IDENTITY" };
   if (status === "practice squad") return { kind: "UNKNOWN", reason: "PRACTICE_SQUAD_ELIGIBILITY_UNVERIFIED" };
-  // `active === false` with a team and a non-listed status is a stale/contradictory identity: do not invent eligibility.
-  if (p.active === false && !(status in CAVEAT_BY_STATUS) && status !== "active") return { kind: "UNKNOWN", reason: "PLAYER_STATUS_UNRECOGNIZED" };
-  if (p.active === false && status === "active") return { kind: "UNKNOWN", reason: "PLAYER_STATUS_UNRECOGNIZED" };
+  // The provider's own `active: false` flag contradicts any listed team/status (a "Inactive" status is legitimate ONLY with active=true — it is Sleeper's label for an inactive/injured roster player).
+  // Live audit: 4 such rows per league (stale identities). Not proven acquirable, so UNKNOWN — never silently eligible.
+  if (p.active === false) return { kind: "UNKNOWN", reason: "PLAYER_MARKED_NOT_ACTIVE" };
   if (status === "" || (status !== "active" && !(status in CAVEAT_BY_STATUS))) return { kind: "UNKNOWN", reason: "PLAYER_STATUS_UNRECOGNIZED" };
   const caveats = new Set<PlayerCaveat>();
   const sc = CAVEAT_BY_STATUS[status]; if (sc) caveats.add(sc);

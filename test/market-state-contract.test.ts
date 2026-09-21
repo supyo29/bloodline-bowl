@@ -35,6 +35,9 @@ test("unknown vocabulary, empty status, practice squad and contradictory active 
   assert.equal(classifyUniversePlayer(u({ status: "Weird" }), S).kind, "UNKNOWN");
   assert.equal(classifyUniversePlayer(u({ status: null }), S).kind, "UNKNOWN");
   assert.equal(classifyUniversePlayer(u({ active: false }), S).kind, "UNKNOWN");
+  assert.equal((classifyUniversePlayer(u({ status: "Inactive", active: false }), S) as { reason: string }).reason, "PLAYER_MARKED_NOT_ACTIVE", "live audit: Inactive + active=false is a stale identity, not an IR-style caveat");
+  assert.equal(classifyUniversePlayer(u({ status: "Inactive", active: true }), S).kind, "ELIGIBLE", "Inactive with active=true is a legitimate designation");
+  assert.equal((classifyUniversePlayer(u({ full_name: "Duplicate Player", status: "Inactive", active: false }), S) as { reason: string }).reason, "DUPLICATE_OR_STALE_IDENTITY");
 });
 
 const base = (o: Partial<PlayerMarketState>): PlayerMarketState => ({
