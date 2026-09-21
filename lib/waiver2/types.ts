@@ -90,7 +90,7 @@ export interface WaiverAction {
 }
 
 export interface WaiverEvaluation {
-  engine_version: string; contract: string; generated_at: string; deployment: "SHADOW_ONLY";
+  engine_version: string; contract: string; generated_at: string; deployment: "SHADOW_ONLY"; lifecycle_state: string;
   availability: { status: "AVAILABLE" | "UNAVAILABLE" | "UNCERTIFIED_POOL"; certification: PoolCertification; reasons: string[] };
   manager_team_id: string; week: number; scoring_fingerprint: string | null;
   actions: WaiverAction[]; recommended: WaiverAction | null; pass: WaiverAction;

@@ -6,6 +6,9 @@
  * populations are explicit opt-ins, and decision topics run exactly one request-scoped build. Ordinary
  * recommendation endpoints never import this module (asserted by test/book-ready-isolation.test.ts).
  */
+import { runWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
+import { getWaiver2CaptureHealth } from "@/lib/waiver2/capture-health";
+import { WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";
 import { waiver2ActionsEvidence, waiver2MarketEvidence, waiver2ReplacementEvidence } from "./families/waiver2";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -58,7 +61,12 @@ async function weekly(p: Record<string, string>) {
 async function waiver2Eval(p: Record<string, string>) {
   const { buildWaiverInputForManager } = await import("@/lib/waiver2/adapter"); const { evaluateWaiver2 } = await import("@/lib/waiver2/actions");
   const r = await buildWaiverInputForManager(p.league!, p.manager!, p.week ? { week: Number(p.week) } : {});
-  return r.ok ? evaluateWaiver2(r.input) : null;
+  if (!r.ok) return null;
+  const ev = evaluateWaiver2(r.input);
+  // Prospective shadow evidence: TELEMETRY ONLY, after the evaluation is complete. The durable hook (installed by the server route)
+  // never throws, never alters `ev`, and an illustrative request is never persisted; failures are counted in the capture health.
+  await runWaiver2CaptureHook(ev, r.input, { league_slug: p.league!, manager_slug: p.manager!, season: Number(p.season ?? 2026), illustrative: p.illustrative === "1" });
+  return ev;
 }
 const w2meta = (p: Record<string, string>) => ({ league_slug: p.league!, manager_slug: p.manager!, season: Number(p.season ?? 2026), illustrative: p.illustrative === "1" });
 async function managerContext(p: Record<string, string>) {
@@ -103,7 +111,7 @@ export function getCapabilities(root = process.cwd()): unknown {
   const manifestThrough = (rel: string, key = "through_week"): number | null => { try { return (JSON.parse(readFileSync(join(root, rel), "utf8")) as Record<string, number>)[key] ?? null; } catch { return null; } };
   const frontier = completedFrontier(root);
   const stat = (id: string, tw: number | null) => ({ surface: id, through_week: tw, completed_week_frontier: frontier, refresh_lag_weeks: refreshLag(tw, root), state: refreshLag(tw, root) === null ? "UNKNOWN" : refreshLag(tw, root) === 0 ? "CURRENT" : "NOT_YET_REFRESHED" });
-  return { registry_version: reg.registry_version, contract_version: EVIDENCE_CONTRACT_VERSION,
+  return { registry_version: reg.registry_version, contract_version: EVIDENCE_CONTRACT_VERSION, waiver2: { lifecycle_state: WAIVER2_LIFECYCLE_STATE, may_influence_production: false, capture_health: getWaiver2CaptureHealth() },
     refresh_status: [stat("football-intelligence", manifestThrough("lib/football-intel/data/football_intelligence_manifest.json")), stat("role-opportunity", manifestThrough("lib/player-role-intelligence/data/role_opportunity_manifest.json")), stat("opportunity-propagation", manifestThrough("lib/opportunity-propagation-intelligence/data/opportunity_propagation_manifest.json"))], topics: Object.fromEntries(Object.entries(TOPICS).map(([k, v]) => [k, { surface: v.surface, required_params: v.required, cost_class: v.cost }])), surfaces: reg.surfaces.map((s) => ({ id: s.id, book_ready: s.book_ready ?? null })) };
 }
 

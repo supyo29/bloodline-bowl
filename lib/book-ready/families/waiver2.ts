@@ -7,6 +7,7 @@
  */
 import type { WaiverAction, WaiverEvaluation } from "@/lib/waiver2/types";
 import { WAIVER2_ENGINE_VERSION } from "@/lib/waiver2/config";
+import { bookReadyDeploymentState, mayInfluenceProduction, WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";
 import { confidenceFor } from "../vocabulary";
 import { unitFor } from "../units";
 import { phaseRef } from "../phase-namespaces";
@@ -29,9 +30,9 @@ const pts = (key: string, value: number | null, label?: string, note?: string): 
 function common(ev: WaiverEvaluation, m: Waiver2Meta, topic: string) {
   const lim = ["SHADOW_ONLY Waiver Intelligence 2.0: never alters the production waiver output (waiver-engine-2026.1) and never submits a claim", "component weights are PRIOR_UNVALIDATED: no waiver-pool history exists to validate them (docs Phase 4 §20)", ...(ev.availability.certification !== "CERTIFIED" ? ["ILLUSTRATIVE ONLY: the free-agent pool is NOT certified — unrostered in ownership data is not a certified free agent; nothing here is actionable"] : [])];
   return {
-    surface: SURFACE, topic, deployment: { state: "SHADOW_ONLY" as const, may_influence_production: false }, temporal: temporal(m.season, ev.week, ev.generated_at),
+    surface: SURFACE, topic, deployment: { state: bookReadyDeploymentState(), may_influence_production: mayInfluenceProduction() }, temporal: temporal(m.season, ev.week, ev.generated_at),
     freshness: { as_of: ev.generated_at, through_week: null, generated_at: ev.generated_at },
-    lineage: { surface_version: WAIVER2_ENGINE_VERSION, content_identity: ev.evaluation_hash, canonical: { snapshot: ev.lineage.snapshot, scoring_fingerprint: ev.scoring_fingerprint, pool_certification: ev.availability.certification, params_hash: ev.lineage.params_hash, projection_model: ev.lineage.projection_model }, depends_on: [{ surface: "role-opportunity", version: ev.lineage.role }, { surface: "football-intelligence", version: ev.lineage.fi }, { surface: "opportunity-propagation", version: ev.lineage.opp }] },
+    lineage: { surface_version: WAIVER2_ENGINE_VERSION, content_identity: ev.evaluation_hash, canonical: { actionable: ev.availability.status === "AVAILABLE", evidence_mode: ev.availability.status === "AVAILABLE" ? "LIVE_CERTIFIED_POOL" : m.illustrative ? "ILLUSTRATIVE_UNCERTIFIED_POOL" : "BLOCKED", lifecycle_state: WAIVER2_LIFECYCLE_STATE, snapshot: ev.lineage.snapshot, scoring_fingerprint: ev.scoring_fingerprint, pool_certification: ev.availability.certification, params_hash: ev.lineage.params_hash, projection_model: ev.lineage.projection_model }, depends_on: [{ surface: "role-opportunity", version: ev.lineage.role }, { surface: "football-intelligence", version: ev.lineage.fi }, { surface: "opportunity-propagation", version: ev.lineage.opp }] },
     source: { built_in: BUILT_IN, source_data: "canonical league snapshot + weekly projections + Role / OPP / FI (consumed, never recomputed)" },
     limitations: lim, predictive: { source_status: "SHADOW_ONLY_MODEL", class: "SHADOW_PREDICTIVE" as const },
     origin: { source_class: "SHADOW_MODEL_OUTPUT", analysis_class: "SHADOW" as const },

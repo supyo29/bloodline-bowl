@@ -7,6 +7,7 @@ import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import { PARAMS, PARAM_SNAPSHOT, WAIVER2_CONTRACT, WAIVER2_ENGINE_VERSION } from "./config";
 import { buildWaiverContext, round2, round3, type WaiverContext } from "./context";
 import { hashOf } from "./hash";
+import { WAIVER2_LIFECYCLE_STATE } from "./lifecycle";
 import { faabRange, competitorView, priorityAdvice, visibleWinningBids } from "./market";
 import { dropCost, lineupDelta, type DropCost } from "./roster";
 import { assetValue, DECISION_HORIZON_WEEKS } from "./value";
@@ -30,7 +31,7 @@ export function evaluateWaiver2(input: WaiverInput, opts: { limit?: number } = {
   if (cert !== "CERTIFIED") reasons.push("the free-agent pool is NOT certified: unrostered in ownership data is not a certified free agent — nothing here is actionable");
   const status: WaiverEvaluation["availability"]["status"] = !input.pool.candidates.length ? "UNAVAILABLE" : cert === "CERTIFIED" ? "AVAILABLE" : "UNCERTIFIED_POOL";
   const base = (): Omit<WaiverEvaluation, "actions" | "recommended" | "pass" | "counters" | "evaluation_hash"> => ({
-    engine_version: WAIVER2_ENGINE_VERSION, contract: WAIVER2_CONTRACT, generated_at: ctx.now, deployment: "SHADOW_ONLY", availability: { status, certification: cert, reasons },
+    engine_version: WAIVER2_ENGINE_VERSION, contract: WAIVER2_CONTRACT, generated_at: ctx.now, deployment: "SHADOW_ONLY", lifecycle_state: WAIVER2_LIFECYCLE_STATE, availability: { status, certification: cert, reasons },
     manager_team_id: ctx.myTeam.team_id, week: ctx.week, scoring_fingerprint: ctx.scoring_fingerprint,
     replacement: BASE.map((p) => ctx.replacement[p]!), market_summary: { budgets: input.teams.map((t) => ({ team_id: t.team_id, faab_remaining: t.faab_remaining })), visible_winning_bids: visibleWinningBids(ctx).bids.length, calibration: visibleWinningBids(ctx).calibration },
     lineage: { snapshot: w.lineage?.snapshot?.league_snapshot_id ?? null, role: input.role?.version ?? null, fi: input.fi?.version ?? null, opp: null, projection_model: w.projections.model_version ?? null, params_hash: hashOf(PARAM_SNAPSHOT) }, warnings,

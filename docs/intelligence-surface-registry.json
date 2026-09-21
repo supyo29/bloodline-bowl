@@ -1240,7 +1240,8 @@
       "version_field": null,
       "readers": [
         "lib/waiver2/actions.ts",
-        "lib/waiver2/adapter.ts"
+        "lib/waiver2/adapter.ts",
+        "lib/waiver2/capture.ts"
       ],
       "routes": [],
       "reachability": "COMPUTED_AT_REQUEST",
@@ -1258,7 +1259,8 @@
         "test/waiver2-bookready.test.ts"
       ],
       "consumers": [
-        "book-ready"
+        "book-ready",
+        "persistence"
       ],
       "notes": "Gated on the canonical free_agent_pool capability: with an uncertified pool every topic is UNAVAILABLE unless illustrative=1 (labelled non-actionable).",
       "book_ready": {

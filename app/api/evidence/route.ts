@@ -8,7 +8,11 @@
  * History and comparison populations are opt-in; ordinary recommendation endpoints do not use this route.
  */
 import { getCapabilities, getEvidence } from "@/lib/book-ready/query";
+import { installWaiver2Capture } from "@/lib/persistence/supabase/waiver2-capture-runtime";
 import { handleOptions, jsonResponse } from "@/lib/http";
+
+// Prospective Waiver 2.0 shadow-evidence telemetry (insert-only, never on the ranking path, never affects a response).
+installWaiver2Capture();
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

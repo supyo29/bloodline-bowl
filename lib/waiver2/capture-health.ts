@@ -1,0 +1,5 @@
+/** Visible health of the prospective-capture telemetry path (per serverless instance; the database is the source of truth). A failure is COUNTED here — never silently treated as evidence collected. */
+export interface Waiver2CaptureHealth { attempts: number; inserted: number; duplicates: number; refused: number; failures: number; not_configured: number; skipped_illustrative: number; last_status: string | null; last_error: string | null; last_class: string | null; by_class: Record<string, number> }
+export const captureHealth: Waiver2CaptureHealth = { attempts: 0, inserted: 0, duplicates: 0, refused: 0, failures: 0, not_configured: 0, skipped_illustrative: 0, last_status: null, last_error: null, last_class: null, by_class: {} };
+export const getWaiver2CaptureHealth = (): Waiver2CaptureHealth => ({ ...captureHealth, by_class: { ...captureHealth.by_class } });
+export function __resetWaiver2CaptureHealth(): void { Object.assign(captureHealth, { attempts: 0, inserted: 0, duplicates: 0, refused: 0, failures: 0, not_configured: 0, skipped_illustrative: 0, last_status: null, last_error: null, last_class: null, by_class: {} }); }
