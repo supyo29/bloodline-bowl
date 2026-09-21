@@ -109,6 +109,7 @@ export type ReadinessReasonCode =
   | "FAAB_CONTEXT_UNAVAILABLE"
   | "PENDING_CLAIMS_NOT_EXPOSED"
   | "WAIVER_CLEAR_TIME_NOT_EXPOSED"
+  | "GAME_LOCK_ADD_RULE_NOT_PUBLISHED"
   | "OWNERSHIP_INTEGRITY_VIOLATION";
 /** BLOCKING: the pool must not be treated as actionable. LIMITING: actionable, but a stated caveat applies. INFO: permanent provider limitation. */
 export type ReadinessSeverity = "BLOCKING" | "LIMITING" | "INFO";
@@ -135,6 +136,11 @@ export interface LeagueAcquisitionRules {
   faab_min_bid: number | null;
   waiver_clear_days: number | null;
   waiver_day_of_week: number | null;
+  /** PRIORITY leagues only: rolling (waiver_type 0) vs reverse-standings (1). null for FAAB/unknown. */
+  priority_rule: "ROLLING" | "REVERSE_STANDINGS" | null;
+  /** Provider "daily waivers" flag/hour, exposed as-is; it does not change how long a dropped player stays on waivers (waiver_clear_days). */
+  daily_waivers: boolean | null;
+  daily_waivers_hour: number | null;
   reserve_slots: number | null;
   taxi_slots: number | null;
   /** Positions this league can start (after FLEX/SUPER_FLEX/IDP expansion). */
@@ -142,7 +148,9 @@ export interface LeagueAcquisitionRules {
 }
 export interface TeamAcquisitionContext { team_id: string; roster_id: number; faab_remaining: number | null; waiver_priority: number | null; roster_size: number; roster_limit: number | null }
 /** Separate from availability by construction. Missing FAAB never changes a player's `status`. */
-export interface AcquisitionContext { rules: LeagueAcquisitionRules; teams: TeamAcquisitionContext[]; status: "OK" | "PARTIAL" | "UNAVAILABLE"; context_id: string }
+/** A PROCESSED winning bid visible in the transaction feed. Pending/hidden bids are never exposed, never inferred. */
+export interface VisibleWinningBid { player_key: string; bid: number; roster_id: number | null; at: string }
+export interface AcquisitionContext { rules: LeagueAcquisitionRules; teams: TeamAcquisitionContext[]; visible_winning_bids: VisibleWinningBid[]; status: "OK" | "PARTIAL" | "UNAVAILABLE"; context_id: string }
 
 /* ------------------------------------------------------------------------------------------ snapshot */
 export type HistoryClass = "TRUE_AS_OF" | "RECONSTRUCTED" | "RETROSPECTIVE_ONLY" | "UNSAFE";
@@ -188,5 +196,6 @@ export interface MarketSnapshot {
 export const PROVIDER_LIMITATIONS: Record<string, string> = {
   PENDING_CLAIMS_NOT_EXPOSED: "The provider does not expose pending waiver claims; WAIVER_CLAIM_PENDING cannot be established and pending competition is UNKNOWN.",
   WAIVER_CLEAR_TIME_NOT_EXPOSED: "The provider does not expose a per-player waiver clear instant; only the drop time and the league's clear-days window are known.",
+  GAME_LOCK_ADD_RULE_NOT_PUBLISHED: "The provider does not publish whether a started/complete game blocks adding a player; game state is reported per player (`lock`) as a fact and never as an availability verdict. A decision made after a relevant kickoff is classified LIVE_POST_LOCK by the capture layer, never pristine.",
   HIDDEN_BIDS_NOT_EXPOSED: "Other teams' pending FAAB bids are not exposed; bids are visible only after processing.",
 };

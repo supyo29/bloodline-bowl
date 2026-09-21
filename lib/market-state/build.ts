@@ -14,7 +14,7 @@ import { hashOf } from "./hash";
 import { validateMarketSnapshot } from "./integrity";
 
 export interface RosterInput { team_id: string; roster_id: number; players: string[]; reserve: string[]; taxi: string[]; faab_used: number | null; waiver_position: number | null }
-export interface TransactionInput { type: string; status: string; status_updated: number | null; adds: string[]; drops: string[] }
+export interface TransactionInput { type: string; status: string; status_updated: number | null; adds: string[]; drops: string[]; /** processed winning bid, when the feed shows one */ bid?: number | null; roster_id?: number | null }
 export interface ScheduleGameInput { week: number; home?: string | null; away?: string | null; status?: string | null }
 
 export interface MarketBuildInput {
@@ -43,7 +43,7 @@ const NON_ROSTER_SLOTS = new Set(["BN", "IR", "TAXI"]);
 
 export function deriveRules(rules: MarketBuildInput["rules"], rosters: RosterInput[]): LeagueAcquisitionRules {
   const s = rules.settings; const pos = rules.roster_positions;
-  if (rules.source.status === "UNAVAILABLE" || !s || !pos) return { system: "UNKNOWN", faab_budget: null, faab_min_bid: null, waiver_clear_days: null, waiver_day_of_week: null, reserve_slots: null, taxi_slots: null, startable_positions: [] };
+  if (rules.source.status === "UNAVAILABLE" || !s || !pos) return { system: "UNKNOWN", faab_budget: null, faab_min_bid: null, waiver_clear_days: null, waiver_day_of_week: null, priority_rule: null, daily_waivers: null, daily_waivers_hour: null, reserve_slots: null, taxi_slots: null, startable_positions: [] };
   const wt = s.waiver_type; const system = wt === 2 ? "FAAB" : wt === 0 || wt === 1 ? "PRIORITY" : "UNKNOWN";
   const num = (k: string): number | null => (typeof s[k] === "number" && Number.isFinite(s[k]) ? (s[k] as number) : null);
   void rosters;
@@ -52,6 +52,7 @@ export function deriveRules(rules: MarketBuildInput["rules"], rosters: RosterInp
     // A stray waiver_budget in a priority league is NOT a currency (Devoted carries budget 1000 with reverse-standings waivers).
     faab_budget: system === "FAAB" ? (num("waiver_budget") ?? null) : null, faab_min_bid: system === "FAAB" ? (num("waiver_bid_min") ?? 0) : null,
     waiver_clear_days: num("waiver_clear_days"), waiver_day_of_week: num("waiver_day_of_week"),
+    priority_rule: system === "PRIORITY" ? (wt === 0 ? "ROLLING" : "REVERSE_STANDINGS") : null, daily_waivers: num("daily_waivers") == null ? null : num("daily_waivers") === 1, daily_waivers_hour: num("daily_waivers_hour"),
     reserve_slots: num("reserve_slots") ?? pos.filter((p) => p === "IR").length, taxi_slots: num("taxi_slots") ?? pos.filter((p) => p === "TAXI").length,
     startable_positions: startablePositionsFor(pos),
   };
@@ -94,6 +95,7 @@ export function buildMarketSnapshot(input: MarketBuildInput): MarketSnapshot {
   if (!lockMap) add({ code: "GAME_LOCK_UNVERIFIABLE", severity: "LIMITING", detail: "the NFL schedule for this week could not be read; game locks are UNKNOWN (not assumed open)" });
   add({ code: "PENDING_CLAIMS_NOT_EXPOSED", severity: "INFO", detail: PROVIDER_LIMITATIONS.PENDING_CLAIMS_NOT_EXPOSED! });
   add({ code: "WAIVER_CLEAR_TIME_NOT_EXPOSED", severity: "INFO", detail: PROVIDER_LIMITATIONS.WAIVER_CLEAR_TIME_NOT_EXPOSED! });
+  add({ code: "GAME_LOCK_ADD_RULE_NOT_PUBLISHED", severity: "INFO", detail: PROVIDER_LIMITATIONS.GAME_LOCK_ADD_RULE_NOT_PUBLISHED! });
 
   /* ---- ownership (authoritative, from rosters) ---- */
   const src = (klass: "PROVIDER_LIVE" | "PROVIDER_DERIVED" | "INFERRED", name: string, s: SourceReport) => ({ provider: "sleeper" as const, source_class: klass, freshness: freshness(name, s) });
@@ -153,7 +155,9 @@ export function buildMarketSnapshot(input: MarketBuildInput): MarketSnapshot {
   }).sort((a, b) => a.roster_id - b.roster_id);
   const acqStatus = !rostersOk || !rulesOk ? "UNAVAILABLE" : rules.system === "FAAB" && teamsCtx.some((t) => t.faab_remaining == null) ? "PARTIAL" : "OK";
   if (rules.system === "FAAB" && acqStatus !== "OK") add({ code: "FAAB_CONTEXT_UNAVAILABLE", severity: "LIMITING", detail: "FAAB balances could not be established for every team; availability is unaffected" });
-  const acquisition: AcquisitionContext = { rules, teams: teamsCtx, status: acqStatus, context_id: hashOf({ v: MARKET_STATE_VERSION, rules, teams: teamsCtx.map((t) => [t.team_id, t.faab_remaining, t.waiver_priority]) }) };
+  // Visible PROCESSED winning bids (information only; never inferred, never a hidden bid). Excluded from context_id: a new winning bid is a completed add, which already changes ownership.
+  const visible_winning_bids = txOk ? input.transactions.entries.filter((t) => t.status === "complete" && t.type === "waiver" && t.bid != null && t.status_updated != null).flatMap((t) => t.adds.map((id) => ({ player_key: `sleeper:${id}`, bid: t.bid as number, roster_id: t.roster_id ?? null, at: iso(t.status_updated as number) }))).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : a.player_key < b.player_key ? -1 : 1)).slice(0, 50) : [];
+  const acquisition: AcquisitionContext = { rules, teams: teamsCtx, visible_winning_bids, status: acqStatus, context_id: hashOf({ v: MARKET_STATE_VERSION, rules, teams: teamsCtx.map((t) => [t.team_id, t.faab_remaining, t.waiver_priority]) }) };
 
   /* ---- identities (request id / source snapshot id are carried, never hashed) ---- */
   players.sort((a, b) => (a.player_key < b.player_key ? -1 : 1));

@@ -45,6 +45,11 @@ export const poolPositionView = (pool: FreeAgentPool, position: string): PlayerM
 /** Availability-only support for replacement-level queries: how many acquirable players exist at a position, and who they are (unranked). */
 export const replacementAvailability = (pool: FreeAgentPool, position: string): { position: string; available: number; player_keys: string[] } => ({ position, available: pool.by_position[position]?.length ?? 0, player_keys: pool.by_position[position] ?? [] });
 
+/** Availability-only supply per position (positional depth + scarcity as available-per-team). Valuation stays with the consumer. */
+export function positionalSupply(pool: FreeAgentPool, teamCount: number): Array<{ position: string; available: number; per_team: number | null }> {
+  return Object.entries(pool.by_position).sort(([a], [b]) => (a < b ? -1 : 1)).map(([position, keys]) => ({ position, available: keys.length, per_team: teamCount > 0 ? Math.round((keys.length / teamCount) * 100) / 100 : null }));
+}
+
 export interface ManagerAcquisitionContext {
   team_id: string; system: MarketSnapshot["acquisition"]["rules"]["system"];
   faab_remaining: number | null; waiver_priority: number | null; roster_size: number; roster_limit: number | null; open_roster_slots: number | null; requires_drop: boolean | null;

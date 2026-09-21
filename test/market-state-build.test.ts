@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildMarketSnapshot } from "@/lib/market-state/build";
-import { buildFreeAgentPool, consumerActionability, managerAcquisitionContext, poolPositionView, replacementAvailability } from "@/lib/market-state/pool";
+import { buildFreeAgentPool, consumerActionability, managerAcquisitionContext, poolPositionView, positionalSupply, replacementAvailability } from "@/lib/market-state/pool";
 import { validateMarketSnapshot } from "@/lib/market-state/integrity";
 import { AS_OF, FAAB_SETTINGS, PRIORITY_SETTINGS, POSITIONS, agoMs, badSrc, marketInput, okSrc, up } from "./fixtures/market";
 
@@ -115,7 +115,19 @@ test("pool: deterministic product, positional views over the same snapshot, avai
 });
 
 test("unsupported provider limits are always disclosed; pending claims and clear time are never asserted", () => {
-  const s = buildMarketSnapshot(marketInput()); assert.equal(s.limitations.length, 2); assert.ok(s.readiness.reasons.some((r) => r.code === "PENDING_CLAIMS_NOT_EXPOSED"));
+  const s = buildMarketSnapshot(marketInput()); assert.equal(s.limitations.length, 3); assert.ok(s.readiness.reasons.some((r) => r.code === "PENDING_CLAIMS_NOT_EXPOSED"));
   assert.ok(s.players.every((p) => p.status !== "WAIVER_CLAIM_PENDING" && p.waiver_clears_at === null));
   void FAAB_SETTINGS; void AS_OF; void up;
+});
+
+test("acquisition context: priority rule, daily-waiver flags, visible PROCESSED winning bids (never inferred), positional supply", () => {
+  const r = buildMarketSnapshot(marketInput({ rules: { source: okSrc(), settings: { ...PRIORITY_SETTINGS, waiver_type: 0, daily_waivers: 1, daily_waivers_hour: 3 }, roster_positions: POSITIONS } }));
+  assert.equal(r.acquisition.rules.priority_rule, "ROLLING"); assert.equal(r.acquisition.rules.daily_waivers, true); assert.equal(r.acquisition.rules.daily_waivers_hour, 3);
+  assert.equal(buildMarketSnapshot(marketInput({ rules: { source: okSrc(), settings: PRIORITY_SETTINGS, roster_positions: POSITIONS } })).acquisition.rules.priority_rule, "REVERSE_STANDINGS"); assert.equal(buildMarketSnapshot(marketInput()).acquisition.rules.priority_rule, null, "FAAB league has no priority rule");
+  const tx = (o: object) => ({ type: "waiver", status: "complete", status_updated: agoMs(3), adds: ["31"], drops: [], bid: 17, roster_id: 2, ...o });
+  const s = buildMarketSnapshot(marketInput({ transactions: { source: okSrc(), entries: [tx({}), tx({ status: "failed", bid: 40 }), tx({ type: "free_agent", bid: null }), tx({ bid: null, adds: ["30"] })] as never } }));
+  assert.deepEqual(s.acquisition.visible_winning_bids.map((b) => [b.player_key, b.bid]), [["sleeper:31", 17]], "only processed, winning, visible bids; failed/pending/hidden are never listed");
+  assert.equal(buildMarketSnapshot(marketInput({ transactions: { source: badSrc(), entries: [] } })).acquisition.visible_winning_bids.length, 0);
+  const pool = buildFreeAgentPool(buildMarketSnapshot(marketInput())); const sup = positionalSupply(pool, 12); assert.equal(sup.find((x) => x.position === "DEF")?.available, 1); assert.equal(sup.find((x) => x.position === "RB")?.per_team, 0.08);
+  assert.ok(buildMarketSnapshot(marketInput()).readiness.reasons.some((x) => x.code === "GAME_LOCK_ADD_RULE_NOT_PUBLISHED" && x.severity === "INFO"));
 });
