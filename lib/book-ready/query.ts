@@ -77,10 +77,20 @@ async function matchup2Player(topic: "coverage" | "pass_area" | "pressure" | "ru
   const { buildMatchupContext } = await import("@/lib/matchup2/context"); const { evaluatePlayer } = await import("@/lib/matchup2/engine"); const { matchup2PlayerEvidence, MATCHUP2_SURFACE } = await import("./families/matchup2"); const { normalizeTeam } = await import("@/lib/matchup2/stats");
   const src = await matchup2Source(); const pl = src.resolvePlayer(p.gsis_id!); const un = (why: string) => [notAvailable({ surface: MATCHUP2_SURFACE, topic: `matchup2.player.${topic}`, metric: "*", subject: { kind: "PLAYER", id: p.gsis_id! }, deployment: { state: "SHADOW_ONLY", may_influence_production: false }, freshness: { as_of: null, through_week: null, generated_at: null }, temporal: { season: null, week: null, through_week: null, as_of: null, generated_at: null, source_cutoff: null, point_kind: "CURRENT", as_of_kind: "CURRENT_SNAPSHOT", week_state: null, snapshot_id: null, player_team_temporal_identity: PHASE7 }, lineage: { surface_version: null }, source: { built_in: { namespace: "INTELLIGENCE_MODERNIZATION_PHASE", phase: "5" } }, limitations: [why] }, "UNAVAILABLE", why)];
   if (!pl) return un(`player '${p.gsis_id}' is not in the Player-Scheme directory`);
-  const week = p.week ? Number(p.week) : Math.max(1, Number((await (await import("@/lib/sleeper/client")).getNflState().catch(() => null))?.week ?? 1));
-  let opp = normalizeTeam(p.opponent); if (!opp && pl.team) { try { const { loadFullSchedule } = await import("@/lib/schedule-planning/schedule"); const fs = await loadFullSchedule(src.season(), week, 18); opp = fs.opponentByWeek.get(week)?.[pl.team] ?? null; } catch { opp = null; } }
+  const nowWeek = Math.max(1, Number((await (await import("@/lib/sleeper/client")).getNflState().catch(() => null))?.week ?? 1)); const week = p.week ? Number(p.week) : nowWeek;
+  // Phase 7 (Step 16): a HISTORICAL week must never be evaluated with today's/the directory's team. It requires temporal team resolution (effective team at that game);
+  // membership unavailable / ambiguous / conflicting => an explicit unavailable state. The CURRENT week is unchanged (behavior identical to Phase 5).
+  let temporalTeam: string | null = null; let temporalOpp: string | null = null;
+  if (week < nowWeek) {
+    const { resolveOpponentAt, scheduleFromObservations } = await import("@/lib/temporal-identity/membership"); const { loadRoleParticipation } = await import("@/lib/temporal-identity/sources");
+    const obs = loadRoleParticipation(); const r = resolveOpponentAt(p.gsis_id!, obs, scheduleFromObservations(obs), { kind: "GAME", season: src.season(), week });
+    if (r.status !== "RESOLVED" || !r.team || !r.opponent) return un(`historical week ${week}: the player's NFL team at that time is not established by game-level evidence (${r.membership.status}); the current/directory team is never substituted. ${r.reasons.join(" ")}`);
+    const asked = normalizeTeam(p.opponent); if (asked && asked !== r.opponent) return un(`historical week ${week}: requested opponent ${asked} conflicts with the schedule opponent ${r.opponent} for his effective team ${r.team}`);
+    temporalTeam = r.team; temporalOpp = r.opponent;
+  }
+  let opp = temporalOpp ?? normalizeTeam(p.opponent); if (!opp && pl.team) { try { const { loadFullSchedule } = await import("@/lib/schedule-planning/schedule"); const fs = await loadFullSchedule(src.season(), week, 18); opp = fs.opponentByWeek.get(week)?.[pl.team] ?? null; } catch { opp = null; } }
   if (!opp) return un(`opponent for ${pl.team ?? "player"} in week ${week} could not be established (pass opponent=<TEAM>, or the team is on bye / schedule unavailable)`);
-  const ctx = buildMatchupContext(src, { offense_team: pl.team ?? "UNK", defense_team: opp, week }); const ev = evaluatePlayer(src, ctx, p.gsis_id!); if ("error" in ev) return un(ev.detail);
+  const ctx = buildMatchupContext(src, { offense_team: temporalTeam ?? pl.team ?? "UNK", defense_team: opp, week }); const ev = evaluatePlayer(src, ctx, p.gsis_id!); if ("error" in ev) return un(ev.detail);
   return matchup2PlayerEvidence(topic, ev);
 }
 async function matchup2Defense(topic: "coverage" | "front" | "pressure" | "explosive", p: Record<string, string>): Promise<EvidenceBlock[]> {
@@ -139,6 +149,16 @@ export const TOPICS: Record<string, TopicSpec> = {
     const st = await buildCanonicalLeagueState(p.league!, { reportPersistence: false }); const lg = st.snapshot?.league;
     if (!lg) return [notAvailable({ surface: SCORING_SURFACE, topic: "scoring.league_contract", metric: "*", subject: { kind: "LEAGUE", id: p.league!, league_slug: p.league! }, deployment: { state: "SHARED_DESCRIPTIVE", may_influence_production: false }, temporal: { season: Number(p.season ?? 2026), week: null, through_week: null, as_of: null, generated_at: null, source_cutoff: null, point_kind: "CURRENT", as_of_kind: "CURRENT_SNAPSHOT", week_state: null, snapshot_id: null, player_team_temporal_identity: PHASE7 }, freshness: { as_of: null, through_week: null, generated_at: null }, lineage: { surface_version: "scoring-contract-2026.1", content_identity: "unavailable", canonical: {}, depends_on: [] }, source: { built_in: { namespace: "INTELLIGENCE_MODERNIZATION_PHASE", phase: "6" }, source_data: "league scoring settings" }, limitations: [] }, "UNAVAILABLE", `league '${p.league}' scoring settings could not be established (${st.code ?? "league_state_unavailable"})`)];
     return scoringContractEvidence({ league_slug: p.league!, season: lg.season, raw_scoring: lg.raw_scoring });
+  } },
+  // ---- Phase 7: player NFL-team MEMBERSHIP at a time (identity is not membership). gsis_id required; `week` given => that game (historical-safe), omitted => now.
+  "player.team_membership": { surface: "temporal-team-membership", cost: "REQUEST_SCOPED_BUILD", required: ["gsis_id"], run: async (p) => {
+    const { resolvePlayerTeamAt, resolveOpponentAt, scheduleFromObservations } = await import("@/lib/temporal-identity/membership"); const { loadMembershipEvidence } = await import("@/lib/temporal-identity/evidence-loader"); const { teamMembershipEvidence } = await import("./families/team-membership");
+    const { getNflState } = await import("@/lib/sleeper/client"); const st = await getNflState().catch(() => null); const season = Number(p.season ?? st?.season ?? 2026); const nowWeek = Math.max(1, Number(st?.week ?? 1));
+    const query = p.week ? ({ kind: "GAME", season, week: Number(p.week) } as const) : ({ kind: "CURRENT", season, week: nowWeek } as const);
+    const obs = await loadMembershipEvidence({ gsis_id: p.gsis_id!, season, sleeper_id: p.sleeper_id ?? null, current: query.kind === "CURRENT" });
+    let schemeTeam: string | null | undefined; try { const { fileMatchupSource } = await import("@/lib/matchup2/source-files"); schemeTeam = fileMatchupSource().resolvePlayer(p.gsis_id!)?.team ?? null; } catch { schemeTeam = undefined; }
+    const r = resolvePlayerTeamAt(p.gsis_id!, obs, query); const opp = query.kind === "GAME" ? resolveOpponentAt(p.gsis_id!, obs, scheduleFromObservations(obs), query) : null;
+    return teamMembershipEvidence(r, { opponent: opp, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
   } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };

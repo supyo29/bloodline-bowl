@@ -43,7 +43,7 @@ const rank = (s: MembershipSource): number => SOURCE_PRIORITY.indexOf(s);
 
 export type MembershipStatus =
   | "SUPPORTED_GAME" | "SUPPORTED_BRACKETED" | "SUPPORTED_SEASON" | "SUPPORTED_CURRENT"
-  | "AMBIGUOUS_TRANSITION" | "CONFLICT" | "NO_TEAM_OBSERVED" | "NO_EVIDENCE" | "CURRENT_ONLY_OUT_OF_SCOPE";
+  | "AMBIGUOUS_TRANSITION" | "BRACKET_GAP_TOO_LONG" | "CONFLICT" | "NO_TEAM_OBSERVED" | "NO_EVIDENCE" | "CURRENT_ONLY_OUT_OF_SCOPE";
 export const RESOLVED_STATUSES: MembershipStatus[] = ["SUPPORTED_GAME", "SUPPORTED_BRACKETED", "SUPPORTED_SEASON", "SUPPORTED_CURRENT"];
 export const isResolved = (s: MembershipStatus): boolean => RESOLVED_STATUSES.includes(s);
 
@@ -54,6 +54,11 @@ export interface TeamResolution {
   team: string | null; granularity: ResolvedGranularity | null; evidence_class: EvidenceClass | null;
   candidates: Candidate[]; selected_by_policy: string | null; gap_weeks: number | null; reasons: string[]; evidence_ids: string[]; policy: string;
 }
+/** Same-team bracketing is inferred only across a gap of at most this many missing weeks. DATA-JUSTIFIED (leave-one-out over all 103,096 interior games in the real 2019-2025 game-log source):
+ *  gaps of 1-3 weeks: 92,952 inferences, 0 wrong; gaps of 4+ weeks: 9,348 inferences, 2 wrong (real A->B->A sequences: DeVante Bausby DEN-ARI-DEN 2020, DeAndre Houston-Carson HOU-BAL-HOU 2023).
+ *  Callers may raise it explicitly; the default is conservative. */
+export const DEFAULT_MAX_BRACKET_GAP_WEEKS = 3;
+export interface ResolveOptions { maxBracketGapWeeks?: number }
 export type TemporalQuery = { kind: "GAME"; season: number; week: number } | { kind: "CURRENT"; season: number; week: number };
 
 const POLICY = `GAME_OBSERVED exact > WEEK_BRACKETED (same team both sides, same season) > SEASON_MEMBERSHIP > (CURRENT queries only) PROVIDER_CURRENT > CROSSWALK_LATEST_TEAM(stale-risk); priority ${SOURCE_PRIORITY.join(" > ")}; no cross-season inference`;
@@ -70,7 +75,8 @@ const done = (b: ReturnType<typeof base>, status: MembershipStatus, team: string
  * Resolve which NFL team `gsis_id` belonged to at `query`. `observations` may contain any player's rows (filtered by gsis_id here).
  * Deterministic: input order does not matter.
  */
-export function resolvePlayerTeamAt(gsisId: string, observations: readonly TeamObservation[], query: TemporalQuery): TeamResolution {
+export function resolvePlayerTeamAt(gsisId: string, observations: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions = {}): TeamResolution {
+  const maxGap = opts.maxBracketGapWeeks ?? DEFAULT_MAX_BRACKET_GAP_WEEKS;
   const b = base(gsisId, query); const mine = observations.filter((o) => o.gsis_id === gsisId);
   const games = mine.filter((o) => o.granularity === "GAME_OBSERVED" && o.season === query.season && o.week != null);
   const ids = (xs: TeamObservation[]) => xs.map((x) => x.source_record_id).sort();
@@ -105,6 +111,7 @@ export function resolvePlayerTeamAt(gsisId: string, observations: readonly TeamO
   const after = games.filter((o) => (o.week as number) > query.week).sort((a, c) => (a.week as number) - (c.week as number))[0];
   if (before && after) {
     const gap = (after.week as number) - (before.week as number) - 1;
+    if (before.team && before.team === after.team && gap > maxGap) return done(b, "BRACKET_GAP_TOO_LONG", null, "WEEK_BRACKETED", "INFERRED_BETWEEN_OBSERVATIONS", [`same team (${before.team}) at week ${before.week} and week ${after.week}, but ${gap} missing weeks exceeds the ${maxGap}-week inference limit (real audit: 0 wrong in 92,952 gaps of 1-3 weeks; 2 wrong in 9,348 longer gaps); membership in week ${query.week} is not asserted`], { gap_weeks: gap, candidates: candidatesOf([before, after], true), evidence_ids: ids([before, after]) });
     if (before.team && before.team === after.team) return done(b, "SUPPORTED_BRACKETED", before.team, "WEEK_BRACKETED", "INFERRED_BETWEEN_OBSERVATIONS", [`no game observed in week ${query.week} (bye / inactive); same team (${before.team}) at week ${before.week} and week ${after.week}`], { gap_weeks: gap, candidates: candidatesOf([before, after], true), evidence_ids: ids([before, after]) });
     return done(b, "AMBIGUOUS_TRANSITION", null, "WEEK_BRACKETED", "INFERRED_BETWEEN_OBSERVATIONS", [`team before (${before.team ?? "none"}, week ${before.week}) differs from team after (${after.team ?? "none"}, week ${after.week}); the change point lies in weeks ${before.week}–${after.week} and is not located by any source`], { gap_weeks: gap, candidates: candidatesOf([before, after], true), evidence_ids: ids([before, after]) });
   }
@@ -131,8 +138,8 @@ export interface OpponentResolution { status: "RESOLVED" | "BYE" | "UNAVAILABLE"
  * player + EFFECTIVE team at game time + schedule -> opponent. NEVER player + current team + historical week.
  * An ambiguous / conflicting / unsupported membership makes the opponent UNAVAILABLE (with the reason) — it does not degrade to a guess.
  */
-export function resolveOpponentAt(gsisId: string, observations: readonly TeamObservation[], schedule: ScheduleSource, query: TemporalQuery): OpponentResolution {
-  const m = resolvePlayerTeamAt(gsisId, observations, query);
+export function resolveOpponentAt(gsisId: string, observations: readonly TeamObservation[], schedule: ScheduleSource, query: TemporalQuery, opts: ResolveOptions = {}): OpponentResolution {
+  const m = resolvePlayerTeamAt(gsisId, observations, query, opts);
   if (!isResolved(m.status) || !m.team) return { status: "UNAVAILABLE", team: null, opponent: null, membership: m, reasons: [`team membership not established (${m.status}); opponent not derived`, ...m.reasons] };
   const s = schedule.opponentOf(m.team, query.season, query.week);
   if (s.kind === "GAME") return { status: "RESOLVED", team: m.team, opponent: s.opponent, membership: m, reasons: [`${m.team} played ${s.opponent} in ${query.season} week ${query.week}`] };

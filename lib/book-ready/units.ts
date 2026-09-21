@@ -81,6 +81,7 @@ const REGISTRY: Record<string, UnitSpec> = {
   "matchup2.count": U({ kind: "count", display_unit: "plays", raw_unit: "plays", valid_range: [0, null], may_exceed_one: true, note: "a COUNT — never a fraction" }),
   "scoring.points_per_unit": U({ kind: "points", display_unit: "fantasy points per stat unit", raw_unit: "league scoring multiplier", valid_range: null, may_exceed_one: true, note: "signed; the league's own multiplier for one unit of the stat (e.g. per yard, per reception)" }),
   "scoring.count": count("rules"),
+  "temporal.count": count("count"),
   "category": U({ kind: "categorical", display_unit: "category", raw_unit: "source-native label", valid_range: null, may_exceed_one: false }),
 };
 

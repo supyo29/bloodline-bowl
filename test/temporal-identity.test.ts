@@ -2,12 +2,12 @@
  * Phase 7 — Temporal Identity / Team Membership. IDENTITY IS NOT MEMBERSHIP.
  * Real-data cases come from test/fixtures/temporal-real-movers.json (verbatim Supabase player_lab_game_logs rows around real transactions); nothing is hard-coded per player.
  */
-import { describe, it, test } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { normalizeTeamCode, isNoTeamMarker, CANONICAL_TEAMS } from "@/lib/canonical/team-codes";
 import { normalizeTeam } from "@/lib/matchup2/stats";
-import { observation, resolvePlayerTeamAt, resolveOpponentAt, scheduleFromObservations, gameRowConsistency, isResolved, SOURCE_PRIORITY, type TeamObservation, type TemporalQuery } from "@/lib/temporal-identity/membership";
+import { observation, DEFAULT_MAX_BRACKET_GAP_WEEKS, resolvePlayerTeamAt, resolveOpponentAt, scheduleFromObservations, gameRowConsistency, isResolved, SOURCE_PRIORITY, type TeamObservation, type TemporalQuery } from "@/lib/temporal-identity/membership";
 import { fromGameLogRows, fromRoleParticipationCsv, providerCurrent, crosswalkSnapshot, type GameLogRow } from "@/lib/temporal-identity/sources";
 import { identityAliases, relateIdentities, identityLinks } from "@/lib/temporal-identity/identity-links";
 import { PlayerCrosswalk, NoCrosswalk, type CrosswalkSource } from "@/lib/canonical/players";
@@ -61,6 +61,21 @@ describe("offseason changes and season boundaries: no cross-season inference", (
   });
 });
 
+describe("bracket inference is capped by measured evidence", () => {
+  it("default cap is 3 weeks: Bell 2020 weeks 2-4 (gap 3) inferred; Hardman 2023 weeks 12-17 (gap 6) is BRACKET_GAP_TOO_LONG, unresolved, no opponent", () => {
+    assert.equal(DEFAULT_MAX_BRACKET_GAP_WEEKS, 3); assert.equal(at(ID.bell, 2020, 3).status, "SUPPORTED_BRACKETED");
+    const r = at(ID.hardman, 2025, 13); assert.equal(r.status, "NO_EVIDENCE", "2025 has only weeks 11,16,20; week 13 sits inside a 4-week gap");
+    const long = at(ID.hardman, 2023, 14); assert.equal(long.status, "BRACKET_GAP_TOO_LONG"); assert.equal(long.team, null); assert.equal(long.gap_weeks, 6); assert.equal(isResolved(long.status), false);
+    assert.equal(resolveOpponentAt(ID.hardman, OBS, scheduleFromObservations(OBS), G(2023, 14)).status, "UNAVAILABLE");
+  });
+  it("a caller may explicitly raise the cap (and gets the inferred label + gap back)", () => { const r = at(ID.hardman, 2023, 14, OBS); const lax = resolvePlayerTeamAt(ID.hardman, OBS, G(2023, 14), { maxBracketGapWeeks: 10 }); assert.equal(r.status, "BRACKET_GAP_TOO_LONG"); assert.equal(lax.status, "SUPPORTED_BRACKETED"); assert.equal(lax.team, "KC"); assert.equal(lax.gap_weeks, 6); });
+  it("the two real A->B->A sequences are exactly the class the cap excludes (gap >= 4)", () => {
+    const mk = (g: string, s: number, w: number, t: string) => observation({ gsis_id: g, season: s, week: w, raw_team: t, source: "GAME_LOG", granularity: "GAME_OBSERVED", source_record_id: `${g}:${w}` });
+    const bausby = [mk("b", 2020, 6, "DEN"), mk("b", 2020, 12, "DEN")]; assert.equal(resolvePlayerTeamAt("b", bausby, G(2020, 9)).status, "BRACKET_GAP_TOO_LONG", "would have been WRONG (he was on ARI in week 9)");
+    const hc = [mk("h", 2023, 2, "HOU"), mk("h", 2023, 9, "HOU")]; assert.equal(resolvePlayerTeamAt("h", hc, G(2023, 8)).status, "BRACKET_GAP_TOO_LONG", "would have been WRONG (he was on BAL in week 8)");
+  });
+});
+
 describe("conflicts are structured, never hidden", () => {
   const extra = observation({ gsis_id: ID.cmc, season: 2022, week: 7, raw_team: "CAR", opponent: "KC", source: "ROLE_PARTICIPATION", granularity: "GAME_OBSERVED", source_record_id: "role:2022_07:cmc" });
   it("two sources disagree on the same game: CONFLICT, both candidates listed with sources, policy names one for lineage but no team is returned to join on", () => {
@@ -102,12 +117,12 @@ describe("determinism and Role participation adapter", () => {
 
 describe("real-data validators", () => {
   it("LEAVE-ONE-OUT on 252 real rows: hide each interior game, resolve it from its neighbours — never a WRONG team (it is either correct or honestly AMBIGUOUS)", () => {
-    let correct = 0, ambiguous = 0, wrong = 0, oneSided = 0;
+    let correct = 0, ambiguous = 0, wrong = 0, oneSided = 0, tooLong = 0;
     for (const r of fx.rows) {
       const rest = OBS.filter((o) => !(o.gsis_id === r.gsis_id && o.season === r.season && o.week === r.week)); const res = resolvePlayerTeamAt(r.gsis_id, rest, G(r.season, r.week));
-      if (res.status === "SUPPORTED_BRACKETED") (res.team === normalizeTeamCode(r.team) ? correct++ : wrong++); else if (res.status === "AMBIGUOUS_TRANSITION") ambiguous++; else if (res.status === "NO_EVIDENCE") oneSided++; else wrong++;
+      if (res.status === "SUPPORTED_BRACKETED") { if (res.team === normalizeTeamCode(r.team)) correct++; else wrong++; } else if (res.status === "AMBIGUOUS_TRANSITION") ambiguous++; else if (res.status === "BRACKET_GAP_TOO_LONG") tooLong++; else if (res.status === "NO_EVIDENCE") oneSided++; else wrong++;
     }
-    assert.equal(wrong, 0, `bracket inference produced ${wrong} wrong teams`); assert.ok(correct > 150, `correct=${correct}`); assert.ok(ambiguous >= 1, "true transitions surface as AMBIGUOUS"); assert.equal(correct + ambiguous + oneSided, fx.rows.length);
+    assert.equal(wrong, 0, `bracket inference produced ${wrong} wrong teams`); assert.ok(correct > 100, `correct=${correct}`); assert.ok(ambiguous >= 1, "true transitions surface as AMBIGUOUS"); assert.equal(correct + ambiguous + oneSided + tooLong, fx.rows.length);
   });
   it("row/schedule consistency: every real game row agrees with the schedule derived from all rows", () => { const s = scheduleFromObservations(OBS); for (const o of OBS) assert.equal(gameRowConsistency(o, s), "CONSISTENT"); });
 });

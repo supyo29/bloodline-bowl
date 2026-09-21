@@ -1597,6 +1597,93 @@
         ]
       },
       "phase_refs": null
+    },
+    {
+      "id": "temporal-team-membership",
+      "name": "Temporal player-team membership (identity is not membership)",
+      "owning_module": "lib/temporal-identity",
+      "status": [
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "descriptive evidence model: which NFL club a player belonged to at a time, with granularity, source, evidence class, candidates and policy; resolves conflicts/ambiguity explicitly and never substitutes today's team for a past time",
+      "deployment": "SHARED_DESCRIPTIVE; feeds the Book-Ready topic and the Matchup 2.0 historical-week guard only. The crosswalk precedence fix (observed provider team wins) lives in lib/canonical/players.ts. No projection, scoring or matchup weight is affected.",
+      "builder": {
+        "command": null,
+        "entrypoints": [
+          "lib/temporal-identity/membership.ts",
+          "lib/temporal-identity/sources.ts",
+          "lib/temporal-identity/identity-links.ts",
+          "lib/canonical/team-codes.ts"
+        ]
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/temporal-identity/sources.ts",
+        "lib/persistence/supabase/team-membership-source.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "Supabase player_lab_game_logs (2019-2025, game-level team+opponent), Role participation (2026 wk1), provider-now (Sleeper player index), identity-table latest_team snapshot (stale-risk)",
+      "data_cutoff_field": null,
+      "confidence_semantics": "evidence class per resolution: OBSERVED / INFERRED_BETWEEN_OBSERVATIONS (gap-capped at 3 weeks by measured error) / SNAPSHOT_STALE_RISK; unresolved states are explicit",
+      "freshness_owner": "each source (game logs 2019-2025 static; Role participation refreshed with the Role build; provider-now at request time)",
+      "lineage_owner": "lib/temporal-identity/membership.ts (resolution identity over evidence ids + policy)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_7_TEMPORAL_IDENTITY.md"
+      ],
+      "tests": [
+        "test/temporal-identity.test.ts",
+        "test/temporal-identity-bookready.test.ts"
+      ],
+      "consumers": [
+        "book-ready",
+        "persistence"
+      ],
+      "notes": "Not modeled: depth chart, roster status, fantasy ownership, exact transaction dates (no transaction source). Book-Ready's player_team_temporal_identity marker still reads NOT_MODELED until the contract version is bumped at merge time.",
+      "book_ready": {
+        "query_topics": [
+          "player.team_membership"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "a membership that cannot be established (ambiguous transition, conflict, no evidence, current-only evidence for a past time) yields an UNAVAILABLE block with reasons and candidates",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "RECONSTRUCTABLE_AS_OF",
+          "source": "player_lab_game_logs (2019-2025) + Role participation (2026)",
+          "note": "game-level history exists for 2019-2025 and 2026 week 1; earlier seasons and exact transaction dates are not available"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "the scoring fingerprint (not a clock) identifies which contract applied; earlier contracts are not reconstructed"
+        },
+        "chart_ready": [
+          "table"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "request",
+          "snapshot_policy": "NONE",
+          "rationale": "pure resolution over the current evidence set; recomputed per request"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "7"
+          ]
+        ]
+      },
+      "phase_refs": null
     }
   ],
   "book_ready_contract_version": "book-ready-evidence-2026.1",
