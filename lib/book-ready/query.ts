@@ -133,6 +133,13 @@ export const TOPICS: Record<string, TopicSpec> = {
     const c = await buildSchedulePlanningContext(r.league.league_slug); const t = c.roster_index[r.manager.roster_id] != null ? c.teams[c.roster_index[r.manager.roster_id]!] : c.teams.find((x) => x.manager_slug === r.manager.manager_slug);
     return schedulePlanningEvidence({ planning_model_version: c.planning_model_version, lineage: c.lineage, team: t }, { ...decisionMeta(p), season: c.season, week: c.week });
   } },
+  // ---- Phase 6: the league's scoring contract — which of its rules actually reach valuation (and which do not).
+  "scoring.league_contract": { surface: "league-scoring-contract", cost: "REQUEST_SCOPED_BUILD", required: ["league"], run: async (p) => {
+    const { buildCanonicalLeagueState } = await import("@/lib/canonical/state"); const { scoringContractEvidence, SCORING_SURFACE } = await import("./families/scoring");
+    const st = await buildCanonicalLeagueState(p.league!, { reportPersistence: false }); const lg = st.snapshot?.league;
+    if (!lg) return [notAvailable({ surface: SCORING_SURFACE, topic: "scoring.league_contract", metric: "*", subject: { kind: "LEAGUE", id: p.league!, league_slug: p.league! }, deployment: { state: "SHARED_DESCRIPTIVE", may_influence_production: false }, temporal: { season: Number(p.season ?? 2026), week: null, through_week: null, as_of: null, generated_at: null, source_cutoff: null, point_kind: "CURRENT", as_of_kind: "CURRENT_SNAPSHOT", week_state: null, snapshot_id: null, player_team_temporal_identity: PHASE7 }, freshness: { as_of: null, through_week: null, generated_at: null }, lineage: { surface_version: "scoring-contract-2026.1", content_identity: "unavailable", canonical: {}, depends_on: [] }, source: { built_in: { namespace: "INTELLIGENCE_MODERNIZATION_PHASE", phase: "6" }, source_data: "league scoring settings" }, limitations: [] }, "UNAVAILABLE", `league '${p.league}' scoring settings could not be established (${st.code ?? "league_state_unavailable"})`)];
+    return scoringContractEvidence({ league_slug: p.league!, season: lg.season, raw_scoring: lg.raw_scoring });
+  } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };
 

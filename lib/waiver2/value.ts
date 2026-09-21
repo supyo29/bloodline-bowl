@@ -37,7 +37,7 @@ export function assessRole(ctx: WaiverContext, p: CanonicalPlayer): RoleAssessme
   const vol = PARAMS.team_volume.value; const comps: Component[] = []; let raw = 0; const confs: string[] = []; let persisted = 0;
   for (const d of DIMS) {
     const dim = d.get(prof); if (!dim) continue;
-    const ppo = d.kind === "target" ? ctx.ppo.target : ctx.ppo.carry; const v = d.kind === "target" ? vol.targets! : vol.carries!;
+    const pp = ctx.ppoFor(p.position); const ppo = d.kind === "target" ? pp.target : pp.carry; const v = d.kind === "target" ? vol.targets! : vol.carries!;
     if (dim.recent == null || dim.season == null) { comps.push({ key: `role.${d.key}`, label: `${d.label}: recent vs season`, value: null, unit: "points/week", status: "UNAVAILABLE", note: "recent or season value unavailable" }); continue; }
     const deltaShare = dim.recent - dim.season; const pts = deltaShare * v * ppo;
     const phi = PARAMS.role_persistence.value[dim.confidence] ?? 0.1; raw += pts; persisted += pts * phi; confs.push(dim.confidence);
@@ -55,13 +55,13 @@ function designation(ctx: WaiverContext, p: CanonicalPlayer): { label: string; p
   const key = s.startsWith("OUT") || s === "O" ? "OUT" : s.startsWith("IR") || s.includes("RESERVE") ? "IR" : s.startsWith("DOUB") || s === "D" ? "DOUBTFUL" : s.startsWith("QUES") || s === "Q" ? "QUESTIONABLE" : s.startsWith("PROB") ? "PROBABLE" : null;
   return key ? { label: key, play: t[key]! } : null;
 }
-function oppPointsFor(ctx: WaiverContext, team: string, unavailable: string[], candidateGsis: string): { points: number; residual: string | null; version: string | null; support: string | null } | null {
+function oppPointsFor(ctx: WaiverContext, team: string, unavailable: string[], candidateGsis: string, position: string | null | undefined): { points: number; residual: string | null; version: string | null; support: string | null } | null {
   const res = ctx.opp(team, unavailable); if (!res || !res.beneficiaries) return null;
-  const vol = PARAMS.team_volume.value; let pts = 0;
+  const vol = PARAMS.team_volume.value; let pts = 0; const pp = ctx.ppoFor(position);
   for (const b of res.beneficiaries) {
     if (b.beneficiary_gsis_id !== candidateGsis || b.expected_delta == null) continue;
-    if (b.dimension === "target_share") pts += b.expected_delta * vol.targets! * ctx.ppo.target;
-    else if (b.dimension === "rush_share") pts += b.expected_delta * vol.carries! * ctx.ppo.carry;
+    if (b.dimension === "target_share") pts += b.expected_delta * vol.targets! * pp.target;
+    else if (b.dimension === "rush_share") pts += b.expected_delta * vol.carries! * pp.carry;
   }
   const resid = res.residual?.reduce((s, r) => s + Math.max(0, r.structural_residual ?? 0), 0) ?? 0;
   return { points: round2(pts), residual: resid > 0 ? `${round3(resid)} unallocated opportunity share remains` : null, version: res.opportunity_propagation_version, support: res.scenario.support_level };
@@ -74,12 +74,12 @@ export function assessOpp(ctx: WaiverContext, p: CanonicalPlayer, role: RoleAsse
   const est = mates.map((m) => ({ m, d: designation(ctx, m) })).filter((x): x is { m: CanonicalPlayer; d: { label: string; play: number } } => !!x.d && x.d.play < 0.9);
   let counted = 0; const unavail: OppAssessment["unavailable"] = []; let resid: string | null = null; let ver: string | null = null; let sup: string | null = null; let anyEst = false;
   for (const { m, d } of est) {
-    const r = oppPointsFor(ctx, p.nfl_team, [m.identifiers.gsis_id!], gsis); if (!r) continue;
+    const r = oppPointsFor(ctx, p.nfl_team, [m.identifiers.gsis_id!], gsis, p.position); if (!r) continue;
     anyEst = true; counted += r.points * (1 - d.play); unavail.push({ player: m.full_name, designation: d.label, play_probability: d.play }); resid = r.residual ?? resid; ver = r.version; sup = r.support;
   }
   // the unweighted "if the team's lead player missed" payoff: reported, NEVER counted
   const lead = mates.map((m) => ({ m, prof: ctx.role(m) })).filter((x) => x.prof).sort((a, b) => ((b.prof!.rushing?.rush_share.season ?? 0) + (b.prof!.receiving?.target_share.season ?? 0)) - ((a.prof!.rushing?.rush_share.season ?? 0) + (a.prof!.receiving?.target_share.season ?? 0)))[0];
-  let cond = 0; if (lead && !est.some((e) => e.m === lead.m)) { const r = oppPointsFor(ctx, p.nfl_team, [lead.m.identifiers.gsis_id!], gsis); if (r) { cond = r.points; ver = ver ?? r.version; sup = sup ?? r.support; } }
+  let cond = 0; if (lead && !est.some((e) => e.m === lead.m)) { const r = oppPointsFor(ctx, p.nfl_team, [lead.m.identifiers.gsis_id!], gsis, p.position); if (r) { cond = r.points; ver = ver ?? r.version; sup = sup ?? r.support; } }
   void role;
   return { status: anyEst ? "ESTABLISHED" : "NOT_ESTABLISHED", condition: anyEst ? unavail.map((u) => `${u.player} ${u.designation}`).join("; ") : lead ? `no teammate designation establishes an absence; payoff shown only as "if ${lead.m.full_name} missed"` : null, unavailable: unavail, conditional_payoff_points: round2(Math.max(cond, anyEst ? counted : 0)), counted_points: round2(counted), residual_note: resid, version: ver, support_level: sup };
 }
@@ -196,7 +196,7 @@ export function realizedVsOpportunity(ctx: WaiverContext, p: CanonicalPlayer, ro
   if (!pts || !pts.length) return { status: "UNAVAILABLE", signal: "UNKNOWN", note: "no realized fantasy-point history was supplied; no expected-vs-realized claim is made (no expected-points model exists)" };
   if (!prof) return { status: "UNAVAILABLE", signal: "UNKNOWN", note: "no Role Intelligence profile to compare realized points against" };
   const vol = PARAMS.team_volume.value; let implied = 0; let any = false;
-  for (const d of DIMS) { const dim = d.get(prof); if (!dim || dim.season == null) continue; any = true; implied += dim.season * (d.kind === "target" ? vol.targets! * ctx.ppo.target : vol.carries! * ctx.ppo.carry); }
+  const ppp = ctx.ppoFor(p.position); for (const d of DIMS) { const dim = d.get(prof); if (!dim || dim.season == null) continue; any = true; implied += dim.season * (d.kind === "target" ? vol.targets! * ppp.target : vol.carries! * ppp.carry); }
   if (!any) return { status: "UNAVAILABLE", signal: "UNKNOWN", note: "no opportunity dimension to compare against" };
   const recent = pts.slice(-2).reduce((s, x) => s + x, 0) / Math.min(2, pts.length);
   if (recent > implied * 1.5 && role.persisted_points <= 0.25) return { status: "AVAILABLE", signal: "POINTS_ABOVE_ROLE", note: `recent ${round2(recent)} pts/g vs ~${round2(implied)} implied by season opportunity, with no role growth: a possible fluke` };

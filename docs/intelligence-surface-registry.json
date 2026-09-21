@@ -1507,6 +1507,96 @@
           ]
         ]
       }
+    },
+    {
+      "id": "league-scoring-contract",
+      "name": "League scoring contract (which scoring rules reach valuation)",
+      "owning_module": "lib/scoring",
+      "status": [
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "descriptive contract: per scoring rule, who supplies the statistical event in each layer (weekly projection, season projection, completed games, waiver role pricing) and the resulting support class (FULLY_PROPAGATED \u2026 UNSUPPORTED); never a valuation",
+      "deployment": "SHARED_DESCRIPTIVE contract; the derived-events materializer (lib/scoring/derived-events.ts) is consumed by weekly, season and waiver scoring, but the contract itself influences nothing and no matchup or projection weight exists",
+      "builder": {
+        "command": "npx tsx scripts/scoring-support-matrix.ts",
+        "entrypoints": [
+          "lib/scoring/support-contract.ts",
+          "lib/scoring/derived-events.ts"
+        ]
+      },
+      "served_artifacts": [
+        "docs/scoring-support-matrix.json",
+        "lib/scoring/data/observed-provider-keys.json"
+      ],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/scoring/support-contract.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "league scoring settings (canonical raw_scoring) classified against a snapshot of real Sleeper weekly-projection and actual-stat payloads",
+      "data_cutoff_field": null,
+      "confidence_semantics": "none: classification, not estimation. An unrecognized key is UNSUPPORTED, never assumed supported",
+      "freshness_owner": "lib/scoring/data/observed-provider-keys.json (dated snapshot; re-capture when the provider feed changes)",
+      "lineage_owner": "lib/canonical/scoring-fingerprint.ts (the one authoritative scoring identity)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_6_FANTASY_SCORING_CONTRACT_COMPLETENESS.md"
+      ],
+      "tests": [
+        "test/scoring-contract.test.ts",
+        "test/scoring-contract-bookready.test.ts"
+      ],
+      "consumers": [
+        "analytics",
+        "book-ready",
+        "projections",
+        "waiver2",
+        "weekly"
+      ],
+      "notes": "CATALOG COVERAGE != SCORING SUPPORT. Weekly K/D-ST values remain Sleeper standard points (league-agnostic) and this surface says so per rule. Threshold/tier rules are exact on completed games only.",
+      "book_ready": {
+        "query_topics": [
+          "scoring.league_contract"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "a league whose scoring settings cannot be established yields a single UNAVAILABLE block with the reason",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "the contract is recomputed from the league's current scoring settings; the scoring fingerprint (not a clock) identifies which contract applied, and earlier contracts are not reconstructed"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "the scoring fingerprint (not a clock) identifies which contract applied; earlier contracts are not reconstructed"
+        },
+        "chart_ready": [
+          "table"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "request",
+          "snapshot_policy": "NONE",
+          "rationale": "pure function of the league's current scoring settings and the dated provider-key snapshot; recomputed per request"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "6"
+          ]
+        ]
+      },
+      "phase_refs": null
     }
   ],
   "book_ready_contract_version": "book-ready-evidence-2026.1",
