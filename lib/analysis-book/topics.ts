@@ -15,7 +15,7 @@ export interface TopicMeta {
   cost: CostClass;
   est_ms: number;
   /** known standing caveats surfaced as researchability reasons */
-  flags?: Array<"SOURCE_CONFLICT_PARTIAL">;
+  flags?: Array<"SOURCE_CONFLICT_PARTIAL" | "PROVIDER_LIMIT_PARTIAL">;
   flag_reason?: string;
   /** what the topic is scoped to (used to reject nonsense bindings) */
   scope: "PLAYER" | "TEAM" | "QB" | "MANAGER" | "LEAGUE" | "SCENARIO";
@@ -41,7 +41,7 @@ export const TOPIC_META: Record<string, TopicMeta> = {
   "schedule_planning.team": { surface: "schedule-planning", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "market.state": { surface: "league-market-state", required: ["league"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 800, scope: "LEAGUE", history_capable: false, comparison_capable: false },
   "waiver2.actions": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
-  "waiver2.market": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "waiver2.market": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false, flags: ["PROVIDER_LIMIT_PARTIAL"], flag_reason: "provider-limited: pending claims and per-player waiver-clear times are not exposed by the provider, competitor need is structural only, and FAAB ranges are UNCALIBRATED shadow priors — this evidence answers only part of the question" },
   "waiver2.replacement": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "trade.evaluation": { surface: "trade-foundations", required: ["league", "manager"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 100, scope: "MANAGER", history_capable: false, comparison_capable: false },
 };

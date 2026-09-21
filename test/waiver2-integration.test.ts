@@ -60,7 +60,9 @@ test("ANALYSIS BOOK: waiver chapters are READY only when the registry-declared c
   const state = (sess: AnalysisBookSession, id: string) => sess.contents.find((x: ContentsChapter) => x.chapter_id === id)!;
   const withRegistry = (mut: (s: { id: string; book_ready: { capability_state: string } }) => void) => { const root = mkdtempSync(join(tmpdir(), "w2reg-")); for (const d of ["docs", "lib", "data"]) cpSync(d, join(root, d), { recursive: true }); const p = join(root, "docs/intelligence-surface-registry.json"); const reg = JSON.parse(readFileSync(p, "utf8")); for (const s of reg.surfaces) if (s.book_ready) mut(s); writeFileSync(p, JSON.stringify(reg)); return book(root); };
   const now = book();
-  for (const id of ids) { const c = state(now, id); assert.equal(c.researchability.state, "READY", `${id} is READY: both required surfaces are AVAILABLE in the registry`); assert.equal(c.researchability.cost, "EXPENSIVE"); assert.ok(c.needs.some((n) => n.topic?.startsWith("waiver2.")), id); }
+  for (const id of ids) { const c = state(now, id); assert.equal(c.researchability.cost, "EXPENSIVE"); assert.ok(c.needs.some((n) => n.topic?.startsWith("waiver2.")), id); }
+  for (const id of ["decision.replacement_value", "waiver.drop_cost"]) assert.equal(state(now, id).researchability.state, "READY", `${id}: its required evidence (availability-based replacement, roster drop cost) is fully supported`);
+  for (const id of ["waiver.availability_faab", "waiver.manager_competition"]) { const c = state(now, id); assert.equal(c.researchability.state, "PARTIAL", `${id} stays PARTIAL: pending claims / clear time unknown, FAAB uncalibrated`); assert.match(c.researchability.reasons.join(), /pending claims and per-player waiver-clear times are not exposed/); }
   assert.ok(state(now, "waiver.availability_faab").needs.some((n) => n.topic === "market.state" && n.role === "required"), "availability chapter now REQUIRES the market-state evidence");
   // downgrade path: a blocked/partial waiver surface makes every waiver chapter PARTIAL again
   const w2Partial = withRegistry((s) => { if (s.id === "waiver-intelligence-2") s.book_ready.capability_state = "PARTIAL"; });
@@ -68,6 +70,7 @@ test("ANALYSIS BOOK: waiver chapters are READY only when the registry-declared c
   // the availability chapter needs the market surface too: with only THAT partial, only that chapter degrades
   const mktPartial = withRegistry((s) => { if (s.id === "league-market-state") s.book_ready.capability_state = "PARTIAL"; });
   assert.equal(state(mktPartial, "waiver.availability_faab").researchability.state, "PARTIAL"); assert.equal(state(mktPartial, "waiver.drop_cost").researchability.state, "READY");
+  assert.match(state(mktPartial, "waiver.availability_faab").researchability.reasons.join(), /league-market-state: registry capability PARTIAL/, "the market surface state is independently reflected");
   assert.deepEqual(now.contents.map((c) => c.chapter_id), w2Partial.contents.map((c) => c.chapter_id), "identical chapter identities in every state");
 });
 test("ANALYSIS BOOK: opening a waiver chapter plans exactly one Waiver 2.0 request, marks it EXPENSIVE and warns that request-scoped topics each re-run the weekly build", () => {

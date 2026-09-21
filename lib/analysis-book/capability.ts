@@ -91,6 +91,7 @@ export function evaluateNeed(need: Need, s: BookSubject, snap: CapabilitySnapsho
   }
   if (need.comparisons && !meta.comparison_capable) reasons.push(`${need.topic}: serves no comparison populations through /api/evidence`);
   if (sc.capability_state === "PARTIAL" && !need.scenario) { flags.push("PARTIAL"); reasons.push(`${meta.surface}: registry capability PARTIAL; runtime availability is decided by its readiness contract`); }
+  if (meta.flags?.includes("PROVIDER_LIMIT_PARTIAL")) { flags.push("PARTIAL"); reasons.push(meta.flag_reason ?? `${need.topic}: provider-limited`); }
   if (sc.capability_state === "SOURCE_CONFLICT" || meta.flags?.includes("SOURCE_CONFLICT_PARTIAL")) { flags.push("SOURCE_CONFLICT"); reasons.push(meta.flag_reason ?? `${meta.surface}: source conflict`); }
   if (sc.capability_state === "EXPECTED_SOURCE_LAG") flags.push("SOURCE_LAG");
   const v = snap.vintage[meta.surface];
