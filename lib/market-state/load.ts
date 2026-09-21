@@ -10,6 +10,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { SLEEPER_ROOT_URL, fetchSleeper, getLeague, getLeagueRostersFresh, getLeagueTransactions, getPlayerCacheStatus, getPlayerIndex } from "@/lib/sleeper/client";
+import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import { findLeagueTarget } from "@/lib/leagues/registry";
 import type { RawRoster, RawTransaction } from "@/lib/sleeper/types";
 import type { SourceReport } from "./contract";
@@ -84,5 +85,7 @@ async function readAndBuild(leagueSlug: string, opts: LoadMarketOptions, f: Mark
   let schedule: MarketBuildInput["schedule"];
   try { schedule = { source: ok("PROVIDER_LIVE", asOf), games: await withTimeout(Promise.resolve(f.schedule(season || new Date().getUTCFullYear())), T, "schedule") }; } catch (e) { schedule = { source: down(e), games: null }; }
   void DAY_MS;
-  return buildMarketSnapshot({ ...base, season, rules, rosters, universe, transactions, schedule });
+  // the scoring fingerprint is derived from the league's own raw scoring settings (same pure function the canonical layer uses)
+  const fp = opts.scoring_fingerprint ?? (league ? scoringFingerprint(league.scoring_settings ?? {}) : null);
+  return buildMarketSnapshot({ ...base, scoring_fingerprint: fp, season, rules, rosters, universe, transactions, schedule });
 }

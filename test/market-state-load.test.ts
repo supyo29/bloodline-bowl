@@ -10,7 +10,7 @@ const idx = new Map([["10", { player_id: "10", full_name: "A", first_name: null,
 function fetchers(o: Partial<MarketFetchers> & { calls?: Record<string, number> } = {}): MarketFetchers {
   const calls = o.calls ?? {}; const c = (k: string) => { calls[k] = (calls[k] ?? 0) + 1; };
   return {
-    league: (async () => { c("league"); return { league_id: "x", season: "2026", settings: FAAB_SETTINGS, roster_positions: POSITIONS }; }) as never,
+    league: (async () => { c("league"); return { league_id: "x", season: "2026", settings: FAAB_SETTINGS, roster_positions: POSITIONS, scoring_settings: { rec: 1, pass_td: 4 } }; }) as never,
     rosters: (async () => { c("rosters"); return [{ roster_id: 1, players: ["10"], reserve: [], taxi: [], settings: { waiver_budget_used: 5, waiver_position: 2 } }]; }) as never,
     transactions: (async () => { c("tx"); return []; }) as never,
     players: (async () => { c("players"); return idx; }) as never,
@@ -23,7 +23,7 @@ test("loader reads once and memoizes; ownership and a free agent come out of rea
   const a = await loadMarketSnapshot("bloodline-bowl", { week: 3, now: () => NOW }, f); const b = await loadMarketSnapshot("bloodline-bowl", { week: 3, now: () => NOW }, f);
   assert.equal(a, b); assert.equal(calls.rosters, 1); assert.equal(calls.players, 1);
   assert.equal(a.players.find((p) => p.provider_player_id === "10")?.status, "ROSTERED"); assert.equal(a.players.find((p) => p.provider_player_id === "30")?.status, "AVAILABLE_FREE_AGENT");
-  assert.equal(a.acquisition.teams[0]!.faab_remaining, 95); assert.equal(a.readiness.pool_actionable, true);
+  assert.match(a.identities.scoring_fingerprint ?? "", /^scoring:v1:/, "scoring fingerprint derived from the league settings"); assert.equal(a.acquisition.teams[0]!.faab_remaining, 95); assert.equal(a.readiness.pool_actionable, true);
 });
 
 test("each thrown provider read degrades to a precise blocked snapshot; nothing throws", async () => {
