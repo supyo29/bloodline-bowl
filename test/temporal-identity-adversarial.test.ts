@@ -22,7 +22,6 @@ const R1 = load("temporal-real-movers.json"), R2 = load("temporal-real-sample.js
 const ALL_ROWS = [...R1, ...R2, ...R3]; const OBS = fromGameLogRows(ALL_ROWS); const G = (season: number, week: number): TemporalQuery => ({ kind: "GAME", season, week });
 const playerSeasons = [...new Set(OBS.map((o) => `${o.gsis_id}|${o.season}`))].map((k) => { const [g, s] = k.split("|"); return { g: g!, s: Number(s) }; });
 const j = (x: unknown) => JSON.stringify(x);
-const truth = new Map(ALL_ROWS.map((r) => [`${r.gsis_id}|${r.season}|${r.week}`, normalizeTeamCode(r.team)] as const));
 
 describe("chronology: FUTURE MUTATION INVARIANCE (no lookahead)", () => {
   const mutateFuture = (obs: readonly TeamObservation[], after: { season: number; week: number }): TeamObservation[] => {
