@@ -42,6 +42,14 @@ export interface DeploymentContract {
    * human deployment step recorded here.
    */
   positions: Partial<Record<string, PositionDeploymentState>>;
+  /**
+   * Phase 8 (additive): feature-family x position deployment states. A family NOT listed here is `SHADOW_ONLY` -- it
+   * NEVER inherits `deployment` or `positions[...]`. Position-level PRODUCTION_ACTIVE is necessary but never sufficient;
+   * see `family-gate.ts`. Absent on every pre-Phase-8 contract, which therefore has no active family.
+   */
+  family_positions?: Partial<Record<string, Partial<Record<string, PositionDeploymentState>>>>;
+  /** Phase 8 (additive): the certified translation an ACTIVE family is allowed to apply (units, coefficient, bounds). */
+  certified_translations?: Partial<Record<string, Partial<Record<string, unknown>>>>;
   /** who/when a position was last explicitly activated for production. */
   activation_log: Array<{
     position: string;

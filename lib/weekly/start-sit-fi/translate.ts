@@ -89,6 +89,12 @@ export interface TranslateInput {
    * (gsis/sleeper-keyed) that the per-player team lookup here cannot reach.
    */
   fiValues?: Record<string, { value: number | null; confidence: string | null }>;
+  /**
+   * Phase 8 (additive): when set, ONLY these model families contribute. Every other family is skipped entirely (contributes 0 and is
+   * not listed). Undefined = legacy behaviour (all families), which the SHADOW path relies on. Family-gated production application
+   * always passes this set so an uncertified family can never ride along with a certified one.
+   */
+  only_families?: ReadonlySet<string>;
 }
 
 /** confidence-weight for a Phase-3 confidence label; 0 when routing is ineligible. */
@@ -184,6 +190,7 @@ export function translateFiAdjustment(input: TranslateInput): StartSitFiAdjustme
   let raw = 0;
 
   for (const fam of mp.families) {
+    if (input.only_families && !input.only_families.has(fam.family)) continue;
     let fiValue: number | null = null;
     let fiConf: FiFamilyContribution["fi_confidence"] = null;
 

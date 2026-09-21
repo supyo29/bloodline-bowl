@@ -1,0 +1,3205 @@
+{
+ "certification_version": "fi-certification-2026.1",
+ "criteria_version": "fi-recert-criteria-2026.1+A1",
+ "lane": "RECONSTRUCTED_CHRONOLOGY_SAFE",
+ "consumer_scope": "START_SIT",
+ "baseline": {
+  "primary": "baseline_sleeper (RECONSTRUCTED_PRODUCTION_LIKE; production baseline projection is sleeper-weekly-rotowire)",
+  "naive_control": "baseline_trailing",
+  "integrity": {
+   "rows": 16522,
+   "mae_sleeper": 4.304968,
+   "mae_trailing": 4.692195,
+   "rmse_sleeper": 5.914612,
+   "rmse_trailing": 6.355848
+  },
+  "primary_is_stronger_than_naive": true
+ },
+ "holdout_opened": false,
+ "summary": {
+  "CERTIFICATION_FAILED": 30
+ },
+ "candidates": [
+  {
+   "position": "QB",
+   "family": "off_pass_epa",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": {},
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.102061,
+   "mae_improvement": -8.7e-05,
+   "mae_improvement_ci90": [
+    -0.000402,
+    0.000207
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.003341,
+   "adjustment_abs_p95": 0.008026,
+   "adjustment_abs_max": 0.016007,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": null,
+   "calibration": {
+    "slope": 18.35225,
+    "lo": -97.896146,
+    "hi": 143.393537,
+    "spearman": 0.8,
+    "buckets": [
+     -2.0366,
+     -2.4002,
+     -1.3427,
+     -1.6678,
+     -1.3198
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.521022,
+    "corr_with_trailing": 0.5479
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.283729,
+    "corr_feature_baseline_sleeper": 0.580867,
+    "corr_feature_residual": 0.041684,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.000284,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.000111,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -8.7e-05,
+     "lo": -0.000405,
+     "hi": 0.000198
+    },
+    "ppr": {
+     "delta": -8.6e-05,
+     "lo": -0.000403,
+     "hi": 0.000199
+    },
+    "std": {
+     "delta": -8.8e-05,
+     "lo": -0.000407,
+     "hi": 0.000199
+    }
+   }
+  },
+  {
+   "position": "QB",
+   "family": "off_success_rate",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": {},
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.101884,
+   "mae_improvement": 8.9e-05,
+   "mae_improvement_ci90": [
+    -0.000211,
+    0.000378
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.00249,
+   "adjustment_abs_p95": 0.016476,
+   "adjustment_abs_max": 0.027339,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": null,
+   "calibration": {
+    "slope": 66.057175,
+    "lo": -6.919488,
+    "hi": 145.605718,
+    "spearman": 0.6,
+    "buckets": [
+     -2.0437,
+     -2.0906,
+     -2.4034,
+     -1.5625,
+     -0.665
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.228701,
+    "corr_with_trailing": 0.261285
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.281394,
+    "corr_feature_baseline_sleeper": 0.542492,
+    "corr_feature_residual": 0.056928,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -6.967873e-07,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.00018,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 2.2e-05,
+     "lo": -5e-05,
+     "hi": 9.8e-05
+    },
+    "ppr": {
+     "delta": 0.000224,
+     "lo": -0.000506,
+     "hi": 0.001009
+    },
+    "std": {
+     "delta": 2.3e-05,
+     "lo": -5.5e-05,
+     "hi": 0.000106
+    }
+   }
+  },
+  {
+   "position": "QB",
+   "family": "off_proe",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration",
+    "G8_subgroup"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.106359,
+   "mae_improvement": -0.004385,
+   "mae_improvement_ci90": [
+    -0.01948,
+    0.009611
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.221879,
+   "adjustment_abs_p95": 0.48204,
+   "adjustment_abs_max": 0.537256,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 19086,
+    "reversals": 1089,
+    "mean_regret_improvement_per_pair": -0.028149,
+    "lo": -0.090125,
+    "hi": 0.034504,
+    "reversal_win_rate": 0.442608,
+    "mean_delta_per_reversal": -0.493352,
+    "median_delta_per_reversal": -1.06,
+    "pct_reversals_improved": 0.442608,
+    "pct_reversals_worsened": 0.557392,
+    "severe_miss_rate": 0.236915,
+    "large_win_rate": 0.209366
+   },
+   "calibration": {
+    "slope": -0.191214,
+    "lo": -1.786296,
+    "hi": 1.376738,
+    "spearman": 0.2,
+    "buckets": [
+     -1.3122,
+     -2.2291,
+     -2.1253,
+     -1.1809,
+     -1.9171
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.309787,
+    "corr_with_trailing": -0.24296
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.128956,
+    "corr_feature_baseline_sleeper": 0.319938,
+    "corr_feature_residual": -0.007005,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.001393,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.010177,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.004385,
+     "lo": -0.019068,
+     "hi": 0.010773
+    },
+    "ppr": {
+     "delta": -0.004334,
+     "lo": -0.019006,
+     "hi": 0.010775
+    },
+    "std": {
+     "delta": -0.004436,
+     "lo": -0.019127,
+     "hi": 0.010769
+    }
+   }
+  },
+  {
+   "position": "QB",
+   "family": "off_pace_sec_play",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": {},
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.102007,
+   "mae_improvement": -3.3e-05,
+   "mae_improvement_ci90": [
+    -0.00019,
+    0.000113
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.001775,
+   "adjustment_abs_p95": 0.005288,
+   "adjustment_abs_max": 0.006199,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": null,
+   "calibration": {
+    "slope": -108.934411,
+    "lo": -280.752201,
+    "hi": 73.545563,
+    "spearman": 0,
+    "buckets": [
+     -1.4267,
+     -2.349,
+     -1.8084,
+     -0.9919,
+     -2.2038
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.1721,
+    "corr_with_trailing": 0.029486
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.045867,
+    "corr_feature_baseline_sleeper": -0.050369,
+    "corr_feature_residual": 0.073675,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -8.6e-05,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 2e-05,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -3.3e-05,
+     "lo": -0.000182,
+     "hi": 0.000119
+    },
+    "ppr": {
+     "delta": -3.5e-05,
+     "lo": -0.000185,
+     "hi": 0.000117
+    },
+    "std": {
+     "delta": -3.2e-05,
+     "lo": -0.000178,
+     "hi": 0.000119
+    }
+   }
+  },
+  {
+   "position": "QB",
+   "family": "off_explosive_pass_rate",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": 0.5,
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.103329,
+   "mae_improvement": -0.001355,
+   "mae_improvement_ci90": [
+    -0.00857,
+    0.006054
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.053493,
+   "adjustment_abs_p95": 0.203669,
+   "adjustment_abs_max": 0.234241,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 3462,
+    "reversals": 208,
+    "mean_regret_improvement_per_pair": 0.038209,
+    "lo": -0.112185,
+    "hi": 0.202071,
+    "reversal_win_rate": 0.548077,
+    "mean_delta_per_reversal": 0.635962,
+    "median_delta_per_reversal": 2.12,
+    "pct_reversals_improved": 0.548077,
+    "pct_reversals_worsened": 0.451923,
+    "severe_miss_rate": 0.230769,
+    "large_win_rate": 0.230769
+   },
+   "calibration": {
+    "slope": -1.70522,
+    "lo": -9.035426,
+    "hi": 5.141433,
+    "spearman": -0.5,
+    "buckets": [
+     -1.8654,
+     -1.2452,
+     -1.9779,
+     -1.4021,
+     -2.2944
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.273796,
+    "corr_with_trailing": 0.330863
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.164931,
+    "corr_feature_baseline_sleeper": 0.388219,
+    "corr_feature_residual": 0.000771,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.00272,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 1.2e-05,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.001355,
+     "lo": -0.008839,
+     "hi": 0.006067
+    },
+    "ppr": {
+     "delta": -0.001341,
+     "lo": -0.008762,
+     "hi": 0.006019
+    },
+    "std": {
+     "delta": -0.00137,
+     "lo": -0.008916,
+     "hi": 0.006115
+    }
+   }
+  },
+  {
+   "position": "QB",
+   "family": "def_success_allowed",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.118789,
+   "mae_improvement": -0.016815,
+   "mae_improvement_ci90": [
+    -0.03856,
+    0.003395
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.184992,
+   "adjustment_abs_p95": 0.706965,
+   "adjustment_abs_max": 0.811377,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 19086,
+    "reversals": 838,
+    "mean_regret_improvement_per_pair": -0.024423,
+    "lo": -0.097197,
+    "hi": 0.045363,
+    "reversal_win_rate": 0.4642,
+    "mean_delta_per_reversal": -0.556253,
+    "median_delta_per_reversal": -0.74,
+    "pct_reversals_improved": 0.4642,
+    "pct_reversals_worsened": 0.5358,
+    "severe_miss_rate": 0.221957,
+    "large_win_rate": 0.211217
+   },
+   "calibration": {
+    "slope": -0.636733,
+    "lo": -2.559658,
+    "hi": 1.296175,
+    "spearman": -1,
+    "buckets": [
+     -0.9619,
+     -1.3633,
+     -1.9129,
+     -2.1376,
+     -2.3992
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.079466,
+    "corr_with_trailing": -0.039721
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.00018,
+    "corr_feature_baseline_sleeper": -0.085141,
+    "corr_feature_residual": 0.0397,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.033241,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.00035,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.016815,
+     "lo": -0.038463,
+     "hi": 0.004443
+    },
+    "ppr": {
+     "delta": -0.016758,
+     "lo": -0.038363,
+     "hi": 0.004458
+    },
+    "std": {
+     "delta": -0.016872,
+     "lo": -0.038563,
+     "hi": 0.004428
+    }
+   }
+  },
+  {
+   "position": "QB",
+   "family": "interaction_pass_epa_vs_pass_defense",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": {},
+   "mae_baseline": 6.101974,
+   "mae_candidate": 6.102097,
+   "mae_improvement": -0.000123,
+   "mae_improvement_ci90": [
+    -0.000356,
+    0.000105
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.003076,
+   "adjustment_abs_p95": 0.009434,
+   "adjustment_abs_max": 0.018867,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": null,
+   "calibration": {
+    "slope": -66.539313,
+    "lo": -187.229582,
+    "hi": 45.743785,
+    "spearman": -0.8,
+    "buckets": [
+     -1.0943,
+     -1.8065,
+     -1.2355,
+     -2.4291,
+     -2.2102
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.296042,
+    "corr_with_trailing": -0.398019
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.196677,
+    "corr_feature_baseline_sleeper": 0.343477,
+    "corr_feature_residual": 0.056349,
+    "n": 2523
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.000169,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -7.7e-05,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000123,
+     "lo": -0.000339,
+     "hi": 9.9e-05
+    },
+    "ppr": {
+     "delta": -0.000122,
+     "lo": -0.000339,
+     "hi": 0.0001
+    },
+    "std": {
+     "delta": -0.000123,
+     "lo": -0.00034,
+     "hi": 9.8e-05
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "off_rush_epa",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.184902,
+   "mae_improvement": 0.002033,
+   "mae_improvement_ci90": [
+    -0.000957,
+    0.005105
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.084886,
+   "adjustment_abs_p95": 0.236494,
+   "adjustment_abs_max": 0.324661,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 13556,
+    "reversals": 1547,
+    "mean_regret_improvement_per_pair": 0.049851,
+    "lo": -0.002346,
+    "hi": 0.102813,
+    "reversal_win_rate": 0.514993,
+    "mean_delta_per_reversal": 0.436833,
+    "median_delta_per_reversal": 0.2,
+    "pct_reversals_improved": 0.510666,
+    "pct_reversals_worsened": 0.480931,
+    "severe_miss_rate": 0.111829,
+    "large_win_rate": 0.136393
+   },
+   "calibration": {
+    "slope": 1.795147,
+    "lo": 0.038657,
+    "hi": 3.373893,
+    "spearman": 0.7,
+    "buckets": [
+     0.4023,
+     0.6928,
+     0.6938,
+     0.6105,
+     0.9338
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.070194,
+    "corr_with_trailing": 0.140164
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.071141,
+    "corr_feature_baseline_sleeper": 0.076244,
+    "corr_feature_residual": 0.026887,
+    "n": 5987
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.000844,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.00323,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.002325,
+     "lo": -0.000815,
+     "hi": 0.005611
+    },
+    "ppr": {
+     "delta": 0.001109,
+     "lo": -0.000716,
+     "hi": 0.00303
+    },
+    "std": {
+     "delta": 0.002667,
+     "lo": -0.001749,
+     "hi": 0.007205
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "off_success_rate",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": 0.5,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.188179,
+   "mae_improvement": -0.001244,
+   "mae_improvement_ci90": [
+    -0.001929,
+    -0.000541
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.019858,
+   "adjustment_abs_p95": 0.086213,
+   "adjustment_abs_max": 0.141736,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 13556,
+    "reversals": 283,
+    "mean_regret_improvement_per_pair": 8.1e-05,
+    "lo": -0.018462,
+    "hi": 0.016539,
+    "reversal_win_rate": 0.491103,
+    "mean_delta_per_reversal": 0.003887,
+    "median_delta_per_reversal": -0.1,
+    "pct_reversals_improved": 0.487633,
+    "pct_reversals_worsened": 0.5053,
+    "severe_miss_rate": 0.123675,
+    "large_win_rate": 0.130742
+   },
+   "calibration": {
+    "slope": -3.84358,
+    "lo": -7.577095,
+    "hi": -0.19027,
+    "spearman": -0.3,
+    "buckets": [
+     1.0236,
+     0.6379,
+     0.6806,
+     0.2963,
+     0.6885
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.034015,
+    "corr_with_trailing": -0.057183
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.066558,
+    "corr_feature_baseline_sleeper": 0.091318,
+    "corr_feature_residual": 0.008035,
+    "n": 5987
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.000838,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.001654,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000718,
+     "lo": -0.001199,
+     "hi": -0.000218
+    },
+    "ppr": {
+     "delta": -0.00209,
+     "lo": -0.003916,
+     "hi": -0.000276
+    },
+    "std": {
+     "delta": -0.000923,
+     "lo": -0.001824,
+     "hi": -4.7e-05
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "off_pace_sec_play",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.192618,
+   "mae_improvement": -0.005683,
+   "mae_improvement_ci90": [
+    -0.009142,
+    -0.002354
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.059288,
+   "adjustment_abs_p95": 0.241056,
+   "adjustment_abs_max": 0.401761,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 72990,
+    "reversals": 1083,
+    "mean_regret_improvement_per_pair": -0.014054,
+    "lo": -0.025054,
+    "hi": -0.002691,
+    "reversal_win_rate": 0.437326,
+    "mean_delta_per_reversal": -0.947184,
+    "median_delta_per_reversal": -0.7,
+    "pct_reversals_improved": 0.434903,
+    "pct_reversals_worsened": 0.559557,
+    "severe_miss_rate": 0.153278,
+    "large_win_rate": 0.11819
+   },
+   "calibration": {
+    "slope": -3.412335,
+    "lo": -5.067339,
+    "hi": -1.50064,
+    "spearman": -0.7,
+    "buckets": [
+     1.1398,
+     0.7615,
+     0.5192,
+     0.7661,
+     0.1385
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.011783,
+    "corr_with_trailing": -0.045539
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.047754,
+    "corr_feature_baseline_sleeper": 0.006678,
+    "corr_feature_residual": 0.056165,
+    "n": 5987
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.011311,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -1.6e-05,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.006049,
+     "lo": -0.009401,
+     "hi": -0.003078
+    },
+    "ppr": {
+     "delta": -0.005915,
+     "lo": -0.010354,
+     "hi": -0.001798
+    },
+    "std": {
+     "delta": -0.005086,
+     "lo": -0.008363,
+     "hi": -0.002005
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "def_success_allowed",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": {},
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.187132,
+   "mae_improvement": -0.000197,
+   "mae_improvement_ci90": [
+    -0.000354,
+    -4.9e-05
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.003159,
+   "adjustment_abs_p95": 0.011192,
+   "adjustment_abs_max": 0.015059,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": null,
+   "calibration": {
+    "slope": -19.464391,
+    "lo": -61.065293,
+    "hi": 22.543804,
+    "spearman": -0.2,
+    "buckets": [
+     0.647,
+     0.5445,
+     0.851,
+     0.7615,
+     0.5264
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.015317,
+    "corr_with_trailing": -0.011498
+   },
+   "context_correlations": {
+    "corr_feature_actual": -0.037651,
+    "corr_feature_baseline_sleeper": -0.019996,
+    "corr_feature_residual": -0.031665,
+    "n": 5987
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.000375,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -1.8e-05,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000185,
+     "lo": -0.00034,
+     "hi": -3.1e-05
+    },
+    "ppr": {
+     "delta": -0.000159,
+     "lo": -0.000291,
+     "hi": -3.9e-05
+    },
+    "std": {
+     "delta": -0.000247,
+     "lo": -0.000437,
+     "hi": -7e-05
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "usage_snap_share",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.186221,
+   "mae_improvement": 0.000714,
+   "mae_improvement_ci90": [
+    -0.001356,
+    0.002796
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.060774,
+   "adjustment_abs_p95": 0.130084,
+   "adjustment_abs_max": 0.196863,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 13556,
+    "reversals": 518,
+    "mean_regret_improvement_per_pair": 0.001182,
+    "lo": -0.027914,
+    "hi": 0.029889,
+    "reversal_win_rate": 0.487329,
+    "mean_delta_per_reversal": 0.030927,
+    "median_delta_per_reversal": -0.2,
+    "pct_reversals_improved": 0.482625,
+    "pct_reversals_worsened": 0.507722,
+    "severe_miss_rate": 0.137066,
+    "large_win_rate": 0.150579
+   },
+   "calibration": {
+    "slope": 0.655459,
+    "lo": -2.306912,
+    "hi": 3.698598,
+    "spearman": 0.4,
+    "buckets": [
+     0.3054,
+     1.0353,
+     0.4969,
+     0.5466,
+     0.9466
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.837962,
+    "corr_with_trailing": -0.774196
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.545422,
+    "corr_feature_baseline_sleeper": 0.849244,
+    "corr_feature_residual": -0.018393,
+    "n": 5933
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.001215,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.000209,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.000551,
+     "lo": -0.001502,
+     "hi": 0.002628
+    },
+    "ppr": {
+     "delta": 0.00098,
+     "lo": -0.001319,
+     "hi": 0.003349
+    },
+    "std": {
+     "delta": 0.00061,
+     "lo": -0.001138,
+     "hi": 0.002449
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "usage_rush_share",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": 3,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.186019,
+   "mae_improvement": 0.000916,
+   "mae_improvement_ci90": [
+    -0.000475,
+    0.002277
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.040724,
+   "adjustment_abs_p95": 0.084962,
+   "adjustment_abs_max": 0.143401,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 72990,
+    "reversals": 293,
+    "mean_regret_improvement_per_pair": -0.004886,
+    "lo": -0.008413,
+    "hi": -0.00151,
+    "reversal_win_rate": 0.450172,
+    "mean_delta_per_reversal": -1.21727,
+    "median_delta_per_reversal": -1,
+    "pct_reversals_improved": 0.447099,
+    "pct_reversals_worsened": 0.546075,
+    "severe_miss_rate": 0.177474,
+    "large_win_rate": 0.122867
+   },
+   "calibration": {
+    "slope": 1.424542,
+    "lo": -3.031537,
+    "hi": 5.857064,
+    "spearman": 0.5,
+    "buckets": [
+     0.3623,
+     0.8781,
+     0.2988,
+     0.7008,
+     1.0906
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.823081,
+    "corr_with_trailing": -0.776836
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.536275,
+    "corr_feature_baseline_sleeper": 0.843259,
+    "corr_feature_residual": -0.025137,
+    "n": 5933
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.000625,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.001208,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.000919,
+     "lo": -0.000466,
+     "hi": 0.002342
+    },
+    "ppr": {
+     "delta": 0.001212,
+     "lo": -0.000364,
+     "hi": 0.002873
+    },
+    "std": {
+     "delta": 0.000615,
+     "lo": -0.000554,
+     "hi": 0.001791
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "usage_target_share",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.187323,
+   "mae_improvement": -0.000388,
+   "mae_improvement_ci90": [
+    -0.00376,
+    0.002874
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.074673,
+   "adjustment_abs_p95": 0.168435,
+   "adjustment_abs_max": 0.391836,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 13556,
+    "reversals": 814,
+    "mean_regret_improvement_per_pair": 0.005637,
+    "lo": -0.035294,
+    "hi": 0.047579,
+    "reversal_win_rate": 0.505604,
+    "mean_delta_per_reversal": 0.093882,
+    "median_delta_per_reversal": 0,
+    "pct_reversals_improved": 0.498771,
+    "pct_reversals_worsened": 0.487715,
+    "severe_miss_rate": 0.138821,
+    "large_win_rate": 0.132678
+   },
+   "calibration": {
+    "slope": 2.450458,
+    "lo": 0.356817,
+    "hi": 4.654606,
+    "spearman": 0.4,
+    "buckets": [
+     0.1327,
+     1.2761,
+     0.5165,
+     0.5467,
+     0.8589
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.730098,
+    "corr_with_trailing": -0.678487
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.456523,
+    "corr_feature_baseline_sleeper": 0.7389,
+    "corr_feature_residual": -0.039374,
+    "n": 5933
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.001306,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.002094,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.00059,
+     "lo": -0.004254,
+     "hi": 0.00301
+    },
+    "ppr": {
+     "delta": 4.2e-05,
+     "lo": -0.003959,
+     "hi": 0.004033
+    },
+    "std": {
+     "delta": -0.000617,
+     "lo": -0.003596,
+     "hi": 0.002274
+    }
+   }
+  },
+  {
+   "position": "RB",
+   "family": "interaction_rush_epa_vs_rush_defense",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": 0.5,
+   "mae_baseline": 4.186935,
+   "mae_candidate": 4.186867,
+   "mae_improvement": 6.8e-05,
+   "mae_improvement_ci90": [
+    -0.000385,
+    0.000567
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.015513,
+   "adjustment_abs_p95": 0.063769,
+   "adjustment_abs_max": 0.135916,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 13556,
+    "reversals": 253,
+    "mean_regret_improvement_per_pair": 0.011393,
+    "lo": -0.00553,
+    "hi": 0.026182,
+    "reversal_win_rate": 0.552,
+    "mean_delta_per_reversal": 0.610435,
+    "median_delta_per_reversal": 0.6,
+    "pct_reversals_improved": 0.545455,
+    "pct_reversals_worsened": 0.442688,
+    "severe_miss_rate": 0.094862,
+    "large_win_rate": 0.134387
+   },
+   "calibration": {
+    "slope": 0.188404,
+    "lo": -4.075076,
+    "hi": 4.21594,
+    "spearman": -0.1,
+    "buckets": [
+     0.6789,
+     0.7111,
+     0.5074,
+     0.8653,
+     0.5675
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.008763,
+    "corr_with_trailing": 0.024818
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.023588,
+    "corr_feature_baseline_sleeper": 0.03942,
+    "corr_feature_residual": -0.003198,
+    "n": 5987
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -3.2e-05,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.000169,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000128,
+     "lo": -0.000276,
+     "hi": 1.7e-05
+    },
+    "ppr": {
+     "delta": -0.00044,
+     "lo": -0.001126,
+     "hi": 0.000243
+    },
+    "std": {
+     "delta": 0.000772,
+     "lo": -0.000621,
+     "hi": 0.002302
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "off_pass_epa",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.181108,
+   "mae_improvement": -0.000479,
+   "mae_improvement_ci90": [
+    -0.003111,
+    0.002066
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.059469,
+   "adjustment_abs_p95": 0.158231,
+   "adjustment_abs_max": 0.35368,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 181520,
+    "reversals": 2517,
+    "mean_regret_improvement_per_pair": -0.000587,
+    "lo": -0.006305,
+    "hi": 0.004932,
+    "reversal_win_rate": 0.506426,
+    "mean_delta_per_reversal": -0.042344,
+    "median_delta_per_reversal": 0.1,
+    "pct_reversals_improved": 0.500993,
+    "pct_reversals_worsened": 0.48828,
+    "severe_miss_rate": 0.130711,
+    "large_win_rate": 0.126341
+   },
+   "calibration": {
+    "slope": -1.052693,
+    "lo": -3.3752,
+    "hi": 1.207942,
+    "spearman": -0.2,
+    "buckets": [
+     0.8047,
+     1.0664,
+     1.0565,
+     0.4572,
+     0.8523
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.105539,
+    "corr_with_trailing": -0.150181
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.072555,
+    "corr_feature_baseline_sleeper": 0.108693,
+    "corr_feature_residual": 0.007972,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.000996,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.002035,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000673,
+     "lo": -0.004021,
+     "hi": 0.002429
+    },
+    "ppr": {
+     "delta": -0.000254,
+     "lo": -0.003308,
+     "hi": 0.002641
+    },
+    "std": {
+     "delta": -0.000511,
+     "lo": -0.002378,
+     "hi": 0.001189
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "off_success_rate",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.18112,
+   "mae_improvement": -0.00049,
+   "mae_improvement_ci90": [
+    -0.001219,
+    0.000253
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.020118,
+   "adjustment_abs_p95": 0.051203,
+   "adjustment_abs_max": 0.070948,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 32494,
+    "reversals": 721,
+    "mean_regret_improvement_per_pair": 0.001917,
+    "lo": -0.010395,
+    "hi": 0.015726,
+    "reversal_win_rate": 0.497896,
+    "mean_delta_per_reversal": 0.086408,
+    "median_delta_per_reversal": 0,
+    "pct_reversals_improved": 0.492372,
+    "pct_reversals_worsened": 0.496533,
+    "severe_miss_rate": 0.130374,
+    "large_win_rate": 0.134535
+   },
+   "calibration": {
+    "slope": -2.559186,
+    "lo": -9.026904,
+    "hi": 4.296115,
+    "spearman": -0.7,
+    "buckets": [
+     0.9873,
+     0.9509,
+     0.5671,
+     0.8708,
+     0.8695
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.107544,
+    "corr_with_trailing": -0.144753
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.067699,
+    "corr_feature_baseline_sleeper": 0.100568,
+    "corr_feature_residual": 0.008061,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.000644,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.000329,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000469,
+     "lo": -0.001226,
+     "hi": 0.000267
+    },
+    "ppr": {
+     "delta": -0.000426,
+     "lo": -0.001466,
+     "hi": 0.000583
+    },
+    "std": {
+     "delta": -0.000577,
+     "lo": -0.001101,
+     "hi": -4.2e-05
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "off_proe",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.18068,
+   "mae_improvement": -5.1e-05,
+   "mae_improvement_ci90": [
+    -0.003566,
+    0.003538
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.098361,
+   "adjustment_abs_p95": 0.239214,
+   "adjustment_abs_max": 0.299154,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 181520,
+    "reversals": 4075,
+    "mean_regret_improvement_per_pair": -0.004954,
+    "lo": -0.013709,
+    "hi": 0.003896,
+    "reversal_win_rate": 0.503966,
+    "mean_delta_per_reversal": -0.220672,
+    "median_delta_per_reversal": 0,
+    "pct_reversals_improved": 0.498896,
+    "pct_reversals_worsened": 0.491043,
+    "severe_miss_rate": 0.13227,
+    "large_win_rate": 0.114601
+   },
+   "calibration": {
+    "slope": -0.340425,
+    "lo": -1.872026,
+    "hi": 1.235706,
+    "spearman": -0.3,
+    "buckets": [
+     0.9049,
+     0.741,
+     0.7825,
+     1.1805,
+     0.6379
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.086929,
+    "corr_with_trailing": -0.114131
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.061517,
+    "corr_feature_baseline_sleeper": 0.099243,
+    "corr_feature_residual": 0.001566,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.002602,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.002849,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.000595,
+     "lo": -0.003022,
+     "hi": 0.004348
+    },
+    "ppr": {
+     "delta": -0.000227,
+     "lo": -0.004799,
+     "hi": 0.004509
+    },
+    "std": {
+     "delta": -0.000523,
+     "lo": -0.00306,
+     "hi": 0.002013
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "off_pace_sec_play",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.180613,
+   "mae_improvement": 1.6e-05,
+   "mae_improvement_ci90": [
+    -0.001531,
+    0.001321
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.040928,
+   "adjustment_abs_p95": 0.190211,
+   "adjustment_abs_max": 0.510333,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 181520,
+    "reversals": 1878,
+    "mean_regret_improvement_per_pair": -0.00329,
+    "lo": -0.00998,
+    "hi": 0.002581,
+    "reversal_win_rate": 0.460215,
+    "mean_delta_per_reversal": -0.31803,
+    "median_delta_per_reversal": -0.5,
+    "pct_reversals_improved": 0.455804,
+    "pct_reversals_worsened": 0.534611,
+    "severe_miss_rate": 0.120873,
+    "large_win_rate": 0.117146
+   },
+   "calibration": {
+    "slope": 1.442075,
+    "lo": -0.313395,
+    "hi": 3.54023,
+    "spearman": 0.9,
+    "buckets": [
+     0.682,
+     0.8174,
+     0.7269,
+     0.915,
+     1.107
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.009537,
+    "corr_with_trailing": 0.038528
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.045578,
+    "corr_feature_baseline_sleeper": 0.018615,
+    "corr_feature_residual": 0.041408,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.0014,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.001442,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000497,
+     "lo": -0.002615,
+     "hi": 0.001435
+    },
+    "ppr": {
+     "delta": -0.000108,
+     "lo": -0.000257,
+     "hi": 3.9e-05
+    },
+    "std": {
+     "delta": 0.000657,
+     "lo": -0.001761,
+     "hi": 0.002871
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "off_explosive_pass_rate",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "EFFECTIVELY_ZERO_OR_HARMFUL (amendment A1)",
+   "dev_original_verdict": "INCONCLUSIVE_SAMPLE",
+   "failed_gates": [
+    "G2_sample",
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": true,
+   "tau": 0.5,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.180785,
+   "mae_improvement": -0.000156,
+   "mae_improvement_ci90": [
+    -0.000365,
+    6.5e-05
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.008021,
+   "adjustment_abs_p95": 0.026198,
+   "adjustment_abs_max": 0.0427,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 32494,
+    "reversals": 236,
+    "mean_regret_improvement_per_pair": 0.004112,
+    "lo": -0.00229,
+    "hi": 0.010675,
+    "reversal_win_rate": 0.548936,
+    "mean_delta_per_reversal": 0.566186,
+    "median_delta_per_reversal": 0.5,
+    "pct_reversals_improved": 0.54661,
+    "pct_reversals_worsened": 0.449153,
+    "severe_miss_rate": 0.114407,
+    "large_win_rate": 0.131356
+   },
+   "calibration": {
+    "slope": -7.151725,
+    "lo": -19.201484,
+    "hi": 3.965413,
+    "spearman": -0.6,
+    "buckets": [
+     0.995,
+     1.0972,
+     0.5373,
+     0.8162,
+     0.7921
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.060838,
+    "corr_with_trailing": -0.095101
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.055693,
+    "corr_feature_baseline_sleeper": 0.09413,
+    "corr_feature_residual": -0.001721,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.000297,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -7.252695e-06,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000171,
+     "lo": -0.000385,
+     "hi": 2.7e-05
+    },
+    "ppr": {
+     "delta": -0.000216,
+     "lo": -0.000672,
+     "hi": 0.000226
+    },
+    "std": {
+     "delta": -8.1e-05,
+     "lo": -0.000382,
+     "hi": 0.000212
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "def_success_allowed",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.179968,
+   "mae_improvement": 0.000661,
+   "mae_improvement_ci90": [
+    -0.000216,
+    0.001478
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.019251,
+   "adjustment_abs_p95": 0.055852,
+   "adjustment_abs_max": 0.092256,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 32494,
+    "reversals": 663,
+    "mean_regret_improvement_per_pair": 0.015173,
+    "lo": 0.000488,
+    "hi": 0.029777,
+    "reversal_win_rate": 0.569678,
+    "mean_delta_per_reversal": 0.74365,
+    "median_delta_per_reversal": 0.6,
+    "pct_reversals_improved": 0.561086,
+    "pct_reversals_worsened": 0.423831,
+    "severe_miss_rate": 0.116139,
+    "large_win_rate": 0.164404
+   },
+   "calibration": {
+    "slope": 7.183415,
+    "lo": -0.667144,
+    "hi": 14.300107,
+    "spearman": 0.5,
+    "buckets": [
+     0.7701,
+     0.654,
+     0.6213,
+     1.1265,
+     1.0765
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.019243,
+    "corr_with_trailing": -0.000577
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.010523,
+    "corr_feature_baseline_sleeper": -0.029628,
+    "corr_feature_residual": 0.034425,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.000158,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.001193,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.001072,
+     "lo": -0.0003,
+     "hi": 0.002338
+    },
+    "ppr": {
+     "delta": 0.000518,
+     "lo": -0.00031,
+     "hi": 0.001312
+    },
+    "std": {
+     "delta": 0.000393,
+     "lo": -0.00015,
+     "hi": 0.000891
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "usage_target_share",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration",
+    "G8_subgroup"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.188564,
+   "mae_improvement": -0.007935,
+   "mae_improvement_ci90": [
+    -0.024152,
+    0.007644
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.369221,
+   "adjustment_abs_p95": 1.1939,
+   "adjustment_abs_max": 2.768441,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 181520,
+    "reversals": 7414,
+    "mean_regret_improvement_per_pair": -0.025599,
+    "lo": -0.044167,
+    "hi": -0.008673,
+    "reversal_win_rate": 0.454755,
+    "mean_delta_per_reversal": -0.626741,
+    "median_delta_per_reversal": -0.6,
+    "pct_reversals_improved": 0.451443,
+    "pct_reversals_worsened": 0.541273,
+    "severe_miss_rate": 0.15754,
+    "large_win_rate": 0.123955
+   },
+   "calibration": {
+    "slope": 0.06471,
+    "lo": -0.344611,
+    "hi": 0.446283,
+    "spearman": 0.4,
+    "buckets": [
+     0.5663,
+     0.9312,
+     0.9757,
+     1.1388,
+     0.6363
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.69636,
+    "corr_with_trailing": -0.662519
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.488085,
+    "corr_feature_baseline_sleeper": 0.862844,
+    "corr_feature_residual": -0.042087,
+    "n": 8770
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.02063,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.005451,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.006576,
+     "lo": -0.022305,
+     "hi": 0.009164
+    },
+    "ppr": {
+     "delta": -0.007426,
+     "lo": -0.026265,
+     "hi": 0.011116
+    },
+    "std": {
+     "delta": -0.009812,
+     "lo": -0.02452,
+     "hi": 0.00389
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "usage_route_participation",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.174478,
+   "mae_improvement": 0.006152,
+   "mae_improvement_ci90": [
+    -0.003915,
+    0.016572
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.2252,
+   "adjustment_abs_p95": 0.678395,
+   "adjustment_abs_max": 1.423249,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 181520,
+    "reversals": 7635,
+    "mean_regret_improvement_per_pair": -0.017638,
+    "lo": -0.04023,
+    "hi": 0.003262,
+    "reversal_win_rate": 0.464818,
+    "mean_delta_per_reversal": -0.419343,
+    "median_delta_per_reversal": -0.3,
+    "pct_reversals_improved": 0.461166,
+    "pct_reversals_worsened": 0.530976,
+    "severe_miss_rate": 0.120367,
+    "large_win_rate": 0.105043
+   },
+   "calibration": {
+    "slope": -0.161418,
+    "lo": -0.938599,
+    "hi": 0.603344,
+    "spearman": 0.7,
+    "buckets": [
+     0.5996,
+     0.743,
+     1.0406,
+     0.926,
+     0.9364
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.496634,
+    "corr_with_trailing": -0.428918
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.381142,
+    "corr_feature_baseline_sleeper": 0.67597,
+    "corr_feature_residual": -0.031209,
+    "n": 8596
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.006567,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.005714,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.006294,
+     "lo": -0.006089,
+     "hi": 0.018239
+    },
+    "ppr": {
+     "delta": 0.009354,
+     "lo": 0.001899,
+     "hi": 0.016126
+    },
+    "std": {
+     "delta": 0.002791,
+     "lo": -0.010635,
+     "hi": 0.016671
+    }
+   }
+  },
+  {
+   "position": "WR",
+   "family": "interaction_pass_epa_vs_pass_defense",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 4.180629,
+   "mae_candidate": 4.179751,
+   "mae_improvement": 0.000878,
+   "mae_improvement_ci90": [
+    0.000259,
+    0.001542
+   ],
+   "bh_q": 0.254873,
+   "adjustment_abs_mean": 0.011787,
+   "adjustment_abs_p95": 0.046811,
+   "adjustment_abs_max": 0.158005,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 32494,
+    "reversals": 407,
+    "mean_regret_improvement_per_pair": 0.014301,
+    "lo": 0.003032,
+    "hi": 0.026472,
+    "reversal_win_rate": 0.565,
+    "mean_delta_per_reversal": 1.141769,
+    "median_delta_per_reversal": 0.6,
+    "pct_reversals_improved": 0.555283,
+    "pct_reversals_worsened": 0.427518,
+    "severe_miss_rate": 0.081081,
+    "large_win_rate": 0.135135
+   },
+   "calibration": {
+    "slope": 12.620546,
+    "lo": 4.783749,
+    "hi": 19.663976,
+    "spearman": 0.9,
+    "buckets": [
+     0.641,
+     0.8753,
+     0.6575,
+     0.9619,
+     1.1174
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.007771,
+    "corr_with_trailing": 0.029966
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.057239,
+    "corr_feature_baseline_sleeper": 0.054499,
+    "corr_feature_residual": 0.029192,
+    "n": 8803
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 1.3e-05,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.00179,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.000843,
+     "lo": 0.000208,
+     "hi": 0.001521
+    },
+    "ppr": {
+     "delta": 0.000466,
+     "lo": 3.4e-05,
+     "hi": 0.000903
+    },
+    "std": {
+     "delta": 0.001328,
+     "lo": 0.000394,
+     "hi": 0.00233
+    }
+   }
+  },
+  {
+   "position": "TE",
+   "family": "off_pass_epa",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 3.283442,
+   "mae_candidate": 3.284904,
+   "mae_improvement": -0.001461,
+   "mae_improvement_ci90": [
+    -0.004803,
+    0.001978
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.051929,
+   "adjustment_abs_p95": 0.17313,
+   "adjustment_abs_max": 0.430833,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 10125,
+    "reversals": 667,
+    "mean_regret_improvement_per_pair": 0.011567,
+    "lo": -0.025986,
+    "hi": 0.049085,
+    "reversal_win_rate": 0.502269,
+    "mean_delta_per_reversal": 0.175592,
+    "median_delta_per_reversal": 0,
+    "pct_reversals_improved": 0.497751,
+    "pct_reversals_worsened": 0.493253,
+    "severe_miss_rate": 0.065967,
+    "large_win_rate": 0.08096
+   },
+   "calibration": {
+    "slope": -0.506218,
+    "lo": -3.789293,
+    "hi": 2.670056,
+    "spearman": 0.1,
+    "buckets": [
+     1.5055,
+     1.3159,
+     1.2292,
+     1.2617,
+     1.5428
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.13619,
+    "corr_with_trailing": -0.18177
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.092858,
+    "corr_feature_baseline_sleeper": 0.163614,
+    "corr_feature_residual": -0.007484,
+    "n": 4096
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.001178,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.004067,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000798,
+     "lo": -0.004634,
+     "hi": 0.002969
+    },
+    "ppr": {
+     "delta": -0.002666,
+     "lo": -0.007869,
+     "hi": 0.002308
+    },
+    "std": {
+     "delta": -0.000917,
+     "lo": -0.002651,
+     "hi": 0.000638
+    }
+   }
+  },
+  {
+   "position": "TE",
+   "family": "off_success_rate",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 3.283442,
+   "mae_candidate": 3.285322,
+   "mae_improvement": -0.00188,
+   "mae_improvement_ci90": [
+    -0.008916,
+    0.004664
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.126554,
+   "adjustment_abs_p95": 0.361324,
+   "adjustment_abs_max": 0.51271,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 10125,
+    "reversals": 1610,
+    "mean_regret_improvement_per_pair": 0.04992,
+    "lo": -0.026,
+    "hi": 0.124511,
+    "reversal_win_rate": 0.528553,
+    "mean_delta_per_reversal": 0.313938,
+    "median_delta_per_reversal": 0.2,
+    "pct_reversals_improved": 0.517391,
+    "pct_reversals_worsened": 0.461491,
+    "severe_miss_rate": 0.073913,
+    "large_win_rate": 0.08323
+   },
+   "calibration": {
+    "slope": 0.379083,
+    "lo": -1.223656,
+    "hi": 1.879276,
+    "spearman": 0.2,
+    "buckets": [
+     1.331,
+     1.3607,
+     1.1759,
+     1.3186,
+     1.6698
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.171661,
+    "corr_with_trailing": -0.22062
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.086141,
+    "corr_feature_baseline_sleeper": 0.183979,
+    "corr_feature_residual": -0.03014,
+    "n": 4096
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.005412,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.00908,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.001771,
+     "lo": -0.009449,
+     "hi": 0.005809
+    },
+    "ppr": {
+     "delta": 0.000275,
+     "lo": -0.008435,
+     "hi": 0.009294
+    },
+    "std": {
+     "delta": -0.00415,
+     "lo": -0.009603,
+     "hi": 0.001073
+    }
+   }
+  },
+  {
+   "position": "TE",
+   "family": "off_pace_sec_play",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 3.283442,
+   "mae_candidate": 3.284221,
+   "mae_improvement": -0.000778,
+   "mae_improvement_ci90": [
+    -0.002656,
+    0.001007
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.027835,
+   "adjustment_abs_p95": 0.120972,
+   "adjustment_abs_max": 0.334546,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 10125,
+    "reversals": 387,
+    "mean_regret_improvement_per_pair": 0.0147,
+    "lo": -0.001595,
+    "hi": 0.033597,
+    "reversal_win_rate": 0.475196,
+    "mean_delta_per_reversal": 0.384599,
+    "median_delta_per_reversal": -0.1,
+    "pct_reversals_improved": 0.470284,
+    "pct_reversals_worsened": 0.51938,
+    "severe_miss_rate": 0.043928,
+    "large_win_rate": 0.062016
+   },
+   "calibration": {
+    "slope": 2.569389,
+    "lo": -2.056156,
+    "hi": 6.645531,
+    "spearman": 0.4,
+    "buckets": [
+     1.2269,
+     1.3886,
+     1.4401,
+     1.4452,
+     1.3557
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.083053,
+    "corr_with_trailing": -0.043191
+   },
+   "context_correlations": {
+    "corr_feature_actual": -0.055875,
+    "corr_feature_baseline_sleeper": -0.100245,
+    "corr_feature_residual": 0.005796,
+    "n": 4096
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.000114,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.00166,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.000652,
+     "lo": -0.002618,
+     "hi": 0.001338
+    },
+    "ppr": {
+     "delta": -0.001518,
+     "lo": -0.004042,
+     "hi": 0.000965
+    },
+    "std": {
+     "delta": -0.000162,
+     "lo": -0.001522,
+     "hi": 0.001231
+    }
+   }
+  },
+  {
+   "position": "TE",
+   "family": "def_success_allowed",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 3.283442,
+   "mae_candidate": 3.286245,
+   "mae_improvement": -0.002802,
+   "mae_improvement_ci90": [
+    -0.008838,
+    0.002773
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.06792,
+   "adjustment_abs_p95": 0.293997,
+   "adjustment_abs_max": 0.562444,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 10125,
+    "reversals": 914,
+    "mean_regret_improvement_per_pair": 0.003909,
+    "lo": -0.044783,
+    "hi": 0.054008,
+    "reversal_win_rate": 0.498335,
+    "mean_delta_per_reversal": 0.043304,
+    "median_delta_per_reversal": 0,
+    "pct_reversals_improved": 0.491247,
+    "pct_reversals_worsened": 0.49453,
+    "severe_miss_rate": 0.073304,
+    "large_win_rate": 0.073304
+   },
+   "calibration": {
+    "slope": -0.969169,
+    "lo": -2.247681,
+    "hi": 0.323136,
+    "spearman": -0.1,
+    "buckets": [
+     1.5115,
+     1.0397,
+     1.5732,
+     1.3448,
+     1.385
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": 0.031722,
+    "corr_with_trailing": 0.021366
+   },
+   "context_correlations": {
+    "corr_feature_actual": -0.013141,
+    "corr_feature_baseline_sleeper": -0.009701,
+    "corr_feature_residual": -0.008633,
+    "n": 4096
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": -0.005995,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.000351,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": -0.002333,
+     "lo": -0.00833,
+     "hi": 0.003043
+    },
+    "ppr": {
+     "delta": -0.000284,
+     "lo": -0.001771,
+     "hi": 0.001137
+    },
+    "std": {
+     "delta": -0.005798,
+     "lo": -0.016516,
+     "hi": 0.003967
+    }
+   }
+  },
+  {
+   "position": "TE",
+   "family": "usage_target_share",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G4_stability",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 3,
+   "mae_baseline": 3.283442,
+   "mae_candidate": 3.275052,
+   "mae_improvement": 0.00839,
+   "mae_improvement_ci90": [
+    -0.014952,
+    0.032765
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.443562,
+   "adjustment_abs_p95": 1.299971,
+   "adjustment_abs_max": 2.497597,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 50056,
+    "reversals": 2362,
+    "mean_regret_improvement_per_pair": -0.021415,
+    "lo": -0.049165,
+    "hi": 0.006296,
+    "reversal_win_rate": 0.470362,
+    "mean_delta_per_reversal": -0.453836,
+    "median_delta_per_reversal": -0.3,
+    "pct_reversals_improved": 0.466977,
+    "pct_reversals_worsened": 0.525826,
+    "severe_miss_rate": 0.109229,
+    "large_win_rate": 0.089331
+   },
+   "calibration": {
+    "slope": -0.130997,
+    "lo": -0.623534,
+    "hi": 0.332947,
+    "spearman": 0.1,
+    "buckets": [
+     0.6772,
+     1.6592,
+     1.5134,
+     1.5941,
+     1.4115
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.797526,
+    "corr_with_trailing": -0.719674
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.466611,
+    "corr_feature_baseline_sleeper": 0.863292,
+    "corr_feature_residual": -0.066801,
+    "n": 4084
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.018159,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": -0.001255,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.009804,
+     "lo": -0.013483,
+     "hi": 0.035054
+    },
+    "ppr": {
+     "delta": 0.01046,
+     "lo": -0.015371,
+     "hi": 0.037402
+    },
+    "std": {
+     "delta": 0.004898,
+     "lo": -0.016374,
+     "hi": 0.027716
+    }
+   }
+  },
+  {
+   "position": "TE",
+   "family": "usage_route_participation",
+   "start_state": "SHADOW_ONLY",
+   "evaluable_state": "RESEARCH_ELIGIBLE",
+   "evaluated_state": "CERTIFICATION_FAILED",
+   "verdict_reason": "FAILED_DEV_GATES",
+   "dev_original_verdict": "FAIL_DEV",
+   "failed_gates": [
+    "G3_incremental",
+    "G5_decision",
+    "G7_calibration"
+   ],
+   "amendment_a1_applied": false,
+   "tau": 0.5,
+   "mae_baseline": 3.283442,
+   "mae_candidate": 3.276814,
+   "mae_improvement": 0.006629,
+   "mae_improvement_ci90": [
+    -0.0123,
+    0.025391
+   ],
+   "bh_q": 0.999,
+   "adjustment_abs_mean": 0.28216,
+   "adjustment_abs_p95": 0.734454,
+   "adjustment_abs_max": 1.545,
+   "highest_state_reachable_from_evidence": "CERTIFICATION_FAILED",
+   "production_state": "SHADOW_ONLY",
+   "decision": {
+    "pairs_in_region": 10125,
+    "reversals": 1889,
+    "mean_regret_improvement_per_pair": 0.006823,
+    "lo": -0.075468,
+    "hi": 0.100542,
+    "reversal_win_rate": 0.497587,
+    "mean_delta_per_reversal": 0.03657,
+    "median_delta_per_reversal": 0,
+    "pct_reversals_improved": 0.491265,
+    "pct_reversals_worsened": 0.49603,
+    "severe_miss_rate": 0.082054,
+    "large_win_rate": 0.088936
+   },
+   "calibration": {
+    "slope": -0.396175,
+    "lo": -1.100998,
+    "hi": 0.34556,
+    "spearman": 0.9,
+    "buckets": [
+     0.9626,
+     1.2007,
+     1.4287,
+     1.6727,
+     1.591
+    ]
+   },
+   "redundancy": {
+    "corr_with_baseline": -0.576008,
+    "corr_with_trailing": -0.484284
+   },
+   "context_correlations": {
+    "corr_feature_actual": 0.377389,
+    "corr_feature_baseline_sleeper": 0.705965,
+    "corr_feature_residual": -0.057832,
+    "n": 4039
+   },
+   "holdout": {
+    "opened": false,
+    "reason": "candidate did not pass development gates; 2025 holdout kept sealed"
+   },
+   "prospective": {
+    "qualifying_weeks": 0,
+    "live_captured_decisions": 0,
+    "required_weeks": 4,
+    "required_decisions": 150,
+    "met": false
+   },
+   "mae_by_fold": {
+    "2023": {
+     "delta": 0.012234,
+     "weeks": 14
+    },
+    "2024": {
+     "delta": 0.001094,
+     "weeks": 14
+    }
+   },
+   "mae_by_arch": {
+    "half": {
+     "delta": 0.003147,
+     "lo": -0.019421,
+     "hi": 0.02884
+    },
+    "ppr": {
+     "delta": 0.012676,
+     "lo": -0.003357,
+     "hi": 0.030545
+    },
+    "std": {
+     "delta": 0.004053,
+     "lo": -0.014592,
+     "hi": 0.023933
+    }
+   }
+  }
+ ],
+ "not_evaluated": [
+  {
+   "family": "def_pass_epa_allowed",
+   "reason": "NOT_PREDICTIVE (Phase 3 routing)",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "def_rush_epa_allowed",
+   "reason": "NOT_PREDICTIVE (Phase 3 routing)",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "ftn_play_action_rate",
+   "reason": "DESCRIPTIVE_ONLY",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "def_man_rate",
+   "reason": "DESCRIPTIVE_ONLY",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "PFR pressure / pass-rush",
+   "reason": "no reconstructable as-of historical series in the decision dataset (NOT_EVALUABLE)",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "NGS passing/rushing/receiving",
+   "reason": "no reconstructable as-of historical series in the decision dataset (NOT_EVALUABLE)",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "coverage-unit profiles",
+   "reason": "descriptive; no historical as-of series (NOT_EVALUABLE)",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "contextual matchup features / receiver progression",
+   "reason": "Phase 5 found 0 predictive-incremental families; Player-Scheme is DESCRIPTIVE; not re-tested through FI (Step 27/28)",
+   "state": "SHADOW_ONLY"
+  },
+  {
+   "family": "K / D/ST / IDP",
+   "reason": "out of scope: Phase 6 provider limitations; unsupported IDP (Step 26)",
+   "state": "SHADOW_ONLY"
+  }
+ ],
+ "served_bundles_nongating": {
+  "QB": {
+   "families": [
+    "def_success_allowed",
+    "off_explosive_pass_rate"
+   ],
+   "mae_delta": -0.00753,
+   "lo": -0.017496,
+   "hi": 0.002739,
+   "gating": false
+  },
+  "RB": {
+   "families": [
+    "off_pace_sec_play",
+    "usage_snap_share"
+   ],
+   "mae_delta": -0.009247,
+   "lo": -0.016733,
+   "hi": -0.001626,
+   "gating": false
+  },
+  "WR": {
+   "families": [
+    "def_success_allowed",
+    "interaction_pass_epa_vs_pass_defense",
+    "off_explosive_pass_rate",
+    "off_pass_epa",
+    "off_proe"
+   ],
+   "mae_delta": 0.000737,
+   "lo": -0.002854,
+   "hi": 0.003989,
+   "gating": false
+  },
+  "TE": {
+   "families": [
+    "off_pace_sec_play",
+    "usage_route_participation",
+    "usage_target_share"
+   ],
+   "mae_delta": 0.009408,
+   "lo": -0.009233,
+   "hi": 0.031606,
+   "gating": false
+  }
+ }
+}
