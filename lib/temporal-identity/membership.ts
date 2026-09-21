@@ -18,6 +18,7 @@
  *  - Source disagreement is a first-class CONFLICT: the policy picks a candidate for lineage, but `team` stays null so no consumer joins on a disputed fact.
  *  - A current-only observation (provider now / crosswalk snapshot) is never returned for a historical time.
  */
+import { createHash } from "node:crypto";
 import { normalizeTeamCode, isNoTeamMarker } from "@/lib/canonical/team-codes";
 
 export const TEMPORAL_IDENTITY_VERSION = "temporal-identity-2026.1";
@@ -53,12 +54,29 @@ export interface TeamResolution {
   /** the team a consumer may join on — null unless the status is a SUPPORTED_* one */
   team: string | null; granularity: ResolvedGranularity | null; evidence_class: EvidenceClass | null;
   candidates: Candidate[]; selected_by_policy: string | null; gap_weeks: number | null; reasons: string[]; evidence_ids: string[]; policy: string;
+  /** deterministic version of THIS player's evidence that was considered (order/metadata independent) */ evidence_version: string;
+  basis: "RETROSPECTIVE" | "KNOWN_THROUGH"; /** repository-style failure code for an unresolved status; null when resolved (or NO_TEAM_OBSERVED, a legitimate answer) */ failure_code: MembershipFailureCode | null;
+}
+export type MembershipFailureCode = "MEMBERSHIP_UNKNOWN" | "SOURCE_CONFLICT" | "GRANULARITY_INSUFFICIENT" | "TEMPORAL_SOURCE_UNAVAILABLE" | "IDENTITY_UNRESOLVED";
+export function failureCodeFor(status: MembershipStatus): MembershipFailureCode | null {
+  switch (status) { case "NO_EVIDENCE": return "MEMBERSHIP_UNKNOWN"; case "CONFLICT": return "SOURCE_CONFLICT"; case "AMBIGUOUS_TRANSITION": case "BRACKET_GAP_TOO_LONG": case "CURRENT_ONLY_OUT_OF_SCOPE": return "GRANULARITY_INSUFFICIENT"; default: return null; }
+}
+/** Deterministic version of a membership evidence set. Independent of input order, key order, raw code spelling, vintage labels and any query that ran; changes when any
+ *  (player, season, week, normalized team, source, granularity, source record) fact is added, removed or altered. Kept distinct from canonical_player_id, player_data_version, scoring fingerprint. */
+export function temporalDataVersion(observations: readonly TeamObservation[]): string {
+  const rows = observations.map((o) => [o.gsis_id, o.season, o.week ?? "", o.no_team ? "∅" : (o.team ?? ""), o.source, o.granularity, o.source_record_id].join("|")).sort();
+  return `tm:v1:${createHash("sha256").update(rows.join("\n")).digest("hex").slice(0, 16)}`;
 }
 /** Same-team bracketing is inferred only across a gap of at most this many missing weeks. DATA-JUSTIFIED (leave-one-out over all 103,096 interior games in the real 2019-2025 game-log source):
  *  gaps of 1-3 weeks: 92,952 inferences, 0 wrong; gaps of 4+ weeks: 9,348 inferences, 2 wrong (real A->B->A sequences: DeVante Bausby DEN-ARI-DEN 2020, DeAndre Houston-Carson HOU-BAL-HOU 2023).
  *  Callers may raise it explicitly; the default is conservative. */
 export const DEFAULT_MAX_BRACKET_GAP_WEEKS = 3;
-export interface ResolveOptions { maxBracketGapWeeks?: number }
+export interface ResolveOptions {
+  maxBracketGapWeeks?: number;
+  /** AS-OF / NO-LOOKAHEAD mode: only evidence with (season, week) <= this cutoff is considered (current-only evidence is excluded). Future evidence — however it is added or mutated —
+   *  cannot change any result for a query at or before the cutoff (proved by test). Omitted = RETROSPECTIVE (all game evidence for the SAME season; still never cross-season). */
+  knownThrough?: { season: number; week: number };
+}
 export type TemporalQuery = { kind: "GAME"; season: number; week: number } | { kind: "CURRENT"; season: number; week: number };
 
 const POLICY = `GAME_OBSERVED exact > WEEK_BRACKETED (same team both sides, same season) > SEASON_MEMBERSHIP > (CURRENT queries only) PROVIDER_CURRENT > CROSSWALK_LATEST_TEAM(stale-risk); priority ${SOURCE_PRIORITY.join(" > ")}; no cross-season inference`;
@@ -68,16 +86,23 @@ function candidatesOf(obs: TeamObservation[], chronological = false): Candidate[
   for (const o of obs) { const key = o.no_team ? "∅" : (o.team ?? "?"); const c = by.get(key) ?? { team: o.no_team ? null : o.team, sources: [], weeks: [], record_ids: [], granularity: o.granularity }; if (!c.sources.includes(o.source)) c.sources.push(o.source); if (o.week != null && !c.weeks.includes(o.week)) c.weeks.push(o.week); c.record_ids.push(o.source_record_id); by.set(key, c); }
   const list = [...by.values()]; return chronological ? list : list.sort((a, b) => Math.min(...a.sources.map(rank)) - Math.min(...b.sources.map(rank)) || String(a.team).localeCompare(String(b.team)));
 }
-const base = (gsis: string, q: TemporalQuery): Omit<TeamResolution, "status" | "team" | "granularity" | "evidence_class" | "reasons"> => ({ version: TEMPORAL_IDENTITY_VERSION, gsis_id: gsis, query: q, candidates: [], selected_by_policy: null, gap_weeks: null, evidence_ids: [], policy: POLICY });
-const done = (b: ReturnType<typeof base>, status: MembershipStatus, team: string | null, granularity: ResolvedGranularity | null, cls: EvidenceClass | null, reasons: string[], over: Partial<TeamResolution> = {}): TeamResolution => ({ ...b, status, team, granularity, evidence_class: cls, reasons, ...over });
+const base = (gsis: string, q: TemporalQuery, ev: string, basis: TeamResolution["basis"]): Omit<TeamResolution, "status" | "team" | "granularity" | "evidence_class" | "reasons" | "failure_code"> => ({ version: TEMPORAL_IDENTITY_VERSION, gsis_id: gsis, query: q, candidates: [], selected_by_policy: null, gap_weeks: null, evidence_ids: [], policy: POLICY, evidence_version: ev, basis });
+const done = (b: ReturnType<typeof base>, status: MembershipStatus, team: string | null, granularity: ResolvedGranularity | null, cls: EvidenceClass | null, reasons: string[], over: Partial<TeamResolution> = {}): TeamResolution => ({ ...b, status, team, granularity, evidence_class: cls, reasons, failure_code: failureCodeFor(status), ...over });
 
 /**
  * Resolve which NFL team `gsis_id` belonged to at `query`. `observations` may contain any player's rows (filtered by gsis_id here).
  * Deterministic: input order does not matter.
  */
-export function resolvePlayerTeamAt(gsisId: string, observations: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions = {}): TeamResolution {
-  const maxGap = opts.maxBracketGapWeeks ?? DEFAULT_MAX_BRACKET_GAP_WEEKS;
-  const b = base(gsisId, query); const mine = observations.filter((o) => o.gsis_id === gsisId);
+export function resolvePlayerTeamAt(gsisId: string, observations: readonly TeamObservation[] | TeamMembershipIndex, query: TemporalQuery, opts: ResolveOptions = {}): TeamResolution {
+  return observations instanceof TeamMembershipIndex ? observations.resolve(gsisId, query, opts) : resolveFrom(gsisId, observations.filter((o) => o.gsis_id === gsisId), query, opts);
+}
+function withinCutoff(o: TeamObservation, k: { season: number; week: number }): boolean {
+  if (o.granularity === "CURRENT_ONLY") return false; if (o.granularity === "SEASON_MEMBERSHIP") return o.season <= k.season; return o.week != null && (o.season < k.season || (o.season === k.season && o.week <= k.week));
+}
+function resolveFrom(gsisId: string, all: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions): TeamResolution {
+  const maxGap = opts.maxBracketGapWeeks ?? DEFAULT_MAX_BRACKET_GAP_WEEKS; const k = opts.knownThrough;
+  const mine = k ? all.filter((o) => withinCutoff(o, k)) : all.slice(); const b = base(gsisId, query, temporalDataVersion(mine), k ? "KNOWN_THROUGH" : "RETROSPECTIVE");
+  if (k && (query.season > k.season || (query.season === k.season && query.week > k.week))) return done(b, "NO_EVIDENCE", null, null, null, [`query (${query.season} week ${query.week}) is after the knowledge cutoff (${k.season} week ${k.week}); later evidence is not consulted`]);
   const games = mine.filter((o) => o.granularity === "GAME_OBSERVED" && o.season === query.season && o.week != null);
   const ids = (xs: TeamObservation[]) => xs.map((x) => x.source_record_id).sort();
 
@@ -138,7 +163,7 @@ export interface OpponentResolution { status: "RESOLVED" | "BYE" | "UNAVAILABLE"
  * player + EFFECTIVE team at game time + schedule -> opponent. NEVER player + current team + historical week.
  * An ambiguous / conflicting / unsupported membership makes the opponent UNAVAILABLE (with the reason) — it does not degrade to a guess.
  */
-export function resolveOpponentAt(gsisId: string, observations: readonly TeamObservation[], schedule: ScheduleSource, query: TemporalQuery, opts: ResolveOptions = {}): OpponentResolution {
+export function resolveOpponentAt(gsisId: string, observations: readonly TeamObservation[] | TeamMembershipIndex, schedule: ScheduleSource, query: TemporalQuery, opts: ResolveOptions = {}): OpponentResolution {
   const m = resolvePlayerTeamAt(gsisId, observations, query, opts);
   if (!isResolved(m.status) || !m.team) return { status: "UNAVAILABLE", team: null, opponent: null, membership: m, reasons: [`team membership not established (${m.status}); opponent not derived`, ...m.reasons] };
   const s = schedule.opponentOf(m.team, query.season, query.week);
@@ -165,3 +190,22 @@ export function gameRowConsistency(o: TeamObservation, schedule: ScheduleSource)
   if (o.granularity !== "GAME_OBSERVED" || !o.team || o.week == null || !o.opponent) return "NOT_A_GAME_ROW";
   const s = schedule.opponentOf(o.team, o.season, o.week); return s.kind === "GAME" ? (s.opponent === o.opponent ? "CONSISTENT" : "OPPONENT_MISMATCH") : "SCHEDULE_UNKNOWN";
 }
+
+/* ------------------------------------------------------------------------------------------------ index (shared-infrastructure performance) */
+/**
+ * Per-player index over an evidence set, so N resolutions never rescan N x M rows. Memoizes ONLY on the immutable evidence version + the full effective-time query + options:
+ * a historical result is never cached against "the player" alone.
+ */
+export class TeamMembershipIndex {
+  readonly version: string; private readonly by = new Map<string, TeamObservation[]>(); private readonly memo = new Map<string, TeamResolution>();
+  constructor(observations: readonly TeamObservation[]) { for (const o of observations) (this.by.get(o.gsis_id) ?? this.by.set(o.gsis_id, []).get(o.gsis_id)!).push(o); this.version = temporalDataVersion(observations); }
+  get playerCount(): number { return this.by.size; }
+  observationsFor(gsis: string): readonly TeamObservation[] { return this.by.get(gsis) ?? []; }
+  resolve(gsis: string, query: TemporalQuery, opts: ResolveOptions = {}): TeamResolution {
+    const key = `${this.version}|${gsis}|${query.kind}|${query.season}|${query.week}|${opts.maxBracketGapWeeks ?? ""}|${opts.knownThrough ? `${opts.knownThrough.season}.${opts.knownThrough.week}` : ""}`;
+    const hit = this.memo.get(key); if (hit) return hit; const r = resolveFrom(gsis, this.by.get(gsis) ?? [], query, opts); this.memo.set(key, r); return r;
+  }
+}
+
+/** Depth-chart history: NO dated depth-chart source exists in the repository or the database (audited), and team membership never implies depth order. */
+export const DEPTH_CHART_HISTORY = { status: "UNSUPPORTED" as const, reason: "no dated depth-chart source exists; WR1/RB2/starter slot is never inferred from membership, snap share, projections, names, or a current depth chart" };

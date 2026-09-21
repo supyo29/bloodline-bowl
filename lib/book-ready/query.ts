@@ -155,10 +155,10 @@ export const TOPICS: Record<string, TopicSpec> = {
     const { resolvePlayerTeamAt, resolveOpponentAt, scheduleFromObservations } = await import("@/lib/temporal-identity/membership"); const { loadMembershipEvidence } = await import("@/lib/temporal-identity/evidence-loader"); const { teamMembershipEvidence } = await import("./families/team-membership");
     const { getNflState } = await import("@/lib/sleeper/client"); const st = await getNflState().catch(() => null); const season = Number(p.season ?? st?.season ?? 2026); const nowWeek = Math.max(1, Number(st?.week ?? 1));
     const query = p.week ? ({ kind: "GAME", season, week: Number(p.week) } as const) : ({ kind: "CURRENT", season, week: nowWeek } as const);
-    const obs = await loadMembershipEvidence({ gsis_id: p.gsis_id!, season, sleeper_id: p.sleeper_id ?? null, current: query.kind === "CURRENT" });
+    const ev = await loadMembershipEvidence({ gsis_id: p.gsis_id!, season, sleeper_id: p.sleeper_id ?? null, current: query.kind === "CURRENT" }); const obs = ev.observations;
     let schemeTeam: string | null | undefined; try { const { fileMatchupSource } = await import("@/lib/matchup2/source-files"); schemeTeam = fileMatchupSource().resolvePlayer(p.gsis_id!)?.team ?? null; } catch { schemeTeam = undefined; }
     const r = resolvePlayerTeamAt(p.gsis_id!, obs, query); const opp = query.kind === "GAME" ? resolveOpponentAt(p.gsis_id!, obs, scheduleFromObservations(obs), query) : null;
-    return teamMembershipEvidence(r, { opponent: opp, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
+    return teamMembershipEvidence(r, { opponent: opp, sources: ev.sources, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
   } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };
