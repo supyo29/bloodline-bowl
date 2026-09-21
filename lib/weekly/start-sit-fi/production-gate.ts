@@ -80,7 +80,7 @@ export function applyFiToProductionBatch(
       const ok = dec.allowed && !mismatch;
       if (ok) { allowed.add(f.family); if (tr!.kind === "RESIDUAL_ADJUSTMENT") residualFamilies.add(f.family); }
       else if (dec.family_state === "PRODUCTION_ACTIVE") {
-        ledger.record({ owner: FI_CONTRIBUTION_OWNER, canonical_player_id: id, position: pos, family: f.family, fi_version: fi?.manifest.version ?? null, fi_through_week: ctx.fi_through_week,
+        ledger.record({ owner: FI_CONTRIBUTION_OWNER, canonical_player_id: id, position: pos, family: f.family, fi_version: fi?.manifest.football_intelligence_version ?? null, fi_through_week: ctx.fi_through_week,
           scoring_fingerprint: ctx.scoring_fingerprint, baseline_projection_version: input.baseline_projection_version ?? null, translation_version: tr?.certification_version ?? null,
           certification_version: tr?.certification_version ?? null, deployment_state: dec.family_state, freshness_status: ctx.freshness?.overall_status ?? null, temporal_membership_version: null,
           expected_adjustment: 0, baseline_projection: proj.projected_points, final_projection: proj.projected_points, applied: false,
@@ -98,7 +98,7 @@ export function applyFiToProductionBatch(
       const bounded = Number.isFinite(c.points_contribution) ? Math.max(-cap, Math.min(cap, c.points_contribution)) : 0;
       const isResidual = residualFamilies.has(c.family);
       if (isResidual) addToProjection += bounded;
-      ledger.record({ owner: FI_CONTRIBUTION_OWNER, canonical_player_id: id, position: pos, family: c.family, fi_version: fi?.manifest.version ?? null, fi_through_week: ctx.fi_through_week,
+      ledger.record({ owner: FI_CONTRIBUTION_OWNER, canonical_player_id: id, position: pos, family: c.family, fi_version: fi?.manifest.football_intelligence_version ?? null, fi_through_week: ctx.fi_through_week,
         scoring_fingerprint: ctx.scoring_fingerprint, baseline_projection_version: input.baseline_projection_version ?? null, translation_version: tr.certification_version,
         certification_version: tr.certification_version, deployment_state: "PRODUCTION_ACTIVE", freshness_status: ctx.freshness?.overall_status ?? null, temporal_membership_version: null,
         expected_adjustment: bounded, baseline_projection: proj.projected_points, final_projection: isResidual ? Math.round((proj.projected_points + bounded) * 100) / 100 : proj.projected_points,
