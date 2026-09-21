@@ -17,6 +17,7 @@
  */
 
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
+import { materializeScoringEvents } from "@/lib/scoring/derived-events";
 import { hashScoringSettings } from "@/lib/analytics/historical-scoring";
 import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import type { PlayerProjection, ProjectedFootballStats, LeagueProjection } from "./schema";
@@ -163,7 +164,9 @@ export function statLineFromProjection(
   // without return-yardage scoring is unaffected by this projection existing.
   put("kr_yd", s.kr_yd);
   put("pr_yd", s.pr_yd);
-  return line;
+  // Phase 6: position reception premium (`bonus_rec_te|rb|wr` == receptions for that position) is materialized by the single derived-events
+  // owner. Without it a TE-premium league's season/draft/trade valuation silently ignored the premium.
+  return materializeScoringEvents(line, { position: proj.position }).stats;
 }
 
 /* ------------------------------------------------------------ translate to league */

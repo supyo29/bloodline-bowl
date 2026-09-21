@@ -22,6 +22,8 @@
 import { SLEEPER_ROOT_URL, fetchSleeper } from "@/lib/sleeper/client";
 import { canonicalPosition } from "@/lib/canonical/players";
 import { scoreWeeklyLine, NON_SCORING_KEY } from "../scoring";
+import { materializeScoringEvents } from "@/lib/scoring/derived-events";
+import { leagueScoringContract } from "@/lib/scoring/support-contract";
 import { enrichWeeklyStatsWithReturnGame } from "../return-game-weekly";
 import { weeklyBand } from "../uncertainty";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
@@ -157,7 +159,7 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
           // component stats only — a `pts_*`-only season row is not reconstructable.
           const hasComponent = sk.some((k) => !NON_SCORING_KEY.test(k) && !/^pts_/.test(k));
           if (!hasComponent) continue;
-          const seasonPts = scoreWeeklyLine(e.stats, league.raw_scoring).points;
+          const seasonPts = scoreWeeklyLine(materializeScoringEvents(e.stats, { position: pos }).stats, league.raw_scoring).points;
           if (seasonPts > 0) rosByCanonical.set(cid, Math.round(seasonPts * weeksLeftFrac * 100) / 100);
         }
       }
@@ -177,7 +179,10 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       const cid = resolved.canonical_player_id;
       resolvedPlayers.set(cid, resolved);
       const pos = canonicalPosition(e.player?.position ?? e.player?.fantasy_positions?.[0] ?? null);
-      const rawEntryStats = e.stats ?? {};
+      // Phase 6: the single owner of derived scoring events (lib/scoring/derived-events.ts). Provider-first; renames the provider's individual
+      // return yards from the team-defense key (`def_kr_yd`) to `kr_yd` BEFORE enrichment so a returner is never priced twice, and derives a
+      // position reception bonus only if the provider omitted it.
+      const rawEntryStats = materializeScoringEvents(e.stats ?? {}, { position: pos }).stats;
       const injury = e.player?.injury_status ?? null;
       const nflTeam = (e.team ?? e.player?.team ?? null)?.toUpperCase() ?? null;
       const availability = injuryToAvailability(injury);
@@ -278,6 +283,12 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
         message: `${kdefApproximated} K/D-ST weekly projections use Sleeper's standard precomputed points; league-specific K/D-ST scoring is not reconstructed weekly.`,
         severity: "warning",
       });
+    }
+    // Phase 6 (D-4): a rule the league scores that the weekly provider never supplies (e.g. whole-game threshold bonuses, distance-TD bonuses) adds NOTHING
+    // to a weekly projection. Say so, once per batch, instead of leaving the omission silent. Info severity: it never changes batch status.
+    const notSupplied = leagueScoringContract(league.raw_scoring).offense_rules_not_reaching_weekly_projection;
+    if (notSupplied.length > 0) {
+      warnings.push({ code: "league_scores_keys_provider_does_not_supply", message: `This league scores offense rule(s) the weekly provider does not supply, so they contribute nothing to weekly projections (exact only on completed games): ${notSupplied.join(", ")}.`, severity: "info" });
     }
     if (unscoredNoise > 0) {
       warnings.push({

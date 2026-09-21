@@ -7,6 +7,7 @@
  * Counters prove nothing is retrieved twice. The only clock is `weekly.generated_at` (no wall-clock reads anywhere in the engine).
  */
 import { scoreWeeklyLine } from "@/lib/weekly/scoring";
+import { materializeScoringEvents } from "@/lib/scoring/derived-events";
 import { buildOptimalLineup, isEligible, type LineupResult } from "@/lib/weekly/lineup";
 import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
@@ -28,6 +29,8 @@ export interface WaiverContext {
   opp: (team: string, unavailableGsis: string[]) => OpportunityPropagationScenarioResult | null;
   /** league-scoring points for one typical target / carry (canonical scoring engine) */
   ppo: { target: number; carry: number; unscored_keys: string[] };
+  /** Phase 6: the same conversion PER POSITION, through the single derived-events owner (a TE target under a TE-premium league is worth more than a WR target). Position-agnostic `ppo` is the no-bonus baseline. */
+  ppoFor: (position: string | null | undefined) => { target: number; carry: number };
   scoring_fingerprint: string | null;
   baseline: LineupResult; startersByPlayer: Map<string, { slot: string; points: number | null }>;
   activeIds: string[]; myPlayerIds: Set<string>;
@@ -64,6 +67,13 @@ export function buildWaiverContext(input: WaiverInput): WaiverContext {
   const y = PARAMS.yield_per_opportunity.value;
   const t = scoreWeeklyLine(y.target!, w.league.raw_scoring); const c = scoreWeeklyLine(y.carry!, w.league.raw_scoring);
   const ppo = { target: t.points, carry: c.points, unscored_keys: [...new Set([...t.unscored_keys, ...c.unscored_keys])] };
+  const ppoCache = new Map<string, { target: number; carry: number }>();
+  const ppoFor = (position: string | null | undefined) => {
+    const k = (position ?? "").toUpperCase(); const hit = ppoCache.get(k); if (hit) return hit;
+    const pt = scoreWeeklyLine(materializeScoringEvents(y.target!, { position: k }).stats, w.league.raw_scoring).points;
+    const pc = scoreWeeklyLine(materializeScoringEvents(y.carry!, { position: k }).stats, w.league.raw_scoring).points;
+    const v = { target: pt, carry: pc }; ppoCache.set(k, v); return v;
+  };
 
   const myPlayers = new Map<string, CanonicalPlayer>(w.all_rostered.map((p) => [p.canonical_player_id, p]));
   counters.lineup_builds += 1;
@@ -102,7 +112,7 @@ export function buildWaiverContext(input: WaiverInput): WaiverContext {
   const byeWeek = (p: CanonicalPlayer): number | null => (p.nfl_team && input.schedule ? input.schedule.bye_week(p.nfl_team) : (w.byes.by_player[p.canonical_player_id] ?? null));
   return {
     input, now: w.generated_at, week: w.league.week, lastWeek: PARAMS.season_last_week.value, weeksRemaining: Math.max(1, PARAMS.season_last_week.value - w.league.week),
-    myTeam, players, counters, proj, role, opp, ppo, scoring_fingerprint: w.lineage?.snapshot?.scoring_fingerprint ?? scoringFingerprint(w.league.raw_scoring),
+    myTeam, players, counters, proj, role, opp, ppo, ppoFor, scoring_fingerprint: w.lineage?.snapshot?.scoring_fingerprint ?? scoringFingerprint(w.league.raw_scoring),
     baseline, startersByPlayer, activeIds, myPlayerIds: new Set(w.roster.all_players), marginalStarter, replacement, byeWeek,
   };
 }
