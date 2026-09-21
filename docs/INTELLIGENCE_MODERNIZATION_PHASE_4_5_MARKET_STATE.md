@@ -199,3 +199,94 @@ Gates:
 The market-state framework is correct and operational: the free-agent pool is safely materialized and Waiver 2.0 now produces genuine ranked shadow evidence in all three leagues. It is B rather than A because the provider (Sleeper) still cannot establish three acquisition facts the framework models as UNKNOWN rather than guessing: **(1) pending waiver claims, (2) a per-player waiver clear time, (3) whether a started game blocks an add.** Each is exposed as an explicit limitation and none makes the pool unsafe; they bound how precisely competition and timing can ever be modelled from this provider.
 
 Not done, by design: no merge, no deploy, migration not applied, no claim submitted, no weight tuned, Phase 5 not begun.
+
+---
+
+# Appendix M — Merge, deployment & production certification (2026-09-21)
+
+Branch findings above are unchanged. This appendix records the merge task.
+
+## M1. Reconciliation
+Certified branch tip `51804af`. `main` = `origin/main` = merge base = `15f7b0a` at start: **0 commits unique to main, no drift**, clean tree; merged by fast-forward (no force-push, no rewrite).
+
+## M2. Pre-merge production baseline
+`dpl_35iBD8HvXUKsVwz3N2ZBTGTEr9fh` @ `15f7b0a`; aliases `bloodline-bowl-sleeper-bridge.vercel.app`, `…-supyo29s-projects.vercel.app`, `…-git-main-…`; health 200; FI `fi:2026:w02:bfd77c9959a6`, Role `roi:2026:w01:819dc3166607`; Waiver 2.0 `SHADOW_ONLY`, `may_influence_production: false`; scoring fingerprints `scoring:v1:29acc6bcd911df090b5b9b9c` (Bloodline Bowl), `scoring:v1:d4795fa723cdd12d9ba3bfb1` (Devoted, Sporty's); production waivers `UNAVAILABLE`; capture table 6 rows, all `NOT_ACTIONABLE`; 0 eligible; 0 outcomes; migrations through `20260921022348`. Production section hashes (lineup, start_sit, waivers, matchup, leverage, positional_needs) recorded for 4 league/manager pairs, stable across two reads.
+
+## M3. Defects/gaps found and fixed during the merge task (all before certification)
+1. **Correlated captures could inflate the evidence gate.** A daily cron plus requests can create many distinct-identity captures of one manager/week decision (e.g. a FAAB change). The gate now counts **one decision per (league, manager, season, week)** — the earliest eligible record; later ones are excluded as `CORRELATED_SAME_DECISION_WINDOW`. Thresholds are unchanged (min 8 weeks / 60 decisions / 3 managers; preferred 14 / 200 / 6 / 2 leagues). One existing test (which had encoded 3-per-window inflation, expecting 72) was corrected to 128 captures → 64 decisions. 30 correlated variants of one window = 1 decision (permanent test).
+2. **Invocation provenance** (`CRON` | `REQUEST`) is recorded on every capture but is **not identity and not an eligibility criterion**; a cron run after a kickoff is `LIVE_POST_LOCK` (permanent test).
+3. **Public-parameter poisoning.** The evidence route took `season` from the request and `market.state` accepted a caller-chosen `week` that labelled stored history. Season now comes from canonical state (`week` was already rejected for non-current weeks: `NON_CURRENT_WEEK_UNSUPPORTED`), and market history is persisted only for the current NFL week.
+4. **Scoring fingerprint missing from market snapshots** (found from the first three production rows). It is now derived from the league's own scoring settings by the canonical pure function; verified equal to the known fingerprints.
+5. **Book-Ready lineage.** `waiver2.*` evidence now carries the consumed market lineage (content id, pool id, manager acquisition context id, coverage) via a side table (evaluation object and its hashes untouched); `market.state` accepts `manager` and adds a manager **overlay** (FAAB remaining, priority, roster size/open slots/add-requires-drop) over an identical league pool identity.
+6. **Analysis Book honesty.** Marking all four waiver chapters READY was too generous. A topic-level `PROVIDER_LIMIT_PARTIAL` flag (no taxonomy change) makes `waiver.availability_faab` and `waiver.manager_competition` **PARTIAL** (pending claims and clear times unknown, competitor need structural, FAAB UNCALIBRATED); `waiver.drop_cost` and `decision.replacement_value` are **READY**. Chapter ids unchanged.
+7. Migration tightened before it was applied (identity-format CHECKs; snapshot JSON must equal its row identity).
+
+## M4. Migration (production Supabase `ijpfjdzmaztofawhwepf`)
+Pre-check: no equivalent table under any name; SQL re-inspected; rollback documented (`drop table … ; drop function …`). Applied through the migration tool as **`20260921040113 market_state_snapshots`**. Verified: RLS on, 0 policies, no anon/authenticated grants, 7 constraints (PK + identity-format + `TRUE_AS_OF` + `READY|PARTIAL` + format + snapshot/identity), 2 indexes + PK, immutability trigger enabled, table empty. There is no outcome relationship for market snapshots (outcomes belong to `bridge_waiver2_shadow_outcomes`, whose FK was verified below).
+
+**Production adversarial test (single statement that always rolls back):** valid insert OK; duplicate rejected; `UNSAFE` class rejected; blocked (`NOT_READY`) market rejected; malformed artifact id rejected; malformed content id rejected; snapshot/identity mismatch rejected; UPDATE blocked; DELETE blocked; invalid capture class rejected; LIVE class on an uncertified pool rejected; orphan outcome rejected. Afterwards: market rows 0, capture rows 6 — unchanged.
+
+## M5. Merge & deploy
+Merged fast-forward `15f7b0a → 8324f90`, then `fa72a5a` (scoring fingerprint), `7c62590` (Book-Ready overlay/lineage), `596f7c6` (Analysis Book provider-limit flag). Every deployment READY with all three aliases attached and health 200. **Code SHA certified: `596f7c6` (`dpl_3EVi6bNxxxeSrJPTpZ1HzJ4xpAJe`)**; earlier intermediates were `dpl_DBTiBBh3…` (`8324f90`), `dpl_HXUd9QP8…` (`fa72a5a`). A docs-only commit follows and is not a code change. `vercel.json` now schedules `/api/cron/waiver2-capture` at 14:00 UTC daily.
+
+## M6. Live market state (production evidence route, 3 leagues, week 2)
+| League | System | Available | On waivers | Rostered | Unknown | Ineligible | Content id |
+|---|---|---|---|---|---|---|---|
+| Bloodline Bowl | FAAB (budget 100) | 691 | 2 | 185 | 7 | 11,343 | `mkt:2026:w02:b618f4f5314486c1` |
+| Devoted | Priority (reverse standings), FAAB `NOT_APPLICABLE` | 679 | 1 | 199 | 7 | 11,342 | `mkt:2026:w02:0aac83f57be13ce6` |
+| Sporty's Alumni | Priority, clear days 0 | 662 | 0 | 217 | 7 | 11,342 | `mkt:2026:w02:695bfa1c77ddfc4c` |
+
+Readiness `READY` in all three, limitations `PENDING_CLAIMS_NOT_EXPOSED`, `WAIVER_CLEAR_TIME_NOT_EXPOSED`, `GAME_LOCK_ADD_RULE_NOT_PUBLISHED` — all three remain **UNKNOWN**; none was converted into an assumed value (waiver clear time null on every player, no `WAIVER_CLAIM_PENDING`, started games are a per-player fact and never remove a player from the pool).
+
+**Independent verification.** `scripts/market-state-certify.ts` (raw HTTP re-derivation, no market-state code) against live Sleeper: ROSTERED, AVAILABLE and ON_WAIVERS sets are **exactly equal** in all three leagues (185/691/2, 199/679/1, 217/662/0), plus schema-consistent lock state and cross-league isolation (**ALL CHECKS PASSED**). The production endpoint's counts equal the derivation and its content ids equal those computed locally at the same moment (the pool list itself has no public route, so set equality was checked on the identical code at the same SHA).
+
+**Stale/inactive regression.** 24 directory rows have a team and `active=false`; in every league 7 are `UNKNOWN_AVAILABILITY` and 17 are excluded (ineligible/duplicate), **0 leak as AVAILABLE**. The 43 "Duplicate Player" directory rows are preserved, not deleted.
+**DEF.** 32 team entities per league, position DEF with a team, none misclassified; 19 / 19 / 17 available and present in the DEF positional pool; rostered counts differ by league (13 / 13 / 15).
+**Cross-league.** e.g. Tre Tucker: available in Bloodline Bowl, rostered in Devoted and Sporty's; Braelon Allen: rostered in Bloodline Bowl, available in the other two — identical provider id, league-specific status; the three content ids are distinct.
+**Manager overlay.** One league pool identity (identical across managers, verified on production evidence) with per-manager FAAB (100 vs 91), priority (9 vs 10), roster room.
+
+## M7. Persistence and deduplication (production database)
+- Market snapshots: first reads inserted one row per league; after the scoring-fingerprint fix one new artifact per league (the first three, with `scoring_fingerprint null`, are preserved — nothing is overwritten). **18 cache-busted concurrent requests → +3 rows**, and 12 further concurrent requests → +0 (final: 6 rows, 3 leagues). Stored: league, season/week/as-of, ownership/universe/transactions/rules identities, scoring fingerprint, market content id, acquisition-context id, readiness, limitations, sources.
+- Ranked shadow captures: 6 managers × 3 repeats (18 requests) → **6 rows**; 12 further concurrent cache-busted requests → **+0**. `ranked_same_window_dupes = 0`. Snapshot ids change between reads and did not create rows. Deterministic tests prove a new row for market/pool, ownership, roster add/drop, budget, acquisition context, scoring fingerprint change and lock verdict.
+- Runtime health shows `duplicates` counting and `failures 0`.
+
+## M8. Waiver 2.0 live shadow output
+All three leagues, six managers: `availability CERTIFIED`, ranked actions (e.g. 79 Book-Ready blocks for one manager), `SHADOW_ONLY`, `may_influence_production false`, params hash `db8892b015a8` (unchanged from Phase 4), scoring fingerprint attached, candidate coverage 679/679 evaluated (0 unmatched), uncertainty and alternatives preserved, FAAB `calibration NONE/UNCALIBRATED` and `PRIOR_UNVALIDATED` limitations preserved on the evidence. These are **shadow outputs, not validated recommendations.** The exact-math regression (same pool through the legacy and canonical paths → byte-identical actions, `evaluation_hash`, `params_hash`) is a permanent test.
+
+## M9. Evidence counts (production, after certification traffic — reported separately)
+| Kind | Count |
+|---|---|
+| Market snapshots | 6 (3 leagues; 3 pre-fingerprint + 3 final) |
+| `LIVE_CAPTURED` | 0 |
+| `LIVE_POST_LOCK` (ranked) | 6 (6 managers, all REQUEST-invoked, week 2, all NFL week-2 games already started/complete) |
+| `LIVE_UNVERIFIED` | 0 |
+| `NOT_ACTIONABLE` (readiness) | 6 (pre-existing; never count) |
+| Reconstructed | 0 |
+| Illustrative | 0 (never persisted) |
+| Ranked-action rows | 6 |
+| Outcome rows | 0 |
+| Eligibility-qualified decisions | **0** (gate `NOT_ELIGIBLE`; thresholds unchanged) |
+
+**First pristine ranked capture: pending qualifying live decision window.** Certification ran after the week-2 games, so every capture is honestly `LIVE_POST_LOCK`; nothing was manufactured. The cron dry run (real function, in-memory stores) captured 41 managers in ~14 s, all `LIVE_POST_LOCK`, then 41 `DUPLICATE_IDENTICAL` on a second run, invocation `CRON`, 0 eligible. Pristine `LIVE_CAPTURED` will appear only when a run (cron or request) sees every involved game verifiably pre-game — and even then a manager/week counts once.
+
+## M10. Cron
+`/api/cron/waiver2-capture`: unauthenticated → 401, bad bearer → 401 (production), `CRON_SECRET`-gated like the existing crons; read-only toward fantasy platforms (no submission path); duplicate invocations are no-ops (identity + database uniqueness); failures are isolated per manager and never touch recommendations. It could not be invoked with the real secret from this session (the secret is not available), so the scheduled run is confirmed only by its dry run and auth tests; the first scheduled execution (14:00 UTC) should be checked in the deployment logs.
+
+## M11. Production waiver response and parity
+Production waiver section unchanged: `waiver_status UNAVAILABLE` for all four sampled managers before and after. The post-deploy production hashes for two managers' `waivers` sections differed from the earlier recorded baseline; the interleaved local comparison of baseline code (`15f7b0a`) vs final code, run against the same live state (3 league/manager pairs × 2 pairs of runs, all six sections), is **identical** — the movement was upstream Sleeper drift (week-2 results and transactions), not Phase 4.5. Lineup, Start/Sit, matchup, leverage, positional needs identical everywhere. Trade/scoring engines untouched (no import path from the market state).
+
+## M12. Book-Ready / Analysis Book (production)
+`market.state` (league facts + manager overlay), `waiver2.actions`, `waiver2.market`, `waiver2.replacement` all `OK`: units `count`/`days`/`currency`/`points`/`fraction`/`category`, shadow class, confidence/uncertainty on actions, market content id + pool id + coverage in lineage, provider unknowns and `PRIOR_UNVALIDATED` in limitations. Waiver Analysis Book (13 chapters, ids unchanged): `decision.replacement_value` READY, `waiver.drop_cost` READY, `waiver.availability_faab` **PARTIAL**, `waiver.manager_competition` **PARTIAL** (reasons stated). Market history is prospective-only (`CURRENT_ONLY` in the registry); nothing implies historic availability.
+
+## M13. Performance
+Production, warm: `market.state` 0.15 s; `waiver2.actions` ≈1.1 s end to end (Phase 4 baseline ≈1 s input + ≈50 ms evaluation; the pool adds ≈60 ms uncached, 0 ms memoized; universe ≈3,120 candidates → 679–691 market-eligible, ~90 shortlisted, evaluation unchanged); cold first request ≈3.8 s (player-universe download); 12 concurrent evaluations 2.4–5.4 s wall. Cron: ≈14 s for 41 managers (one market read per league). No N×M provider calls.
+
+## M14. Tests
+Final code: **2384 tests, 2380 pass, 0 fail, 4 skipped**; `tsc` clean; eslint clean for changed files. New this task: capture provenance / correlated-window gate, manager overlay + lineage, provider-limit chapters, scoring fingerprint, plus all branch suites (market contract, build, load, adversarial, capture, Book-Ready, isolation, cron auth). R suites not run (no R/model artifact changed).
+
+## M15. Remaining limitations
+Pending claims, per-player waiver-clear instants and the started-game add rule remain UNKNOWN by provider; Waiver 2.0 weights `PRIOR_UNVALIDATED`; no pristine or outcome-bearing evidence yet (evidence-insufficient, no promotion); market history begins 2026-09-21; the scheduled cron's first real run is unobserved.
+
+## M16. Final verdict
+**A — CERTIFIED — CANONICAL MARKET STATE OPERATIONAL.**
+Phase 4.5 canonical market-state infrastructure is production-certified. Waiver Intelligence 2.0 now receives a trustworthy league-specific candidate pool and can accumulate ranked prospective shadow evidence. Provider-unsupported acquisition details remain explicitly unknown. Production waiver behavior is unchanged.
