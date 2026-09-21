@@ -10,7 +10,7 @@
  *    anything unverifiable is LIVE_UNVERIFIED, never pristine. No code change is needed when the pool becomes certified.
  */
 import { SLEEPER_ROOT_URL, fetchSleeper } from "@/lib/sleeper/client";
-import { classifyWaiverLock, buildCaptureRecord, captureKindFor, type ScheduleGame, type WaiverCaptureStore, type WaiverLockEvidence } from "@/lib/waiver2/capture";
+import { classifyWaiverLock, buildCaptureRecord, captureKindFor, type CaptureInvocation, type ScheduleGame, type WaiverCaptureStore, type WaiverLockEvidence } from "@/lib/waiver2/capture";
 import type { WaiverEvaluation, WaiverInput } from "@/lib/waiver2/types";
 import { loadSupabaseConfig, SupabaseRest } from "./rest";
 import { SupabaseWaiverCaptureStore } from "./waiver2-capture";
@@ -36,7 +36,7 @@ async function fetchSchedule(season: number): Promise<{ games: ScheduleGame[] | 
 export interface PersistDeps { fetchSchedule?: typeof fetchSchedule; timeoutMs?: number; minIntervalMs?: number }
 export interface PersistOutcome { status: "SKIPPED_ILLUSTRATIVE" | "THROTTLED" | "NOT_CONFIGURED" | "INSERTED" | "DUPLICATE_IDENTICAL" | "REFUSED" | "ERROR" | "TIMEOUT"; capture_id: string | null; capture_class: string | null; error?: string }
 
-export async function persistWaiver2Evidence(ev: WaiverEvaluation, input: WaiverInput, meta: { league_slug: string; manager_slug: string; season: number; illustrative: boolean }, deps: PersistDeps = {}): Promise<PersistOutcome> {
+export async function persistWaiver2Evidence(ev: WaiverEvaluation, input: WaiverInput, meta: { league_slug: string; manager_slug: string; season: number; illustrative: boolean; invocation?: CaptureInvocation }, deps: PersistDeps = {}): Promise<PersistOutcome> {
   try {
     if (meta.illustrative) { health.skipped_illustrative += 1; return { status: "SKIPPED_ILLUSTRATIVE", capture_id: null, capture_class: null }; }
     const st = resolveStore(); if (!st) { health.not_configured += 1; health.last_status = "NOT_CONFIGURED"; return { status: "NOT_CONFIGURED", capture_id: null, capture_class: null }; }
@@ -46,7 +46,7 @@ export async function persistWaiver2Evidence(ev: WaiverEvaluation, input: Waiver
       const sch = await (deps.fetchSchedule ?? fetchSchedule)(meta.season); lock = classifyWaiverLock({ decision_timestamp: new Date().toISOString(), week: ev.week, involved_teams: teams, games: sch.games, schedule_fetched_at: sch.fetched_at });
     }
     const kind = captureKindFor(ev, { illustrative: false, is_reconstruction: false, lock });
-    const rec = buildCaptureRecord(ev, input, { kind, league_slug: meta.league_slug, manager_slug: meta.manager_slug, season: meta.season, lock });
+    const rec = buildCaptureRecord(ev, input, { kind, league_slug: meta.league_slug, manager_slug: meta.manager_slug, season: input.weekly.league.season ?? meta.season, lock, invocation: meta.invocation });
     const tk = `${rec.league_slug}|${rec.manager_slug}|${rec.season}|${rec.week}|${rec.capture_class}`; const nowMs = Date.now();
     if (!seen.has(rec.capture_id) && nowMs - (lastWrite.get(tk) ?? 0) < (deps.minIntervalMs ?? WAIVER2_CAPTURE_MIN_INTERVAL_MS)) { health.throttled += 1; return { status: "THROTTLED", capture_id: rec.capture_id, capture_class: rec.capture_class }; }
     if (seen.has(rec.capture_id)) { health.duplicates += 1; return { status: "DUPLICATE_IDENTICAL", capture_id: rec.capture_id, capture_class: rec.capture_class }; }
@@ -87,7 +87,7 @@ export async function runScheduledWaiver2Capture(): Promise<ScheduledCaptureSumm
         if (!r.ok) { managerFailures += 1; continue; }
         const ev = evaluateWaiver2(r.input);
         if (!market && r.input.pool.market_snapshot) market = (await persistMarketSnapshot(r.input.pool.market_snapshot, { minIntervalMs: 0 })).status;
-        const out = await persistWaiver2Evidence(ev, r.input, { league_slug: t.key, manager_slug: m.manager_slug, season, illustrative: false }, { minIntervalMs: 0 });
+        const out = await persistWaiver2Evidence(ev, r.input, { league_slug: t.key, manager_slug: m.manager_slug, season, illustrative: false, invocation: "CRON" }, { minIntervalMs: 0 });
         byStatus[out.status] = (byStatus[out.status] ?? 0) + 1; if (out.capture_class) byClass[out.capture_class] = (byClass[out.capture_class] ?? 0) + 1;
         if (out.status === "ERROR" || out.status === "TIMEOUT" || out.status === "REFUSED") managerFailures += 1;
       } catch { managerFailures += 1; }

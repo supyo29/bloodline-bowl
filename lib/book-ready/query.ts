@@ -93,7 +93,9 @@ export const TOPICS: Record<string, TopicSpec> = {
   "market.state": { surface: "league-market-state", cost: "REQUEST_SCOPED_BUILD", required: ["league"], run: async (p) => {
     const { loadMarketSnapshot } = await import("@/lib/market-state/load"); const { marketStateEvidence } = await import("./families/market-state"); const { getNflState } = await import("@/lib/sleeper/client");
     const week = p.week ? Number(p.week) : Math.max(1, Number((await getNflState().catch(() => null))?.week ?? 1));
-    const snap = await loadMarketSnapshot(p.league!, { week }); if (p.illustrative !== "1") await runMarketSnapshotHook(snap); return marketStateEvidence(snap);
+    const nflWeek = Math.max(1, Number((await getNflState().catch(() => null))?.week ?? 1)); const snap = await loadMarketSnapshot(p.league!, { week });
+    // history is preserved only for the CURRENT week: a caller-chosen week must never label a stored snapshot
+    if (p.illustrative !== "1" && week === nflWeek) await runMarketSnapshotHook(snap); return marketStateEvidence(snap);
   } },
   "waiver2.actions": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ActionsEvidence(ev, w2meta(p)) : []; } },
   "waiver2.market": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2MarketEvidence(ev, w2meta(p)) : []; } },

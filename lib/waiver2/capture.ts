@@ -72,6 +72,7 @@ export interface WaiverShadowCaptureRecord {
   snapshot: { id: string | null; content_hash: string | null };
   /** Phase 4.5: which certified market snapshot the candidate set came from (absent on v2 rows). A BLOCKED record carries only the readiness codes. */
   market?: CaptureMarketRef | null;
+  provenance?: { invocation: CaptureInvocation };
   pool: { certification: string; readiness: { actionable: boolean; reason_code: string | null; reasons: string[]; missing_inputs: string[] }; pool_hash: string; candidate_count: number; candidate_ids: string[] };
   roster: { team_id: string; active_player_ids: string[]; faab_remaining: number | null; waiver_priority: number | null; roster_hash: string };
   lock: WaiverLockEvidence | null;
@@ -86,12 +87,15 @@ export function scheduleIdentity(input: WaiverInput): { available: boolean; iden
   const wk = input.weekly.league.week; return { available: true, identity_hash: hashOf(teams.map((t) => [t, s.bye_week(t), [0, 1, 2, 3].map((i) => s.opponent(t, wk + i))])) };
 }
 
-export interface BuildOpts { kind: CaptureKind; league_slug: string; manager_slug: string; season: number; lock: WaiverLockEvidence | null }
+export type CaptureInvocation = "CRON" | "REQUEST";
+export interface BuildOpts { kind: CaptureKind; league_slug: string; manager_slug: string; season: number; lock: WaiverLockEvidence | null; invocation?: CaptureInvocation }
 function common(ev: WaiverEvaluation, input: WaiverInput, o: BuildOpts) {
   const my = input.teams.find((t) => t.team_id === input.my_team_id)!; const roster = { active_player_ids: [...my.active_player_ids].sort(), faab_remaining: my.faab_remaining, waiver_priority: my.waiver_priority };
   const ids = input.pool.candidates.map((c) => c.canonical_player_id).sort(); const rd = input.pool.readiness ?? input.weekly.free_agent_pool_readiness;
   const snap = input.weekly.lineage?.snapshot as { league_snapshot_id?: string; content_hash?: string } | undefined;
   return {
+    // Provenance only: how the evaluation was triggered. NEVER identity and NEVER an eligibility criterion (class + evidence decide).
+    provenance: { invocation: o.invocation ?? "REQUEST" },
     schema_version: CAPTURE_RECORD_SCHEMA_VERSION, capture_class: o.kind, season: o.season, week: ev.week, league_slug: o.league_slug, manager_slug: o.manager_slug, scoring_fingerprint: ev.scoring_fingerprint, model_version: WAIVER2_ENGINE_VERSION,
     lifecycle_state: WAIVER2_LIFECYCLE_STATE, params_hash: ev.lineage.params_hash, deployment: { state: WAIVER2_LIFECYCLE_STATE, may_influence_production: mayInfluenceProduction() },
     snapshot: { id: snap?.league_snapshot_id ?? ev.lineage.snapshot, content_hash: snap?.content_hash ?? null },
@@ -105,7 +109,7 @@ const a_isEstablished = (c: string) => !/no teammate designation establishes/.te
 
 /** Identity covers the whole decision but NOT wall-clock read times (schedule fetch time / decision date): the same decision must not re-capture every minute. The lock VERDICT and involved teams are identity. */
 // A BLOCKED readiness record is a fact about (league, manager, week, pool state, scoring, roster, evidence versions): the canonical snapshot id changes on every read, so it is NOT identity there (otherwise every request would write a new row).
-const identityBody = (body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">) => ({ ...body,
+const identityBody = (body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">) => ({ ...body, provenance: undefined,
   // The canonical snapshot id AND content hash change on every read (they fold in provider-sync timestamps), so neither is decision identity — for ranked records
   // exactly as for blocked ones (Phase 4.5 fix: without this every request would write a new ranked row). The decision is identified by its market content id, roster hash,
   // evidence versions and the action content ids; `evaluation_hash` folds in lineage.snapshot, so ranked identity uses the action ids instead.
@@ -218,8 +222,12 @@ export interface WaiverEvidenceGate {
 export function waiver2EvidenceGate(records: WaiverShadowCaptureRecord[], outcomes: Array<Pick<WaiverOutcome, "capture_id">>): WaiverEvidenceGate {
   const outs = new Set(outcomes.map((o) => o.capture_id)); const excluded: Record<string, number> = {}; const weeks = new Set<string>(), mgrs = new Set<string>(), lgs = new Set<string>(); const pos: Record<string, number> = {}; let n = 0;
   const bump = (k: string) => { excluded[k] = (excluded[k] ?? 0) + 1; };
-  for (const r of records) {
+  // ONE decision per (league, manager, season, week): repeated eligible captures of the same decision window (daily cron + requests) are correlated
+  // snapshots of one decision, not independent decisions. The earliest eligible record is the decision; later ones are excluded, never counted.
+  const windowSeen = new Set<string>();
+  for (const r of [...records].sort((a, b) => (a.captured_at < b.captured_at ? -1 : a.captured_at > b.captured_at ? 1 : a.capture_id < b.capture_id ? -1 : 1))) {
     const el = evaluationEligibility(r, outs.has(r.capture_id)); if (!el.eligible) { bump(r.capture_class !== "LIVE_CAPTURED" ? r.capture_class : el.reasons[0]!.startsWith("no outcome") ? "NO_OUTCOME_YET" : "FAILS_ELIGIBILITY"); continue; }
+    const wk = `${r.league_slug}|${r.manager_slug}|${r.season}|${r.week}`; if (windowSeen.has(wk)) { bump("CORRELATED_SAME_DECISION_WINDOW"); continue; } windowSeen.add(wk);
     n += 1; weeks.add(`${r.season}-${r.week}`); mgrs.add(`${r.league_slug}/${r.manager_slug}`); lgs.add(r.league_slug);
     const top = r.actions[0]; if (top?.candidate_position) pos[top.candidate_position] = (pos[top.candidate_position] ?? 0) + 1;
   }

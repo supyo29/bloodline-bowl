@@ -2,7 +2,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { evaluateWaiver2 } from "@/lib/waiver2/actions";
-import { buildBlockedRecord, buildCaptureRecord, captureKindFor, evaluationEligibility, validateCaptureRecord, MemoryWaiverCaptureStore, type WaiverLockEvidence } from "@/lib/waiver2/capture";
+import { waiver2EvidenceGate, buildBlockedRecord, buildCaptureRecord, captureKindFor, evaluationEligibility, validateCaptureRecord, MemoryWaiverCaptureStore, type WaiverLockEvidence } from "@/lib/waiver2/capture";
 import { buildMarketSnapshot } from "@/lib/market-state/build";
 import { classifyHistoricalMarket, compactMarketSnapshot, MemoryMarketSnapshotStore, validateCompactSnapshot } from "@/lib/market-state/history";
 import { SupabaseMarketSnapshotStore, __resetMarketSnapshotRuntime, __setMarketSnapshotStore, getMarketSnapshotHealth, persistMarketSnapshot, snapshotRow } from "@/lib/persistence/supabase/market-state";
@@ -109,4 +109,17 @@ test("CRON /api/cron/waiver2-capture is auth-gated (no secret ⇒ refused, wrong
     process.env.CRON_SECRET = "s3cret"; const bad = await GET(new Request("https://x/api/cron/waiver2-capture", { headers: { authorization: "Bearer nope" } })); assert.equal(bad.status, 401);
   } finally { if (saved === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = saved; }
   const { readFileSync } = await import("node:fs"); assert.ok(JSON.parse(readFileSync("vercel.json", "utf8")).crons.some((c: { path: string }) => c.path === "/api/cron/waiver2-capture"));
+});
+
+test("PROVENANCE: invocation origin is recorded but is NOT identity and NOT an eligibility criterion; correlated captures of one decision window never inflate the gate", () => {
+  const i = fx(); const ev = evaluateWaiver2(i); const o = { ...M, kind: "LIVE_CAPTURED" as const, lock: PRE };
+  const cron = buildCaptureRecord(ev, i, { ...o, invocation: "CRON" }); const req = buildCaptureRecord(ev, i, { ...o, invocation: "REQUEST" });
+  assert.equal(cron.provenance?.invocation, "CRON"); assert.equal(req.provenance?.invocation, "REQUEST"); assert.equal(cron.capture_id, req.capture_id, "origin is not identity"); assert.deepEqual(validateCaptureRecord(cron), []);
+  assert.equal(evaluationEligibility(cron, true).eligible, evaluationEligibility(req, true).eligible, "origin does not decide eligibility");
+  const spoofed = buildCaptureRecord(ev, i, { ...o, kind: "LIVE_POST_LOCK", lock: { ...PRE, verdict: "POST_LOCK" }, invocation: "CRON" }); assert.equal(evaluationEligibility(spoofed, true).eligible, false, "a cron run after kickoff is never pristine");
+  // 30 daily-cron-style variants of ONE manager/week decision (different FAAB each) = 1 decision
+  const variants = Array.from({ length: 30 }, (_, k) => { const v = fx({ mine: stdMine({ faab: 50 + k }) }); return buildCaptureRecord(evaluateWaiver2(v), v, { ...o, invocation: "CRON" }); });
+  assert.equal(new Set(variants.map((r) => r.capture_id)).size, 30);
+  const g = waiver2EvidenceGate(variants.map((r, k) => ({ ...r, captured_at: `2026-09-2${k % 10}T14:00:00.000Z` })), variants.map((r) => ({ capture_id: r.capture_id })));
+  assert.equal(g.eligible_records, 1); assert.equal(g.distinct_weeks, 1); assert.equal(g.distinct_managers, 1); assert.equal(g.excluded.CORRELATED_SAME_DECISION_WINDOW, 29); assert.equal(g.status, "NOT_ELIGIBLE");
 });
