@@ -21,8 +21,8 @@ begin
 end $$;
 
 create table if not exists public.bridge_market_state_snapshots (
-  artifact_id            text primary key,
-  market_content_id      text        not null,
+  artifact_id            text primary key check (artifact_id ~ '^mktsnap:[0-9a-f]{20}$'),
+  market_content_id      text        not null check (market_content_id ~ '^mkt:[0-9]{4}:w[0-9]{2}:[0-9a-f]{16}$'),
   acquisition_context_id text        not null,
   league_slug            text        not null,
   season                 integer     not null,
@@ -31,8 +31,8 @@ create table if not exists public.bridge_market_state_snapshots (
   readiness_status       text        not null check (readiness_status in ('READY', 'PARTIAL')),
   scoring_fingerprint    text,
   market_state_version   text        not null,
-  format                 integer     not null,
-  snapshot               jsonb       not null,
+  format                 integer     not null check (format = 1),
+  snapshot               jsonb       not null check (jsonb_typeof(snapshot) = 'object' and snapshot->>'artifact_id' = artifact_id and snapshot->>'market_content_id' = market_content_id),
   observed_at            timestamptz not null,
   recorded_at            timestamptz not null default now()
 );
