@@ -2,7 +2,7 @@
  * Phase 7 — evidence adapters. Each turns one real source into `TeamObservation`s and states its own granularity and vintage; none decides precedence
  * (that is `SOURCE_PRIORITY` in membership.ts). Pure except the file reader.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { observation, type TeamObservation } from "./membership";
 
@@ -31,8 +31,12 @@ export function fromRoleParticipationCsv(text: string, vintage = "player_game_ro
   }
   return out;
 }
+/** Parsed once per (file, mtime): the input is immutable between Role rebuilds, so it is never re-parsed per player or per request. The cache key is the file identity, never a player or a time. */
+const roleCache = new Map<string, { mtime: number; obs: TeamObservation[] }>();
 export function loadRoleParticipation(root = process.cwd()): TeamObservation[] {
-  const p = join(root, "lib", "player-role-intelligence", "data", "player_game_role.csv"); return existsSync(p) ? fromRoleParticipationCsv(readFileSync(p, "utf8")) : [];
+  const p = join(root, "lib", "player-role-intelligence", "data", "player_game_role.csv"); if (!existsSync(p)) return [];
+  const m = statSync(p).mtimeMs; const hit = roleCache.get(p); if (hit && hit.mtime === m) return hit.obs;
+  const obs = fromRoleParticipationCsv(readFileSync(p, "utf8")); roleCache.set(p, { mtime: m, obs }); return obs;
 }
 
 /** A provider's statement about NOW (e.g. Sleeper's player index). CURRENT_ONLY: never returned for a past time. */

@@ -8,6 +8,7 @@ import { TOPICS, getEvidence } from "@/lib/book-ready/query";
 import { observation, resolvePlayerTeamAt, resolveOpponentAt, scheduleFromObservations, type TeamObservation, type TemporalQuery } from "@/lib/temporal-identity/membership";
 import { fromGameLogRows, providerCurrent, crosswalkSnapshot, schemeVintageFlag, fromRoleParticipationCsv, type GameLogRow } from "@/lib/temporal-identity/sources";
 import { getNflState } from "@/lib/sleeper/client";
+import { CHAPTER_LIBRARY } from "@/lib/analysis-book/library";
 
 const fx = JSON.parse(readFileSync("test/fixtures/temporal-real-movers.json", "utf8")) as { rows: GameLogRow[] }; const OBS = fromGameLogRows(fx.rows);
 const G = (season: number, week: number): TemporalQuery => ({ kind: "GAME", season, week }); const CMC = "00-0033280", BELL = "00-0030496";
@@ -55,3 +56,8 @@ test("MATCHUP 2.0 HISTORICAL GUARD (live): a past week requires game-level team 
   const yes = await getEvidence({ topic: "matchup2.player.summary", params: { gsis_id: has!, week: 1 } }); assert.ok(yes.blocks.some((b) => b.availability.state === "AVAILABLE"), "resolved historical week evaluates"); assert.ok(yes.validation.ok);
   const bad = await getEvidence({ topic: "matchup2.player.summary", params: { gsis_id: has!, week: 1, opponent: withWk1.get(has!)!.opponent === "DAL" ? "KC" : "DAL" } }); assert.match(bad.blocks[0]!.availability.reason!, /conflicts with the schedule opponent/);
 });
+
+test("Analysis Book (audited): NO chapter is limited by team identity, so no chapter state changes; the temporal topic is registered but required by no chapter", () => {
+  const needs = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "player.team_membership")); assert.equal(needs.length, 0); assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99);
+});
+test("Role participation is parsed once per file identity (mtime-keyed): repeated loads return the identical array", async () => { const { loadRoleParticipation } = await import("@/lib/temporal-identity/sources"); assert.equal(loadRoleParticipation(), loadRoleParticipation()); });

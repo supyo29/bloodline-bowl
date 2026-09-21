@@ -54,7 +54,7 @@ export interface TeamResolution {
   /** the team a consumer may join on — null unless the status is a SUPPORTED_* one */
   team: string | null; granularity: ResolvedGranularity | null; evidence_class: EvidenceClass | null;
   candidates: Candidate[]; selected_by_policy: string | null; gap_weeks: number | null; reasons: string[]; evidence_ids: string[]; policy: string;
-  /** deterministic version of THIS player's evidence that was considered (order/metadata independent) */ evidence_version: string;
+  /** deterministic version of the evidence records this resolution CITED (order/metadata independent; unchanged by unrelated evidence) */ evidence_version: string;
   basis: "RETROSPECTIVE" | "KNOWN_THROUGH"; /** repository-style failure code for an unresolved status; null when resolved (or NO_TEAM_OBSERVED, a legitimate answer) */ failure_code: MembershipFailureCode | null;
 }
 export type MembershipFailureCode = "MEMBERSHIP_UNKNOWN" | "SOURCE_CONFLICT" | "GRANULARITY_INSUFFICIENT" | "TEMPORAL_SOURCE_UNAVAILABLE" | "IDENTITY_UNRESOLVED";
@@ -99,9 +99,14 @@ export function resolvePlayerTeamAt(gsisId: string, observations: readonly TeamO
 function withinCutoff(o: TeamObservation, k: { season: number; week: number }): boolean {
   if (o.granularity === "CURRENT_ONLY") return false; if (o.granularity === "SEASON_MEMBERSHIP") return o.season <= k.season; return o.week != null && (o.season < k.season || (o.season === k.season && o.week <= k.week));
 }
+/** The resolution's `evidence_version` identifies the evidence it CITED (so unrelated future/current-only rows cannot change a historical result); the dataset-level version lives on the index. */
 function resolveFrom(gsisId: string, all: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions): TeamResolution {
+  const r = resolveCore(gsisId, all, query, opts); const cited = new Set(r.evidence_ids); const used = all.filter((o) => cited.has(o.source_record_id));
+  return { ...r, evidence_version: temporalDataVersion(used) };
+}
+function resolveCore(gsisId: string, all: readonly TeamObservation[], query: TemporalQuery, opts: ResolveOptions): TeamResolution {
   const maxGap = opts.maxBracketGapWeeks ?? DEFAULT_MAX_BRACKET_GAP_WEEKS; const k = opts.knownThrough;
-  const mine = k ? all.filter((o) => withinCutoff(o, k)) : all.slice(); const b = base(gsisId, query, temporalDataVersion(mine), k ? "KNOWN_THROUGH" : "RETROSPECTIVE");
+  const mine = k ? all.filter((o) => withinCutoff(o, k)) : all.slice(); const b = base(gsisId, query, "", k ? "KNOWN_THROUGH" : "RETROSPECTIVE");
   if (k && (query.season > k.season || (query.season === k.season && query.week > k.week))) return done(b, "NO_EVIDENCE", null, null, null, [`query (${query.season} week ${query.week}) is after the knowledge cutoff (${k.season} week ${k.week}); later evidence is not consulted`]);
   const games = mine.filter((o) => o.granularity === "GAME_OBSERVED" && o.season === query.season && o.week != null);
   const ids = (xs: TeamObservation[]) => xs.map((x) => x.source_record_id).sort();
@@ -149,7 +154,7 @@ function resolveFrom(gsisId: string, all: readonly TeamObservation[], query: Tem
 
   /* 5) nothing usable — say why, never fall back to today's team */
   const currentOnly = mine.filter((o) => o.granularity === "CURRENT_ONLY");
-  if (query.kind === "GAME" && currentOnly.length) return done(b, "CURRENT_ONLY_OUT_OF_SCOPE", null, null, null, ["only current-only evidence exists; it does not describe " + `${query.season} week ${query.week}` + " and is never returned for a past time"], { candidates: candidatesOf(currentOnly), evidence_ids: ids(currentOnly) });
+  if (query.kind === "GAME" && currentOnly.length) return done(b, "CURRENT_ONLY_OUT_OF_SCOPE", null, null, null, [`only current-only evidence exists (${currentOnly.length} observation(s) from ${[...new Set(currentOnly.map((o) => o.source))].join("+")}); it describes NOW, not ${query.season} week ${query.week}, and its team value is deliberately NOT reported for a past time`]);
   const near = before ?? after;
   return done(b, "NO_EVIDENCE", null, null, null, [near ? `nearest game evidence is ${near.team ?? "no team"} at week ${near.week} of ${near.season}, on one side only; no membership is inferred for week ${query.week}` : `no membership evidence for ${query.season}${query.kind === "GAME" ? ` week ${query.week}` : ""}`], { candidates: near ? candidatesOf([near]) : [], evidence_ids: near ? ids([near]) : [] });
 }
