@@ -1,0 +1,5 @@
+/** Visible health of the Matchup 2.0 prospective-capture telemetry path (per serverless instance; the database is the source of truth). A failure is COUNTED here, never silently treated as evidence collected. */
+export interface Matchup2CaptureHealth { attempts: number; inserted: number; duplicates: number; refused: number; failures: number; not_configured: number; by_class: Record<string, number>; last_status: string | null; last_error: string | null }
+export const captureHealth: Matchup2CaptureHealth = { attempts: 0, inserted: 0, duplicates: 0, refused: 0, failures: 0, not_configured: 0, by_class: {}, last_status: null, last_error: null };
+export const getMatchup2CaptureHealth = (): Matchup2CaptureHealth => ({ ...captureHealth, by_class: { ...captureHealth.by_class } });
+export function resetMatchup2CaptureHealth(): void { Object.assign(captureHealth, { attempts: 0, inserted: 0, duplicates: 0, refused: 0, failures: 0, not_configured: 0, by_class: {}, last_status: null, last_error: null }); }

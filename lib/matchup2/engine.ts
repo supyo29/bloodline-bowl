@@ -41,7 +41,14 @@ function comparison(verdict: StructuralVerdict, overall: number | null): Matchup
   const generic = overall >= 0.67 ? "UNFAVORABLE" : overall <= 0.33 ? "FAVORABLE" : null; if (!generic) return "NOT_COMPARABLE";
   return generic === verdict ? "AGREE" : "DISAGREE";
 }
-export function evaluatePlayer(src: MatchupSource, ctx: MatchupContext, playerId: string): MatchupEvaluation | { error: "PLAYER_UNRESOLVED" | "POSITION_UNSUPPORTED" | "DEFENSE_UNAVAILABLE"; detail: string } {
+/** Availability state as KNOWN at evaluation time (never predicted). It adds uncertainty and never redistributes opportunity: conditional redistribution belongs to Opportunity Propagation and applies only when availability establishes the condition. */
+export interface PlayerState { injury_status?: string | null }
+export function injuryUncertainty(state: PlayerState | undefined): UncertaintySource[] {
+  const s = (state?.injury_status ?? "").trim().toLowerCase(); if (!s || s === "active") return [];
+  const high = ["out", "ir", "doubtful", "pup", "sus", "suspended", "na"].includes(s);
+  return [{ kind: "PLAYER_INJURY_STATE", level: high ? "HIGH" : "MEDIUM", note: `reported availability '${state!.injury_status}': the structural reading applies only if he plays; no injury is predicted and no opportunity is redistributed here` }];
+}
+export function evaluatePlayer(src: MatchupSource, ctx: MatchupContext, playerId: string, state?: PlayerState): MatchupEvaluation | { error: "PLAYER_UNRESOLVED" | "POSITION_UNSUPPORTED" | "DEFENSE_UNAVAILABLE"; detail: string } {
   const p = src.resolvePlayer(playerId); if (!p) return { error: "PLAYER_UNRESOLVED", detail: `no player evidence for '${playerId}'` };
   const pos = (p.position ?? "").toUpperCase(); if (!POS.has(pos)) return { error: "POSITION_UNSUPPORTED", detail: `position '${p.position}' has no Matchup 2.0 family (QB/RB/WR/TE only; K and DEF are not modeled)` };
   if (!ctx.defense) return { error: "DEFENSE_UNAVAILABLE", detail: `no defensive evidence for ${ctx.game.defense_team}` };
@@ -50,9 +57,9 @@ export function evaluatePlayer(src: MatchupSource, ctx: MatchupContext, playerId
   const ident = { fp: ctx.scoring_fingerprint, ps: ctx.identities.player_scheme, fi: ctx.identities.fi, role: ctx.identities.role, opp: ctx.identities.opp };
   const evalObj: Omit<MatchupEvaluation, "content_identity"> = { contract: MATCHUP2_CONTRACT, model_version: MATCHUP2_VERSION, lifecycle_state: MATCHUP2_LIFECYCLE, may_influence_production: false,
     offense_subject: { kind: "PLAYER", id: p.gsis_id, name: p.name, team: ctx.game.offense_team, position: pos as Position }, defense_subject: { team: ctx.game.defense_team }, game: ctx.game, components: cs, ...body,
-    structural_verdict: v.verdict, generic_defense_context: g, player_specific_vs_generic: comparison(v.verdict, g.overall_percentile), numeric_adjustment: null, numeric_adjustment_reason: NUMERIC_ADJUSTMENT_REASON, unsupported: unsupportedFor(pos as Position), uncertainty: mergeUncertainty(cs), overall_evidence: v.evidence, vintage: ctx.vintage,
+    structural_verdict: v.verdict, generic_defense_context: g, player_specific_vs_generic: comparison(v.verdict, g.overall_percentile), numeric_adjustment: null, numeric_adjustment_reason: NUMERIC_ADJUSTMENT_REASON, unsupported: unsupportedFor(pos as Position), uncertainty: [...mergeUncertainty(cs), ...injuryUncertainty(state)].sort((a, b) => (a.kind < b.kind ? -1 : 1)), overall_evidence: v.evidence, vintage: ctx.vintage,
     lineage: { context_identity: ctx.context_identity, player_scheme_identity: ident.ps, fi_version: ident.fi, role_version: ident.role, opp_version: ident.opp, scoring_fingerprint: ctx.scoring_fingerprint } };
-  return { ...evalObj, content_identity: `m2:${hashOf({ ctx: ctx.context_identity, player: p.gsis_id, comps: cs.map((c) => [c.id, c.direction, c.value, c.z, c.evidence, c.window]) }, 16)}` };
+  return { ...evalObj, content_identity: `m2:${hashOf({ ctx: ctx.context_identity, player: p.gsis_id, comps: cs.map((c) => [c.id, c.direction, c.value, c.z, c.evidence, c.window]), inj: injuryUncertainty(state).map((u) => u.level) }, 16)}` };
 }
 /** Team-level structural evidence + the canonical defensive profile. Team and player evidence are never collapsed into one score. */
 export function evaluateTeam(src: MatchupSource, ctx: MatchupContext): { evaluation: MatchupEvaluation; defense_profile: DefenseProfile | null } | { error: "DEFENSE_UNAVAILABLE"; detail: string } {

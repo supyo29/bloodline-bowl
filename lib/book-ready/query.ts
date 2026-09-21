@@ -8,7 +8,7 @@
  */
 import { runWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
 import { attachMarketRef } from "@/lib/waiver2/market-pool";
-import { getMatchup2CaptureHealth } from "@/lib/persistence/supabase/matchup2-capture";
+import { getMatchup2CaptureHealth } from "@/lib/matchup2/capture-health";
 import { runMarketSnapshotHook } from "@/lib/market-state/snapshot-hook";
 import { getWaiver2CaptureHealth } from "@/lib/waiver2/capture-health";
 import { WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";

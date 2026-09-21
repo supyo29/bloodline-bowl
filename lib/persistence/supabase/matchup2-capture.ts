@@ -17,10 +17,9 @@ export class SupabaseMatchup2CaptureStore implements Matchup2CaptureStore {
   async attachOutcome(o: Matchup2Outcome): Promise<WriteResult> { const base = { store_kind: this.kind, durable: true };
     try { const ins = await this.rest.insertIgnoreDuplicates<{ capture_id: string }>(OUTCOMES, [{ capture_id: o.capture_id, source: o.source, outcome: o }], ["capture_id", "source"]); return { ...base, status: ins.length > 0 ? "INSERTED" : "DUPLICATE_IDENTICAL" }; } catch (e) { return { ...base, status: "ERROR", reason: e instanceof Error ? e.message : String(e) }; } }
 }
-export interface Matchup2CaptureHealth { attempts: number; inserted: number; duplicates: number; refused: number; failures: number; not_configured: number; by_class: Record<string, number>; last_status: string | null; last_error: string | null }
-const health: Matchup2CaptureHealth = { attempts: 0, inserted: 0, duplicates: 0, refused: 0, failures: 0, not_configured: 0, by_class: {}, last_status: null, last_error: null };
-export const getMatchup2CaptureHealth = (): Matchup2CaptureHealth => ({ ...health, by_class: { ...health.by_class } });
-export function __resetMatchup2CaptureHealth(): void { Object.assign(health, { attempts: 0, inserted: 0, duplicates: 0, refused: 0, failures: 0, not_configured: 0, by_class: {}, last_status: null, last_error: null }); seen.clear(); }
+import { captureHealth as health, resetMatchup2CaptureHealth } from "@/lib/matchup2/capture-health";
+export { getMatchup2CaptureHealth } from "@/lib/matchup2/capture-health";
+export function __resetMatchup2CaptureHealth(): void { resetMatchup2CaptureHealth(); seen.clear(); }
 let store: Matchup2CaptureStore | null | undefined; const seen = new Set<string>();
 export function __setMatchup2CaptureStore(s: Matchup2CaptureStore | null | undefined): void { store = s; }
 function resolveStore(): Matchup2CaptureStore | null { if (store !== undefined) return store; const cfg = loadSupabaseConfig(); if (!cfg.configured || !cfg.config) return null; return (store = new SupabaseMatchup2CaptureStore(new SupabaseRest(cfg.config))); }
@@ -62,7 +61,7 @@ export async function runScheduledMatchup2Capture(deps: Matchup2ScheduledDeps = 
         const p = w.projections.resolved_players.get(id) ?? byId.get(id); const pos = (p?.position ?? "").toUpperCase(); const gsis = p?.identifiers.sleeper_id ?? null; const proj = w.projections.by_player.get(id); if (!p || !gsis || !["QB", "RB", "WR", "TE"].includes(pos) || !proj || proj.is_bye || !proj.opponent) { skipped += 1; continue; }
         const key = `${gsis}|${season}|${week}|${fp}`; if (doneKeys.has(key)) continue; doneKeys.add(key);
         const team = normalizeTeam(proj.nfl_team ?? p.nfl_team); const opp = normalizeTeam(proj.opponent); if (!team || !opp) { skipped += 1; continue; }
-        const ctx = buildMatchupContext(src, { offense_team: team, defense_team: opp, week, home: proj.is_home, scoring_fingerprint: fp }); const ev = evaluatePlayer(src, ctx, gsis); if ("error" in ev) { skipped += 1; continue; }
+        const ctx = buildMatchupContext(src, { offense_team: team, defense_team: opp, week, home: proj.is_home, scoring_fingerprint: fp }); const ev = evaluatePlayer(src, ctx, gsis, { injury_status: proj.injury_status }); if ("error" in ev) { skipped += 1; continue; }
         const baseline: Baseline = { source: proj.source, model_version: proj.model_version, projected_points: proj.projected_points, scoring_fingerprint: fp, injury_status: proj.injury_status, expected_availability: proj.expected_availability };
         const lock = classifyGameLock({ decision_timestamp: decisionAt, week, team, games: sched.games, schedule_fetched_at: sched.fetched_at });
         const kind = captureKindFor({ illustrative: false, is_reconstruction: false, lock, has_baseline: proj.projected_points != null });
