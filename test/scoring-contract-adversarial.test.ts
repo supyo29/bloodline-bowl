@@ -75,3 +75,13 @@ describe("double-counting audit: one statistical event -> one defined scoring tr
     const line = statLineFromProjection({ stats: { ...EMPTY_STATS, rec: 70 }, position: "TE", availability: { expected_games: 17 } as never }); assert.equal(line.bonus_rec_te, 70); assert.equal(statLineFromProjection({ stats: { ...EMPTY_STATS, rec: 70 }, position: "WR", availability: { expected_games: 17 } as never }).bonus_rec_te, undefined);
   });
 });
+
+describe("D-4: a league rule the weekly provider does not supply is announced, not silently dropped", () => {
+  it("yardage-bonus league gets an info-level batch warning naming the rules; a league without such rules gets none; status is unaffected", async (t) => {
+    const rows = [{ player_id: "w", team: "KC", opponent: "LV", week: 3, stats: { rec: 5, rec_yd: 105 }, player: { first_name: "w", last_name: "WR", position: "WR", team: "KC" } }];
+    const go = async (raw_scoring: Record<string, number>) => { t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => rows }) as unknown as Response); const b = await new SleeperWeeklyProjectionProvider().getWeeklyProjections({ league: { league_slug: "l", season: 2026, raw_scoring, scoring_rules: [] }, week: 3, crosswalk: new PlayerCrosswalk(NoCrosswalk), canonical_player_ids: [], want_rest_of_season: false }); mock.restoreAll(); return b; };
+    const yb = await go({ rec: 1, rec_yd: 0.1, bonus_rec_yd_100: 3 }); const w = yb.warnings.find((x) => x.code === "league_scores_keys_provider_does_not_supply")!; assert.ok(w && w.severity === "info" && w.message.includes("bonus_rec_yd_100"));
+    assert.equal([...yb.by_player.values()][0]!.projected_points, 5 + 10.5, "no threshold bonus is invented on a projected 105-yard mean");
+    const plain = await go({ rec: 1, rec_yd: 0.1 }); assert.ok(!plain.warnings.some((x) => x.code === "league_scores_keys_provider_does_not_supply")); assert.equal(yb.status, plain.status);
+  });
+});

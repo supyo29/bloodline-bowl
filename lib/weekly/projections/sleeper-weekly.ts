@@ -23,6 +23,7 @@ import { SLEEPER_ROOT_URL, fetchSleeper } from "@/lib/sleeper/client";
 import { canonicalPosition } from "@/lib/canonical/players";
 import { scoreWeeklyLine, NON_SCORING_KEY } from "../scoring";
 import { materializeScoringEvents } from "@/lib/scoring/derived-events";
+import { leagueScoringContract } from "@/lib/scoring/support-contract";
 import { enrichWeeklyStatsWithReturnGame } from "../return-game-weekly";
 import { weeklyBand } from "../uncertainty";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
@@ -282,6 +283,12 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
         message: `${kdefApproximated} K/D-ST weekly projections use Sleeper's standard precomputed points; league-specific K/D-ST scoring is not reconstructed weekly.`,
         severity: "warning",
       });
+    }
+    // Phase 6 (D-4): a rule the league scores that the weekly provider never supplies (e.g. whole-game threshold bonuses, distance-TD bonuses) adds NOTHING
+    // to a weekly projection. Say so, once per batch, instead of leaving the omission silent. Info severity: it never changes batch status.
+    const notSupplied = leagueScoringContract(league.raw_scoring).offense_rules_not_reaching_weekly_projection;
+    if (notSupplied.length > 0) {
+      warnings.push({ code: "league_scores_keys_provider_does_not_supply", message: `This league scores offense rule(s) the weekly provider does not supply, so they contribute nothing to weekly projections (exact only on completed games): ${notSupplied.join(", ")}.`, severity: "info" });
     }
     if (unscoredNoise > 0) {
       warnings.push({
