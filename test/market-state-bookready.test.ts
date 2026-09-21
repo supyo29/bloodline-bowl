@@ -28,3 +28,15 @@ test("a priority league's stray budget is NOT_APPLICABLE, not a currency", () =>
   const bs = marketStateEvidence(buildMarketSnapshot(marketInput({ rules: { source: okSrc(), settings: PRIORITY_SETTINGS, roster_positions: POSITIONS } })));
   assert.equal(metric(bs, "rules.faab_budget").availability.state, "NOT_APPLICABLE"); assert.equal(metric(bs, "rules.acquisition_system").value, "PRIORITY");
 });
+
+test("manager overlay: league pool identity is identical for every manager while acquisition facts differ; waiver2 evidence carries the market lineage", async () => {
+  const s = buildMarketSnapshot(marketInput()); const a = marketStateEvidence(s, { team_id: "team:l:1", manager_slug: "m1" }); const b = marketStateEvidence(s, { team_id: "team:l:2", manager_slug: "m2" });
+  const lg = (bs: typeof a) => bs.filter((x) => x.subject.kind === "LEAGUE").map((x) => `${x.metric}=${x.value}|${x.lineage.content_identity}`); assert.deepEqual(lg(a), lg(b), "league blocks byte-identical regardless of who asks");
+  const mv = (bs: typeof a, m: string) => bs.find((x) => x.metric === m)!.value; assert.equal(mv(a, "manager.faab_remaining"), 88); assert.equal(mv(b, "manager.faab_remaining"), 100); assert.notEqual(mv(a, "manager.waiver_priority"), mv(b, "manager.waiver_priority"));
+  for (const x of [...a, ...b]) assert.deepEqual(validateEvidenceBlock(x), [], x.metric);
+  assert.equal(marketStateEvidence(s, { team_id: "team:zzz", manager_slug: "z" }).find((x) => x.metric === "manager.faab_remaining")!.availability.state, "UNAVAILABLE");
+  const { evaluateWaiver2 } = await import("@/lib/waiver2/actions"); const { attachMarketRef } = await import("@/lib/waiver2/market-pool"); const { waiver2ActionsEvidence } = await import("@/lib/book-ready/families/waiver2"); const { mkWaiverInput, stdMine } = await import("./fixtures/waiver2");
+  const i = mkWaiverInput({ mine: stdMine(), freeAgents: [{ id: "fa1", pos: "WR", pts: 11, team: "CHI", ros: 150 }] }); const ev = evaluateWaiver2(i); const before = JSON.stringify(ev); attachMarketRef(ev, i.pool.market);
+  assert.equal(JSON.stringify(ev), before, "attaching lineage does not touch the evaluation");
+  const blk = waiver2ActionsEvidence(ev, { league_slug: "l", manager_slug: "m", season: 2026, illustrative: false })[0]!; const c = blk.lineage.canonical as { market: { market_content_id: string } }; assert.match(c.market.market_content_id, /^mkt:/); assert.ok(blk.lineage.depends_on!.some((d) => d.surface === "league-market-state"));
+});

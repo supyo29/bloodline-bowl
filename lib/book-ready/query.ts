@@ -7,6 +7,7 @@
  * recommendation endpoints never import this module (asserted by test/book-ready-isolation.test.ts).
  */
 import { runWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
+import { attachMarketRef } from "@/lib/waiver2/market-pool";
 import { runMarketSnapshotHook } from "@/lib/market-state/snapshot-hook";
 import { getWaiver2CaptureHealth } from "@/lib/waiver2/capture-health";
 import { WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";
@@ -63,7 +64,7 @@ async function waiver2Eval(p: Record<string, string>) {
   const { buildWaiverInputForManager } = await import("@/lib/waiver2/adapter"); const { evaluateWaiver2 } = await import("@/lib/waiver2/actions");
   const r = await buildWaiverInputForManager(p.league!, p.manager!, p.week ? { week: Number(p.week) } : {});
   if (!r.ok) return null;
-  const ev = evaluateWaiver2(r.input);
+  const ev = evaluateWaiver2(r.input); attachMarketRef(ev, r.input.pool.market);
   // Prospective shadow evidence: TELEMETRY ONLY, after the evaluation is complete. The durable hook (installed by the server route)
   // never throws, never alters `ev`, and an illustrative request is never persisted; failures are counted in the capture health.
   if (p.illustrative !== "1") await runMarketSnapshotHook(r.input.pool.market_snapshot);
@@ -94,8 +95,9 @@ export const TOPICS: Record<string, TopicSpec> = {
     const { loadMarketSnapshot } = await import("@/lib/market-state/load"); const { marketStateEvidence } = await import("./families/market-state"); const { getNflState } = await import("@/lib/sleeper/client");
     const week = p.week ? Number(p.week) : Math.max(1, Number((await getNflState().catch(() => null))?.week ?? 1));
     const nflWeek = Math.max(1, Number((await getNflState().catch(() => null))?.week ?? 1)); const snap = await loadMarketSnapshot(p.league!, { week });
+    const mc = p.manager ? await managerContext(p) : null; const overlay = mc ? { team_id: `team:${mc.league.league_slug}:${mc.manager.roster_id}`, manager_slug: mc.manager.manager_slug } : null;
     // history is preserved only for the CURRENT week: a caller-chosen week must never label a stored snapshot
-    if (p.illustrative !== "1" && week === nflWeek) await runMarketSnapshotHook(snap); return marketStateEvidence(snap);
+    if (p.illustrative !== "1" && week === nflWeek) await runMarketSnapshotHook(snap); return marketStateEvidence(snap, overlay ?? undefined);
   } },
   "waiver2.actions": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ActionsEvidence(ev, w2meta(p)) : []; } },
   "waiver2.market": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2MarketEvidence(ev, w2meta(p)) : []; } },

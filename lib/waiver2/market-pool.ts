@@ -24,3 +24,8 @@ export function waiverPoolFromMarket(market: MarketSnapshot, weekly: Pick<Weekly
     market: { market_state_version: MARKET_STATE_VERSION, market_content_id: market.identities.market_content_id, pool_id: marketPool.pool_id, acquisition_context_id: market.acquisition.context_id, history_class: market.history_class, readiness_status: market.readiness.status, blocks: verdict.blocked_by, limitations: market.readiness.limitations, coverage: { pool_size: marketPool.members.length, evaluated: evaluated.length, unmatched: marketPool.members.filter((m) => !evaluatedIds.has(m.provider_player_id)).length } },
   }
 }
+
+/** Side table (not part of the evaluation object, so engine output and its hashes are untouched): which market the evaluation consumed. */
+const evMarket = new WeakMap<object, NonNullable<WaiverInput["pool"]["market"]>>();
+export const attachMarketRef = (ev: object, ref: WaiverInput["pool"]["market"]): void => { if (ref) evMarket.set(ev, ref); };
+export const marketRefOf = (ev: object): NonNullable<WaiverInput["pool"]["market"]> | null => evMarket.get(ev) ?? null;

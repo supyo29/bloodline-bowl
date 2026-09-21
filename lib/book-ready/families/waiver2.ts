@@ -7,6 +7,7 @@
  */
 import type { WaiverAction, WaiverEvaluation } from "@/lib/waiver2/types";
 import { WAIVER2_ENGINE_VERSION } from "@/lib/waiver2/config";
+import { marketRefOf } from "@/lib/waiver2/market-pool";
 import { bookReadyDeploymentState, mayInfluenceProduction, WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";
 import { confidenceFor } from "../vocabulary";
 import { unitFor } from "../units";
@@ -32,7 +33,7 @@ function common(ev: WaiverEvaluation, m: Waiver2Meta, topic: string) {
   return {
     surface: SURFACE, topic, deployment: { state: bookReadyDeploymentState(), may_influence_production: mayInfluenceProduction() }, temporal: temporal(m.season, ev.week, ev.generated_at),
     freshness: { as_of: ev.generated_at, through_week: null, generated_at: ev.generated_at },
-    lineage: { surface_version: WAIVER2_ENGINE_VERSION, content_identity: ev.evaluation_hash, canonical: { actionable: ev.availability.status === "AVAILABLE", evidence_mode: ev.availability.status === "AVAILABLE" ? "LIVE_CERTIFIED_POOL" : m.illustrative ? "ILLUSTRATIVE_UNCERTIFIED_POOL" : "BLOCKED", lifecycle_state: WAIVER2_LIFECYCLE_STATE, snapshot: ev.lineage.snapshot, scoring_fingerprint: ev.scoring_fingerprint, pool_certification: ev.availability.certification, params_hash: ev.lineage.params_hash, projection_model: ev.lineage.projection_model }, depends_on: [{ surface: "role-opportunity", version: ev.lineage.role }, { surface: "football-intelligence", version: ev.lineage.fi }, { surface: "opportunity-propagation", version: ev.lineage.opp }] },
+    lineage: { surface_version: WAIVER2_ENGINE_VERSION, content_identity: ev.evaluation_hash, canonical: { actionable: ev.availability.status === "AVAILABLE", evidence_mode: ev.availability.status === "AVAILABLE" ? "LIVE_CERTIFIED_POOL" : m.illustrative ? "ILLUSTRATIVE_UNCERTIFIED_POOL" : "BLOCKED", lifecycle_state: WAIVER2_LIFECYCLE_STATE, snapshot: ev.lineage.snapshot, scoring_fingerprint: ev.scoring_fingerprint, pool_certification: ev.availability.certification, params_hash: ev.lineage.params_hash, projection_model: ev.lineage.projection_model, market: ((mr) => (mr ? { market_content_id: mr.market_content_id, pool_id: mr.pool_id, manager_acquisition_context_id: mr.acquisition_context_id, history_class: mr.history_class, readiness_status: mr.readiness_status, limitations: mr.limitations, coverage: mr.coverage } : null))(marketRefOf(ev)) }, depends_on: [...((mr) => (mr ? [{ surface: "league-market-state", version: mr.market_content_id }] : []))(marketRefOf(ev)), { surface: "role-opportunity", version: ev.lineage.role }, { surface: "football-intelligence", version: ev.lineage.fi }, { surface: "opportunity-propagation", version: ev.lineage.opp }] },
     source: { built_in: BUILT_IN, source_data: "canonical league snapshot + weekly projections + Role / OPP / FI (consumed, never recomputed)" },
     limitations: lim, predictive: { source_status: "SHADOW_ONLY_MODEL", class: "SHADOW_PREDICTIVE" as const },
     origin: { source_class: "SHADOW_MODEL_OUTPUT", analysis_class: "SHADOW" as const },

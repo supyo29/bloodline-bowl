@@ -9,6 +9,7 @@
  */
 import type { MarketSnapshot } from "@/lib/market-state/contract";
 import { MARKET_STATE_VERSION, PROVIDER_LIMITATIONS } from "@/lib/market-state/contract";
+import { managerAcquisitionContext } from "@/lib/market-state/pool";
 import { unitFor } from "../units";
 import { phaseRef } from "../phase-namespaces";
 import type { Component, EvidenceBlock, TemporalIdentity } from "../schema";
@@ -24,7 +25,7 @@ const mk = (b: Omit<EvidenceBlock, "evidence_id" | "contract_version">, key: unk
 const temporal = (s: MarketSnapshot): TemporalIdentity => ({ season: s.season, week: s.week, through_week: null, as_of: s.as_of, generated_at: s.as_of, source_cutoff: null, point_kind: "CURRENT", as_of_kind: "CURRENT_SNAPSHOT", week_state: null, snapshot_id: null, player_team_temporal_identity: PHASE7 });
 const count = (key: string, value: number, note?: string): Component => ({ key, value, unit: unitFor("market.count"), ...(note ? { note } : {}) });
 
-export function marketStateEvidence(s: MarketSnapshot): EvidenceBlock[] {
+export function marketStateEvidence(s: MarketSnapshot, manager?: { team_id: string; manager_slug: string }): EvidenceBlock[] {
   const subject = { kind: "LEAGUE" as const, id: s.league_slug, league_slug: s.league_slug };
   const codes = [...s.readiness.blocks, ...s.readiness.limitations];
   const base = {
@@ -54,5 +55,14 @@ export function marketStateEvidence(s: MarketSnapshot): EvidenceBlock[] {
   out.push(pool("pool.unknown_availability_count", s.counts.UNKNOWN_AVAILABILITY + s.counts.SOURCE_UNAVAILABLE, Object.entries(unkBy).sort().map(([k, v]) => count(k, v))));
   out.push(pool("pool.rostered_count", s.counts.ROSTERED, []));
   out.push(pool("pool.ineligible_count", Object.values(s.ineligible_counts).reduce((a, b) => a + b, 0), Object.entries(s.ineligible_counts).sort().map(([k, v]) => count(k, v))));
+  // Manager acquisition context: an OVERLAY on the same league pool (the league pool identity is unchanged by who is asking).
+  if (manager) {
+    const c = managerAcquisitionContext(s, manager.team_id); const subj = { kind: "MANAGER_TEAM" as const, id: `${s.league_slug}/${manager.manager_slug}`, league_slug: s.league_slug, manager_slug: manager.manager_slug };
+    const mb = { ...base, subject: subj, limitations: [...base.limitations, "manager overlay: league pool identity (content_identity) is identical for every manager; only these acquisition facts differ"] };
+    const one = (metric: string, value: number | boolean | null, unit: string, na?: string) => out.push(mk({ ...mb, metric, availability: !c ? { state: "UNAVAILABLE", reason: "manager team not found in the market snapshot" } : value == null ? { state: na ? "NOT_APPLICABLE" : "UNAVAILABLE", reason: na ?? "not established" } : { state: "AVAILABLE" }, value: typeof value === "boolean" ? String(value) : value, unit: unitFor(unit) }, [metric, manager.manager_slug]));
+    one("manager.faab_remaining", c?.faab_remaining ?? null, "waiver2.faab_dollars", s.acquisition.rules.system === "FAAB" ? undefined : "this league does not use FAAB");
+    one("manager.waiver_priority", c?.waiver_priority ?? null, "market.count");
+    one("manager.roster_size", c?.roster_size ?? null, "market.count"); one("manager.open_roster_slots", c?.open_roster_slots ?? null, "market.count"); one("manager.add_requires_drop", c?.requires_drop ?? null, "category");
+  }
   return out;
 }
