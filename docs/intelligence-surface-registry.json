@@ -1693,7 +1693,7 @@
         "DESCRIPTIVE_ONLY"
       ],
       "nature": "descriptive certification evidence: per feature family x position lifecycle state, chronology-safe out-of-sample effect vs the production-like baseline with uncertainty, decision regret, calibration, failed gates, sealed-holdout status, prospective status and the rollback contract",
-      "deployment": "SHARED_DESCRIPTIVE evidence about a SHADOW_ONLY model. It changes no recommendation. No family is PRODUCTION_ELIGIBLE or PRODUCTION_ACTIVE; the family-gated production seam is unwired.",
+      "deployment": "SHARED_DESCRIPTIVE evidence about a SHADOW_ONLY model. It changes no recommendation. No family has earned production eligibility; the family-gated production seam is unwired and unreachable from any route.",
       "builder": {
         "command": "Rscript analysis/football_intel_phase8/evaluate.R dev && Rscript analysis/football_intel_phase8/evaluate.R holdout && Rscript analysis/football_intel_phase8/finalize.R",
         "entrypoints": [
@@ -1711,7 +1711,7 @@
         "lib/weekly/start-sit-fi/certification.ts"
       ],
       "routes": [],
-      "reachability": "ARTIFACT_READ",
+      "reachability": "COMPUTED_AT_REQUEST",
       "source_data": "analysis/football_intel_startsit decision dataset (2021-2025 as-of FI features, Sleeper baseline history, actuals), walk-forward, pre-registered criteria fi-recert-criteria-2026.1 + amendment A1",
       "data_cutoff_field": null,
       "confidence_semantics": "none: states are lifecycle facts (CERTIFICATION_FAILED etc.), not confidence labels",
@@ -1725,7 +1725,9 @@
         "test/fi-recertification.test.ts"
       ],
       "consumers": [
-        "book-ready"
+        "book-ready",
+        "persistence/supabase/shadow-capture.ts",
+        "weekly/intelligence.ts"
       ],
       "notes": "Consumer scope is START_SIT only. Holdout (2025) sealed. Prospective gate unmet (0 qualifying 2026 weeks).",
       "book_ready": {

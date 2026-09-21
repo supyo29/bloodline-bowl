@@ -253,7 +253,7 @@ describe("F. Book-Ready `fi.certification` and Analysis Book", () => {
   test("F2. default response: 1 summary + 30 states + 9 not-evaluated; validates; every block is DESCRIPTIVE and may_influence_production=false", async () => {
     const r = await getEvidence({ topic: "fi.certification", params: {} }); assert.equal(r.status, "OK"); assert.equal(r.validation.ok, true, JSON.stringify(r.validation.errors).slice(0, 400));
     assert.equal(r.blocks.filter((b) => b.metric === "certification.summary").length, 1); assert.equal(r.blocks.filter((b) => b.metric === "certification.state").length, 30); assert.equal(r.blocks.filter((b) => b.metric === "certification.not_evaluated").length, 9);
-    for (const b of r.blocks) { assert.equal(b.deployment.may_influence_production, false); assert.equal(b.deployment.state, "SHADOW_ONLY"); assert.equal(b.predictive.class, "DESCRIPTIVE_ONLY"); }
+    for (const b of r.blocks) { assert.equal(b.deployment.may_influence_production, false); assert.equal(b.deployment.state, "SHADOW_ONLY"); assert.equal(b.predictive?.class, "DESCRIPTIVE_ONLY"); }
   });
   test("F3. a failed family is presented with its ACTUAL state, never as 'low confidence'; no block carries a confidence field for it", async () => {
     const r = await getEvidence({ topic: "fi.certification", params: { family: "def_success_allowed", position: "WR" } }); assert.equal(r.validation.ok, true);
