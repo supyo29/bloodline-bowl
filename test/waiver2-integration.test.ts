@@ -28,7 +28,7 @@ test("DEPLOYMENT SAFETY: the production waiver engine and everything it depends 
 });
 test("ISOLATION: only Book-Ready (family + query layer) reaches lib/waiver2; no production, orchestrator, weekly, trade or route module imports it", () => {
   const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/waiver2/")).filter((f) => /waiver2|waiver-intelligence-2/.test(readFileSync(f, "utf8")));
-  const allowed = ["app/api/cron/waiver2-capture/route.ts", "app/api/evidence/route.ts", "lib/analysis-book/library.ts", "lib/analysis-book/plan.ts", "lib/analysis-book/topics.ts", "lib/book-ready/families/waiver2.ts", "lib/book-ready/query.ts", "lib/book-ready/units.ts", "lib/book-ready/vocabulary.ts", "lib/discovery.ts", "lib/persistence/supabase/waiver2-capture.ts", "lib/persistence/supabase/waiver2-capture-runtime.ts"];
+  const allowed = ["lib/book-ready/families/market-state.ts", "app/api/cron/waiver2-capture/route.ts", "app/api/evidence/route.ts", "lib/analysis-book/library.ts", "lib/analysis-book/plan.ts", "lib/analysis-book/topics.ts", "lib/book-ready/families/waiver2.ts", "lib/book-ready/query.ts", "lib/book-ready/units.ts", "lib/book-ready/vocabulary.ts", "lib/discovery.ts", "lib/persistence/supabase/waiver2-capture.ts", "lib/persistence/supabase/waiver2-capture-runtime.ts"];
   assert.deepEqual(offenders.filter((f) => !allowed.includes(f)), [], "an unexpected file names Waiver 2.0");
   const importers = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/waiver2/") && /from\s+["']@\/lib\/waiver2|import\(["']@\/lib\/waiver2/.test(readFileSync(f, "utf8")));
   assert.deepEqual(importers.sort(), ["lib/book-ready/families/waiver2.ts", "lib/book-ready/query.ts", "lib/persistence/supabase/waiver2-capture-runtime.ts", "lib/persistence/supabase/waiver2-capture.ts"], "exactly the Book-Ready adapter layer and the certified telemetry capture path import it");
@@ -54,15 +54,21 @@ test("ANALYSIS BOOK: the named unsupported capabilities are REPLACED (not duplic
   assert.deepEqual(TEMPLATES.WAIVER_ANALYSIS.parts.map((p) => p.chapters), [["waiver.current_role", "player.role.trajectory", "waiver.injury_opportunity", "team.competition"], ["schedule.fantasy_playoffs", "matchup.defensive_structure", "waiver.upside_uncertainty"], ["decision.replacement_value", "decision.roster_fit", "waiver.availability_faab", "waiver.manager_competition", "waiver.drop_cost", "book.final_synthesis"]]);
   for (const t of ["waiver2.actions", "waiver2.market", "waiver2.replacement"]) { assert.ok(TOPIC_META[t]); assert.equal(TOPIC_META[t]!.cost, "EXPENSIVE"); }
 });
-test("ANALYSIS BOOK: waiver chapters upgrade UNSUPPORTED -> PARTIAL now (registry-gated on the pool) and PARTIAL -> READY the moment the registry declares the surface AVAILABLE — same chapter ids", () => {
+test("ANALYSIS BOOK: waiver chapters are READY only when the registry-declared capabilities they REQUIRE are AVAILABLE (Phase 4.5: waiver-intelligence-2 + league-market-state) — same chapter ids, no taxonomy change", () => {
   const dir = loadPlayerDirectory(); const ids = ["decision.replacement_value", "waiver.drop_cost", "waiver.manager_competition", "waiver.availability_faab"];
-  const nowR = createBook({ question: "Should I pick up Rome Odunze off waivers?", ...CTX }, dir, loadCapabilitySnapshot(), NOW); assert.ok(nowR.ok); const now = { session: (nowR as { ok: true; session: AnalysisBookSession }).session };
-  for (const id of ids) { const c: ContentsChapter = now.session.contents.find((x: ContentsChapter) => x.chapter_id === id)!; const nn = c.needs; assert.equal(c.researchability.state, "PARTIAL", id); assert.equal(c.researchability.cost, "EXPENSIVE"); assert.match(c.researchability.reasons.join(), /runtime availability is decided by its readiness contract/); assert.ok(nn.some((n) => n.topic?.startsWith("waiver2.")), id); }
-  const root = mkdtempSync(join(tmpdir(), "w2reg-")); for (const d of ["docs", "lib", "data"]) cpSync(d, join(root, d), { recursive: true });
-  const p = join(root, "docs/intelligence-surface-registry.json"); const reg = JSON.parse(readFileSync(p, "utf8")); for (const s of reg.surfaces) if (s.id === "waiver-intelligence-2" || s.id === "waiver-foundations") s.book_ready.capability_state = "AVAILABLE"; writeFileSync(p, JSON.stringify(reg));
-  const readyR = createBook({ question: "Should I pick up Rome Odunze off waivers?", ...CTX }, dir, loadCapabilitySnapshot(root), NOW); assert.ok(readyR.ok); const ready = { session: (readyR as { ok: true; session: AnalysisBookSession }).session };
-  for (const id of ids) assert.equal(ready.session.contents.find((x: ContentsChapter) => x.chapter_id === id)!.researchability.state, "READY", `${id} becomes READY with no taxonomy change`);
-  assert.deepEqual(now.session.contents.map((c) => c.chapter_id), ready.session.contents.map((c) => c.chapter_id), "identical chapter identities in both states");
+  const book = (root?: string) => { const r = createBook({ question: "Should I pick up Rome Odunze off waivers?", ...CTX }, dir, loadCapabilitySnapshot(root), NOW); assert.ok(r.ok); return (r as { ok: true; session: AnalysisBookSession }).session; };
+  const state = (sess: AnalysisBookSession, id: string) => sess.contents.find((x: ContentsChapter) => x.chapter_id === id)!;
+  const withRegistry = (mut: (s: { id: string; book_ready: { capability_state: string } }) => void) => { const root = mkdtempSync(join(tmpdir(), "w2reg-")); for (const d of ["docs", "lib", "data"]) cpSync(d, join(root, d), { recursive: true }); const p = join(root, "docs/intelligence-surface-registry.json"); const reg = JSON.parse(readFileSync(p, "utf8")); for (const s of reg.surfaces) if (s.book_ready) mut(s); writeFileSync(p, JSON.stringify(reg)); return book(root); };
+  const now = book();
+  for (const id of ids) { const c = state(now, id); assert.equal(c.researchability.state, "READY", `${id} is READY: both required surfaces are AVAILABLE in the registry`); assert.equal(c.researchability.cost, "EXPENSIVE"); assert.ok(c.needs.some((n) => n.topic?.startsWith("waiver2.")), id); }
+  assert.ok(state(now, "waiver.availability_faab").needs.some((n) => n.topic === "market.state" && n.role === "required"), "availability chapter now REQUIRES the market-state evidence");
+  // downgrade path: a blocked/partial waiver surface makes every waiver chapter PARTIAL again
+  const w2Partial = withRegistry((s) => { if (s.id === "waiver-intelligence-2") s.book_ready.capability_state = "PARTIAL"; });
+  for (const id of ids) assert.equal(state(w2Partial, id).researchability.state, "PARTIAL", `${id} degrades with waiver-intelligence-2`);
+  // the availability chapter needs the market surface too: with only THAT partial, only that chapter degrades
+  const mktPartial = withRegistry((s) => { if (s.id === "league-market-state") s.book_ready.capability_state = "PARTIAL"; });
+  assert.equal(state(mktPartial, "waiver.availability_faab").researchability.state, "PARTIAL"); assert.equal(state(mktPartial, "waiver.drop_cost").researchability.state, "READY");
+  assert.deepEqual(now.contents.map((c) => c.chapter_id), w2Partial.contents.map((c) => c.chapter_id), "identical chapter identities in every state");
 });
 test("ANALYSIS BOOK: opening a waiver chapter plans exactly one Waiver 2.0 request, marks it EXPENSIVE and warns that request-scoped topics each re-run the weekly build", () => {
   const dir = loadPlayerDirectory(); const r = createBook({ question: "Should I pick up Rome Odunze off waivers?", ...CTX }, dir, loadCapabilitySnapshot(), NOW); assert.ok(r.ok);

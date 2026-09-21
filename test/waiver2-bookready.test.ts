@@ -58,5 +58,5 @@ test("AVAILABILITY honesty: an uncertified pool is UNAVAILABLE (FREE_AGENT_POOL_
 test("registered topics: the three waiver2 topics exist in the query layer and the registry declares them (both directions)", () => {
   for (const t of ["waiver2.actions", "waiver2.market", "waiver2.replacement"]) { assert.ok(TOPICS[t], t); assert.equal(TOPICS[t]!.surface, "waiver-intelligence-2"); assert.equal(TOPICS[t]!.cost, "REQUEST_SCOPED_BUILD"); }
   const reg = JSON.parse(readFileSync("docs/intelligence-surface-registry.json", "utf8")); const s = reg.surfaces.find((x: { id: string }) => x.id === "waiver-intelligence-2");
-  assert.deepEqual(s.book_ready.query_topics.sort(), ["waiver2.actions", "waiver2.market", "waiver2.replacement"]); assert.equal(s.book_ready.capability_state, "PARTIAL"); assert.match(s.deployment, /SHADOW_ONLY/);
+  assert.deepEqual(s.book_ready.query_topics.sort(), ["waiver2.actions", "waiver2.market", "waiver2.replacement"]); assert.equal(s.book_ready.capability_state, "AVAILABLE", "Phase 4.5: the pool is certified by the canonical market state"); assert.match(s.deployment, /SHADOW_ONLY/);
 });

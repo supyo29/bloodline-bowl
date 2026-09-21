@@ -1241,11 +1241,12 @@
       "readers": [
         "lib/waiver2/actions.ts",
         "lib/waiver2/adapter.ts",
-        "lib/waiver2/capture.ts"
+        "lib/waiver2/capture.ts",
+        "lib/waiver2/market-pool.ts"
       ],
       "routes": [],
       "reachability": "COMPUTED_AT_REQUEST",
-      "source_data": "canonical league snapshot + weekly projections + Role / Opportunity Propagation / Football Intelligence (consumed, never recomputed) + NFL schedule",
+      "source_data": "canonical league snapshot + weekly projections + Role / Opportunity Propagation / Football Intelligence (consumed, never recomputed) + NFL schedule + canonical league market state (lib/market-state)",
       "data_cutoff_field": null,
       "confidence_semantics": "decomposed uncertainty (role, sample, projection, source lag, pool certification, injury contingency, ROS disagreement, depth chart); no calibrated interval",
       "freshness_owner": "lib/waiver2/actions.ts (context timestamp = weekly.generated_at)",
@@ -1262,16 +1263,16 @@
         "book-ready",
         "persistence"
       ],
-      "notes": "Gated on the canonical free_agent_pool capability: with an uncertified pool every topic is UNAVAILABLE unless illustrative=1 (labelled non-actionable).",
+      "notes": "Gated on the canonical market-state pool (Phase 4.5): with a blocked market every topic is UNAVAILABLE unless illustrative=1 (labelled non-actionable). SHADOW_ONLY regardless of pool state.",
       "book_ready": {
         "query_topics": [
           "waiver2.actions",
           "waiver2.market",
           "waiver2.replacement"
         ],
-        "capability_state": "PARTIAL",
-        "note": "runtime availability is gated on the canonical free-agent pool (not materialized in production today); flips to AVAILABLE only when the pool is certified",
-        "current": "PARTIAL",
+        "capability_state": "AVAILABLE",
+        "note": "availability is gated on the canonical market-state pool (Phase 4.5): a blocked market yields UNAVAILABLE blocks with the precise reason codes; certified pools produce ranked SHADOW evidence",
+        "current": "AVAILABLE",
         "history": {
           "class": "CURRENT_ONLY",
           "source": "none",
@@ -1305,6 +1306,97 @@
           [
             "INTELLIGENCE_MODERNIZATION_PHASE",
             "4"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "league-market-state",
+      "name": "League market state (free-agent availability)",
+      "owning_module": "lib/market-state",
+      "status": [
+        "SHADOW"
+      ],
+      "nature": "descriptive substrate: which players are acquirable in a league, by which mechanism, and why others are not (never a ranking or a valuation)",
+      "deployment": "SHARED_DESCRIPTIVE substrate consumed by Waiver 2.0 (SHADOW_ONLY); no production surface reads it and the production waiver section is unchanged",
+      "builder": {
+        "command": null,
+        "entrypoints": [
+          "lib/market-state/build.ts",
+          "lib/market-state/load.ts",
+          "lib/market-state/pool.ts"
+        ]
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/market-state/load.ts",
+        "lib/market-state/pool.ts",
+        "lib/market-state/history.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "provider league rules + rosters + player universe + transaction window + NFL schedule (Sleeper exposes no free-agent endpoint: availability is DERIVED and every derivation is fail-closed)",
+      "data_cutoff_field": null,
+      "confidence_semantics": "none: facts, not estimates. Every player carries an explicit status; unknown stays unknown (waiver clear instants and pending claims are never fabricated)",
+      "freshness_owner": "lib/market-state/build.ts (per-source staleness ceilings; STALE_MARKET_STATE blocks the pool)",
+      "lineage_owner": "lib/market-state/build.ts (market content id, ownership/universe/transactions/rules identities, request and source-snapshot ids kept out of every content identity)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_4_5_MARKET_STATE.md"
+      ],
+      "tests": [
+        "test/market-state-contract.test.ts",
+        "test/market-state-build.test.ts",
+        "test/market-state-load.test.ts",
+        "test/market-state-waiver2.test.ts",
+        "test/market-state-capture.test.ts",
+        "test/market-state-bookready.test.ts"
+      ],
+      "consumers": [
+        "waiver2",
+        "book-ready",
+        "persistence"
+      ],
+      "notes": "Availability is league-level; manager acquisition context (FAAB, priority, roster room) is separate. Immutable compact snapshots are persisted going forward only (no backfill). Historical pools cannot be reconstructed from Sleeper.",
+      "book_ready": {
+        "query_topics": [
+          "market.state"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "runtime availability is decided by the market readiness contract: a blocked market yields UNAVAILABLE pool blocks with precise reason codes",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "bridge_market_state_snapshots (immutable, prospective)",
+          "note": "snapshots are preserved going forward but are not retrievable through /api/evidence yet; no past pool can be reconstructed from the provider"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "only TRUE_AS_OF snapshots taken from now on are historical evidence"
+        },
+        "chart_ready": [
+          "bar"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "request + scheduled capture",
+          "snapshot_policy": "CONTENT_CHANGE",
+          "rationale": "request-scoped read with a 30s in-process memo; snapshots persisted only when the market content or FAAB context changes"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "4.5"
           ]
         ]
       }

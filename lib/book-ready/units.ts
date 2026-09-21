@@ -64,6 +64,9 @@ const REGISTRY: Record<string, UnitSpec> = {
   "waiver2.faab_dollars": U({ kind: "currency", display_unit: "FAAB dollars", raw_unit: "whole FAAB dollars", valid_range: [0, null], may_exceed_one: true, note: "a budget amount — never a fraction of the budget" }),
   "waiver2.fraction": U({ kind: "fraction", display_unit: "fraction (0-1)", raw_unit: "fraction", valid_range: [0, 1], may_exceed_one: false }),
   "waiver2.count": U({ kind: "count", display_unit: "count", raw_unit: "count", valid_range: [0, null], may_exceed_one: true, note: "a COUNT — never a fraction" }),
+  // ---- League market state (Phase 4.5)
+  "market.count": U({ kind: "count", display_unit: "count", raw_unit: "count", valid_range: [0, null], may_exceed_one: true, note: "a COUNT of players — never a fraction" }),
+  "market.days": U({ kind: "count", display_unit: "days", raw_unit: "days", valid_range: [0, null], may_exceed_one: true, note: "a number of days (the league waiver-clear window)" }),
   "category": U({ kind: "categorical", display_unit: "category", raw_unit: "source-native label", valid_range: null, may_exceed_one: false }),
 };
 

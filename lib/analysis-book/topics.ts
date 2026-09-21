@@ -18,7 +18,7 @@ export interface TopicMeta {
   flags?: Array<"SOURCE_CONFLICT_PARTIAL">;
   flag_reason?: string;
   /** what the topic is scoped to (used to reject nonsense bindings) */
-  scope: "PLAYER" | "TEAM" | "QB" | "MANAGER" | "SCENARIO";
+  scope: "PLAYER" | "TEAM" | "QB" | "MANAGER" | "LEAGUE" | "SCENARIO";
   /** the topic actually returns history points / comparison populations when asked (verified against Book-Ready by test) */
   history_capable: boolean;
   comparison_capable: boolean;
@@ -39,6 +39,7 @@ export const TOPIC_META: Record<string, TopicMeta> = {
   "waiver.status": { surface: "waiver-foundations", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 4000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "roster_health.team": { surface: "roster-health", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "schedule_planning.team": { surface: "schedule-planning", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 1500, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "market.state": { surface: "league-market-state", required: ["league"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 800, scope: "LEAGUE", history_capable: false, comparison_capable: false },
   "waiver2.actions": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "waiver2.market": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "waiver2.replacement": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },

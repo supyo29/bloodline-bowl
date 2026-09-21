@@ -90,6 +90,11 @@ export const TOPICS: Record<string, TopicSpec> = {
   "startsit.shadow": { surface: "start-sit-fi", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const i = await weekly(p); return i?.start_sit_shadow ? startSitShadowEvidence(i.start_sit_shadow, { ...decisionMeta(p), week: i.week, season: Number(p.season ?? 2026) }) : []; } },
   "matchup.shadow": { surface: "matchup-intelligence", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const i = await weekly(p); return matchupEvidence(i?.matchup_intelligence, { ...decisionMeta(p), week: i?.week ?? 0 }); } },
   "waiver.status": { surface: "waiver-foundations", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const i = await weekly(p); return i ? waiverEvidence(i.waivers, { ...decisionMeta(p), week: i.week }) : []; } },
+  "market.state": { surface: "league-market-state", cost: "REQUEST_SCOPED_BUILD", required: ["league"], run: async (p) => {
+    const { loadMarketSnapshot } = await import("@/lib/market-state/load"); const { marketStateEvidence } = await import("./families/market-state"); const { getNflState } = await import("@/lib/sleeper/client");
+    const week = p.week ? Number(p.week) : Math.max(1, Number((await getNflState().catch(() => null))?.week ?? 1));
+    const snap = await loadMarketSnapshot(p.league!, { week }); if (p.illustrative !== "1") await runMarketSnapshotHook(snap); return marketStateEvidence(snap);
+  } },
   "waiver2.actions": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ActionsEvidence(ev, w2meta(p)) : []; } },
   "waiver2.market": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2MarketEvidence(ev, w2meta(p)) : []; } },
   "waiver2.replacement": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ReplacementEvidence(ev, w2meta(p)) : []; } },
