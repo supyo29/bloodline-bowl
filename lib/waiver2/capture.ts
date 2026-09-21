@@ -82,7 +82,7 @@ export function scheduleIdentity(input: WaiverInput): { available: boolean; iden
 export interface BuildOpts { kind: CaptureKind; league_slug: string; manager_slug: string; season: number; lock: WaiverLockEvidence | null }
 function common(ev: WaiverEvaluation, input: WaiverInput, o: BuildOpts) {
   const my = input.teams.find((t) => t.team_id === input.my_team_id)!; const roster = { active_player_ids: [...my.active_player_ids].sort(), faab_remaining: my.faab_remaining, waiver_priority: my.waiver_priority };
-  const ids = input.pool.candidates.map((c) => c.canonical_player_id).sort(); const rd = input.weekly.free_agent_pool_readiness;
+  const ids = input.pool.candidates.map((c) => c.canonical_player_id).sort(); const rd = input.pool.readiness ?? input.weekly.free_agent_pool_readiness;
   const snap = input.weekly.lineage?.snapshot as { league_snapshot_id?: string; content_hash?: string } | undefined;
   return {
     schema_version: CAPTURE_RECORD_SCHEMA_VERSION, capture_class: o.kind, season: o.season, week: ev.week, league_slug: o.league_slug, manager_slug: o.manager_slug, scoring_fingerprint: ev.scoring_fingerprint, model_version: WAIVER2_ENGINE_VERSION,

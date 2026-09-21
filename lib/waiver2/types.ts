@@ -5,6 +5,13 @@ import type { PlayerRoleProfile } from "@/lib/player-role-intelligence/schema";
 import type { OpportunityPropagationScenarioResult } from "@/lib/opportunity-propagation-intelligence/schema";
 
 export type PoolCertification = "CERTIFIED" | "UNCERTIFIED_UNROSTERED";
+/** Reference to the canonical market snapshot Waiver 2.0 consumed. Waiver 2.0 owns none of it. */
+export interface WaiverMarketRef {
+  market_state_version: string; market_content_id: string; pool_id: string; acquisition_context_id: string; history_class: string; readiness_status: string;
+  blocks: string[]; limitations: string[];
+  /** AVAILABLE_FREE_AGENT members of the market pool / how many had projections+identity and were therefore evaluated / how many did not. */
+  coverage: { pool_size: number; evaluated: number; unmatched: number };
+}
 export interface TeamView { team_id: string; name: string | null; manager_ids: string[]; active_player_ids: string[]; faab_remaining: number | null; waiver_priority: number | null }
 
 /** Role Intelligence as consumed (never recomputed). */
@@ -20,7 +27,13 @@ export interface WaiverInput {
   teams: TeamView[];
   my_team_id: string;
   transactions: CanonicalTransaction[];
-  pool: { certification: PoolCertification; candidates: AvailablePlayer[] };
+  pool: {
+    certification: PoolCertification; candidates: AvailablePlayer[];
+    /** Phase 4.5: readiness of the CANONICAL MARKET-STATE pool (falls back to the weekly canonical readiness when absent, e.g. in fixtures). */
+    readiness?: { actionable: boolean; reason_code: string | null; reasons: string[]; missing_inputs: string[] };
+    /** Phase 4.5: which certified market snapshot the candidates came from. Null when the market state could not be built. */
+    market?: WaiverMarketRef | null;
+  };
   role: RoleEvidence | null;
   fi: FiEvidence | null;
   opp: OppEvaluator | null;

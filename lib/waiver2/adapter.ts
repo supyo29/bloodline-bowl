@@ -12,6 +12,8 @@ import { evaluateOpportunityPropagationScenario } from "@/lib/opportunity-propag
 import { loadFullSchedule } from "@/lib/schedule-planning/schedule";
 import type { FiEvidence, FiOpponentReading, RoleEvidence, ScheduleEvidence, TeamView, WaiverInput } from "./types";
 import { PARAMS } from "./config";
+import { loadMarketSnapshot } from "@/lib/market-state/load";
+import { waiverPoolFromMarket } from "./market-pool";
 
 export type AdaptResult = { ok: true; input: WaiverInput } | { ok: false; status: number; code: string; detail: string };
 
@@ -48,9 +50,13 @@ export async function buildWaiverInputForManager(leagueSlug: string, managerSlug
     schedule = { opponent: (t, w) => fs.opponentByWeek.get(w)?.[t] ?? null, bye_week: (t) => byes.get(t) ?? null, last_week: last };
   } catch { schedule = null; }
 
+  // Phase 4.5: the pool and its readiness come from the ONE canonical market snapshot. Waiver 2.0 no longer interprets ownership.
+  const market = await loadMarketSnapshot(leagueSlug, { week: weekly.league.week, scoring_fingerprint: snap.league.scoring_fingerprint ?? null, source_snapshot_id: (weekly.lineage?.snapshot as { league_snapshot_id?: string } | undefined)?.league_snapshot_id ?? null });
+  const pool = waiverPoolFromMarket(market, weekly);
+
   return { ok: true, input: {
     weekly, teams, my_team_id: myTeamId, transactions: snap.recent_transactions,
-    pool: { certification: weekly.free_agent_pool_readiness.actionable ? "CERTIFIED" : "UNCERTIFIED_UNROSTERED", candidates: weekly.availability.free_agents },
+    pool,
     role, fi, opp, schedule,
   } };
 }

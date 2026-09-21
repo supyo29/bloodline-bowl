@@ -30,7 +30,7 @@ export function requestTransition(from: Waiver2LifecycleState, to: Waiver2Lifecy
 
 /** Documented, NOT executable: what must be true before anyone may even propose PRODUCTION_ELIGIBLE. */
 export const ACTIVATION_REQUIREMENTS: string[] = [
-  "a certified free-agent pool (canonical waiver_state materialized and the free_agent_pool capability HEALTHY)",
+  "a certified free-agent pool (a canonical market-state snapshot with no BLOCKING readiness reason; see lib/market-state)",
   "a sufficient pristine prospective sample (evidence gate at its PREFERRED threshold), not the minimum",
   "completed outcomes for the counted decisions",
   "validated manager-specific gain over the production waiver engine on those outcomes",
