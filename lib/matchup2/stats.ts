@@ -9,3 +9,7 @@ import type { EvidenceTier } from "./contract";
 const ORDER: EvidenceTier[] = ["INSUFFICIENT", "WEAK", "MODERATE", "STRONG"];
 export const minTier = (...t: EvidenceTier[]): EvidenceTier => (t.length ? t.reduce((a, b) => (ORDER.indexOf(a) <= ORDER.indexOf(b) ? a : b)) : "INSUFFICIENT");
 export const tierAtLeast = (t: EvidenceTier, floor: EvidenceTier): boolean => ORDER.indexOf(t) >= ORDER.indexOf(floor);
+
+/** Team-code aliases between the Player-Scheme directory (PFR-style) and Football Intelligence / schedule (nflverse-style). */
+const ALIAS: Record<string, string> = { GBP: "GB", JAC: "JAX", KCC: "KC", LVR: "LV", OAK: "LV", NEP: "NE", NOS: "NO", SFO: "SF", TBB: "TB", LA: "LAR", STL: "LAR", SD: "LAC", SDG: "LAC", WSH: "WAS" };
+export const normalizeTeam = (t: string | null | undefined): string | null => { if (!t) return null; const u = t.trim().toUpperCase(); return u === "" || u.startsWith("FA") ? null : ALIAS[u] ?? u; };

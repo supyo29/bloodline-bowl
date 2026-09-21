@@ -15,7 +15,7 @@ import { waiver2ActionsEvidence, waiver2MarketEvidence, waiver2ReplacementEviden
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EVIDENCE_CONTRACT_VERSION, type EvidenceBlock } from "./schema";
-import { completedFrontier, defaultContext, refreshLag, type QueryContext } from "./common";
+import { completedFrontier, defaultContext, notAvailable, PHASE7, refreshLag, type QueryContext } from "./common";
 import { validateEvidenceBlock } from "./validate";
 import { fiPlayerUsageEvidence, fiTeamMetricEvidence } from "./families/football-intelligence";
 import { roleChangeEvidence, roleProfileEvidence } from "./families/role";
@@ -71,6 +71,21 @@ async function waiver2Eval(p: Record<string, string>) {
   await runWaiver2CaptureHook(ev, r.input, { league_slug: p.league!, manager_slug: p.manager!, season: Number(p.season ?? 2026), illustrative: p.illustrative === "1" });
   return ev;
 }
+async function matchup2Source() { const { fileMatchupSource } = await import("@/lib/matchup2/source-files"); return fileMatchupSource(); }
+async function matchup2Player(topic: "coverage" | "pass_area" | "pressure" | "run" | "scoring" | "summary", p: Record<string, string>): Promise<EvidenceBlock[]> {
+  const { buildMatchupContext } = await import("@/lib/matchup2/context"); const { evaluatePlayer } = await import("@/lib/matchup2/engine"); const { matchup2PlayerEvidence, MATCHUP2_SURFACE } = await import("./families/matchup2"); const { normalizeTeam } = await import("@/lib/matchup2/stats");
+  const src = await matchup2Source(); const pl = src.resolvePlayer(p.gsis_id!); const un = (why: string) => [notAvailable({ surface: MATCHUP2_SURFACE, topic: `matchup2.player.${topic}`, metric: "*", subject: { kind: "PLAYER", id: p.gsis_id! }, deployment: { state: "SHADOW_ONLY", may_influence_production: false }, freshness: { as_of: null, through_week: null, generated_at: null }, temporal: { season: null, week: null, through_week: null, as_of: null, generated_at: null, source_cutoff: null, point_kind: "CURRENT", as_of_kind: "CURRENT_SNAPSHOT", week_state: null, snapshot_id: null, player_team_temporal_identity: PHASE7 }, lineage: { surface_version: null }, source: { built_in: { namespace: "INTELLIGENCE_MODERNIZATION_PHASE", phase: "5" } }, limitations: [why] }, "UNAVAILABLE", why)];
+  if (!pl) return un(`player '${p.gsis_id}' is not in the Player-Scheme directory`);
+  const week = p.week ? Number(p.week) : Math.max(1, Number((await (await import("@/lib/sleeper/client")).getNflState().catch(() => null))?.week ?? 1));
+  let opp = normalizeTeam(p.opponent); if (!opp && pl.team) { try { const { loadFullSchedule } = await import("@/lib/schedule-planning/schedule"); const fs = await loadFullSchedule(src.season(), week, 18); opp = fs.opponentByWeek.get(week)?.[pl.team] ?? null; } catch { opp = null; } }
+  if (!opp) return un(`opponent for ${pl.team ?? "player"} in week ${week} could not be established (pass opponent=<TEAM>, or the team is on bye / schedule unavailable)`);
+  const ctx = buildMatchupContext(src, { offense_team: pl.team ?? "UNK", defense_team: opp, week }); const ev = evaluatePlayer(src, ctx, p.gsis_id!); if ("error" in ev) return un(ev.detail);
+  return matchup2PlayerEvidence(topic, ev);
+}
+async function matchup2Defense(topic: "coverage" | "front" | "pressure" | "explosive", p: Record<string, string>): Promise<EvidenceBlock[]> {
+  const { buildMatchupContext } = await import("@/lib/matchup2/context"); const { buildDefenseProfile } = await import("@/lib/matchup2/defense"); const { matchup2DefenseEvidence } = await import("./families/matchup2");
+  const src = await matchup2Source(); const ctx = buildMatchupContext(src, { offense_team: p.offense_team ?? "UNK", defense_team: p.team!, week: p.week ? Number(p.week) : null }); return matchup2DefenseEvidence(topic, ctx, buildDefenseProfile(ctx, p.window === "career" ? "career" : "recent"));
+}
 const w2meta = (p: Record<string, string>) => ({ league_slug: p.league!, manager_slug: p.manager!, season: Number(p.season ?? 2026), illustrative: p.illustrative === "1" });
 async function managerContext(p: Record<string, string>) {
   const { resolveManagerRoute } = await import("@/lib/leagues/api");
@@ -99,6 +114,9 @@ export const TOPICS: Record<string, TopicSpec> = {
     // history is preserved only for the CURRENT week: a caller-chosen week must never label a stored snapshot
     if (p.illustrative !== "1" && week === nflWeek) await runMarketSnapshotHook(snap); return marketStateEvidence(snap, overlay ?? undefined);
   } },
+  // ---- Matchup Intelligence 2.0 (Phase 5): player-level topics resolve the opponent from the schedule unless `opponent` is given; defense topics take `team`.
+  ...Object.fromEntries((["coverage", "pass_area", "pressure", "run", "scoring", "summary"] as const).map((t) => [`matchup2.player.${t}`, { surface: "matchup-intelligence-2", cost: "REQUEST_SCOPED_BUILD" as const, required: ["gsis_id"], run: async (p: Record<string, string>) => matchup2Player(t, p) }])),
+  ...Object.fromEntries((["coverage", "front", "pressure", "explosive"] as const).map((t) => [`matchup2.defense.${t}`, { surface: "matchup-intelligence-2", cost: "ARTIFACT_READ" as const, required: ["team"], run: async (p: Record<string, string>) => matchup2Defense(t, p) }])),
   "waiver2.actions": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ActionsEvidence(ev, w2meta(p)) : []; } },
   "waiver2.market": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2MarketEvidence(ev, w2meta(p)) : []; } },
   "waiver2.replacement": { surface: "waiver-intelligence-2", cost: "REQUEST_SCOPED_BUILD", required: ["league", "manager"], run: async (p) => { const ev = await waiver2Eval(p); return ev ? waiver2ReplacementEvidence(ev, w2meta(p)) : []; } },

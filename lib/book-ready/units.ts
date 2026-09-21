@@ -67,6 +67,18 @@ const REGISTRY: Record<string, UnitSpec> = {
   // ---- League market state (Phase 4.5)
   "market.count": U({ kind: "count", display_unit: "count", raw_unit: "count", valid_range: [0, null], may_exceed_one: true, note: "a COUNT of players — never a fraction" }),
   "market.days": U({ kind: "count", display_unit: "days", raw_unit: "days", valid_range: [0, null], may_exceed_one: true, note: "a number of days (the league waiver-clear window)" }),
+  // ---- Matchup Intelligence 2.0 (Phase 5). Interaction values are DEVIATIONS from a league-average defense/mix, in the stated per-play unit.
+  "matchup2.epa_target": U({ kind: "rate", display_unit: "EPA/target vs league-average defense", raw_unit: "expected points added per target (difference vs league average)", valid_range: null, may_exceed_one: true, is_deviation: true, note: "signed deviation, unbounded; NOT fantasy points" }),
+  "matchup2.epa_play": U({ kind: "rate", display_unit: "EPA/dropback vs league-average defense", raw_unit: "expected points added per dropback (difference vs league average)", valid_range: null, may_exceed_one: true, is_deviation: true, note: "signed deviation, unbounded; NOT fantasy points" }),
+  "matchup2.epa_rush": U({ kind: "rate", display_unit: "EPA/rush vs league-average defense", raw_unit: "expected points added per rush (difference vs league average)", valid_range: null, may_exceed_one: true, is_deviation: true, note: "signed deviation, unbounded; NOT fantasy points" }),
+  "matchup2.rate_delta": U({ kind: "fraction", display_unit: "rate deviation (fraction)", raw_unit: "difference of two rates", valid_range: null, may_exceed_one: true, is_deviation: true, note: "signed difference vs a league-average defense" }),
+  "matchup2.rate": U({ kind: "fraction", display_unit: "rate (fraction)", raw_unit: "fraction", valid_range: [0, 1], may_exceed_one: false }),
+  "matchup2.epa": U({ kind: "rate", display_unit: "EPA/play", raw_unit: "expected points added per play", valid_range: null, may_exceed_one: true, note: "signed; unbounded" }),
+  "matchup2.index": U({ kind: "index", display_unit: "index (source-defined)", raw_unit: "Football Intelligence interaction signal", valid_range: null, may_exceed_one: true, note: "semantics owned by Football Intelligence; consumed unmodified" }),
+  "matchup2.z": U({ kind: "index", display_unit: "z among 32 defenses (same player)", raw_unit: "standard deviations", valid_range: null, may_exceed_one: true, is_deviation: true }),
+  "matchup2.rank": U({ kind: "ordinal", display_unit: "rank among 32 defenses", raw_unit: "1 = highest", valid_range: [1, 32], may_exceed_one: true }),
+  "matchup2.share": U({ kind: "fraction", display_unit: "share", raw_unit: "fraction", valid_range: [0, 1], may_exceed_one: false }),
+  "matchup2.count": U({ kind: "count", display_unit: "plays", raw_unit: "plays", valid_range: [0, null], may_exceed_one: true, note: "a COUNT — never a fraction" }),
   "category": U({ kind: "categorical", display_unit: "category", raw_unit: "source-native label", valid_range: null, may_exceed_one: false }),
 };
 

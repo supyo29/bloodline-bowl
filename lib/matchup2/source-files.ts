@@ -3,6 +3,7 @@ import { loadFootballIntelligence } from "@/lib/football-intel/read";
 import { loadRoleOpportunitySnapshot } from "@/lib/player-role-intelligence/read";
 import { loadPlayerSchemeIntelligence, resolvePlayer, defensePassMatrix, defenseRushProfile, defenseRushGap, defenseTeamProfile, offenseTeamProfile, schemeEra, receiverMatrix, qbMatrix, rbRushGap, rbRushMatrix, receiverCoverageProfile, receiverRouteProfile, qbCoverageProfile, qbPressureProfile, qbRusherCountProfile, rbBoxProfile, type ChartingSplitRow, type SpatialCellRow } from "@/lib/player-scheme-intelligence/read";
 import { playerSchemeContentIdentity } from "@/lib/player-scheme-intelligence/query";
+import { normalizeTeam } from "./stats";
 import type { EvidenceTier, SourceVintage } from "./contract";
 import type { CellRow, DefenseEvidence, FiRating, MatchupSource, OffenseEvidence, PlayerEvidence, RoleSummary, SplitRow } from "./source";
 
@@ -29,7 +30,7 @@ export function fileMatchupSource(opts: { scheduleOpponent?: (team: string, week
     ],
     resolvePlayer: (raw): PlayerEvidence | null => {
       const r = resolvePlayer(raw); const e = r.entry; if (!e) return null; const pos = (e.position ?? "").toUpperCase();
-      return { gsis_id: e.gsis_id, name: e.full_name, position: pos || null, team: e.nfl_team,
+      return { gsis_id: e.gsis_id, name: e.full_name, position: pos || null, team: normalizeTeam(role?.getPlayerRoleProfile({ gsis_id: e.gsis_id, sleeper_id: e.sleeper_id })?.identity.team) ?? normalizeTeam(e.nfl_team),
         receiver_cells: cells(receiverMatrix(e.gsis_id)), qb_cells: cells(qbMatrix(e.gsis_id)),
         rb_direction: rbRushMatrix(e.gsis_id).map((c) => ({ window: c.window, field_third: c.field_third, n: c.attempts, share: c.attempt_share, epa: c.epa_per_attempt, explosive: c.explosive_rate, stuff: null, evidence: tier(c.evidence_class) })),
         rb_gap: rbRushGap(e.gsis_id).map((g) => ({ window: String(g.window), run_gap: String(g.run_gap), n: n(g.carries), epa: n(g.epa_per_rush), explosive: n(g.explosive_rate), stuff: n(g.stuff_rate), evidence: tier(g.evidence_class) })),

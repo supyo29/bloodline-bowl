@@ -18,3 +18,7 @@ test("registry: every family is classified; unsupported/unsafe families are neve
   for (const f of FEATURE_FAMILIES) { assert.ok(f.history_class && f.predictive_class && f.origin, f.id); if (f.predictive_class !== "PREDICTIVE_CANDIDATE_UNVALIDATED") assert.equal(f.fit_eligible, false, f.id); if (f.history_class === "UNSAFE_FOR_BACKTEST" || f.history_class === "RETROSPECTIVE_ONLY") assert.equal(f.fit_eligible, false, f.id); }
   for (const id of ["assignment.cornerback", "alignment.slot_boundary", "history.player_vs_defense"]) { const f = FEATURE_FAMILIES.find((x) => x.id === id)!; assert.equal(f.origin, "UNSUPPORTED"); assert.equal(f.predictive_class, "UNSUPPORTED"); }
 });
+import { normalizeTeam } from "@/lib/matchup2/stats";
+test("team codes: Player-Scheme directory aliases normalize to Football Intelligence codes; free agents have no team", () => {
+  assert.equal(normalizeTeam("KCC"), "KC"); assert.equal(normalizeTeam("gbp"), "GB"); assert.equal(normalizeTeam("JAC"), "JAX"); assert.equal(normalizeTeam("LA"), "LAR"); assert.equal(normalizeTeam("DAL"), "DAL"); assert.equal(normalizeTeam("FA"), null); assert.equal(normalizeTeam(""), null); assert.equal(normalizeTeam(null), null);
+});

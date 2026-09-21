@@ -81,7 +81,7 @@ test("researchability reflects the REAL 3.5C capability limits (never advertises
   assert.equal(st("player.scheme.usage_profile").state, "UNSUPPORTED"); assert.match(st("player.scheme.usage_profile").unsupported.join(), /receiver_scheme_profile/);
   assert.equal(st("matchup.cornerback_assignment").state, "UNSUPPORTED");
   assert.equal(st("injury.contingencies").state, "CONDITIONAL"); assert.match(st("injury.contingencies").reasons.join(), /never an unconditional projection/);
-  assert.equal(st("matchup.coverage_interaction").state, "PARTIAL"); // scheme coverage exists; receiver-side split does not
+  assert.equal(st("matchup.coverage_interaction").state, "SOURCE_LAG", "Phase 5: the receiver-side man/zone split now exists (matchup2.player.coverage), so the chapter is no longer PARTIAL for a missing need; it is honestly SOURCE_LAG (Player-Scheme is prior-season only)"); assert.match(st("matchup.coverage_interaction").reasons.join(), /prior season only/);
   assert.equal(st("matchup.fantasy_view").state, "UNAVAILABLE"); assert.match(st("matchup.fantasy_view").missing_context.join(), /league \+ manager/);
   assert.equal(st("book.final_synthesis").state, "READY");
 });

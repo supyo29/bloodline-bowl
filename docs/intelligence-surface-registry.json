@@ -133,7 +133,8 @@
         "weekly/start-sit-fi",
         "weekly/matchup-intelligence",
         "book-ready",
-        "waiver2"
+        "waiver2",
+        "matchup2"
       ],
       "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact.",
       "book_ready": {
@@ -309,7 +310,8 @@
         "opportunity-propagation-intelligence",
         "book-ready",
         "analysis-book",
-        "waiver2"
+        "waiver2",
+        "matchup2"
       ],
       "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) \u2014 documented, not a defect.",
       "book_ready": {
@@ -508,7 +510,8 @@
         "test/player-scheme-isolation.test.ts"
       ],
       "consumers": [
-        "book-ready"
+        "book-ready",
+        "matchup2"
       ],
       "notes": "player_scheme_version identifies Tier A only; content_identity.served_content_id identifies all tiers (Phase 3.5B).",
       "book_ready": {
@@ -1397,6 +1400,105 @@
           [
             "INTELLIGENCE_MODERNIZATION_PHASE",
             "4.5"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "matchup-intelligence-2",
+      "name": "Matchup Intelligence 2.0 (player \u00d7 defensive-structure interaction)",
+      "owning_module": "lib/matchup2",
+      "status": [
+        "SHADOW"
+      ],
+      "nature": "structured interaction evidence: position-aware player-profile \u00d7 defensive-structure components with origin, uncertainty and explicit unsupported items; NO numeric fantasy adjustment",
+      "deployment": "SHADOW_ONLY (matchup-2-2026.1); no production surface reads it; production matchup (lib/weekly/matchup.ts) and Matchup Intelligence v1 are unchanged",
+      "builder": {
+        "command": null,
+        "entrypoints": [
+          "lib/matchup2/context.ts",
+          "lib/matchup2/engine.ts",
+          "lib/matchup2/families.ts",
+          "lib/matchup2/defense.ts"
+        ]
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/matchup2/source-files.ts",
+        "lib/matchup2/engine.ts",
+        "lib/matchup2/defense.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "Football Intelligence (fi:2026) + Player-Scheme (psi:2025 w18, PRIOR_ONLY) + Role & Opportunity \u2014 consumed through their certified readers, never recomputed",
+      "data_cutoff_field": null,
+      "confidence_semantics": "evidence tier (STRONG/MODERATE/WEAK/INSUFFICIENT) per component and a structured uncertainty list; a directional label requires both a player-specific z among the 32 defenses and a declared materiality floor",
+      "freshness_owner": "lib/matchup2/context.ts (source vintages carried and never blended)",
+      "lineage_owner": "lib/matchup2/context.ts (deterministic context identity; excludes request ids/timestamps)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_5_MATCHUP_INTELLIGENCE_2.md"
+      ],
+      "tests": [
+        "test/matchup2-context.test.ts",
+        "test/matchup2-engine.test.ts",
+        "test/matchup2-bookready.test.ts"
+      ],
+      "consumers": [
+        "book-ready"
+      ],
+      "notes": "Unsupported by design: cornerback assignment, receiver alignment, front alignment, personnel groupings, coach history, run-scheme splits, current-season charting. No fitted numeric adjustment (Phase 9 Tier D clean null).",
+      "book_ready": {
+        "query_topics": [
+          "matchup2.player.coverage",
+          "matchup2.player.pass_area",
+          "matchup2.player.pressure",
+          "matchup2.player.run",
+          "matchup2.player.scoring",
+          "matchup2.player.summary",
+          "matchup2.defense.coverage",
+          "matchup2.defense.front",
+          "matchup2.defense.pressure",
+          "matchup2.defense.explosive"
+        ],
+        "capability_state": "PARTIAL",
+        "note": "available for QB/RB/WR/TE and every defense; partial by design: unsupported items (CB assignment, alignment, front alignment, personnel, coach history) are explicit UNAVAILABLE blocks and the composite adjustment does not exist",
+        "current": "PARTIAL",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "none",
+          "note": "prior-season aggregates only; per-week as-of history is not served (prospective shadow capture is defined in Checkpoint G)"
+        },
+        "comparison_populations": [
+          "NFL_DEFENSES"
+        ],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": true,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "current evaluation only"
+        },
+        "chart_ready": [
+          "bar",
+          "heatmap"
+        ],
+        "refresh_policy": {
+          "cadence": "PER_REQUEST",
+          "trigger": "source artifact change",
+          "snapshot_policy": "NONE",
+          "rationale": "pure function of the served Football Intelligence / Player-Scheme / Role artifacts"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "5"
           ]
         ]
       }

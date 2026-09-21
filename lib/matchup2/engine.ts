@@ -3,7 +3,7 @@
  * advantages / disadvantages / neutral factors / undetermined, scenario sensitivity, uncertainty, and a DESCRIPTIVE structural verdict.
  * It produces no score and no numeric fantasy adjustment. Deterministic: same context + same player evidence ⇒ same content identity.
  */
-import { hashOf } from "@/lib/market-state/hash";
+import { hashOf } from "./hash";
 import { MATCHUP2_CONTRACT, MATCHUP2_LIFECYCLE, MATCHUP2_VERSION, NUMERIC_ADJUSTMENT_REASON, type EvidenceTier, type InteractionComponent, type MatchupEvaluation, type Position, type StructuralVerdict, type UncertaintySource } from "./contract";
 import { buildMatchupContext, type MatchupContext } from "./context";
 import { areaEpa, coverageExpectation, coverageInteraction, explosiveEnvironment, pressureLine, pressureQbResponse, routeFamilyProfile, runBox, runDirection, runGap, rusherCountResponse, scoringOpportunity, unitCoverage } from "./families";
