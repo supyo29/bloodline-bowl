@@ -160,6 +160,7 @@ export const TOPICS: Record<string, TopicSpec> = {
     const r = resolvePlayerTeamAt(p.gsis_id!, obs, query); const opp = query.kind === "GAME" ? resolveOpponentAt(p.gsis_id!, obs, scheduleFromObservations(obs), query) : null;
     return teamMembershipEvidence(r, { opponent: opp, sources: ev.sources, identity_unresolved: ev.identity_known === false && obs.length === 0, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
   } },
+  "fi.certification": { surface: "fi-recertification", cost: "ARTIFACT_READ", required: [], run: async (p) => { const { fiCertificationEvidence } = await import("./families/fi-certification"); return fiCertificationEvidence({ ...(p.family ? { family: p.family } : {}), ...(p.position ? { position: p.position.toUpperCase() } : {}) }); } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };
 

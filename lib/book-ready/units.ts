@@ -82,6 +82,7 @@ const REGISTRY: Record<string, UnitSpec> = {
   "scoring.points_per_unit": U({ kind: "points", display_unit: "fantasy points per stat unit", raw_unit: "league scoring multiplier", valid_range: null, may_exceed_one: true, note: "signed; the league's own multiplier for one unit of the stat (e.g. per yard, per reception)" }),
   "scoring.count": count("rules"),
   "temporal.count": count("count"),
+  "fi.cert.points": points("fantasy points (certification effect; + = baseline improved)"), "fi.cert.count": count("count"), "fi.cert.ratio": U({ kind: "ratio", display_unit: "ratio", raw_unit: "slope of realised residual on predicted adjustment", valid_range: null, may_exceed_one: true }),
   "category": U({ kind: "categorical", display_unit: "category", raw_unit: "source-native label", valid_range: null, may_exceed_one: false }),
 };
 

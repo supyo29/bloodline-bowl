@@ -168,7 +168,7 @@ function fakeFI(defSuccessPct: number, conf: TeamMetricRating["confidence"] = "H
 }
 const proj = (id: string, pts: number | null, position = POS): WeeklyProjection => ({ canonical_player_id: id, week: 3, season: 2026, position, nfl_team: "OFF", opponent: "DEF", is_home: true, projected_points: pts as number, floor_points: 0, ceiling_points: 30, std_dev: 4, projection_status: "projected", expected_availability: 1, is_bye: false, injury_status: null, rest_of_season_points: null, ros: null, source: "s", model_version: "sleeper-weekly-rotowire", uncertainty_source: "position_volatility_heuristic", warnings: [] } as unknown as WeeklyProjection);
 const batchOf = (rows: WeeklyProjection[]): WeeklyProjectionBatch => ({ league_slug: "l", season: 2026, week: 3, status: "READY", by_player: new Map(rows.map((r) => [r.canonical_player_id, r])), resolved_players: new Map(), source: "s", model_version: "sleeper-weekly-rotowire", missing: [], teams_with_games: [], warnings: [] } as unknown as WeeklyProjectionBatch);
-const run = (model: StartSitModel, b: WeeklyProjectionBatch, over: Record<string, unknown> = {}) => applyFiToProductionBatch(b, { positionOf: (id) => b.by_player.get(id)?.position ?? null, request_season: 2026, model, fi: fakeFI(0.95), certification: eligibleCert(), baseline_projection_version: "sleeper-weekly-rotowire",
+const run = (model: StartSitModel, b: WeeklyProjectionBatch, over: Record<string, unknown> = {}) => applyFiToProductionBatch(b, { positionOf: (id: string) => b.by_player.get(id)?.position ?? null, request_season: 2026, model, fi: fakeFI(0.95), certification: eligibleCert(), baseline_projection_version: "sleeper-weekly-rotowire",
   gate: { operation: "START_SIT", freshness: assess(fiLineage(), reality()), scoring_fingerprint: FP, decision_week: 3, fi_through_week: 2, temporal_resolved_for: () => true }, ...over } as never);
 
 describe("D. application, reversibility, ledger, bounds", () => {
@@ -218,7 +218,7 @@ describe("D. application, reversibility, ledger, bounds", () => {
     assert.equal(r.batch.by_player.get("a")!.projected_points, 12); assert.equal(r.fi_applied, false); const e = r.ledger.find((x) => x.family === ELIGIBLE_FAMILY)!; assert.equal(e.applied, false); assert.notEqual(e.expected_adjustment, 0);
   });
   test("D11. cap fraction bounds the applied adjustment", () => {
-    const m = activated(model0(), { certified_translations: { [POS]: { [ELIGIBLE_FAMILY]: translation(model0(), { cap_fraction: 0.01 }) } } }); const r = run(m, batchOf([proj("a", 12)])); const v = r.batch.by_player.get("a")!.projected_points; assert.ok(Math.abs(v - 12) <= 0.12 + 1e-9);
+    const m = activated(model0(), { certified_translations: { [POS]: { [ELIGIBLE_FAMILY]: translation(model0(), { cap_fraction: 0.01 }) } } }); const r = run(m, batchOf([proj("a", 12)])); const v = r.batch.by_player.get("a")!.projected_points as number; assert.ok(Math.abs(v - 12) <= 0.12 + 1e-9);
   });
 });
 
@@ -239,5 +239,35 @@ describe("E. consumer scope and production isolation", () => {
   });
   test("E4. the frozen served model is byte-unchanged (sha256 pinned by Phase 3.5A)", async () => {
     const { createHash } = await import("node:crypto"); assert.match(createHash("sha256").update(readFileSync("lib/weekly/data/start_sit_model.json")).digest("hex"), /^85d2ddd5/);
+  });
+});
+
+/* ============================ F. Book-Ready + Analysis Book ============================ */
+import { getEvidence, TOPICS } from "@/lib/book-ready/query";
+import { CHAPTER_LIBRARY } from "@/lib/analysis-book/library";
+import { TOPIC_META } from "@/lib/analysis-book/topics";
+describe("F. Book-Ready `fi.certification` and Analysis Book", () => {
+  test("F1. topic is registered once, on the one query layer, ARTIFACT_READ, mirrored by the Analysis Book topic table", () => {
+    assert.ok(TOPICS["fi.certification"]); assert.equal(TOPICS["fi.certification"]!.surface, "fi-recertification"); assert.equal(TOPIC_META["fi.certification"]!.surface, "fi-recertification"); assert.equal(TOPIC_META["fi.certification"]!.bookready_cost, "ARTIFACT_READ");
+  });
+  test("F2. default response: 1 summary + 30 states + 9 not-evaluated; validates; every block is DESCRIPTIVE and may_influence_production=false", async () => {
+    const r = await getEvidence({ topic: "fi.certification", params: {} }); assert.equal(r.status, "OK"); assert.equal(r.validation.ok, true, JSON.stringify(r.validation.errors).slice(0, 400));
+    assert.equal(r.blocks.filter((b) => b.metric === "certification.summary").length, 1); assert.equal(r.blocks.filter((b) => b.metric === "certification.state").length, 30); assert.equal(r.blocks.filter((b) => b.metric === "certification.not_evaluated").length, 9);
+    for (const b of r.blocks) { assert.equal(b.deployment.may_influence_production, false); assert.equal(b.deployment.state, "SHADOW_ONLY"); assert.equal(b.predictive.class, "DESCRIPTIVE_ONLY"); }
+  });
+  test("F3. a failed family is presented with its ACTUAL state, never as 'low confidence'; no block carries a confidence field for it", async () => {
+    const r = await getEvidence({ topic: "fi.certification", params: { family: "def_success_allowed", position: "WR" } }); assert.equal(r.validation.ok, true);
+    const st = r.blocks.find((b) => b.metric === "certification.state")!; assert.equal(st.value, "CERTIFICATION_FAILED"); assert.ok(st.components!.some((c) => c.key === "failed_gates"));
+    assert.ok(!r.blocks.some((b) => /LOW|MEDIUM|HIGH/.test(String(b.value)))); const holdout = st.components!.find((c) => c.key === "holdout")!; assert.match(String(holdout.value), /sealed/);
+  });
+  test("F4. detail blocks: effect with CI, decision regret, calibration, rollback contract (config-only)", async () => {
+    const r = await getEvidence({ topic: "fi.certification", params: { family: "usage_snap_share", position: "RB" } }); const m = new Map(r.blocks.map((b) => [b.metric, b]));
+    for (const k of ["certification.state", "certification.mae_improvement", "certification.decision_regret", "certification.calibration", "certification.rollback_contract"]) assert.ok(m.has(k), k);
+    assert.ok(typeof m.get("certification.mae_improvement")!.value === "number"); assert.match(String(m.get("certification.rollback_contract")!.components![0]!.value), /config-only/);
+  });
+  test("F5. unknown family returns zero blocks (no fabricated verdict)", async () => { const r = await getEvidence({ topic: "fi.certification", params: { family: "nope" } }); assert.equal(r.blocks.length, 0); });
+  test("F6. Analysis Book: topic registered but required by NO chapter; chapter set unchanged (no chapter state changes because zero families earned certification)", () => {
+    const uses = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "fi.certification")); assert.equal(uses.length, 0);
+    assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99, "chapter ids before = after (99)");
   });
 });

@@ -1684,6 +1684,91 @@
         ]
       },
       "phase_refs": null
+    },
+    {
+      "id": "fi-recertification",
+      "name": "Football Intelligence certification evidence (feature family x position lifecycle)",
+      "owning_module": "lib/weekly/start-sit-fi",
+      "status": [
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "descriptive certification evidence: per feature family x position lifecycle state, chronology-safe out-of-sample effect vs the production-like baseline with uncertainty, decision regret, calibration, failed gates, sealed-holdout status, prospective status and the rollback contract",
+      "deployment": "SHARED_DESCRIPTIVE evidence about a SHADOW_ONLY model. It changes no recommendation. No family is PRODUCTION_ELIGIBLE or PRODUCTION_ACTIVE; the family-gated production seam is unwired.",
+      "builder": {
+        "command": "Rscript analysis/football_intel_phase8/evaluate.R dev && Rscript analysis/football_intel_phase8/evaluate.R holdout && Rscript analysis/football_intel_phase8/finalize.R",
+        "entrypoints": [
+          "analysis/football_intel_phase8/evaluate.R",
+          "analysis/football_intel_phase8/finalize.R",
+          "lib/weekly/start-sit-fi/family-gate.ts"
+        ]
+      },
+      "served_artifacts": [
+        "lib/weekly/data/fi_certification_2026.1.json"
+      ],
+      "manifest": null,
+      "version_field": "certification_version",
+      "readers": [
+        "lib/weekly/start-sit-fi/certification.ts"
+      ],
+      "routes": [],
+      "reachability": "ARTIFACT_READ",
+      "source_data": "analysis/football_intel_startsit decision dataset (2021-2025 as-of FI features, Sleeper baseline history, actuals), walk-forward, pre-registered criteria fi-recert-criteria-2026.1 + amendment A1",
+      "data_cutoff_field": null,
+      "confidence_semantics": "none: states are lifecycle facts (CERTIFICATION_FAILED etc.), not confidence labels",
+      "freshness_owner": "regenerated only by a deliberate re-evaluation; never by a cron",
+      "lineage_owner": "lib/weekly/start-sit-fi/certification.ts (certification_version + criteria_version)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_7_TEMPORAL_IDENTITY.md"
+      ],
+      "tests": [
+        "test/fi-recertification.test.ts"
+      ],
+      "consumers": [
+        "book-ready"
+      ],
+      "notes": "Consumer scope is START_SIT only. Holdout (2025) sealed. Prospective gate unmet (0 qualifying 2026 weeks).",
+      "book_ready": {
+        "query_topics": [
+          "fi.certification"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "every evaluated family x position carries its real lifecycle state; failed families are never presented as merely low confidence",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "committed certification artifact",
+          "note": "one certification snapshot; earlier certifications are in git history"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "the scoring fingerprint (not a clock) identifies which contract applied; earlier contracts are not reconstructed"
+        },
+        "chart_ready": [
+          "table"
+        ],
+        "refresh_policy": {
+          "cadence": "ON_DEMAND",
+          "trigger": "deliberate re-evaluation",
+          "snapshot_policy": "NONE",
+          "rationale": "static artifact regenerated only by an explicit evaluation run"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "8"
+          ]
+        ]
+      },
+      "phase_refs": null
     }
   ],
   "book_ready_contract_version": "book-ready-evidence-2026.1",
