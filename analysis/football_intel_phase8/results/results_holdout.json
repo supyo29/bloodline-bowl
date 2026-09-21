@@ -1,0 +1,7 @@
+{
+  "criteria_version": "fi-recert-criteria-2026.1",
+  "stage": "holdout",
+  "opened": false,
+  "reason": "no candidate passed all development gates",
+  "results": []
+}
