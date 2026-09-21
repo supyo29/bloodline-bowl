@@ -45,7 +45,7 @@ export function mkWaiverInput(f: WaiverFixture): WaiverInput {
   const role: RoleEvidence | null = f.roles ? { version: "roi:test", season: 2026, through_week: f.roleThrough ?? week - 1, profile: (p) => (f.roles![p.canonical_player_id] ? roleProfile(all.get(p.canonical_player_id) ?? p, f.roles![p.canonical_player_id]!) : null) } : null;
   const schedule: ScheduleEvidence | null = f.bye ? { opponent: (t, w) => (f.bye![t] === w ? null : "LV"), bye_week: (t) => f.bye![t] ?? null, last_week: 18 } : null;
   const fi: FiEvidence = { version: "fi:test", through_week: week, week_state: f.fiWeekState === undefined ? "PARTIAL" : f.fiWeekState, defense: (t) => [{ team: t, metric: "def_pass_epa_allowed", league_percentile: 0.7, predictive_status: "PREDICTIVE", modeled: 0.05 }] };
-  return { weekly, teams, my_team_id: "team:test-league:1", transactions: f.transactions ?? [], pool: { certification: f.cert ?? "CERTIFIED", candidates: pool }, role, fi, opp: f.opp ?? null, schedule, recent_points: f.recentPoints };
+  return { weekly, teams, my_team_id: "team:test-league:1", transactions: f.transactions ?? [], pool: { certification: f.cert ?? "CERTIFIED", candidates: pool, market: (f.cert ?? "CERTIFIED") === "CERTIFIED" ? { market_state_version: "market-state-2026.1", market_content_id: `mkt:2026:w${String(week).padStart(2, "0")}:fixture`, pool_id: "pool:fixture", acquisition_context_id: "acq:fixture", history_class: "TRUE_AS_OF", readiness_status: "READY", blocks: [], limitations: [], coverage: { pool_size: pool.length, evaluated: pool.length, unmatched: 0 } } : null }, role, fi, opp: f.opp ?? null, schedule, recent_points: f.recentPoints };
 }
 
 /** a stub OPP evaluator: if `absent` is unavailable on `team`, `beneficiary` gains `delta` target share */

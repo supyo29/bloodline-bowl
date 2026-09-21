@@ -64,3 +64,37 @@ export function __clearWaiver2SeenCache(): void { seen.clear(); lastWrite.clear(
 /** Installs the durable capture as the process hook. Called once by the server route at startup. */
 import { installWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
 export function installWaiver2Capture(): void { installWaiver2CaptureHook((ev, input, meta) => persistWaiver2Evidence(ev, input, meta)); }
+
+
+/* ---------------------------------------------------------------------------------------------- scheduled prospective capture (Phase 4.5) */
+import { buildCanonicalLeagueState } from "@/lib/canonical/state";
+import { buildWaiverInputForManager } from "@/lib/waiver2/adapter";
+import { evaluateWaiver2 } from "@/lib/waiver2/actions";
+import { persistMarketSnapshot } from "./market-state";
+import { listLeagueTargets, leagueConfigStatus } from "@/lib/leagues/registry";
+
+export interface ScheduledCaptureSummary { failures: number; leagues: Array<Record<string, unknown>> }
+/** Evaluates Waiver 2.0 for every manager of every READY Sleeper league and records the market snapshot + shadow capture. Shadow only; never submits; per-manager failures are isolated. */
+export async function runScheduledWaiver2Capture(): Promise<ScheduledCaptureSummary> {
+  let failures = 0; const leagues: Array<Record<string, unknown>> = [];
+  for (const t of listLeagueTargets().filter((x) => x.provider === "sleeper" && leagueConfigStatus(x) === "READY")) {
+    const state = await buildCanonicalLeagueState(t.key, { reportPersistence: false });
+    if (!state.snapshot) { failures += 1; leagues.push({ league_slug: t.key, ok: false, code: state.code ?? "league_state_unavailable" }); continue; }
+    const season = Number(state.snapshot.league.season) || 2026; const byClass: Record<string, number> = {}; const byStatus: Record<string, number> = {}; let managerFailures = 0; let market: unknown = null;
+    for (const m of state.snapshot.managers) {
+      try {
+        const r = await buildWaiverInputForManager(t.key, m.manager_slug);
+        if (!r.ok) { managerFailures += 1; continue; }
+        const ev = evaluateWaiver2(r.input);
+        if (!market && r.input.pool.market_snapshot) market = (await persistMarketSnapshot(r.input.pool.market_snapshot, { minIntervalMs: 0 })).status;
+        const out = await persistWaiver2Evidence(ev, r.input, { league_slug: t.key, manager_slug: m.manager_slug, season, illustrative: false }, { minIntervalMs: 0 });
+        byStatus[out.status] = (byStatus[out.status] ?? 0) + 1; if (out.capture_class) byClass[out.capture_class] = (byClass[out.capture_class] ?? 0) + 1;
+        if (out.status === "ERROR" || out.status === "TIMEOUT" || out.status === "REFUSED") managerFailures += 1;
+      } catch { managerFailures += 1; }
+    }
+    if (managerFailures) failures += 1;
+    console.log(`[cron:waiver2-capture] ${t.key}: managers=${state.snapshot.managers.length} failures=${managerFailures} classes=${JSON.stringify(byClass)} statuses=${JSON.stringify(byStatus)} market=${market}`);
+    leagues.push({ league_slug: t.key, ok: managerFailures === 0, managers: state.snapshot.managers.length, failures: managerFailures, by_class: byClass, by_status: byStatus, market_snapshot: market });
+  }
+  return { failures, leagues };
+}

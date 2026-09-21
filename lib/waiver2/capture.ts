@@ -21,7 +21,12 @@ import type { WaiverEvaluation, WaiverInput } from "./types";
 export type CaptureKind = "LIVE_CAPTURED" | "LIVE_POST_LOCK" | "LIVE_UNVERIFIED" | "HISTORICALLY_RECONSTRUCTED" | "ILLUSTRATIVE" | "NOT_ACTIONABLE";
 export const CAPTURE_KINDS: CaptureKind[] = ["LIVE_CAPTURED", "LIVE_POST_LOCK", "LIVE_UNVERIFIED", "HISTORICALLY_RECONSTRUCTED", "ILLUSTRATIVE", "NOT_ACTIONABLE"];
 export type CaptureRecordType = "RANKED_ACTIONS" | "POOL_READINESS_BLOCKED";
-export const CAPTURE_RECORD_SCHEMA_VERSION = 2;
+/** v3 (Phase 4.5): ranked records carry the canonical MARKET-STATE lineage. v2 rows (all NOT_ACTIONABLE, no market field) remain valid. */
+export const CAPTURE_RECORD_SCHEMA_VERSION = 3;
+export interface CaptureMarketRef {
+  market_state_version: string; market_content_id: string | null; pool_id: string | null; acquisition_context_id: string | null; history_class: string; readiness_status: string;
+  blocks: string[]; limitations: string[]; coverage: { pool_size: number; evaluated: number; unmatched: number } | null;
+}
 
 /* ------------------------------------------------------------------------------------------------ lock evidence */
 export interface WaiverLockEvidence { verdict: "PRE_KICKOFF_VERIFIED" | "POST_LOCK" | "UNVERIFIED"; reason: string; involved_teams: string[]; schedule_fetched_at: string | null; decision_date_et: string | null }
@@ -65,6 +70,8 @@ export interface WaiverShadowCaptureRecord {
   league_slug: string; manager_slug: string; scoring_fingerprint: string | null; model_version: string; lifecycle_state: Waiver2LifecycleState; params_hash: string;
   deployment: { state: string; may_influence_production: boolean };
   snapshot: { id: string | null; content_hash: string | null };
+  /** Phase 4.5: which certified market snapshot the candidate set came from (absent on v2 rows). A BLOCKED record carries only the readiness codes. */
+  market?: CaptureMarketRef | null;
   pool: { certification: string; readiness: { actionable: boolean; reason_code: string | null; reasons: string[]; missing_inputs: string[] }; pool_hash: string; candidate_count: number; candidate_ids: string[] };
   roster: { team_id: string; active_player_ids: string[]; faab_remaining: number | null; waiver_priority: number | null; roster_hash: string };
   lock: WaiverLockEvidence | null;
@@ -88,6 +95,7 @@ function common(ev: WaiverEvaluation, input: WaiverInput, o: BuildOpts) {
     schema_version: CAPTURE_RECORD_SCHEMA_VERSION, capture_class: o.kind, season: o.season, week: ev.week, league_slug: o.league_slug, manager_slug: o.manager_slug, scoring_fingerprint: ev.scoring_fingerprint, model_version: WAIVER2_ENGINE_VERSION,
     lifecycle_state: WAIVER2_LIFECYCLE_STATE, params_hash: ev.lineage.params_hash, deployment: { state: WAIVER2_LIFECYCLE_STATE, may_influence_production: mayInfluenceProduction() },
     snapshot: { id: snap?.league_snapshot_id ?? ev.lineage.snapshot, content_hash: snap?.content_hash ?? null },
+    market: ((m) => (m ? (o.kind === "NOT_ACTIONABLE" ? { ...m, market_content_id: null, pool_id: null, acquisition_context_id: null, coverage: null } : { ...m, blocks: [...m.blocks], limitations: [...m.limitations] }) : null))(input.pool.market ?? null),
     pool: { certification: ev.availability.certification, readiness: { actionable: rd.actionable, reason_code: rd.reason_code, reasons: rd.reasons, missing_inputs: rd.missing_inputs }, pool_hash: hashOf({ c: ev.availability.certification, ids }), candidate_count: ids.length, candidate_ids: o.kind === "NOT_ACTIONABLE" ? [] : ids },
     roster: { team_id: my.team_id, ...roster, roster_hash: hashOf(roster) }, lock: o.lock,
     evidence: { role: { version: input.role?.version ?? null, through_week: input.role?.through_week ?? null }, fi: { version: input.fi?.version ?? null, through_week: input.fi?.through_week ?? null, week_state: input.fi?.week_state ?? null }, opp: { version: ev.lineage.opp, conditions: [...new Set(ev.actions.map((a) => a.candidate_asset?.opp.condition).filter((x): x is string => !!x && a_isEstablished(x)))].sort() }, schedule: scheduleIdentity(input), projection_model: ev.lineage.projection_model },
@@ -97,7 +105,11 @@ const a_isEstablished = (c: string) => !/no teammate designation establishes/.te
 
 /** Identity covers the whole decision but NOT wall-clock read times (schedule fetch time / decision date): the same decision must not re-capture every minute. The lock VERDICT and involved teams are identity. */
 // A BLOCKED readiness record is a fact about (league, manager, week, pool state, scoring, roster, evidence versions): the canonical snapshot id changes on every read, so it is NOT identity there (otherwise every request would write a new row).
-const identityBody = (body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">) => ({ ...body, snapshot: body.record_type === "POOL_READINESS_BLOCKED" ? { id: null, content_hash: null } : body.snapshot, lock: body.lock ? { verdict: body.lock.verdict, reason: body.lock.reason, involved_teams: body.lock.involved_teams } : null });
+const identityBody = (body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">) => ({ ...body,
+  // The canonical snapshot id AND content hash change on every read (they fold in provider-sync timestamps), so neither is decision identity — for ranked records
+  // exactly as for blocked ones (Phase 4.5 fix: without this every request would write a new ranked row). The decision is identified by its market content id, roster hash,
+  // evidence versions and the action content ids; `evaluation_hash` folds in lineage.snapshot, so ranked identity uses the action ids instead.
+  snapshot: { id: null, content_hash: null }, evaluation_hash: body.record_type === "RANKED_ACTIONS" ? null : body.evaluation_hash, lock: body.lock ? { verdict: body.lock.verdict, reason: body.lock.reason, involved_teams: body.lock.involved_teams } : null });
 function finish(body: Omit<WaiverShadowCaptureRecord, "capture_id" | "content_hash" | "captured_at">, capturedAt: string): WaiverShadowCaptureRecord {
   const idb = identityBody(body); const content_hash = hashOf(idb, 16); return { ...body, captured_at: capturedAt, capture_id: `w2cap:${hashOf({ b: idb, c: content_hash }, 16)}`, content_hash };
 }
@@ -132,6 +144,8 @@ export function validateCaptureRecord(r: WaiverShadowCaptureRecord): string[] {
   if (r.record_type === "POOL_READINESS_BLOCKED" && (r.capture_class !== "NOT_ACTIONABLE" || r.actions.length > 0 || r.pool.candidate_ids.length > 0)) e.push("a blocked record must be NOT_ACTIONABLE with no actions and no candidate list");
   if (r.capture_class === "NOT_ACTIONABLE" && r.record_type !== "POOL_READINESS_BLOCKED") e.push("NOT_ACTIONABLE records are readiness facts only");
   if (["LIVE_CAPTURED", "LIVE_POST_LOCK", "LIVE_UNVERIFIED"].includes(r.capture_class) && (r.pool.certification !== "CERTIFIED" || !r.pool.readiness.actionable)) e.push(`${r.capture_class} requires a certified, actionable pool`);
+  if (r.schema_version >= 3 && ["LIVE_CAPTURED", "LIVE_POST_LOCK", "LIVE_UNVERIFIED"].includes(r.capture_class) && (!r.market?.market_content_id || r.market.readiness_status === "NOT_READY")) e.push(`${r.capture_class} (v3) requires the market-state lineage of a non-blocked market`);
+  if (r.record_type === "POOL_READINESS_BLOCKED" && r.market && (r.market.market_content_id || r.market.pool_id || r.market.coverage)) e.push("a blocked record carries readiness codes only (no per-read market ids)");
   if (r.capture_class === "LIVE_CAPTURED" && r.lock?.verdict !== "PRE_KICKOFF_VERIFIED") e.push("LIVE_CAPTURED requires a verified pre-kickoff lock");
   if (r.deployment.may_influence_production !== mayInfluenceProduction(r.lifecycle_state)) e.push("deployment flag disagrees with the lifecycle state");
   return e;
@@ -184,6 +198,7 @@ export function evaluationEligibility(r: WaiverShadowCaptureRecord, hasOutcome: 
   if (r.capture_class !== "LIVE_CAPTURED") why.push(`class ${r.capture_class} never counts`);
   if (r.record_type !== "RANKED_ACTIONS") why.push("not a ranked-actions record");
   if (r.pool.certification !== "CERTIFIED" || !r.pool.readiness.actionable) why.push("pool not certified");
+  if (!r.market?.market_content_id || r.market.history_class !== "TRUE_AS_OF" || r.market.readiness_status === "NOT_READY") why.push("market-state lineage missing or not a TRUE_AS_OF certified market");
   if (!/^scoring:v1:/.test(r.scoring_fingerprint ?? "")) why.push("invalid scoring fingerprint");
   if (!r.snapshot.id || !r.snapshot.content_hash) why.push("canonical snapshot identity incomplete");
   if (!r.evidence.role.version || !r.evidence.fi.version || !r.evidence.schedule.available) why.push("required evidence identity incomplete (role / FI / schedule)");

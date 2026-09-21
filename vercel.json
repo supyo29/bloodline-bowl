@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/publish",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/waiver2-capture",
+      "schedule": "0 14 * * *"
     }
   ]
 }

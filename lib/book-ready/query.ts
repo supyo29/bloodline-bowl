@@ -7,6 +7,7 @@
  * recommendation endpoints never import this module (asserted by test/book-ready-isolation.test.ts).
  */
 import { runWaiver2CaptureHook } from "@/lib/waiver2/capture-hook";
+import { runMarketSnapshotHook } from "@/lib/market-state/snapshot-hook";
 import { getWaiver2CaptureHealth } from "@/lib/waiver2/capture-health";
 import { WAIVER2_LIFECYCLE_STATE } from "@/lib/waiver2/lifecycle";
 import { waiver2ActionsEvidence, waiver2MarketEvidence, waiver2ReplacementEvidence } from "./families/waiver2";
@@ -65,6 +66,7 @@ async function waiver2Eval(p: Record<string, string>) {
   const ev = evaluateWaiver2(r.input);
   // Prospective shadow evidence: TELEMETRY ONLY, after the evaluation is complete. The durable hook (installed by the server route)
   // never throws, never alters `ev`, and an illustrative request is never persisted; failures are counted in the capture health.
+  if (p.illustrative !== "1") await runMarketSnapshotHook(r.input.pool.market_snapshot);
   await runWaiver2CaptureHook(ev, r.input, { league_slug: p.league!, manager_slug: p.manager!, season: Number(p.season ?? 2026), illustrative: p.illustrative === "1" });
   return ev;
 }

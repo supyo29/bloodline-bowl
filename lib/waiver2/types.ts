@@ -33,6 +33,8 @@ export interface WaiverInput {
     readiness?: { actionable: boolean; reason_code: string | null; reasons: string[]; missing_inputs: string[] };
     /** Phase 4.5: which certified market snapshot the candidates came from. Null when the market state could not be built. */
     market?: WaiverMarketRef | null;
+    /** The snapshot itself (for one-way persistence by the telemetry hook only; the engine never reads it). */
+    market_snapshot?: import("@/lib/market-state/contract").MarketSnapshot | null;
   };
   role: RoleEvidence | null;
   fi: FiEvidence | null;

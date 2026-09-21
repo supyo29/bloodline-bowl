@@ -16,6 +16,7 @@ export function waiverPoolFromMarket(market: MarketSnapshot, weekly: Pick<Weekly
   const evaluatedIds = new Set(evaluated.map((a) => String(a.player.identifiers.sleeper_id)));
   const blockReasons = market.readiness.reasons.filter((r) => verdict.blocked_by.includes(r.code)).map((r) => `${r.code}: ${r.detail}`);
   return {
+    market_snapshot: market,
     certification: verdict.actionable ? "CERTIFIED" : "UNCERTIFIED_UNROSTERED",
     // Blocked: keep the legacy unrostered list ONLY so the engine reports UNCERTIFIED_POOL (it produces no actions from an uncertified pool).
     candidates: verdict.actionable ? evaluated : weekly.availability.free_agents,
