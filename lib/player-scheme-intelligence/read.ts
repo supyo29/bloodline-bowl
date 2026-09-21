@@ -227,6 +227,15 @@ export function rbRushGap(gsis_id: string): Array<Record<string, string | number
   }));
 }
 
+/** Phase 5 (additive, read-only): defense run-gap allowed (END/TACKLE/GUARD — the source's only gap granularity). */
+export function defenseRushGap(team: string): Array<Record<string, string | number | null>> {
+  const t = team.toUpperCase();
+  return readCsv("defense_rush_gap.csv").filter((r) => r.team === t).map((r) => ({
+    window: S(r.window), run_gap: S(r.run_gap), carries_allowed: num(r.carries_allowed), yards_per_carry_allowed: num(r.yards_per_carry_allowed),
+    epa_per_rush_allowed: num(r.epa_per_rush_allowed), success_rate_allowed: num(r.success_rate_allowed), explosive_rate_allowed: num(r.explosive_rate_allowed), evidence_class: S(r.evidence_class),
+  }));
+}
+
 export function qbDirectional(gsis_id: string): QbDirectionalRow[] {
   return readCsv("qb_directional.csv").filter((r) => r.gsis_id === gsis_id).map((r) => {
     const values: Record<string, number | null> = {};
