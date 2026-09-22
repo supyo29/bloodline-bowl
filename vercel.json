@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/matchup2-capture",
       "schedule": "15 14 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-audit",
+      "schedule": "30 14 * * *"
     }
   ]
 }
