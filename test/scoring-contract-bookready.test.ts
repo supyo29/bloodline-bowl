@@ -47,7 +47,7 @@ test("topic is registered on the shared query layer (no second registry)", () =>
 
 import { CHAPTER_LIBRARY } from "@/lib/analysis-book/library";
 test("Analysis Book: scoring evidence ENRICHES existing chapters only — no chapter id added/renamed, never a required need (a chapter cannot be promoted or demoted by it)", () => {
-  assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99, "chapter id count unchanged since Phase 5"); assert.ok(!Object.keys(CHAPTER_LIBRARY).some((id) => id.startsWith("scoring.")));
+  assert.equal(Object.keys(CHAPTER_LIBRARY).length, 106, "chapter id count reflects Phase 10's lifecycle additions; still no chapter added by Phase 6 scoring"); assert.ok(!Object.keys(CHAPTER_LIBRARY).some((id) => id.startsWith("scoring.")));
   const withScoring = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "scoring.league_contract")).map((c) => c.id).sort();
   assert.deepEqual(withScoring, ["decision.market_value", "decision.replacement_value", "decision.roster_fit", "trade.player_value"]);
   for (const c of Object.values(CHAPTER_LIBRARY)) for (const n of c.needs.filter((x) => x.topic === "scoring.league_contract")) assert.equal(n.role, "enrich", c.id);

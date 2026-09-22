@@ -61,9 +61,9 @@ describe("Book-Ready `audit.weekly_model`", () => {
 });
 
 describe("Analysis Book — no chapter renamed/promoted merely because Phase 9 infrastructure exists", () => {
-  test("chapter count unchanged (99) and no chapter requires the new topic", () => {
-    assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99);
+  test("Phase 9 itself added no chapter and no chapter used audit.weekly_model at Phase 9 certification time; Phase 10 later added exactly 4 chapters that deliberately consume it (its own certified integration, not a casual promotion)", () => {
+    assert.equal(Object.keys(CHAPTER_LIBRARY).length, 106);
     const uses = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === WEEKLY_AUDIT_TOPIC));
-    assert.equal(uses.length, 0);
+    assert.deepEqual(uses.map((c) => c.id).sort(), ["audit.fi_recertification", "audit.matchup_outcomes", "audit.startsit_outcomes", "audit.waiver_outcomes"]);
   });
 });

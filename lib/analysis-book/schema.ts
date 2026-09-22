@@ -12,7 +12,11 @@ export const PLANNER_RULES_VERSION = "analysis-planner-rules-2026.1";
 
 export type BookType =
   | "PLAYER_ANALYSIS" | "START_SIT_COMPARISON" | "GAME_ANALYSIS" | "DEFENSE_ANALYSIS" | "WAIVER_ANALYSIS"
-  | "TRADE_ANALYSIS" | "MANAGER_REVIEW" | "WHY_ANALYSIS" | "PLAYER_VS_DEFENSE_GAME_ANALYSIS";
+  | "TRADE_ANALYSIS" | "MANAGER_REVIEW" | "WHY_ANALYSIS" | "PLAYER_VS_DEFENSE_GAME_ANALYSIS"
+  /* Phase 10 — the Pregame -> Postgame -> Weekly Review -> Next-Week Outlook lifecycle. Reuses the EXISTING chapter
+   * library (game.*, team.*, defense.*, why.*, matchup.*, schedule.*, injury.* — the same evidence, never duplicated)
+   * plus a small set of chapters new to Phase 10 (audit.*, league.week_at_a_glance, postgame/outlook synthesis). */
+  | "PREGAME" | "POSTGAME" | "WEEK_REVIEW" | "NEXT_WEEK_OUTLOOK" | "TEAM_ANALYSIS";
 
 /** What the system can do TODAY for a chapter (worth-asking is separate: a chapter is never dropped for lack of evidence). */
 export type Researchability =
@@ -24,7 +28,7 @@ export type CostClass = "FAST" | "MODERATE" | "EXPENSIVE";
 export type ChapterStatus = "NOT_OPENED" | "RESEARCHING" | "EXPLORED" | "PARTIAL" | "STALE" | "NEEDS_REFRESH";
 
 /** How a Need derives its query parameters from the book subject. */
-export type Bind = "self" | "each_player" | "own_team" | "opponent" | "team_qb" | "manager" | "both_teams";
+export type Bind = "self" | "each_player" | "own_team" | "opponent" | "team_qb" | "manager" | "both_teams" | "league_week";
 
 export interface Need {
   /** A Book-Ready topic id … */
@@ -77,6 +81,24 @@ export interface BookTemplate {
 export interface PlayerRef {
   gsis_id?: string | null; name: string; position?: string | null; team?: string | null; opponent?: string | null;
 }
+
+/**
+ * Phase 10 — the FROZEN temporal frontier a lifecycle Book (PREGAME/POSTGAME/WEEK_REVIEW/NEXT_WEEK_OUTLOOK) was created
+ * against. Computed from REAL game-completion status (the same predicate `lib/canonical/nfl-reality-frontier.ts` uses —
+ * never re-derived) and frozen at creation exactly like `capability_basis`, so a Book generated at one evidence
+ * frontier can never silently become another Book (schema §3). `game_state` applies to a GAME-scoped subject;
+ * `week_closure` applies to a week-scoped subject (WEEK_REVIEW / NEXT_WEEK_OUTLOOK). Absent (`null`) for book types
+ * that carry no temporal-lifecycle claim (PLAYER_ANALYSIS, etc. — unaffected by Phase 10).
+ */
+export type GameFrontierState = "PRE_GAME" | "IN_PROGRESS" | "FINAL" | "UNKNOWN";
+export interface BookFrontier {
+  as_of: string;
+  game_state: GameFrontierState | null;
+  week_closure: "WEEK_IN_PROGRESS" | "WEEK_COMPLETE" | "WEEK_INCOMPLETE_SOURCE_CONFLICT" | null;
+  /** the schedule/completion source this frontier was read from (never a wall-clock guess) */
+  source: string;
+}
+
 export interface BookSubject {
   kind: "PLAYER" | "PLAYERS" | "TEAM" | "GAME" | "MANAGER" | "TRADE" | "WAIVER" | "EVENT";
   players: PlayerRef[];
@@ -89,6 +111,8 @@ export interface BookSubject {
   season: number;
   week?: number | null;
   team_qb_gsis?: Record<string, string>;
+  /** Phase 10 — frozen temporal frontier; null for book types with no lifecycle temporal claim. */
+  frontier?: BookFrontier | null;
 }
 
 export interface EvidenceIdentity {

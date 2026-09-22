@@ -54,7 +54,7 @@ test("FI is explanatory only: Waiver 2.0 gives Football Intelligence no numeric 
 
 test("ANALYSIS BOOK: the named unsupported capabilities are REPLACED (not duplicated); chapter identities and templates are unchanged", () => {
   for (const k of ["replacement_level_evidence", "drop_cost_evidence", "manager_competition_evidence"]) assert.equal(UNSUPPORTED_CAPABILITIES[k], undefined, `${k} is now supplied by Waiver 2.0`);
-  assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99, "no chapters added or removed"); assert.deepEqual(Object.keys(CHAPTER_LIBRARY).filter((id) => /waiver2|waiver_2/.test(id)), [], "no second waiver taxonomy");
+  assert.equal(Object.keys(CHAPTER_LIBRARY).length, 106, "no chapters added or removed BY WAIVER2 (count reflects Phase 10's later lifecycle additions)"); assert.deepEqual(Object.keys(CHAPTER_LIBRARY).filter((id) => /waiver2|waiver_2/.test(id)), [], "no second waiver taxonomy");
   assert.deepEqual(TEMPLATES.WAIVER_ANALYSIS.parts.map((p) => p.chapters), [["waiver.current_role", "player.role.trajectory", "waiver.injury_opportunity", "team.competition"], ["schedule.fantasy_playoffs", "matchup.defensive_structure", "waiver.upside_uncertainty"], ["decision.replacement_value", "decision.roster_fit", "waiver.availability_faab", "waiver.manager_competition", "waiver.drop_cost", "book.final_synthesis"]]);
   for (const t of ["waiver2.actions", "waiver2.market", "waiver2.replacement"]) { assert.ok(TOPIC_META[t]); assert.equal(TOPIC_META[t]!.cost, "EXPENSIVE"); }
 });

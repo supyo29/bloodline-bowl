@@ -166,6 +166,11 @@ export const TOPICS: Record<string, TopicSpec> = {
     const audit = await readLatestWeeklyAudit(Number(p.season), Number(p.week));
     return weeklyAuditEvidence(audit, { section: p.section });
   } },
+  "league.week_summary": { surface: "league-week-summary", cost: "REQUEST_SCOPED_BUILD", required: ["season", "week"], run: async (p) => {
+    const { weekSummaryEvidence } = await import("./families/week-summary"); const { loadNflSeasonCompletion } = await import("@/lib/canonical/nfl-reality-frontier");
+    const completion = await loadNflSeasonCompletion(Number(p.season)).catch(() => null);
+    return weekSummaryEvidence(completion, Number(p.week));
+  } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };
 

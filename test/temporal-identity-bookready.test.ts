@@ -58,6 +58,6 @@ test("MATCHUP 2.0 HISTORICAL GUARD (live): a past week requires game-level team 
 });
 
 test("Analysis Book (audited): NO chapter is limited by team identity, so no chapter state changes; the temporal topic is registered but required by no chapter", () => {
-  const needs = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "player.team_membership")); assert.equal(needs.length, 0); assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99);
+  const needs = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "player.team_membership")); assert.equal(needs.length, 0); assert.equal(Object.keys(CHAPTER_LIBRARY).length, 106); // reflects Phase 10's lifecycle additions; Phase 7 itself added none
 });
 test("Role participation is parsed once per file identity (mtime-keyed): repeated loads return the identical array", async () => { const { loadRoleParticipation } = await import("@/lib/temporal-identity/sources"); assert.equal(loadRoleParticipation(), loadRoleParticipation()); });

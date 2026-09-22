@@ -268,6 +268,6 @@ describe("F. Book-Ready `fi.certification` and Analysis Book", () => {
   test("F5. unknown family returns zero blocks (no fabricated verdict)", async () => { const r = await getEvidence({ topic: "fi.certification", params: { family: "nope" } }); assert.equal(r.blocks.length, 0); });
   test("F6. Analysis Book: topic registered but required by NO chapter; chapter set unchanged (no chapter state changes because zero families earned certification)", () => {
     const uses = Object.values(CHAPTER_LIBRARY).filter((c) => c.needs.some((n) => n.topic === "fi.certification")); assert.equal(uses.length, 0);
-    assert.equal(Object.keys(CHAPTER_LIBRARY).length, 99, "chapter ids before = after (99)");
+    assert.equal(Object.keys(CHAPTER_LIBRARY).length, 106, "chapter ids before = after (106, reflecting Phase 10's lifecycle additions; Phase 8 itself added none)");
   });
 });

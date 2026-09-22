@@ -58,6 +58,7 @@ export const TOPIC_META: Record<string, TopicMeta> = {
   "waiver2.market": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false, flags: ["PROVIDER_LIMIT_PARTIAL"], flag_reason: "provider-limited: pending claims and per-player waiver-clear times are not exposed by the provider, competitor need is structural only, and FAAB ranges are UNCALIBRATED shadow priors — this evidence answers only part of the question" },
   "waiver2.replacement": { surface: "waiver-intelligence-2", required: ["league", "manager"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "EXPENSIVE", est_ms: 5000, scope: "MANAGER", history_capable: false, comparison_capable: false },
   "trade.evaluation": { surface: "trade-foundations", required: ["league", "manager"], bookready_cost: "ARTIFACT_READ", cost: "FAST", est_ms: 100, scope: "MANAGER", history_capable: false, comparison_capable: false },
+  "league.week_summary": { surface: "league-week-summary", required: ["season", "week"], bookready_cost: "REQUEST_SCOPED_BUILD", cost: "MODERATE", est_ms: 800, scope: "LEAGUE", history_capable: false, comparison_capable: false },
 };
 
 /**

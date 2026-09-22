@@ -145,6 +145,15 @@ const defs: ChapterDef[] = [
   { id: "why.execution", title: "Execution", question: "Was the outcome execution or opportunity?", tags: ["execution", "efficiency", "why"], needs: [cap("player_efficiency_metrics"), enr("fi.player_usage", { history: true })], viz: ["SCATTER"] },
   { id: "why.historical_comparison", title: "Historical comparison", question: "Is this outcome unusual for him?", tags: ["history", "why", "comparison"], needs: [req("role.player_profile", { history: true }), req("fi.player_usage", { history: true })], viz: ["TIME_SERIES"] },
   { id: "why.repeatability", title: "Repeatability", question: "Will it repeat?", tags: ["repeatability", "regression", "uncertainty", "why"], needs: [req("fi.player_usage", { history: true, comparisons: true }), req("role.role_change")], depends_on: ["why.role_usage", "why.historical_comparison"], viz: ["TIME_SERIES"] },
+
+  /* ---------------------------------------------------------------- PHASE 10: LIFECYCLE (PREGAME/POSTGAME/WEEKLY/OUTLOOK) */
+  { id: "league.week_at_a_glance", title: "Week at a glance", question: "Which games were played this week, and is the week complete?", tags: ["week_review", "schedule", "league"], needs: [req("league.week_summary", { bind: "league_week" })], viz: ["TABLE"] },
+  { id: "audit.startsit_outcomes", title: "Start/Sit outcomes (model audit)", question: "How did the Start/Sit shadow model's pristine prospective decisions actually turn out?", tags: ["audit", "startsit", "calibration", "week_review"], needs: [req("audit.weekly_model", { bind: "league_week", params: { section: "start_sit" } })], viz: ["TABLE"] },
+  { id: "audit.matchup_outcomes", title: "Matchup 2.0 outcomes (model audit)", question: "Where did Matchup 2.0's descriptive evidence align with, or miss, what actually happened?", tags: ["audit", "matchup", "calibration", "week_review"], needs: [req("audit.weekly_model", { bind: "league_week", params: { section: "matchup2" } })], viz: ["TABLE"] },
+  { id: "audit.waiver_outcomes", title: "Waiver 2.0 outcomes (model audit)", question: "How did waiver recommendations resolve in the real market?", tags: ["audit", "waiver", "calibration", "week_review"], needs: [req("audit.weekly_model", { bind: "league_week", params: { section: "waiver2" } })], viz: ["TABLE"] },
+  { id: "audit.fi_recertification", title: "Football Intelligence re-certification progress", question: "Is any Football Intelligence family accumulating prospective evidence toward re-certification?", tags: ["audit", "fi", "calibration", "week_review"], needs: [req("audit.weekly_model", { bind: "league_week", params: { section: "fi_recertification" } })], viz: ["TABLE"] },
+  { id: "postgame.expectation_vs_actual", title: "Expectation vs. actual", question: "What did we expect before kickoff, what actually happened, and where did evidence align or miss?", tags: ["postgame", "reconciliation", "why"], needs: [], kind: "SYNTHESIS", depends_on: ["game.offensive_plan", "game.defensive_plan", "game.offense_vs_defense.pass", "game.offense_vs_defense.rush", "why.role_usage", "why.game_script", "audit.startsit_outcomes", "audit.matchup_outcomes"], viz: ["TABLE"] },
+  { id: "outlook.carryover", title: "What carries into next week", question: "What did this week teach us that should change how we approach next week?", tags: ["outlook", "forward", "week_review"], needs: [], kind: "SYNTHESIS", depends_on: ["player.role.trajectory", "team.competition", "injury.contingencies", "audit.startsit_outcomes"], viz: ["TABLE"] },
 ];
 
 export const CHAPTER_LIBRARY: Record<string, ChapterDef> = Object.fromEntries(defs.map((d) => [d.id, d]));
@@ -214,6 +223,53 @@ export const TEMPLATES: Record<BookType, BookTemplate> = {
     { id: "H3", title: "THE INTERACTION", chapters: ["matchup.coverage_interaction", "matchup.pressure_protection", "matchup.cornerback_assignment", "why.game_script", "why.play_design"] },
     { id: "H4", title: "EXECUTION & REPEATABILITY", chapters: ["why.execution", "why.historical_comparison", "why.repeatability", FS] },
   ], coverage_expectations: ["role", "usage", "alignment", "fronts", "pressure", "blitz", "coverage", "man_zone", "shell", "slot_boundary", "game_script", "execution", "repeatability", "matchup"] },
+
+  /* ---------------------------------------------------------------- PHASE 10: PREGAME -> POSTGAME -> WEEK REVIEW -> OUTLOOK */
+  // PREGAME reuses the SAME game.*/team.*/injury.* chapters GAME_ANALYSIS uses — prospective by construction (no
+  // chapter here reads an outcome/audit source); the frontier gate (frontier.ts) additionally refuses creation once
+  // the target game is no longer verifiably PRE_GAME.
+  PREGAME: { type: "PREGAME", title: "Pregame book", parts: [
+    { id: "PG1", title: "OFFENSIVE PLANS", chapters: ["game.offensive_plan", "game.personnel", "game.line_play", "team.red_zone_offense"] },
+    { id: "PG2", title: "DEFENSIVE PLANS", chapters: ["game.defensive_plan", "game.fronts", "game.pressure", "game.coverage"] },
+    { id: "PG3", title: "OFFENSE VS DEFENSE", chapters: ["game.offense_vs_defense.pass", "game.offense_vs_defense.rush", "game.adjustments", "game.repeatability"] },
+    { id: "PG4", title: "WHAT TO WATCH", chapters: ["injury.contingencies", "game.fantasy_implications", FS] },
+  ], coverage_expectations: ["offense", "defense", "personnel", "fronts", "pressure", "coverage", "matchup", "line", "repeatability", "fantasy", "injury"] },
+
+  // POSTGAME reuses the WHY_ANALYSIS "what happened / why" chapters (identical evidence, no duplication) plus the
+  // NEW Phase 9 audit chapters and the expectation-vs-actual reconciliation. The frontier gate refuses creation
+  // until the target game is verifiably FINAL.
+  POSTGAME: { type: "POSTGAME", title: "Postgame book", parts: [
+    { id: "PO1", title: "WHAT HAPPENED", chapters: ["why.role_usage", "why.alignment", "why.execution", "why.game_script"] },
+    { id: "PO2", title: "THE OPPONENT", chapters: ["why.matchup", "why.coverage", "why.pressure"] },
+    { id: "PO3", title: "MODEL AUDIT", chapters: ["audit.startsit_outcomes", "audit.matchup_outcomes"] },
+    { id: "PO4", title: "RECONCILIATION", chapters: ["postgame.expectation_vs_actual", "why.historical_comparison", "why.repeatability", FS] },
+  ], coverage_expectations: ["role", "usage", "alignment", "matchup", "coverage", "pressure", "game_script", "execution", "audit", "postgame", "reconciliation", "repeatability"] },
+
+  // WEEK_REVIEW is intentionally THIN: a league-wide week does not inline all 32 teams' chapters (that would defeat
+  // "contents must be lightweight, no N x chapter fan-out" — Step 24). It exposes the week's own evidence (schedule
+  // state, model audit) and reaches every team/player via Book lineage (`lineage.ts`), never by inlining their chapters.
+  WEEK_REVIEW: { type: "WEEK_REVIEW", title: "NFL weekly intelligence book", parts: [
+    { id: "WR1", title: "WEEK AT A GLANCE", chapters: ["league.week_at_a_glance"] },
+    { id: "WR2", title: "MODEL / INTELLIGENCE REVIEW", chapters: ["audit.startsit_outcomes", "audit.matchup_outcomes", "audit.waiver_outcomes", "audit.fi_recertification"] },
+    { id: "WR3", title: "CARRYING FORWARD", chapters: ["outlook.carryover", FS] },
+  ], coverage_expectations: ["week_review", "audit", "calibration", "outlook"] },
+
+  // NEXT_WEEK_OUTLOOK is an early-week prospective frontier, not a late-week Pregame Book substitute: it reuses only
+  // forward-looking chapters and explicitly never claims late-week certainty (no game.*/why.* chapter is included).
+  NEXT_WEEK_OUTLOOK: { type: "NEXT_WEEK_OUTLOOK", title: "Next-week outlook", parts: [
+    { id: "NW1", title: "CARRYOVER FROM LAST WEEK", chapters: ["outlook.carryover"] },
+    { id: "NW2", title: "EARLY MATCHUP READ", chapters: ["matchup.defensive_structure", "team.competition"] },
+    { id: "NW3", title: "WATCH LIST", chapters: ["injury.contingencies", "schedule.remaining", "schedule.fantasy_playoffs", FS] },
+  ], coverage_expectations: ["outlook", "forward", "matchup", "injury", "schedule"] },
+
+  // TEAM_ANALYSIS is the offense+defense combined team book (DEFENSE_ANALYSIS remains the defense-only book; both
+  // read the identical team.*/defense.* chapters — no duplication).
+  TEAM_ANALYSIS: { type: "TEAM_ANALYSIS", title: "Team book", parts: [
+    { id: "TM1", title: "OFFENSE", chapters: ["team.offensive_line", "team.offensive_scheme", "team.coaching_tendencies", "team.red_zone_offense", "team.qb_interaction", "team.game_script"] },
+    { id: "TM2", title: "DEFENSE STRUCTURE", chapters: ["defense.overall_strength", "defense.front", "defense.personnel", "defense.run_fits"] },
+    { id: "TM3", title: "DEFENSE PRESSURE & COVERAGE", chapters: ["defense.pressure", "defense.blitz", "defense.coverage", "defense.man_zone", "defense.shell", "defense.slot_boundary"] },
+    { id: "TM4", title: "OUTCOMES", chapters: ["defense.explosive_prevention", "defense.fantasy_position_effects", FS] },
+  ], coverage_expectations: ["scheme", "team_environment", "fronts", "pressure", "blitz", "coverage", "man_zone", "shell", "slot_boundary", "run_defense", "personnel", "explosiveness", "fantasy"] },
 };
 
 /** Every chapter a template references must exist (checked at import so a bad edit fails loudly, not at runtime). */

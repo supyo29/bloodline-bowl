@@ -64,6 +64,7 @@ export function bindNeed(need: Need, s: BookSubject): Binding {
   else if (bind === "both_teams") { const t = [...new Set([...teamOf(), s.opponent_team].filter((x): x is string => !!x))]; if (t.length < 2) missing.push("both teams"); for (const team of t) push({ team }); }
   else if (bind === "team_qb") { const t = teamOf(); const q = t.map((x) => s.team_qb_gsis?.[x]).filter((x): x is string => !!x); if (!q.length) missing.push("team quarterback identity"); for (const g of q) push({ gsis_id: g }); }
   else if (bind === "manager") { if (!s.league || !s.manager) missing.push(s.unresolved.some((u) => u.startsWith("manager:")) ? "manager (unresolved reference)" : "league + manager context"); else push({ league: s.league, manager: s.manager }); }
+  else if (bind === "league_week") { if (s.week == null) missing.push("week"); else push({ season: String(s.season), week: String(s.week) }); }
   return { params: missing.length ? [] : out, missing };
 }
 

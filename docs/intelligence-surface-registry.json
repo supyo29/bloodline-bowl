@@ -1880,6 +1880,89 @@
         ]
       },
       "phase_refs": null
+    },
+    {
+      "id": "league-week-summary",
+      "name": "NFL week-at-a-glance (game participants and completion state)",
+      "owning_module": "lib/book-ready/families",
+      "status": [
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "descriptive week summary: which teams played which games this NFL week and whether each game/week is complete, read from the same canonical per-week completion source Phase 3.5A/Phase 9 use. No score, box score or narrative source is wired; nothing is fabricated.",
+      "deployment": "SHARED_DESCRIPTIVE. Zero production numeric influence.",
+      "builder": {
+        "command": null,
+        "entrypoints": [
+          "lib/book-ready/families/week-summary.ts",
+          "lib/canonical/nfl-reality-frontier.ts"
+        ]
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": null,
+      "readers": [
+        "lib/analysis-book/library.ts"
+      ],
+      "routes": [],
+      "reachability": "COMPUTED_AT_REQUEST",
+      "source_data": "Sleeper regular-season schedule (same source as lib/canonical/nfl-reality-frontier.ts)",
+      "data_cutoff_field": null,
+      "confidence_semantics": "none",
+      "freshness_owner": "request-time read, revalidated per lib/canonical/nfl-reality-frontier.ts's own cache window",
+      "lineage_owner": "lib/book-ready/families/week-summary.ts",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_7_TEMPORAL_IDENTITY.md"
+      ],
+      "tests": [
+        "test/analysis-book-frontier.test.ts",
+        "test/analysis-book-lifecycle.test.ts"
+      ],
+      "consumers": [
+        "book-ready"
+      ],
+      "notes": "Phase 10. No score/box-score/narrative source exists in this repository; this surface deliberately reports only participants and completion state.",
+      "book_ready": {
+        "query_topics": [
+          "league.week_summary"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "a week/season the schedule source has no data for is UNAVAILABLE, never fabricated",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "live schedule read",
+          "note": "no historical week-summary snapshot is preserved"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "the scoring fingerprint (not a clock) identifies which contract applied; earlier contracts are not reconstructed"
+        },
+        "chart_ready": [
+          "table"
+        ],
+        "refresh_policy": {
+          "cadence": "ON_DEMAND",
+          "trigger": "request",
+          "snapshot_policy": "NONE",
+          "rationale": "pure read of the live schedule source, recomputed per request"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "10"
+          ]
+        ]
+      },
+      "phase_refs": null
     }
   ],
   "book_ready_contract_version": "book-ready-evidence-2026.1",

@@ -31,7 +31,7 @@ test("classification is not keyword-fragile: the same words route differently wi
 });
 test("unclassifiable / ambiguous questions ask for clarification instead of guessing", () => {
   for (const q of ["Analyze that guy", "hello", "Analyze Jennings"]) { const r = createBook({ question: q }, dir, snap, NOW); assert.equal(r.ok, false, q); if (!r.ok) assert.equal(r.status, "NEEDS_CLARIFICATION"); }
-  const amb = createBook({ question: "Analyze Jennings" }, dir, snap, NOW); if (!amb.ok) assert.ok(amb.ambiguous.some((a) => a.startsWith("jennings")));
+  const amb = createBook({ question: "Analyze Jennings" }, dir, snap, NOW); if (!amb.ok && amb.status === "NEEDS_CLARIFICATION") assert.ok(amb.ambiguous.some((a: string) => a.startsWith("jennings")));
 });
 
 test("PLAYER book (WR): exhaustive breadth across role, opportunity, scheme, matchup, schedule, projection, roster", () => {
