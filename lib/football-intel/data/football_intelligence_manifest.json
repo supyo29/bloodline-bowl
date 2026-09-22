@@ -1,16 +1,16 @@
 {
-  "football_intelligence_version": "fi:2026:w02:e1ffe025708b",
+  "football_intelligence_version": "fi:2026:w02:aff973cdeb09",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-09-21T18:27:30+0000",
+  "generated_at": "2026-09-22T17:30:30+0000",
   "season": 2026,
   "through_week": 2,
   "week_completion": {
     "latest_week": 2,
-    "week_state": "PARTIAL",
-    "games_completed_in_latest_week": 15,
+    "week_state": "COMPLETE",
+    "games_completed_in_latest_week": 16,
     "games_scheduled_in_latest_week": 16,
-    "latest_completed_game_date": "2026-09-20"
+    "latest_completed_game_date": "2026-09-21"
   },
   "data_cutoff": {
     "ftn_charting": 2,
