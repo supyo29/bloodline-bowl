@@ -23,7 +23,11 @@ export async function GET(
   const parsed = parseWeek(weekRaw);
   if (!parsed.ok) return parsed.response;
 
-  const result = await buildWeeklyIntelligence(league, manager, { week: parsed.week });
+  // Waiver-readiness-contract fix: the same Market State certification the
+  // direct waivers route uses, so the two surfaces cannot disagree on
+  // whether the free-agent pool is actionable. See
+  // lib/weekly/market-pool-adapter.ts.
+  const result = await buildWeeklyIntelligence(league, manager, { week: parsed.week, enableMarketStatePool: true });
 
   if (!result.intelligence) {
     if (result.degraded_context) {

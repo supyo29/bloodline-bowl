@@ -25,7 +25,10 @@ export async function GET(
   if (!parsed.ok) return parsed.response;
   const limit = Number.parseInt(new URL(request.url).searchParams.get("limit") ?? "8", 10);
 
-  const view = await runWithWeeklyContext(league, manager, { week: parsed.week }, (ctx) =>
+  // Waiver-readiness-contract fix: certify the free-agent pool against the same
+  // canonical Market State substrate Waiver 2.0 already consumes, instead of the
+  // always-null canonical `waiver_state`. See lib/weekly/market-pool-adapter.ts.
+  const view = await runWithWeeklyContext(league, manager, { week: parsed.week, enableMarketStatePool: true }, (ctx) =>
     buildWaiverRecommendations(ctx, { limit: Number.isFinite(limit) ? Math.min(25, Math.max(1, limit)) : 8 }),
   );
 

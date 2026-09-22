@@ -67,11 +67,25 @@ test("PROVIDER: a transaction feed missing one of the required weeks fails the w
   assert.ok(s.readiness.blocks.includes("WAIVER_STATE_UNVERIFIABLE")); assert.equal(s.counts.AVAILABLE_FREE_AGENT, 0);
 });
 
-test("PRODUCTION ISOLATION: no production, canonical, weekly, trade, orchestrator or provider module imports the market state", () => {
+test("PRODUCTION ISOLATION: Market State reaches the legacy production weekly engine through exactly ONE adapter (waiver-readiness-contract fix); no other canonical/trade/orchestrator/provider module imports it, and the substrate itself still depends on no consumer", () => {
   const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? (f === "node_modules" || f === ".next" ? [] : walk(p)) : /\.tsx?$/.test(f) ? [p] : []; });
   const importers = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/market-state/") && /@\/lib\/market-state/.test(readFileSync(f, "utf8"))).sort();
-  assert.deepEqual(importers, ["lib/book-ready/families/market-state.ts", "lib/book-ready/query.ts", "lib/persistence/supabase/market-state.ts", "lib/waiver2/adapter.ts", "lib/waiver2/market-pool.ts", "lib/waiver2/market-policy.ts", "lib/waiver2/types.ts"].sort());
+  // Pre-existing (Waiver 2.0, Book-Ready, its Supabase capture writer) plus, as of the waiver-readiness-contract
+  // fix, the ONE legacy adapter file and the ONE context-builder file that calls it — the legacy waiver/lineup/
+  // matchup ranking/scoring files (lib/weekly/waivers.ts, decision-score.ts, replacement.ts, lineup.ts) do NOT
+  // import it, proving the fix only changed candidate-set/readiness wiring, never the scoring model.
+  assert.deepEqual(
+    importers,
+    [
+      "lib/book-ready/families/market-state.ts", "lib/book-ready/query.ts", "lib/persistence/supabase/market-state.ts",
+      "lib/waiver2/adapter.ts", "lib/waiver2/market-pool.ts", "lib/waiver2/market-policy.ts", "lib/waiver2/types.ts",
+      "lib/weekly/context.ts", "lib/weekly/market-pool-adapter.ts",
+    ].sort(),
+  );
+  for (const f of ["lib/weekly/waivers.ts", "lib/weekly/decision-score.ts", "lib/weekly/replacement.ts", "lib/weekly/lineup.ts", "lib/weekly/intelligence.ts"]) {
+    assert.doesNotMatch(readFileSync(f, "utf8"), /@\/lib\/market-state/, `${f}: the ranking/scoring/orchestration files must not reach Market State directly — only the one adapter does`);
+  }
   for (const f of walk("lib/market-state")) assert.doesNotMatch(readFileSync(f, "utf8"), /@\/lib\/(waiver2|weekly|trades|orchestrator|book-ready|analysis-book|canonical\/state)/, `${f}: the substrate depends on no consumer`);
   const noWrites = walk("lib/market-state").filter((f) => !f.endsWith("load.ts")); for (const f of noWrites) assert.doesNotMatch(readFileSync(f, "utf8"), /\bfetch\(|supabase|\.insert\(|process\.env|writeFileSync/i, `${f}: pure`);
-  const canonicalWaiver = readFileSync("lib/canonical/capabilities.ts", "utf8"); assert.match(canonicalWaiver, /free_agent_pool_not_materialized/, "the production readiness contract is untouched: production waivers still fail closed");
+  const canonicalWaiver = readFileSync("lib/canonical/capabilities.ts", "utf8"); assert.match(canonicalWaiver, /free_agent_pool_not_materialized/, "the default (non-enriched) production readiness contract is untouched: it still fails closed on the always-null canonical waiver_state");
 });

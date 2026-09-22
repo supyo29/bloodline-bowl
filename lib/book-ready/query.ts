@@ -57,7 +57,10 @@ const decisionMeta = (p: Record<string, string>): DecisionMeta => ({ league_slug
 
 async function weekly(p: Record<string, string>) {
   const { buildWeeklyIntelligence } = await import("@/lib/weekly/intelligence");
-  const r = await buildWeeklyIntelligence(p.league!, p.manager!, p.week ? { week: Number(p.week) } : {});
+  // Waiver-readiness-contract fix: keep Book-Ready's weekly-intelligence
+  // evidence in agreement with the live waivers/intelligence routes on
+  // free-agent-pool actionability. See lib/weekly/market-pool-adapter.ts.
+  const r = await buildWeeklyIntelligence(p.league!, p.manager!, { ...(p.week ? { week: Number(p.week) } : {}), enableMarketStatePool: true });
   return r.intelligence;
 }
 /** Waiver 2.0 (Phase 4): one request-scoped evaluation per topic call. Read-only; SHADOW_ONLY; nothing is submitted. */

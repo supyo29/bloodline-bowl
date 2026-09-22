@@ -1330,7 +1330,7 @@
         "SHADOW"
       ],
       "nature": "descriptive substrate: which players are acquirable in a league, by which mechanism, and why others are not (never a ranking or a valuation)",
-      "deployment": "SHARED_DESCRIPTIVE substrate consumed by Waiver 2.0 (SHADOW_ONLY); no production surface reads it and the production waiver section is unchanged",
+      "deployment": "SHARED_DESCRIPTIVE substrate consumed by Waiver 2.0 (SHADOW_ONLY). As of the waiver-readiness-contract fix it is ALSO consumed, opt-in, by the legacy PRODUCTION waiver/intelligence/orchestrator path (via lib/weekly/market-pool-adapter.ts) to certify free-agent-pool readiness — the production waiver ranking/scoring model itself is unchanged, only the readiness gate and candidate set.",
       "builder": {
         "command": null,
         "entrypoints": [
@@ -1369,9 +1369,11 @@
       "consumers": [
         "waiver2",
         "book-ready",
-        "persistence"
+        "persistence",
+        "weekly/context.ts",
+        "weekly/market-pool-adapter.ts"
       ],
-      "notes": "Availability is league-level; manager acquisition context (FAAB, priority, roster room) is separate. Immutable compact snapshots are persisted going forward only (no backfill). Historical pools cannot be reconstructed from Sleeper.",
+      "notes": "Availability is league-level; manager acquisition context (FAAB, priority, roster room) is separate. Immutable compact snapshots are persisted going forward only (no backfill). Historical pools cannot be reconstructed from Sleeper. Waiver-readiness-contract fix: the legacy production weekly engine (lib/weekly/context.ts, via the ONE adapter lib/weekly/market-pool-adapter.ts) now optionally certifies free-agent-pool readiness against this substrate too, opt-in per call site (`enableMarketStatePool`) — see docs/WAIVER_READINESS_CONTRACT.md. The production waiver-ranking/scoring files (waivers.ts, decision-score.ts, replacement.ts, lineup.ts) still do not import it.",
       "book_ready": {
         "query_topics": [
           "market.state"

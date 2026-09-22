@@ -15,7 +15,10 @@
  */
 
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
-import { assessFreeAgentPoolReadiness } from "@/lib/canonical/capabilities";
+import { assessFreeAgentPoolReadiness, type FreeAgentPoolReadiness } from "@/lib/canonical/capabilities";
+import { loadMarketSnapshot, type LoadMarketOptions, type MarketFetchers } from "@/lib/market-state/load";
+import type { MarketSnapshot } from "@/lib/market-state/contract";
+import { certifyFreeAgentPool } from "./market-pool-adapter";
 import { snapshotLineage } from "@/lib/canonical/snapshot-lineage";
 import { buildRecommendationLineage, type ProjectionLineageEntry } from "@/lib/canonical/lineage";
 import { resolveManager } from "@/lib/canonical/manager-context";
@@ -86,6 +89,25 @@ export interface BuildWeeklyContextOptions {
    * byes, positional needs) is derived from this snapshot exactly as normal.
    */
   snapshotOverride?: import("@/lib/canonical/schema").CanonicalLeagueSnapshot;
+
+  /**
+   * Waiver-readiness-contract fix (Phase 4.5 integration): opt-in enrichment of
+   * `free_agent_pool_readiness` / `availability.free_agents` from the certified
+   * canonical Market State substrate (`lib/market-state/*`), the SAME substrate
+   * Waiver 2.0's own adapter already consumes. Default `false` —
+   * every existing call site keeps its exact current behavior (the legacy,
+   * always-`UNAVAILABLE` `assessFreeAgentPoolReadiness(snapshot)` gate) unless a
+   * caller explicitly asks for the enrichment. Production consumers that surface
+   * waiver/free-agent output (the waivers route, the intelligence route, the
+   * Team-Management orchestrator, the Book-Ready weekly-intelligence topic) pass
+   * `true`. Routes that never surface waivers (lineup, matchup) do not, so they
+   * pay no extra Market State I/O cost.
+   */
+  enableMarketStatePool?: boolean;
+  /** Tests: inject a full `MarketSnapshot` directly, bypassing `loadMarketSnapshot` (and any network I/O) entirely. */
+  marketSnapshotOverride?: MarketSnapshot;
+  /** Tests: inject a fake loader (e.g. one that throws) to exercise the fail-closed fallback deterministically. */
+  marketSnapshotLoader?: (leagueSlug: string, opts: LoadMarketOptions, fetchers?: MarketFetchers) => Promise<MarketSnapshot>;
 }
 
 export async function buildWeeklyTeamContext(
@@ -371,13 +393,51 @@ export async function buildWeeklyTeamContext(
   const startablePositions = new Set(
     constraints.starting_slots.flatMap((s) => (BASE_STARTING.has(s) ? [s] : FLEX_ELIGIBILITY[s] ?? [])),
   );
-  const availability = buildLeagueAvailability({
+  let availability = buildLeagueAvailability({
     snapshot: snap,
     manager_team_id: team.canonical_team_id,
     week,
     candidates,
     startable_positions: startablePositions,
   });
+
+  // ---- Waiver-readiness-contract fix: certify the free-agent pool against the
+  // canonical Market State substrate (Phase 4.5) instead of the always-null
+  // canonical `snapshot.waiver_state`. See lib/weekly/market-pool-adapter.ts.
+  //
+  // This ONLY narrows `availability.free_agents` (and only when the certified
+  // pool is actionable); `availability.players` — what the shared
+  // replacement/VOR framework below consumes for lineup + matchup + waiver
+  // engines alike — is never touched, so lineup/matchup behavior is
+  // byte-identical whether or not Market State enrichment runs.
+  let free_agent_pool_readiness: FreeAgentPoolReadiness = assessFreeAgentPoolReadiness(snap);
+  if (options.enableMarketStatePool) {
+    try {
+      const market =
+        options.marketSnapshotOverride ??
+        (await (options.marketSnapshotLoader ?? loadMarketSnapshot)(league.league_slug, {
+          week,
+          scoring_fingerprint: snap.league.scoring_fingerprint ?? null,
+          source_snapshot_id: snap.lineage?.league_snapshot_id ?? null,
+        }));
+      const certified = certifyFreeAgentPool(market, availability);
+      free_agent_pool_readiness = certified.free_agent_pool_readiness;
+      if (certified.free_agent_pool_readiness.actionable) {
+        availability = { ...availability, free_agents: certified.free_agents };
+      }
+    } catch (e) {
+      // Fail closed exactly as the pre-Phase-4.5 legacy gate did: a Market
+      // State I/O failure must never crash the rest of weekly context
+      // (lineup/matchup/start-sit are unaffected) and must never silently
+      // claim actionability.
+      warnings.push({
+        code: "MARKET_STATE_READ_FAILED",
+        message: `Market State read failed (${e instanceof Error ? e.message : String(e)}); falling back to canonical waiver-pool readiness (fail-closed).`,
+        severity: "warning",
+      });
+      free_agent_pool_readiness = assessFreeAgentPoolReadiness(snap);
+    }
+  }
 
   // Replacement framework (shared by lineup + waiver engines).
   const replacement = computeWeeklyReplacement({
@@ -499,9 +559,14 @@ export async function buildWeeklyTeamContext(
     replacement,
     availability,
     // Authoritative capability gate for every downstream waiver / pickup surface.
-    // Derived from the SAME canonical model `/api/league/[l]/state` and `/api/ai`
-    // discovery consume — never recomputed from `all_players - rostered`.
-    free_agent_pool_readiness: assessFreeAgentPoolReadiness(snap),
+    // By default this is the SAME canonical model `/api/league/[l]/state` and
+    // `/api/ai` discovery consume (never recomputed from `all_players -
+    // rostered`). When `options.enableMarketStatePool` is set, it is instead
+    // the certified Phase 4.5 Market State verdict — see the comment above
+    // `availability` — still never recomputed from `all_players - rostered`,
+    // and still delegating to the ONE shared `lib/market-state/pool.ts` logic
+    // the sibling shadow engine itself uses (no parallel readiness implementation).
+    free_agent_pool_readiness,
     ros_signal: ros_meta
       ? {
           status: ros_meta.ri_status,

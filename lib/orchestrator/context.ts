@@ -332,7 +332,11 @@ export async function buildManagementAnalysisContext(
         if (!weeklyByManager.has(managerSlug)) {
           const tw = now();
           try {
-            const res = await buildWeeklyIntelligence(leagueSlug, managerSlug, { snapshotOverride: snapshot });
+            // Waiver-readiness-contract fix: the orchestrator must see the same
+            // certified Market State waiver truth the production waiver/
+            // intelligence routes see, not the always-null canonical
+            // `waiver_state`. See lib/weekly/market-pool-adapter.ts.
+            const res = await buildWeeklyIntelligence(leagueSlug, managerSlug, { snapshotOverride: snapshot, enableMarketStatePool: true });
             metrics.weekly_intelligence_builds += 1;
             weekly = res.ok ? res.intelligence : null;
             availability.weekly.set(managerSlug, Boolean(weekly));

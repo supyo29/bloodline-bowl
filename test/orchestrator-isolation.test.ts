@@ -27,7 +27,12 @@ test("orchestrator context: weekly lineup/matchup/waivers identical to a direct 
 
 
   await runInLeagueStateScope(async () => {
-    const d = await buildWeeklyIntelligence(LEAGUE, MANAGER);
+    // Waiver-readiness-contract fix: the orchestrator now calls buildWeeklyIntelligence
+    // with `enableMarketStatePool: true` (see lib/orchestrator/context.ts) so it certifies
+    // the free-agent pool against Market State instead of the always-null canonical
+    // waiver_state. For "identical to a direct build" to remain a meaningful comparison,
+    // the direct call here must request the exact same enrichment.
+    const d = await buildWeeklyIntelligence(LEAGUE, MANAGER, { enableMarketStatePool: true });
     if (!d.ok || !d.intelligence) {
       t.skip("weekly intelligence unavailable (offline?)");
       return;
