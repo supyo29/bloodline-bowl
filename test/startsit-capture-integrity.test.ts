@@ -234,6 +234,8 @@ test("23-24: only the shadow builder/capture layer consumes Start/Sit FI numbers
     "app/api/football-intel/startsit-evidence/route.ts",
     // Phase 3.5D: registry SURFACE-ID string only ("start-sit-fi"); test/analysis-book-isolation.test.ts proves nothing in lib/analysis-book imports the module
     "lib/analysis-book/topics.ts",
+    // Phase 9: the weekly audit READS captured Start/Sit decisions to attach outcomes; it never influences a recommendation (test/weekly-audit-isolation.test.ts).
+    "lib/weekly-audit/build.ts", "lib/weekly-audit/outcomes-startsit.ts", "lib/weekly-audit/gates.ts", "lib/persistence/supabase/weekly-audit-store.ts",
   ]);
   const offenders: string[] = [];
   for (const dir of ["lib", "app"]) for (const f of walk(join(ROOT, dir))) {

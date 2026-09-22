@@ -134,7 +134,8 @@
         "weekly/matchup-intelligence",
         "book-ready",
         "waiver2",
-        "matchup2"
+        "matchup2",
+        "weekly-audit/build.ts"
       ],
       "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact.",
       "book_ready": {
@@ -690,7 +691,11 @@
       "consumers": [
         "persistence/supabase/shadow-capture.ts",
         "weekly/intelligence.ts",
-        "book-ready"
+        "book-ready",
+        "weekly-audit/build.ts",
+        "weekly-audit/gates.ts",
+        "weekly-audit/outcomes-startsit.ts",
+        "persistence/supabase/weekly-audit-store.ts"
       ],
       "notes": "Model frozen: sha256 85d2ddd5\u20266293. start_sit_manifest.json / start_sit_validation.csv / start_sit_feature_status.csv are training provenance with no runtime reader (INTERNAL).",
       "book_ready": {
@@ -1264,7 +1269,11 @@
       ],
       "consumers": [
         "book-ready",
-        "persistence"
+        "persistence",
+        "weekly-audit/build.ts",
+        "weekly-audit/outcomes-waiver2.ts",
+        "weekly-audit/gates.ts",
+        "persistence/supabase/weekly-audit-store.ts"
       ],
       "notes": "Gated on the canonical market-state pool (Phase 4.5): with a blocked market every topic is UNAVAILABLE unless illustrative=1 (labelled non-actionable). SHADOW_ONLY regardless of pool state.",
       "book_ready": {
@@ -1452,7 +1461,11 @@
       ],
       "consumers": [
         "book-ready",
-        "persistence"
+        "persistence",
+        "weekly-audit/build.ts",
+        "weekly-audit/outcomes-matchup2.ts",
+        "weekly-audit/gates.ts",
+        "persistence/supabase/weekly-audit-store.ts"
       ],
       "notes": "Unsupported by design: cornerback assignment, receiver alignment, front alignment, personnel groupings, coach history, run-scheme splits, current-season charting. No fitted numeric adjustment (Phase 9 Tier D clean null). Prospective shadow capture: scheduled job only (supabase table bridge_matchup2_shadow_captures, immutable); public evidence requests cannot create records.",
       "book_ready": {
@@ -1727,7 +1740,11 @@
       "consumers": [
         "book-ready",
         "persistence/supabase/shadow-capture.ts",
-        "weekly/intelligence.ts"
+        "weekly/intelligence.ts",
+        "weekly-audit/build.ts",
+        "weekly-audit/gates.ts",
+        "weekly-audit/outcomes-startsit.ts",
+        "persistence/supabase/weekly-audit-store.ts"
       ],
       "notes": "Consumer scope is START_SIT only. Holdout (2025) sealed. Prospective gate unmet (0 qualifying 2026 weeks).",
       "book_ready": {
@@ -1767,6 +1784,98 @@
           [
             "INTELLIGENCE_MODERNIZATION_PHASE",
             "8"
+          ]
+        ]
+      },
+      "phase_refs": null
+    },
+    {
+      "id": "weekly-model-audit",
+      "name": "Weekly Model Audit (post-week outcome/calibration feedback loop)",
+      "owning_module": "lib/weekly-audit",
+      "status": [
+        "DESCRIPTIVE_ONLY"
+      ],
+      "nature": "observational post-week audit: attaches real outcomes to existing prospective captures (Start/Sit, Matchup2, Waiver2), computes calibration/regret/miss taxonomy, and reports Phase 8 FI re-test / Matchup2 / Waiver2 prospective-gate progress. Never writes a model weight, threshold or deployment state.",
+      "deployment": "SHARED_DESCRIPTIVE. Zero production numeric influence; nothing in lib/weekly-audit is imported by a production recommendation module (structural test).",
+      "builder": {
+        "command": "GET/POST /api/cron/weekly-audit (CRON_SECRET, idempotent)",
+        "entrypoints": [
+          "lib/weekly-audit/build.ts",
+          "lib/weekly-audit/outcomes-startsit.ts",
+          "lib/weekly-audit/outcomes-matchup2.ts",
+          "lib/weekly-audit/outcomes-waiver2.ts"
+        ]
+      },
+      "served_artifacts": [],
+      "manifest": null,
+      "version_field": "audit_schema_version",
+      "readers": [
+        "lib/book-ready/families/weekly-audit.ts"
+      ],
+      "routes": [
+        "/api/cron/weekly-audit"
+      ],
+      "reachability": "EMBEDDED_IN_ROUTE",
+      "source_data": "bridge_{startsit,matchup2,waiver2}_shadow_captures + newly-written outcome rows + Sleeper weekly stats (actuals) + FI/Role freshness + Phase 8 certification artifact",
+      "data_cutoff_field": null,
+      "confidence_semantics": "none: calibration is measured error/regret, not a confidence label",
+      "freshness_owner": "the cron job (idempotent daily run, gated on NFL week closure)",
+      "lineage_owner": "lib/weekly-audit/identity.ts (audit_id = deterministic hash of season/week/schema/evidence_digest, never a timestamp)",
+      "reproducibility": "NO_ARTIFACT",
+      "docs": [
+        "docs/INTELLIGENCE_MODERNIZATION_PHASE_7_TEMPORAL_IDENTITY.md"
+      ],
+      "tests": [
+        "test/weekly-audit-week-closure.test.ts",
+        "test/weekly-audit-scoring-actuals.test.ts",
+        "test/weekly-audit-outcomes.test.ts",
+        "test/weekly-audit-calibration.test.ts",
+        "test/weekly-audit-isolation.test.ts",
+        "test/weekly-audit-bookready.test.ts"
+      ],
+      "consumers": [
+        "book-ready",
+        "persistence/supabase/weekly-audit-store.ts"
+      ],
+      "notes": "Role-change, prior/current disagreement, defense/offense profile-shift and injury/opportunity sections are NOT_APPLICABLE in this pass \u2014 they need a persisted week-over-week history that does not exist yet (documented limitation, not fabricated).",
+      "book_ready": {
+        "query_topics": [
+          "audit.weekly_model"
+        ],
+        "capability_state": "AVAILABLE",
+        "note": "a missing audit for a given season/week is UNAVAILABLE, never a fabricated placeholder",
+        "current": "AVAILABLE",
+        "history": {
+          "class": "CURRENT_ONLY",
+          "source": "one immutable row per (season, week, evidence_digest)",
+          "note": "a corrected outcome produces an ADDITIVE new audit row, never a mutation"
+        },
+        "comparison_populations": [],
+        "decomposition": true,
+        "confidence": false,
+        "uncertainty": false,
+        "freshness": true,
+        "lineage": true,
+        "unit_scale_explicit": true,
+        "evidence_class_explicit": true,
+        "safe_for_historical_comparison": {
+          "value": false,
+          "note": "the scoring fingerprint (not a clock) identifies which contract applied; earlier contracts are not reconstructed"
+        },
+        "chart_ready": [
+          "table"
+        ],
+        "refresh_policy": {
+          "cadence": "DAILY",
+          "trigger": "cron (/api/cron/weekly-audit)",
+          "snapshot_policy": "IMMUTABLE_APPEND",
+          "rationale": "idempotent: re-running over unchanged evidence inserts nothing new"
+        },
+        "phase_refs": [
+          [
+            "INTELLIGENCE_MODERNIZATION_PHASE",
+            "9"
           ]
         ]
       },

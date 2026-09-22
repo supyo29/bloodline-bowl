@@ -161,6 +161,11 @@ export const TOPICS: Record<string, TopicSpec> = {
     return teamMembershipEvidence(r, { opponent: opp, sources: ev.sources, identity_unresolved: ev.identity_known === false && obs.length === 0, ...(schemeTeam !== undefined ? { scheme_as_of_team: schemeTeam } : {}) });
   } },
   "fi.certification": { surface: "fi-recertification", cost: "ARTIFACT_READ", required: [], run: async (p) => { const { fiCertificationEvidence } = await import("./families/fi-certification"); return fiCertificationEvidence({ ...(p.family ? { family: p.family } : {}), ...(p.position ? { position: p.position.toUpperCase() } : {}) }); } },
+  "audit.weekly_model": { surface: "weekly-model-audit", cost: "ARTIFACT_READ", required: ["season", "week"], run: async (p) => {
+    const { weeklyAuditEvidence } = await import("./families/weekly-audit"); const { readLatestWeeklyAudit } = await import("@/lib/weekly-audit/read-latest");
+    const audit = await readLatestWeeklyAudit(Number(p.season), Number(p.week));
+    return weeklyAuditEvidence(audit, { section: p.section });
+  } },
   "trade.evaluation": { surface: "trade-foundations", cost: "ARTIFACT_READ", required: ["league", "manager"], run: (p) => tradeCapabilityEvidence(decisionMeta(p)) },
 };
 

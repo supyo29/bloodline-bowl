@@ -31,7 +31,7 @@ const UNADVERTISED: Record<string, string> = {
   "/api/auth/yahoo/callback": "OAuth plumbing", "/api/auth/yahoo/connect": "OAuth plumbing", "/api/auth/yahoo/status": "OAuth plumbing",
   "/api/yahoo/auth/start": "OAuth plumbing", "/api/yahoo/oauth/callback": "OAuth plumbing", "/api/yahoo/status": "provider auth status",
   "/api/yahoo/diagnostics": "provider diagnostics", "/api/yahoo/leagues": "Yahoo provider (not yet a registered league source)", "/api/yahoo/leagues/*": "Yahoo provider",
-  "/api/cron/capture": "scheduled job (auth-gated)", "/api/cron/publish": "scheduled job (auth-gated)", "/api/cron/waiver2-capture": "scheduled job (auth-gated)", "/api/cron/matchup2-capture": "scheduled job (auth-gated)", "/api/refresh": "operator refresh (auth-gated)",
+  "/api/cron/capture": "scheduled job (auth-gated)", "/api/cron/publish": "scheduled job (auth-gated)", "/api/cron/waiver2-capture": "scheduled job (auth-gated)", "/api/cron/matchup2-capture": "scheduled job (auth-gated)", "/api/cron/weekly-audit": "scheduled job (auth-gated)", "/api/refresh": "operator refresh (auth-gated)",
   "/api/bridge/board": "draft-board UI backend", "/api/draft/debug": "debug", "/api/raw": "raw provider passthrough (not a curated capability)",
   "/api/lineups": "superseded by lineups_history capability path form", "/api/league": "legacy query-form route", "/api/league/*/state": "legacy path form of league_state",
   "/api/snapshot/*": "legacy path form of league_snapshot", "/api/scoring/*": "legacy path form of scoring", "/api/scoring/calculate": "utility calculator",
