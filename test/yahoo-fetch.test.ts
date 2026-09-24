@@ -115,7 +115,11 @@ describe("fetchYahooTeamsAndStandings", () => {
     assert.equal(t1.rank, 1);
     assert.equal(t1.waiver_priority, 2);
     assert.equal(t1.managers.length, 1);
-    assert.equal(t1.managers[0]?.guid, "YAHOOGUID0000000000000101");
+    // Live Yahoo may expose the same privacy-masked GUID for multiple
+    // managers; manager_id is the league-stable identity and must win.
+    assert.equal(t1.managers[0]?.guid, "1");
+    assert.equal(t2.managers[0]?.guid, "2");
+    assert.notEqual(t1.managers[0]?.guid, t2.managers[0]?.guid);
     assert.equal(t1.managers[0]?.nickname, "rpcommish");
     assert.equal(t1.managers[0]?.is_commissioner, true);
     assert.equal(t2.managers[0]?.is_commissioner, false);
@@ -286,6 +290,43 @@ describe("mapYahooScoringSettings", () => {
     );
     assert.deepEqual(raw_scoring, { pass_yd: 0.04, pass_td: 4, rec: 0.5 });
     assert.deepEqual(unmapped, []);
+  });
+
+  it("maps live Rogers Park defense names after normalizing the mapping table itself", () => {
+    const { raw_scoring, unmapped } = mapYahooScoringSettings(
+      [
+        { stat_id: "33", name: "Interception", display_name: "Int" },
+        { stat_id: "34", name: "Fumble Recovery", display_name: "Fum Rec" },
+        { stat_id: "35", name: "Touchdown", display_name: "TD" },
+        { stat_id: "37", name: "Block Kick", display_name: "Blk Kick" },
+        { stat_id: "51", name: "Points Allowed 1-6 points", display_name: "Pts Allow 1-6" },
+        { stat_id: "52", name: "Points Allowed 7-13 points", display_name: "Pts Allow 7-13" },
+        { stat_id: "53", name: "Points Allowed 14-20 points", display_name: "Pts Allow 14-20" },
+        { stat_id: "55", name: "Points Allowed 28-34 points", display_name: "Pts Allow 28-34" },
+        { stat_id: "82", name: "Extra Point Returned", display_name: "XP Ret" },
+      ],
+      [
+        { stat_id: "33", value: 2 },
+        { stat_id: "34", value: 2 },
+        { stat_id: "35", value: 6 },
+        { stat_id: "37", value: 2 },
+        { stat_id: "51", value: 7 },
+        { stat_id: "52", value: 4 },
+        { stat_id: "53", value: 1 },
+        { stat_id: "55", value: -1 },
+        { stat_id: "82", value: 2 },
+      ],
+    );
+    assert.deepEqual(unmapped, []);
+    assert.equal(raw_scoring.int, 2);
+    assert.equal(raw_scoring.fum_rec, 2);
+    assert.equal(raw_scoring.def_td, 6);
+    assert.equal(raw_scoring.blk_kick, 2);
+    assert.equal(raw_scoring.pts_allow_1_6, 7);
+    assert.equal(raw_scoring.pts_allow_7_13, 4);
+    assert.equal(raw_scoring.pts_allow_14_20, 1);
+    assert.equal(raw_scoring.pts_allow_28_34, -1);
+    assert.equal(raw_scoring.def_2pt, 2);
   });
 
   it("preserves an unrecognized stat name under a namespaced key and reports it — never guesses", () => {
