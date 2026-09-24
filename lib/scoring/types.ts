@@ -183,7 +183,7 @@ export interface DerivedBonuses {
 
 export interface ScoringResponse {
   generated_at: string;
-  source: "Sleeper";
+  source: "Sleeper" | "Yahoo";
   league_id: string;
 
   league: {
