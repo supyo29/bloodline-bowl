@@ -66,6 +66,8 @@ export interface YahooToken {
  * (`SupabaseYahooTokenStore`). Tests / dev without a DB: `InMemoryYahooTokenStore`.
  */
 export interface YahooTokenStore {
+  /** Stable non-secret slot id used to isolate concurrent token refreshes. */
+  readonly connection_id?: string;
   get(): Promise<YahooToken | null>;
   set(token: YahooToken): Promise<void>;
   clear(): Promise<void>;
@@ -75,6 +77,7 @@ export interface YahooTokenStore {
 
 export class InMemoryYahooTokenStore implements YahooTokenStore {
   readonly backend = "memory";
+  readonly connection_id = "memory";
   #token: YahooToken | null = null;
   async get(): Promise<YahooToken | null> {
     return this.#token;
@@ -257,7 +260,8 @@ export async function getValidAccessToken(
   const fresh = !opts.forceRefresh && token.expires_at - now > REFRESH_SKEW_MS;
   if (fresh) return { status: "OK", access_token: token.access_token, token };
 
-  const key = `${config.client_id}:${token.yahoo_guid ?? "primary"}`;
+  const key =
+    `${config.client_id}:${store.connection_id ?? "default"}:${token.yahoo_guid ?? "no-guid"}`;
   let refreshed: YahooToken;
   try {
     const existing = inflight.get(key);
