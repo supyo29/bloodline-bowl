@@ -60,7 +60,13 @@ const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
   "receiving 2-point conversions": "rec_2pt",
 
   // Return / misc offense
-  "return yards": "kr_yd",
+  //
+  // "Return Yards" is deliberately NOT mapped. The canonical catalog splits
+  // return yardage into distinct kr_yd (kick return) and pr_yd (punt return)
+  // buckets; a generic Yahoo "Return Yards" category does not itself say
+  // which (or both, combined) it covers. Guessing kr_yd would misattribute
+  // punt-return yardage as kick-return yardage. Falls through to
+  // yahoo_stat_<id> + warning until a live Yahoo response's stat_id disambiguates it.
   "return touchdowns": "st_td",
   "offensive fumble return td": "fum_rec_td",
   "fumbles lost": "fum_lost",
@@ -86,7 +92,13 @@ const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
   // Team defense / special teams
   sack: "sack",
   sacks: "sack",
-  "interception returns": "int",
+  // "Interception Returns" is deliberately NOT mapped. It is ambiguous
+  // between a COUNT of interceptions (the "int" bucket, same concept as
+  // "Interceptions" used for the passer's thrown picks elsewhere in this
+  // table) and interception RETURN YARDAGE (the canonical catalog's distinct
+  // int_ret_yd key). Guessing either risks scoring a yardage stat as a
+  // per-turnover count or vice versa. Falls through to yahoo_stat_<id> +
+  // warning until a live Yahoo response disambiguates it.
   "fumble recoveries": "fum_rec",
   "fumble return touchdowns": "fum_rec_td",
   "forced fumbles": "ff",
@@ -103,7 +115,12 @@ const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
   "points allowed 21-27 points": "pts_allow_21_27",
   "points allowed 28-34 points": "pts_allow_28_34",
   "points allowed 35+ points": "pts_allow_35p",
-  "yards allowed": "pts_allow",
+  // "Yards Allowed" is deliberately NOT mapped to pts_allow (points allowed
+  // is a materially different concept from yards allowed) or to any of the
+  // canonical yds_allow_* bucket keys (yds_allow_0_100 ... yds_allow_550p):
+  // a generic "Yards Allowed" name does not itself say which bucket
+  // threshold Yahoo means. Falls through to yahoo_stat_<id> + warning until
+  // live Rogers Park settings prove the exact Yahoo semantics.
 };
 
 export interface YahooStatCategory {

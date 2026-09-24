@@ -323,4 +323,51 @@ describe("mapYahooScoringSettings", () => {
     assert.equal(unmapped.length, 1);
     assert.equal(unmapped[0]?.stat_id, "2");
   });
+
+  it("never maps a generic 'Yards Allowed' category to pts_allow (points allowed) or to any yds_allow_* bucket — falls through to unmapped", () => {
+    const { raw_scoring, unmapped } = mapYahooScoringSettings(
+      [{ stat_id: "77", name: "Yards Allowed", display_name: "Yds Allow" }],
+      [{ stat_id: "77", value: -0.005 }],
+    );
+    // Must NOT collapse "yards allowed" into "points allowed" (a materially
+    // different stat) or guess a specific yds_allow_0_100..yds_allow_550p
+    // bucket — a bare "Yards Allowed" name doesn't say which threshold.
+    assert.equal(raw_scoring.pts_allow, undefined);
+    for (const bucket of [
+      "yds_allow_0_100", "yds_allow_100_199", "yds_allow_200_299", "yds_allow_300_349",
+      "yds_allow_350_399", "yds_allow_400_449", "yds_allow_450_499", "yds_allow_500_549", "yds_allow_550p",
+    ]) {
+      assert.equal(raw_scoring[bucket], undefined, bucket);
+    }
+    assert.deepEqual(raw_scoring, { yahoo_stat_77: -0.005 });
+    assert.equal(unmapped.length, 1);
+    assert.equal(unmapped[0]?.stat_id, "77");
+    assert.equal(unmapped[0]?.name, "Yards Allowed");
+  });
+
+  it("never maps ambiguous 'Return Yards' or 'Interception Returns' category names — falls through to unmapped", () => {
+    // "Return Yards" is ambiguous between the canonical catalog's distinct
+    // kr_yd (kick return) and pr_yd (punt return) buckets.
+    // "Interception Returns" is ambiguous between a COUNT of interceptions
+    // ("int") and interception RETURN YARDAGE ("int_ret_yd") — different
+    // units, different scoring impact.
+    const { raw_scoring, unmapped } = mapYahooScoringSettings(
+      [
+        { stat_id: "78", name: "Return Yards", display_name: null },
+        { stat_id: "79", name: "Interception Returns", display_name: null },
+      ],
+      [
+        { stat_id: "78", value: 0.04 },
+        { stat_id: "79", value: 2 },
+      ],
+    );
+    assert.equal(raw_scoring.kr_yd, undefined);
+    assert.equal(raw_scoring.pr_yd, undefined);
+    assert.equal(raw_scoring.int, undefined);
+    assert.equal(raw_scoring.int_ret_yd, undefined);
+    assert.deepEqual(raw_scoring, { yahoo_stat_78: 0.04, yahoo_stat_79: 2 });
+    assert.equal(unmapped.length, 2);
+    assert.ok(unmapped.some((u) => u.stat_id === "78" && u.name === "Return Yards"));
+    assert.ok(unmapped.some((u) => u.stat_id === "79" && u.name === "Interception Returns"));
+  });
 });
