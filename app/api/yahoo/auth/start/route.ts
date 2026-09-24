@@ -15,13 +15,23 @@ import { NextResponse } from "next/server";
 import { loadYahooConfig } from "@/lib/providers/yahoo/config";
 import { buildAuthorizeUrl } from "@/lib/providers/yahoo/oauth";
 import { resolveYahooTokenStore } from "@/lib/providers/yahoo/token-store";
-import { YAHOO_STATE_COOKIE } from "@/lib/providers/yahoo/oauth-state";
+import { resolveYahooConnectionSelection } from "@/lib/providers/yahoo/connections";
+import { encodeYahooOAuthState, YAHOO_STATE_COOKIE } from "@/lib/providers/yahoo/oauth-state";
 import { CORS_HEADERS, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const selection = resolveYahooConnectionSelection(url.searchParams);
+  if (!selection.ok) {
+    return jsonResponse(
+      { status: "INVALID_CONNECTION", error: selection.code, detail: selection.detail },
+      { status: selection.status, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const cfg = loadYahooConfig();
   if (!cfg.configured || !cfg.config) {
     return jsonResponse(
@@ -33,7 +43,9 @@ export async function GET(): Promise<Response> {
     );
   }
 
-  const storage = resolveYahooTokenStore();
+  const storage = resolveYahooTokenStore(process.env, {
+    connectionId: selection.connection_id,
+  });
   if (!storage.ok) {
     return jsonResponse(
       {
@@ -45,7 +57,11 @@ export async function GET(): Promise<Response> {
     );
   }
 
-  const state = randomBytes(32).toString("hex");
+  const state = encodeYahooOAuthState({
+    connection_id: selection.connection_id,
+    league_slug: selection.league_slug,
+    nonce: randomBytes(32).toString("hex"),
+  });
   const authorizeUrl = buildAuthorizeUrl(cfg.config, state);
 
   const res = NextResponse.redirect(authorizeUrl, { status: 302 });
