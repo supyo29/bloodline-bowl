@@ -77,21 +77,10 @@ export async function GET(
     }
   }
 
-  // Fallback: live provider read.
-  if (league.provider !== "sleeper") {
-    return jsonResponse(
-      {
-        source: "unavailable",
-        league_slug: league.league_slug,
-        season,
-        status: "AUTH_REQUIRED",
-        detail: `Live transaction reads for provider "${league.provider}" require authenticated access. Run a sync once credentials exist.`,
-        transactions: [],
-      },
-      { status: 200, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
+  // Fallback: live provider read. Authentication and provider-specific
+  // degradation are owned by the provider adapter itself; do not special-case
+  // Yahoo here or a healthy OAuth session will be incorrectly reported as
+  // AUTH_REQUIRED.
   const provider = getProvider(league.provider);
   const crosswalk = defaultCrosswalkSource()
     ? new PlayerCrosswalk(defaultCrosswalkSource()!)
