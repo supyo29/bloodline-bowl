@@ -42,6 +42,14 @@ export async function GET(): Promise<Response> {
         config_status,
         external_league_id: t.external_league_id,
         provider_connection_id: t.yahoo_connection_id,
+        authorize_url:
+          t.provider === "yahoo"
+            ? `/api/yahoo/auth/start?league=${encodeURIComponent(t.key)}`
+            : null,
+        provider_status_url:
+          t.provider === "yahoo"
+            ? `/api/yahoo/status?league=${encodeURIComponent(t.key)}`
+            : null,
       };
       if (t.provider !== "yahoo" || config_status !== "LIVE_VALIDATION_REQUIRED") {
         return { ...base, live_accessible: t.provider === "sleeper" ? true : null, live_detail: null };
