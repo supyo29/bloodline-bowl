@@ -16,16 +16,31 @@ import { loadYahooConfig, YAHOO_TARGET_SEASON } from "@/lib/providers/yahoo/conf
 import { loadYahooSession } from "@/lib/providers/yahoo/session";
 import { accessStateFromSession, refineWithFantasyProbe } from "@/lib/providers/yahoo/access-state";
 import { verifyAuthenticatedAccess } from "@/lib/providers/yahoo/discovery";
-import { getLeagueRegistry } from "@/lib/leagues/registry";
+import {
+  listYahooConnectionBindings,
+  resolveYahooConnectionSelection,
+  yahooLeaguesForConnection,
+} from "@/lib/providers/yahoo/connections";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const selection = resolveYahooConnectionSelection(url.searchParams);
+  if (!selection.ok) {
+    return jsonResponse(
+      { provider: "yahoo", error: selection.code, detail: selection.detail },
+      { status: selection.status, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const cfg = loadYahooConfig();
-  const session = await loadYahooSession();
-  const wantProbe = new URL(request.url).searchParams.get("probe") === "1";
+  const session = await loadYahooSession(process.env, {
+    connectionId: selection.connection_id,
+  });
+  const wantProbe = url.searchParams.get("probe") === "1";
 
   let access = accessStateFromSession(session);
   let fantasy_api: {
@@ -44,12 +59,15 @@ export async function GET(request: Request): Promise<Response> {
     };
   }
 
-  const yahooLeagues = getLeagueRegistry().targets.filter((t) => t.provider === "yahoo");
+  const yahooLeagues = yahooLeaguesForConnection(selection.connection_id);
 
   return jsonResponse(
     {
       provider: "yahoo",
       generated_at: new Date().toISOString(),
+      connection_id: selection.connection_id,
+      requested_league_slug: selection.league_slug,
+      available_connections: listYahooConnectionBindings(),
       configured: cfg.configured,
       missing_env: cfg.missing,
       encryption_key_present: cfg.encryption_key_present,
@@ -73,7 +91,11 @@ export async function GET(request: Request): Promise<Response> {
         yahoo_league_key: t.yahoo_league_key,
         display_name: t.display_name,
       })),
-      authorize_url: cfg.configured ? "/api/yahoo/auth/start" : null,
+      authorize_url: cfg.configured
+        ? selection.league_slug
+          ? `/api/yahoo/auth/start?league=${encodeURIComponent(selection.league_slug)}`
+          : `/api/yahoo/auth/start?connection=${encodeURIComponent(selection.connection_id)}`
+        : null,
       diagnostics_url: "/api/yahoo/diagnostics (POST, Authorization: Bearer <REFRESH_SECRET>)",
     },
     // A probe result must never be cached; the plain status is briefly cacheable.
