@@ -77,6 +77,8 @@ export interface LeagueTarget {
   sleeper_username: string | null;
   /** Sleeper only: verified Sleeper `user_id` of `sleeper_username`. */
   sleeper_user_id: string | null;
+  /** Yahoo only: durable OAuth/token-store connection id. Defaults to "primary". */
+  yahoo_connection_id?: string | null;
   /** Yahoo only: full `game.l.id` key once resolved via the API. Null until then. */
   yahoo_league_key?: string | null;
   /** Disabled entries are kept in source for record-keeping but never resolve. */
@@ -88,6 +90,7 @@ export interface RegisteredLeague extends LeagueTarget {
   external_league_id: string;
   season: number;
   known_managers: string[];
+  yahoo_connection_id: string | null;
   yahoo_league_key: string | null;
 }
 
@@ -153,6 +156,8 @@ const LEAGUE_TARGETS: LeagueTarget[] = [
     known_managers: [],
     sleeper_username: null,
     sleeper_user_id: null,
+    // Separate Yahoo account owned by the Maclin commissioner/friend.
+    yahoo_connection_id: "maclin",
     // The human-facing id only. The real `game.l.id` key (e.g. `nfl.l.82713`)
     // MUST be resolved from the authenticated API before any Yahoo call trusts
     // it, and it may differ per season — the `key` slug stays stable regardless.
@@ -169,6 +174,8 @@ const LEAGUE_TARGETS: LeagueTarget[] = [
     known_managers: [],
     sleeper_username: null,
     sleeper_user_id: null,
+    // Preserve the already-certified production Yahoo connection row.
+    yahoo_connection_id: "primary",
     // Human-facing id only; full provider key resolved post-auth. Independent of
     // maclin-on-chicks-xvi — a separate Yahoo league under the same provider.
     yahoo_league_key: null,
@@ -252,6 +259,8 @@ function normalizeEntry(raw: LeagueTarget): RegisteredLeague {
     league_id: raw.league_id || raw.external_league_id || "",
     season: raw.season ?? 2026,
     known_managers: raw.known_managers ?? [],
+    yahoo_connection_id:
+      raw.provider === "yahoo" ? (raw.yahoo_connection_id?.trim() || "primary") : null,
     yahoo_league_key: raw.yahoo_league_key ?? null,
   };
 }
