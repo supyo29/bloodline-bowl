@@ -193,6 +193,38 @@ describe("refresh + getValidAccessToken", () => {
     assert.equal(calls, 1);
   });
 
+  it("does not dedupe token refreshes across different connection ids when Yahoo GUID is absent", async () => {
+    let calls = 0;
+    stubFetch(async () => {
+      calls += 1;
+      await new Promise((res) => setTimeout(res, 10));
+      return new Response(tokenBody({ access_token: `NEW-${calls}`, xoauth_yahoo_guid: undefined }), { status: 200 });
+    });
+
+    const tokenWithoutGuid = (): YahooToken => ({
+      access_token: "OLD",
+      refresh_token: "REFRESH-1",
+      token_type: "bearer",
+      scope: "fspt-r",
+      expires_at: Date.now() + 1_000,
+      yahoo_guid: null,
+    });
+
+    const primary = new InMemoryYahooTokenStore("primary");
+    const maclin = new InMemoryYahooTokenStore("maclin");
+    await primary.set(tokenWithoutGuid());
+    await maclin.set(tokenWithoutGuid());
+
+    const [a, b] = await Promise.all([
+      getValidAccessToken(CONFIG, primary),
+      getValidAccessToken(CONFIG, maclin),
+    ]);
+
+    assert.equal(a.status, "OK");
+    assert.equal(b.status, "OK");
+    assert.equal(calls, 2, "different Yahoo connection ids must never share one refresh promise");
+  });
+
   it("returns REFRESH_FAILED (never loops) when the refresh call errors", async () => {
     stubFetch(() => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }));
     const store = new InMemoryYahooTokenStore();
