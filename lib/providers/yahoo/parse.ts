@@ -63,6 +63,30 @@ export function mergeLeadingObjects(node: Json): Record<string, Json> {
   return merged;
 }
 
+/**
+ * Yahoo nests some entities (a team, a transaction) an extra array level deep:
+ * `[[{team_key},{team_id},...,{managers:[...]}],{team_standings:{...}}]`. Unlike
+ * {@link mergeLeadingObjects} (one level), this walks arbitrarily nested arrays,
+ * merging every record it finds by key — first occurrence wins, matching Yahoo's
+ * own "leading metadata object" convention. Non-array, non-record leaves are
+ * ignored (there are none at these positions in a well-formed response).
+ */
+export function mergeYahooEntity(node: Json): Record<string, Json> {
+  const merged: Record<string, Json> = {};
+  const queue: Json[] = [node];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (Array.isArray(cur)) {
+      queue.push(...cur);
+    } else if (isRecord(cur)) {
+      for (const [k, v] of Object.entries(cur)) {
+        if (!(k in merged)) merged[k] = v;
+      }
+    }
+  }
+  return merged;
+}
+
 export function asString(v: Json): string | null {
   return typeof v === "string" ? v : typeof v === "number" ? String(v) : null;
 }
@@ -71,4 +95,14 @@ export function asNumber(v: Json): number | null {
   if (typeof v === "number") return v;
   if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
   return null;
+}
+
+/** Yahoo booleans are frequently `"1"`/`"0"` strings or `1`/`0` numbers. */
+export function asBool(v: Json): boolean {
+  return v === true || v === 1 || v === "1";
+}
+
+/** Narrow to a plain record, or null. Exposed for callers outside this module. */
+export function asRecord(v: Json): Record<string, Json> | null {
+  return isRecord(v) ? v : null;
 }
