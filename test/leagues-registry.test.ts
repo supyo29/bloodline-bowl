@@ -287,6 +287,26 @@ describe("resolveLeagueId: selector resolution", () => {
     assert.equal(resolveLeagueId("42"), "42");
   });
 
+  it("throws (never returns a Yahoo id) for a Yahoo-provider selector", () => {
+    // rogers-park / maclin-on-chicks-xvi are Yahoo leagues. Every route built
+    // on resolveLeagueId (the whole `?league=` legacy surface —
+    // /api/standings, /api/managers, /api/matchups, /api/roster-analysis,
+    // /api/value, /api/manager-availability, /api/player-availability,
+    // /api/weekly-stats, /api/lineups, /api/snapshot, /api/history,
+    // /api/transactions) calls Sleeper's API directly with whatever id this
+    // returns. Before this guard, that meant Yahoo's numeric league id
+    // (287140) silently reached a Sleeper API call. It must fail closed
+    // instead — never pass a foreign-provider id through.
+    for (const slug of ["rogers-park", "maclin-on-chicks-xvi"]) {
+      assert.throws(() => resolveLeagueId(slug), /yahoo league, not a Sleeper league/);
+      assert.throws(() => resolveLeagueId(slug), (err) => {
+        assert.equal((err as { name: string }).name, "NonSleeperLeagueSelectorError");
+        assert.equal((err as { status: number }).status, 400);
+        return true;
+      });
+    }
+  });
+
   it("falls back to the default league when no selector is given", () => {
     assert.equal(resolveLeagueId(), "1395549281678532608");
     assert.equal(resolveLeagueId(null), "1395549281678532608");

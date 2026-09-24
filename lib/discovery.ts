@@ -67,6 +67,20 @@ export interface Capability {
 }
 
 /**
+ * Every `/api/leagues/{leagueSlug}/...` route (overview, managers, scoring,
+ * projections, draft, snapshot, roster-health, schedule-planning, orchestrate,
+ * and their manager sub-routes) shares one resolver
+ * (`lib/leagues/api.ts#resolveLeagueRoute` / `resolveManagerRoute`) that reaches
+ * `lib/sleeper/*` directly and now fails closed with `sleeper_only_route` for
+ * any non-Sleeper league. This is a structural fact of that one shared
+ * resolver, not a per-route judgment call, so it is derived from the route
+ * template rather than hand-annotated per entry (which would drift).
+ */
+export function isSleeperOnlyCapability(routeTemplate: string): boolean {
+  return routeTemplate.startsWith("/api/leagues/{leagueSlug}");
+}
+
+/**
  * Every public, read-only capability an AI consumer should use. Debug /
  * operational routes (`/api/cron/*`, `/api/draft/debug`, `/api/raw`,
  * `/api/auth/*`, `/api/bridge/*`) are deliberately excluded.
@@ -468,43 +482,57 @@ export const LEGACY_ROUTES: Array<{
   route_template: string;
   description: string;
   canonical_equivalent: string | null;
+  /**
+   * `true` when this route (and any `canonical_equivalent` it names) reaches
+   * Sleeper-native code directly and 400s for a non-Sleeper league (e.g.
+   * Yahoo's Rogers Park / Maclin) — see `lib/sleeper/service.ts#resolveLeagueId`
+   * and `lib/leagues/api.ts#sleeperOnlyRouteError`. `false` means it already
+   * reads through the shared canonical layer and works for every provider.
+   */
+  sleeper_only: boolean;
 }> = [
   {
     id: "legacy_league",
     route_template: "/api/league?league={leagueSlug}",
     description: "Consolidated normalized league snapshot (original entry point).",
     canonical_equivalent: "/api/leagues/{leagueSlug}",
+    sleeper_only: true,
   },
   {
     id: "legacy_draft",
     route_template: "/api/draft?league={leagueSlug}",
     description: "Live draft-night view.",
     canonical_equivalent: "/api/leagues/{leagueSlug}/draft",
+    sleeper_only: true,
   },
   {
     id: "legacy_scoring",
     route_template: "/api/scoring?league={leagueSlug}",
-    description: "Scoring rules + analysis.",
-    canonical_equivalent: "/api/leagues/{leagueSlug}/scoring",
+    description: "Scoring rules + analysis. Already provider-independent (reads the canonical league state).",
+    canonical_equivalent: "/api/league/{leagueSlug}/state",
+    sleeper_only: false,
   },
   {
     id: "legacy_snapshot",
     route_template: "/api/snapshot?league={leagueSlug}",
     description: "Compact league snapshot.",
-    canonical_equivalent: "/api/leagues/{leagueSlug}/snapshot",
+    canonical_equivalent: "/api/league/{leagueSlug}/state",
+    sleeper_only: true,
   },
   {
     id: "legacy_transactions",
     route_template: "/api/transactions?league={leagueSlug}",
-    description: "Sleeper-native transactions.",
+    description: "Sleeper-native transactions. Use the canonical path form for a non-Sleeper league.",
     canonical_equivalent: "/api/transactions/{leagueSlug}",
+    sleeper_only: true,
   },
   {
     id: "legacy_context",
     route_template: "/api/context/{leagueSlug}/{managerSlug}",
     description:
-      "Canonical manager context (path form; there is no `?league=` variant).",
+      "Canonical manager context (path form; there is no `?league=` variant). Already provider-independent.",
     canonical_equivalent: "/api/context/{leagueSlug}/{managerSlug}",
+    sleeper_only: false,
   },
   {
     id: "standings",
@@ -512,6 +540,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Factual standings + derived weekly score statistics. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "matchups_history",
@@ -519,6 +548,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Factual weekly matchup results with weekly score rank. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "roster_analysis",
@@ -526,6 +556,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Deterministic structural roster facts: composition, age, slot coverage, spend, pick ownership. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "player_weekly",
@@ -534,6 +565,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Historical weekly player fantasy scoring under the resolved season's own settings. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "weekly_stats",
@@ -542,6 +574,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Raw NFL weekly stats scored through this league's engine, with ranks. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "lineups_history",
@@ -549,6 +582,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Historical weekly roster ownership + starter snapshots, one row per roster-player-week. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "player_availability",
@@ -557,6 +591,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Weekly player availability evidence with confidence semantics. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "manager_availability",
@@ -565,6 +600,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Per-manager factual availability counts. Descriptive only. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
   {
     id: "value",
@@ -572,6 +608,7 @@ export const LEGACY_ROUTES: Array<{
     description:
       "Player values from named, timestamped sources. No fabricated consensus. No canonical path form yet.",
     canonical_equivalent: null,
+    sleeper_only: true,
   },
 ];
 
