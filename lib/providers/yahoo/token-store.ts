@@ -36,13 +36,13 @@ export class SupabaseYahooTokenStore implements YahooTokenStore {
 
   constructor(
     private readonly rest: SupabaseRest,
-    private readonly connectionId = "primary",
+    readonly connection_id = "primary",
     private readonly env: NodeJS.ProcessEnv = process.env,
   ) {}
 
   async get(): Promise<YahooToken | null> {
     const rows = await this.rest.select<ConnectionRow>(TABLE, {
-      filter: { connection_id: `eq.${this.connectionId}` },
+      filter: { connection_id: `eq.${this.connection_id}` },
       limit: 1,
     });
     const row = rows[0];
@@ -60,7 +60,7 @@ export class SupabaseYahooTokenStore implements YahooTokenStore {
   async set(token: YahooToken): Promise<void> {
     const now = new Date().toISOString();
     const row = {
-      connection_id: this.connectionId,
+      connection_id: this.connection_id,
       yahoo_guid: token.yahoo_guid,
       access_token_encrypted: encryptToken(token.access_token, this.env),
       refresh_token_encrypted: encryptToken(token.refresh_token, this.env),
@@ -73,7 +73,7 @@ export class SupabaseYahooTokenStore implements YahooTokenStore {
     // Upsert on the primary key. One connection per connection_id.
     await this.rest.insertIgnoreDuplicates(TABLE, [row], ["connection_id"]).then(async (inserted) => {
       if ((inserted as unknown[]).length === 0) {
-        await this.rest.update(TABLE, { connection_id: `eq.${this.connectionId}` }, row);
+        await this.rest.update(TABLE, { connection_id: `eq.${this.connection_id}` }, row);
       }
     });
   }
@@ -84,7 +84,7 @@ export class SupabaseYahooTokenStore implements YahooTokenStore {
     // survives. A re-auth overwrites it.
     await this.rest.update(
       TABLE,
-      { connection_id: `eq.${this.connectionId}` },
+      { connection_id: `eq.${this.connection_id}` },
       {
         access_token_encrypted: encryptToken("", this.env),
         refresh_token_encrypted: encryptToken("", this.env),
@@ -96,7 +96,7 @@ export class SupabaseYahooTokenStore implements YahooTokenStore {
 
   async markUsed(): Promise<void> {
     await this.rest
-      .update(TABLE, { connection_id: `eq.${this.connectionId}` }, { last_used_at: new Date().toISOString() })
+      .update(TABLE, { connection_id: `eq.${this.connection_id}` }, { last_used_at: new Date().toISOString() })
       .catch(() => {
         /* bookkeeping only */
       });
@@ -113,13 +113,19 @@ export type YahooTokenStoreResolution =
  */
 export function resolveYahooTokenStore(
   env: NodeJS.ProcessEnv = process.env,
-  opts: { allowMemoryFallback?: boolean } = {},
+  opts: { allowMemoryFallback?: boolean; connectionId?: string } = {},
 ): YahooTokenStoreResolution {
   const supa = loadSupabaseConfig(env);
   const crypto = yahooCryptoStatus(env);
 
+  const connectionId = opts.connectionId?.trim() || "primary";
+
   if (supa.configured && crypto.configured && supa.config) {
-    return { ok: true, store: new SupabaseYahooTokenStore(new SupabaseRest(supa.config), "primary", env), durable: true };
+    return {
+      ok: true,
+      store: new SupabaseYahooTokenStore(new SupabaseRest(supa.config), connectionId, env),
+      durable: true,
+    };
   }
 
   const missing = [...supa.missing, ...crypto.missing];

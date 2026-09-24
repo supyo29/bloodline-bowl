@@ -64,6 +64,8 @@ import { resolveYahooTokenStore } from "./token-store";
 export interface YahooProviderOptions {
   env?: NodeJS.ProcessEnv;
   tokenStore?: YahooTokenStore;
+  /** Durable OAuth connection id. Defaults to the legacy/certified "primary". */
+  connectionId?: string;
 }
 
 function describe(error: unknown): string {
@@ -110,15 +112,20 @@ export class YahooProvider implements FantasyProvider {
 
   #env: NodeJS.ProcessEnv;
   #tokenStore: YahooTokenStore;
+  #connectionId: string;
 
   constructor(opts: YahooProviderOptions = {}) {
     this.#env = opts.env ?? process.env;
+    this.#connectionId = opts.connectionId?.trim() || "primary";
     if (opts.tokenStore) {
       this.#tokenStore = opts.tokenStore;
     } else {
       // Use the durable Supabase-backed store when the environment supports it;
       // otherwise an in-memory store (which simply reads as "not connected").
-      const resolved = resolveYahooTokenStore(this.#env, { allowMemoryFallback: true });
+      const resolved = resolveYahooTokenStore(this.#env, {
+        allowMemoryFallback: true,
+        connectionId: this.#connectionId,
+      });
       this.#tokenStore = resolved.ok ? resolved.store : new InMemoryYahooTokenStore();
     }
   }
@@ -169,8 +176,8 @@ export class YahooProvider implements FantasyProvider {
           result.status === "REFRESH_FAILED" ? "PROVIDER_ERROR" : "AUTH_REQUIRED",
           result.status === "REFRESH_FAILED" ? "yahoo_token_unhealthy" : "yahoo_auth_required",
           result.status === "REFRESH_FAILED"
-            ? "Yahoo account connected but its token could not be refreshed. Re-authorize via /api/yahoo/auth/start."
-            : "Yahoo is configured but no account is connected. Complete /api/yahoo/auth/start.",
+            ? `Yahoo connection "${this.#connectionId}" has an unhealthy token. Re-authorize that connection.`
+            : `Yahoo connection "${this.#connectionId}" is not authorized. Complete the Yahoo OAuth flow for this league/connection.`,
         ),
       };
     }
@@ -305,7 +312,7 @@ export class YahooProvider implements FantasyProvider {
       return {
         ...base,
         status: "AUTH_REQUIRED",
-        detail: "Yahoo app configured; no account connected yet.",
+        detail: `Yahoo app configured; connection "${this.#connectionId}" has no authorized account yet.`,
       };
     }
     if (cfg.config) {
@@ -323,7 +330,7 @@ export class YahooProvider implements FantasyProvider {
     return {
       ...base,
       status: "READY",
-      detail: "Yahoo app configured and an account is connected.",
+      detail: `Yahoo app configured and connection "${this.#connectionId}" is authorized.`,
     };
   }
 

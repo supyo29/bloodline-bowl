@@ -45,7 +45,7 @@ const EMPTY_TOKEN = {
 
 export async function loadYahooSession(
   env: NodeJS.ProcessEnv = process.env,
-  opts: { allowMemoryFallback?: boolean } = {},
+  opts: { allowMemoryFallback?: boolean; connectionId?: string } = {},
 ): Promise<YahooSession> {
   const cfg = loadYahooConfig(env);
   if (!cfg.configured || !cfg.config) {
@@ -60,7 +60,10 @@ export async function loadYahooSession(
     };
   }
 
-  const resolved = resolveYahooTokenStore(env, opts);
+  const resolved = resolveYahooTokenStore(env, {
+    allowMemoryFallback: opts.allowMemoryFallback,
+    connectionId: opts.connectionId,
+  });
   if (!resolved.ok) {
     return {
       state: "STORAGE_UNAVAILABLE",

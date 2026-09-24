@@ -16,20 +16,34 @@
 import { loadYahooSession } from "@/lib/providers/yahoo/session";
 import { accessStateFromSession } from "@/lib/providers/yahoo/access-state";
 import { runLeagueDiscovery } from "@/lib/providers/yahoo/diagnostics";
+import { resolveYahooConnectionSelection } from "@/lib/providers/yahoo/connections";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-export async function GET(): Promise<Response> {
-  const session = await loadYahooSession();
+export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const selection = resolveYahooConnectionSelection(url.searchParams);
+  if (!selection.ok) {
+    return jsonResponse(
+      { provider: "yahoo", error: selection.code, detail: selection.detail },
+      { status: selection.status, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const session = await loadYahooSession(process.env, {
+    connectionId: selection.connection_id,
+  });
 
   if (session.state !== "READY" || !session.client) {
     const access = accessStateFromSession(session);
     return jsonResponse(
       {
         provider: "yahoo",
+        connection_id: selection.connection_id,
+        requested_league_slug: selection.league_slug,
         access_state: access.state,
         access_detail: access.detail,
         detail: session.detail,
@@ -46,11 +60,17 @@ export async function GET(): Promise<Response> {
 
   const report = await runLeagueDiscovery(session.client, {
     overrideKey: session.config?.game_key_override ?? null,
+    connectionId: selection.connection_id,
   });
 
   const connected = report.access_state === "CONNECTED";
   return jsonResponse(
-    { provider: "yahoo", ...report },
+    {
+      provider: "yahoo",
+      connection_id: selection.connection_id,
+      requested_league_slug: selection.league_slug,
+      ...report,
+    },
     {
       // Only a genuine CONNECTED result with resolved data is cacheable; a 403 /
       // rate-limit / network state must not be cached as league state.

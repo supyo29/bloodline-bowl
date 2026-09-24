@@ -58,6 +58,8 @@ export interface ResolvedLeague {
   external_league_id: string;
   /** Fantasy season for this entry. */
   season: number;
+  /** Provider account/token connection selected for this league, when applicable. */
+  provider_connection_id?: string | null;
   /** Whether the league is in `lib/leagues/registry.ts`. */
   registered: boolean;
   display_name: string;
@@ -100,6 +102,7 @@ export function resolveLeagueStrict(
         provider: target.provider,
         external_league_id: target.external_league_id,
         season: target.season,
+        provider_connection_id: target.yahoo_connection_id,
         registered: true,
         display_name: target.display_name,
       },
@@ -115,6 +118,7 @@ export function resolveLeagueStrict(
         provider: "sleeper",
         external_league_id: raw,
         season: new Date().getUTCFullYear(),
+        provider_connection_id: null,
         registered: false,
         display_name: `Sleeper league ${raw}`,
       },
@@ -153,6 +157,7 @@ export function resolveLeagueForQuery(
     provider: fallback?.provider ?? "sleeper",
     external_league_id: fallback?.external_league_id ?? "1395549281678532608",
     season: fallback?.season ?? new Date().getUTCFullYear(),
+    provider_connection_id: fallback?.yahoo_connection_id ?? null,
     registered: true,
     display_name: fallback?.display_name ?? "Bloodline Bowl",
   };
