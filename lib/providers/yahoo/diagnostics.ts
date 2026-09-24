@@ -23,6 +23,7 @@ import {
   type SubResourceProbe,
 } from "./discovery";
 import { getLeagueRegistry } from "@/lib/leagues/registry";
+import { DEFAULT_YAHOO_CONNECTION_ID } from "./connections";
 
 export interface ConfiguredLeagueResult extends LeagueProbe {
   league_slug: string;
@@ -51,15 +52,27 @@ export interface YahooLeagueDiscoveryReport {
 }
 
 /** The registry's Yahoo entries: slug + numeric id + expected display name. */
-function configuredYahooLeagues(): Array<{ slug: string; id: string; name: string }> {
+function configuredYahooLeagues(
+  connectionId?: string,
+): Array<{ slug: string; id: string; name: string }> {
   return getLeagueRegistry()
-    .targets.filter((t) => t.provider === "yahoo")
+    .targets.filter(
+      (t) =>
+        t.provider === "yahoo" &&
+        (!connectionId ||
+          (t.yahoo_connection_id ?? DEFAULT_YAHOO_CONNECTION_ID) === connectionId),
+    )
     .map((t) => ({ slug: t.key, id: t.external_league_id, name: t.display_name }));
 }
 
 export async function runLeagueDiscovery(
   client: YahooFantasyClient,
-  opts: { season?: number; overrideKey?: string | null; forceRefresh?: boolean } = {},
+  opts: {
+    season?: number;
+    overrideKey?: string | null;
+    forceRefresh?: boolean;
+    connectionId?: string;
+  } = {},
 ): Promise<YahooLeagueDiscoveryReport> {
   const season = opts.season ?? YAHOO_TARGET_SEASON;
 
@@ -90,7 +103,7 @@ export async function runLeagueDiscovery(
 
   const configured: ConfiguredLeagueResult[] = [];
   if (proceed && gameKey) {
-    for (const entry of configuredYahooLeagues()) {
+    for (const entry of configuredYahooLeagues(opts.connectionId)) {
       const probe = await probeLeague(client, gameKey, entry.id);
       configured.push({
         ...probe,
