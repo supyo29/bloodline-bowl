@@ -113,13 +113,19 @@ export type YahooTokenStoreResolution =
  */
 export function resolveYahooTokenStore(
   env: NodeJS.ProcessEnv = process.env,
-  opts: { allowMemoryFallback?: boolean } = {},
+  opts: { allowMemoryFallback?: boolean; connectionId?: string } = {},
 ): YahooTokenStoreResolution {
   const supa = loadSupabaseConfig(env);
   const crypto = yahooCryptoStatus(env);
 
+  const connectionId = opts.connectionId?.trim() || "primary";
+
   if (supa.configured && crypto.configured && supa.config) {
-    return { ok: true, store: new SupabaseYahooTokenStore(new SupabaseRest(supa.config), "primary", env), durable: true };
+    return {
+      ok: true,
+      store: new SupabaseYahooTokenStore(new SupabaseRest(supa.config), connectionId, env),
+      durable: true,
+    };
   }
 
   const missing = [...supa.missing, ...crypto.missing];
