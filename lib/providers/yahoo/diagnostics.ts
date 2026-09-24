@@ -145,7 +145,7 @@ export interface YahooDeepProbe {
 
 export async function runDeepProbe(
   client: YahooFantasyClient,
-  opts: { season?: number; overrideKey?: string | null } = {},
+  opts: { season?: number; overrideKey?: string | null; connectionId?: string } = {},
 ): Promise<YahooDeepProbe> {
   const discovery = await runLeagueDiscovery(client, opts);
   const league_probes: YahooDeepProbe["league_probes"] = [];
