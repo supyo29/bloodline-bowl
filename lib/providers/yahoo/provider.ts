@@ -48,6 +48,7 @@ import { YahooApiError, YahooFantasyClient } from "./client";
 import { probeLeague } from "./discovery";
 import {
   fetchYahooLeagueBundle,
+  fetchYahooPlayersByKeys,
   fetchYahooScoreboard,
   fetchYahooTeamsAndStandings,
   fetchYahooTransactions,
@@ -444,10 +445,17 @@ export class YahooProvider implements FantasyProvider {
         fetchYahooTeamsAndStandings(client, leagueKey),
         fetchYahooTransactions(client, leagueKey),
       ]);
-      // Reuse the SAME bundle->canonical conversion (and its player-crosswalk
-      // resolution) with an empty roster/player set — transaction-only player
-      // keys resolve through `resolveYahooKey`'s crosswalk fallback exactly as
-      // they would inside the full league-state bundle.
+      // Hydrate transaction-only player keys through Yahoo before canonical
+      // conversion. A waiver/add/drop often references players who are not on
+      // any current roster, so bare-key fallback would create avoidable
+      // unresolved identities even though Yahoo can provide player metadata.
+      const transactionPlayerKeys = [...new Set(
+        txResult.transactions.flatMap((tx) => tx.players.map((p) => p.player_key)).filter(Boolean),
+      )];
+      const txPlayers = transactionPlayerKeys.length > 0
+        ? await fetchYahooPlayersByKeys(client, transactionPlayerKeys)
+        : new Map();
+
       const minimalBundle: YahooFlatBundle = {
         league: {
           league_key: leagueKey,
@@ -465,15 +473,28 @@ export class YahooProvider implements FantasyProvider {
           uses_faab: false,
         },
         teams,
-        players: [],
+        players: [...txPlayers.values()],
         transactions: txResult.transactions,
       };
       const canon = yahooBundleToCanonical(ctx.league_slug, minimalBundle, ctx.crosswalk, new Date().toISOString());
       let transactions = canon.transactions;
-      if (query.week != null) transactions = transactions.filter((t) => t.fantasy_week === query.week);
-      if (query.limit && transactions.length > query.limit) transactions = transactions.slice(0, query.limit);
 
       const warnings: ProviderResult<unknown>["warnings"] = [];
+      // Yahoo transaction resources expose timestamps but no fantasy-week
+      // field. Do not turn an unsupported week filter into a false empty
+      // result. Return the recent feed unfiltered and mark week-specific
+      // chronology as unavailable so callers can degrade honestly.
+      if (query.week != null && transactions.some((t) => t.fantasy_week == null)) {
+        warnings.push({
+          code: "week_transactions_unavailable",
+          message:
+            `Yahoo transactions do not expose fantasy-week metadata; returned recent transactions without applying week=${query.week}. ` +
+            "Do not treat this result as authoritative current-week transaction history.",
+        });
+      } else if (query.week != null) {
+        transactions = transactions.filter((t) => t.fantasy_week === query.week);
+      }
+      if (query.limit && transactions.length > query.limit) transactions = transactions.slice(0, query.limit);
       if (canon.unresolved_players.length > 0) {
         warnings.push({
           code: "unresolved_player_identities",

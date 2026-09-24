@@ -329,6 +329,15 @@ describe("mapYahooScoringSettings", () => {
     assert.equal(raw_scoring.def_2pt, 2);
   });
 
+  it("maps Yahoo's singular defensive 'Interception' category to team-defense int", () => {
+    const { raw_scoring, unmapped } = mapYahooScoringSettings(
+      [{ stat_id: "33", name: "Interception", display_name: "Int" }],
+      [{ stat_id: "33", value: 2 }],
+    );
+    assert.deepEqual(raw_scoring, { int: 2 });
+    assert.deepEqual(unmapped, []);
+  });
+
   it("preserves an unrecognized stat name under a namespaced key and reports it — never guesses", () => {
     const { raw_scoring, unmapped } = mapYahooScoringSettings(
       [{ stat_id: "999", name: "Some Brand-New Yahoo Stat", display_name: "Brand New" }],

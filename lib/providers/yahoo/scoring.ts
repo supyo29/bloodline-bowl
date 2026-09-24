@@ -92,6 +92,9 @@ const YAHOO_STAT_NAME_TO_CANONICAL_RAW: Record<string, string> = {
   // Team defense / special teams
   sack: "sack",
   sacks: "sack",
+  // Yahoo's official NFL stat categories use singular "Interception" for the
+  // defense stat (distinct from offense's "Interceptions Thrown").
+  interception: "int",
   // "Interception Returns" is deliberately NOT mapped. It is ambiguous
   // between a COUNT of interceptions (the "int" bucket, same concept as
   // "Interceptions" used for the passer's thrown picks elsewhere in this

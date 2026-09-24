@@ -150,6 +150,7 @@ async function buildCanonicalLeagueStateUncached(
           canonical_manager_ids: teamManagerIds.get(s.canonical_team_id) ?? [],
         })),
       }));
+      warnings.push(...m.warnings);
     } else {
       warnings.push(...m.warnings);
     }
@@ -158,8 +159,12 @@ async function buildCanonicalLeagueStateUncached(
   let recentTransactions: CanonicalLeagueSnapshot["recent_transactions"] = [];
   if ((options.includeRecentTransactions ?? true) && provider.capabilities().transactions) {
     const t = await provider.getTransactions(ctx, { week: week > 0 ? week : null, limit: 25 });
-    if (t.data) recentTransactions = t.data;
-    else warnings.push(...t.warnings);
+    if (t.data) {
+      recentTransactions = t.data;
+      warnings.push(...t.warnings);
+    } else {
+      warnings.push(...t.warnings);
+    }
   }
 
   // LIVE status is decided by the provider read ONLY — persistence warnings
