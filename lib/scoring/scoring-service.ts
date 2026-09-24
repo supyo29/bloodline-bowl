@@ -83,7 +83,7 @@ export async function buildScoringBundle(
 
   return {
     generated_at: new Date().toISOString(),
-    source: "Sleeper",
+    source: facts.provider === "yahoo" ? "Yahoo" : "Sleeper",
     league_id: facts.league_id,
     league: {
       name: facts.name,
