@@ -100,7 +100,9 @@ async function buildCanonicalLeagueStateUncached(
   }
   const league = resolution.league;
 
-  const provider = options.providerOverride ?? getProvider(league.provider);
+  const provider =
+    options.providerOverride ??
+    getProvider(league.provider, { connectionId: league.provider_connection_id });
   const crosswalk =
     options.crosswalkOverride ??
     (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
