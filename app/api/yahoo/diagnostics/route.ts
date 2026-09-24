@@ -15,6 +15,7 @@ import { authorizeSecret } from "@/lib/http-auth";
 import { loadYahooSession } from "@/lib/providers/yahoo/session";
 import { accessStateFromSession } from "@/lib/providers/yahoo/access-state";
 import { runDeepProbe } from "@/lib/providers/yahoo/diagnostics";
+import { resolveYahooConnectionSelection } from "@/lib/providers/yahoo/connections";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +26,22 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeSecret(request, "REFRESH_SECRET", { header: "x-refresh-secret" });
   if (!auth.ok) return errorResponse(auth.status, auth.code, auth.detail);
 
-  const session = await loadYahooSession();
+  const url = new URL(request.url);
+  const selection = resolveYahooConnectionSelection(url.searchParams);
+  if (!selection.ok) {
+    return errorResponse(selection.status, selection.code, selection.detail);
+  }
+
+  const session = await loadYahooSession(process.env, {
+    connectionId: selection.connection_id,
+  });
   if (session.state !== "READY" || !session.client) {
     const access = accessStateFromSession(session);
     return jsonResponse(
       {
         provider: "yahoo",
+        connection_id: selection.connection_id,
+        requested_league_slug: selection.league_slug,
         access_state: access.state,
         access_detail: access.detail,
         detail: session.detail,
@@ -46,11 +57,14 @@ export async function POST(request: Request): Promise<Response> {
 
   const probe = await runDeepProbe(session.client, {
     overrideKey: session.config?.game_key_override ?? null,
+    connectionId: selection.connection_id,
   });
 
   return jsonResponse(
     {
       provider: "yahoo",
+      connection_id: selection.connection_id,
+      requested_league_slug: selection.league_slug,
       // Canonical: the Fantasy-API-aware state from the deep probe.
       access_state: probe.discovery.access_state,
       access_detail: probe.discovery.access_detail,
