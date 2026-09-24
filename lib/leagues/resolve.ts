@@ -59,7 +59,7 @@ export interface ResolvedLeague {
   /** Fantasy season for this entry. */
   season: number;
   /** Provider account/token connection selected for this league, when applicable. */
-  provider_connection_id: string | null;
+  provider_connection_id?: string | null;
   /** Whether the league is in `lib/leagues/registry.ts`. */
   registered: boolean;
   display_name: string;
