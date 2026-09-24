@@ -22,8 +22,10 @@ import { CORS_HEADERS, handleOptions, jsonResponse } from "@/lib/http";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(request: Request): Promise<Response> {
-  const url = new URL(request.url);
+export async function GET(request?: Request): Promise<Response> {
+  const url = request
+    ? new URL(request.url)
+    : new URL("https://bridge.invalid/api/yahoo/auth/start");
   const selection = resolveYahooConnectionSelection(url.searchParams);
   if (!selection.ok) {
     return jsonResponse(
