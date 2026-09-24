@@ -49,7 +49,7 @@ describe("Yahoo connection selection", () => {
   it("defaults to the legacy primary connection when no selector is supplied", () => {
     const r = resolveYahooConnectionSelection(new URLSearchParams());
     assert.equal(r.ok, true);
-    if (!r.ok) throw new Error(r.detail);
+    if (!r.ok) throw new Error("connection selection unexpectedly failed");
     assert.equal(r.connection_id, DEFAULT_YAHOO_CONNECTION_ID);
     assert.equal(r.league_slug, null);
   });
@@ -59,7 +59,7 @@ describe("Yahoo connection selection", () => {
       new URLSearchParams("league=maclin-on-chicks-xvi"),
     );
     assert.equal(r.ok, true);
-    if (!r.ok) throw new Error(r.detail);
+    if (!r.ok) throw new Error("connection selection unexpectedly failed");
     assert.equal(r.connection_id, "maclin");
     assert.equal(r.league_slug, "maclin-on-chicks-xvi");
   });
@@ -69,7 +69,7 @@ describe("Yahoo connection selection", () => {
       new URLSearchParams("league=rogers-park"),
     );
     assert.equal(r.ok, true);
-    if (!r.ok) throw new Error(r.detail);
+    if (!r.ok) throw new Error("connection selection unexpectedly failed");
     assert.equal(r.connection_id, "primary");
   });
 
