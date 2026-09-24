@@ -67,7 +67,7 @@ describe("Yahoo provider degraded states — never fabricates", () => {
       () => p.getManagers(c),
       () => p.getStandings(c),
       () => p.getRosters(c),
-      () => p.getMatchups(c),
+      () => p.getMatchups(c, 1),
       () => p.getTransactions(c),
       () => p.getDraftResults(c),
       () => p.getWaiverState(c),
@@ -95,10 +95,21 @@ describe("Yahoo provider degraded states — never fabricates", () => {
     assert.equal(health.status, "AUTH_REQUIRED");
   });
 
-  it("capabilities() shows the surface Yahoo COULD serve, but live_authenticated_access is false", () => {
+  it("capabilities() reports the live fetch/flatten layer as implemented; free-agent pool stays honestly unimplemented", () => {
+    // `capabilities()` describes what THIS CODE implements, not a live health
+    // check of the current instance (that's `healthCheck()`), so it does not
+    // vary with `env` — an unconfigured instance still reports the same
+    // implemented surface.
     const caps = new YahooProvider({ env: EMPTY_ENV }).capabilities();
     assert.equal(caps.transactions, true);
-    assert.equal(caps.live_authenticated_access, false);
+    assert.equal(caps.rosters, true);
+    assert.equal(caps.standings, true);
+    assert.equal(caps.draft_results, true);
+    assert.equal(caps.live_authenticated_access, true);
+    // Full free-agent/waiver-pool materialization is NOT implemented (see
+    // YahooProvider#getWaiverState) — never fabricated as true.
+    assert.equal(caps.free_agents, false);
+    assert.equal(caps.waivers, false);
   });
 });
 

@@ -49,9 +49,43 @@ export const BLOODLINE_BOWL_LEAGUE_ID = "1395549281678532608";
  *  3. The default registry target ({@link DEFAULT_LEAGUE_KEY}), falling back
  *     to the hardcoded Bloodline Bowl id if the registry is ever empty.
  */
+/**
+ * Thrown by {@link resolveLeagueId} when a `?league=` selector resolves to a
+ * registered NON-Sleeper league (Yahoo). This whole `?league=` surface (and
+ * everything built on `resolveLeagueId` — `/api/standings`, `/api/managers`,
+ * `/api/matchups`, `/api/roster-analysis`, `/api/value`,
+ * `/api/manager-availability`, `/api/player-availability`,
+ * `/api/weekly-stats`, `/api/lineups`, `/api/snapshot`, `/api/history`,
+ * `/api/transactions` at the query-string top level) is Sleeper-only —
+ * `lib/analytics/season-data.ts#loadSeasonData` and its siblings call Sleeper's
+ * API directly. Before this check, a Yahoo league id (e.g. Rogers Park's
+ * `287140`) silently reached a Sleeper API call here — this fails closed
+ * instead. It subclasses `SleeperError` so the many existing
+ * `catch (error) { if (error instanceof SleeperError) ... }` blocks in these
+ * routes handle it without per-route changes (they map it to a 502 with this
+ * message, which is honest and actionable even if the code name undersells
+ * it — see `docs/` for the tracked follow-up to give each of those routes a
+ * clean, provider-specific error code).
+ */
+export class NonSleeperLeagueSelectorError extends SleeperError {
+  constructor(selector: string, provider: string) {
+    super(
+      `"${selector}" is a ${provider} league, not a Sleeper league. This route only supports Sleeper leagues. ` +
+        `Use the provider-independent canonical routes instead: /api/league/${selector}/state, ` +
+        `/api/context/${selector}/{managerSlug}, /api/transactions/${selector}, /api/history/${selector}/week/{week}.`,
+      selector,
+      400,
+    );
+    this.name = "NonSleeperLeagueSelectorError";
+  }
+}
+
 export function resolveLeagueId(selector?: string | null): string {
   if (selector) {
     const target = findLeagueTarget(selector);
+    if (target && target.provider !== "sleeper") {
+      throw new NonSleeperLeagueSelectorError(selector, target.provider);
+    }
     if (target) return target.league_id;
     if (/^\d+$/.test(selector)) return selector;
   }

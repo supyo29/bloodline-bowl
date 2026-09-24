@@ -20,6 +20,7 @@ import {
   absoluteUrl,
   discoveryLeagues,
   discoveryManagers,
+  isSleeperOnlyCapability,
 } from "@/lib/discovery";
 import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
@@ -84,6 +85,12 @@ export async function GET(): Promise<Response> {
       scope: c.scope,
       temporality: c.temporality,
       canonical: c.canonical,
+      // Every /api/leagues/{leagueSlug}/... route shares one Sleeper-native
+      // resolver and 400s for a non-Sleeper league (e.g. rogers-park) — see
+      // lib/leagues/api.ts#sleeperOnlyRouteError. A Yahoo-selecting client
+      // must skip these; provider_support names that explicitly rather than
+      // making the client discover it via a 400.
+      provider_support: isSleeperOnlyCapability(c.route_template) ? "sleeper_only" : "all",
       method: c.method ?? "GET",
       route_template: c.route_template,
       absolute_route_template: absoluteUrl(c.route_template),
@@ -105,7 +112,9 @@ export async function GET(): Promise<Response> {
     legacy_routes: {
       note:
         "`?league=` query-form routes remain supported for existing clients. Prefer the canonical path routes above. " +
-        "A few historical-analysis capabilities are currently only available in this legacy form (canonical_equivalent: null).",
+        "A few historical-analysis capabilities are currently only available in this legacy form (canonical_equivalent: null). " +
+        "sleeper_only: true means this route (and its canonical_equivalent, if any) 400s for a non-Sleeper league " +
+        "(e.g. a Yahoo league like rogers-park) — do not use it for one. Check `leagues[].provider` first.",
       routes: LEGACY_ROUTES,
     },
     methodology: {

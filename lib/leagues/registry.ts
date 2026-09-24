@@ -18,8 +18,29 @@
 
 import type { ProviderName } from "@/lib/canonical/schema";
 
-/** Human-facing readiness of a registry entry's provider integration. */
-export type LeagueConfigStatus = "READY" | "AWAITING_CREDENTIALS" | "PROVIDER_UNIMPLEMENTED";
+/**
+ * Human-facing readiness of a registry entry's provider integration.
+ *
+ *  - `READY` — Sleeper always; Yahoo only once a provider-native league key is
+ *    statically pinned (legacy path — not used by any current entry, since
+ *    the game key is resolved live per season rather than hard-coded).
+ *  - `NOT_CONFIGURED` — the provider has no credentials/app configured at
+ *    all. Distinct from the next state: this means the OPERATOR hasn't set
+ *    up the integration, not that a specific league is unreachable.
+ *  - `LIVE_VALIDATION_REQUIRED` — the provider's credentials/OAuth ARE
+ *    configured, but this registry entry's league key is resolved
+ *    dynamically per request (Yahoo's season game key + accessibility can't
+ *    be known without a live call) — a static read alone cannot say READY or
+ *    FORBIDDEN. Call `/api/providers` (which performs a live per-league
+ *    accessibility probe) or `/api/league/{slug}/state` for the real answer.
+ *  - `PROVIDER_UNIMPLEMENTED` — no adapter exists for this provider at all.
+ *
+ * `NOT_CONFIGURED` and `LIVE_VALIDATION_REQUIRED` must never collapse into one
+ * value: an operator with no Yahoo app configured and an operator with a
+ * fully connected Yahoo account are materially different states, and only
+ * the former is actually "awaiting credentials".
+ */
+export type LeagueConfigStatus = "READY" | "NOT_CONFIGURED" | "LIVE_VALIDATION_REQUIRED" | "PROVIDER_UNIMPLEMENTED";
 
 /**
  * Authored registry entry. The v1 fields are required; the v2 fields are
@@ -248,11 +269,29 @@ export function listLeagueTargets(): RegisteredLeague[] {
   return getLeagueRegistry().targets;
 }
 
-/** Readiness of a target's provider integration — backs `/api/providers` + docs. */
-export function leagueConfigStatus(target: Pick<RegisteredLeague, "provider" | "yahoo_league_key">): LeagueConfigStatus {
+/**
+ * Readiness of a target's provider integration — backs `/api/providers` +
+ * `/api/leagues` + docs.
+ *
+ * This is a STATIC check: no network call. `opts.yahooOAuthConfigured` lets a
+ * caller that already knows the live OAuth app state (e.g. `/api/providers`,
+ * which calls `loadYahooConfig()` anyway for its provider-level report) sharpen
+ * a Yahoo entry to the accurate `NOT_CONFIGURED` when the app truly has no
+ * credentials. Omitted (the default for every existing caller — cron jobs,
+ * `/api/health`, `/api/refresh`, etc., all of which only ever compare against
+ * `"READY"` for Sleeper), a Yahoo entry is `LIVE_VALIDATION_REQUIRED` — the
+ * honest "can't tell from here" state, never the old, frequently-false
+ * `AWAITING_CREDENTIALS`.
+ */
+export function leagueConfigStatus(
+  target: Pick<RegisteredLeague, "provider" | "yahoo_league_key">,
+  opts: { yahooOAuthConfigured?: boolean } = {},
+): LeagueConfigStatus {
   if (target.provider === "sleeper") return "READY";
   if (target.provider === "yahoo") {
-    return target.yahoo_league_key ? "READY" : "AWAITING_CREDENTIALS";
+    if (target.yahoo_league_key) return "READY";
+    if (opts.yahooOAuthConfigured === false) return "NOT_CONFIGURED";
+    return "LIVE_VALIDATION_REQUIRED";
   }
   return "PROVIDER_UNIMPLEMENTED";
 }

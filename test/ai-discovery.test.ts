@@ -12,8 +12,10 @@ import { describe, it } from "node:test";
 
 import {
   CAPABILITIES,
+  LEGACY_ROUTES,
   discoveryLeagues,
   discoveryManagers,
+  isSleeperOnlyCapability,
   managerCapabilityUrls,
 } from "../lib/discovery";
 
@@ -251,19 +253,36 @@ describe("discovery capability catalog", () => {
     }
   });
 
-  it("every league has the eight canonical URL kinds", () => {
+  it("every league has the provider-independent canonical URL kinds", () => {
     for (const l of discoveryLeagues()) {
-      for (const key of [
-        "overview",
-        "managers",
-        "state",
-        "scoring",
-        "projections",
-        "draft",
-        "snapshot",
-        "transactions",
-      ] as const) {
+      for (const key of ["state", "transactions", "context_template", "history_template"] as const) {
         assert.ok(l.canonical_urls[key], `${l.league_slug} missing ${key}`);
+      }
+    }
+  });
+
+  it("no /api/leagues/{leagueSlug}/... capability is silently advertised as usable for Yahoo", () => {
+    const sleeperOnly = CAPABILITIES.filter((c) => isSleeperOnlyCapability(c.route_template));
+    assert.ok(sleeperOnly.length > 0, "expected at least one sleeper-only capability to exist");
+    for (const c of sleeperOnly) {
+      assert.ok(c.route_template.startsWith("/api/leagues/{leagueSlug}"), c.id);
+    }
+    // Every non-null LEGACY_ROUTES canonical_equivalent that itself points at
+    // a sleeper-only capability must be marked sleeper_only on the legacy
+    // entry too (no contradiction between the two catalogs).
+    for (const r of LEGACY_ROUTES) {
+      if (r.canonical_equivalent && isSleeperOnlyCapability(r.canonical_equivalent)) {
+        assert.equal(r.sleeper_only, true, `${r.id}: canonical_equivalent is sleeper-only but the entry says otherwise`);
+      }
+    }
+  });
+
+  it("Sleeper-only URLs are advertised only for Sleeper leagues", () => {
+    for (const l of discoveryLeagues()) {
+      if (l.provider === "sleeper") {
+        assert.ok(l.sleeper_only_urls, `${l.league_slug} (sleeper) should have sleeper_only_urls`);
+      } else {
+        assert.equal(l.sleeper_only_urls, null, `${l.league_slug} (${l.provider}) must not advertise Sleeper-only routes`);
       }
     }
   });

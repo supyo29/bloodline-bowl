@@ -30,6 +30,32 @@ export type LeagueRouteResult =
   | { ok: true; league: ResolvedLeague }
   | { ok: false; response: NextResponse };
 
+/**
+ * Every handler under `/api/leagues/[leagueSlug]/*` (this file's only callers)
+ * reaches Sleeper-native code directly (`lib/sleeper/client`, `lib/sleeper/service`,
+ * `lib/sleeper/draft`, …) — none of them go through the provider abstraction.
+ * Before this guard, a non-Sleeper league (Yahoo) still resolved successfully
+ * here and its provider-native id (e.g. Rogers Park's Yahoo numeric id
+ * `287140`) was then handed straight to a Sleeper API call, which happened to
+ * 404 there but under a misleading "Sleeper has no league with id …" message —
+ * exactly the "Yahoo id silently routed into a Sleeper API" failure mode the
+ * bridge must never allow. Fail closed with an honest, actionable error
+ * instead; the canonical provider-independent surface
+ * (`/api/league/{slug}/state`, `/api/context/{slug}/{manager}`,
+ * `/api/transactions/{slug}`, `/api/history/{slug}/week/{week}`) is unaffected
+ * and already serves both providers.
+ */
+function sleeperOnlyRouteError(league: ResolvedLeague): NextResponse {
+  return errorResponse(
+    400,
+    "sleeper_only_route",
+    `This route only supports Sleeper leagues; "${league.league_slug}" is served by ${league.provider}. ` +
+      `Use the provider-independent canonical routes instead: /api/league/${league.league_slug}/state, ` +
+      `/api/context/${league.league_slug}/{managerSlug}, /api/transactions/${league.league_slug}, ` +
+      `/api/history/${league.league_slug}/week/{week}.`,
+  );
+}
+
 export async function resolveLeagueRoute(
   params: Promise<{ leagueSlug: string }>,
 ): Promise<LeagueRouteResult> {
@@ -44,6 +70,9 @@ export async function resolveLeagueRoute(
         resolution.detail,
       ),
     };
+  }
+  if (resolution.league.provider !== "sleeper") {
+    return { ok: false, response: sleeperOnlyRouteError(resolution.league) };
   }
   logResolution("league", {
     league_slug: resolution.league.league_slug,
@@ -71,6 +100,9 @@ export async function resolveManagerRoute(
         leagueResolution.detail,
       ),
     };
+  }
+  if (leagueResolution.league.provider !== "sleeper") {
+    return { ok: false, response: sleeperOnlyRouteError(leagueResolution.league) };
   }
 
   const managerResolution = await resolveManagerInLeague(

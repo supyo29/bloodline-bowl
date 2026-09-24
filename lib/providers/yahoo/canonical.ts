@@ -2,20 +2,22 @@
  * Yahoo → canonical adapter.
  *
  * Yahoo's Fantasy API returns deeply nested positional arrays under
- * `fantasy_content`. A dedicated flattener (TODO, gated on real credentials)
- * will turn those into the `YahooFlat*` shapes below; THIS module then converts
- * those flattened shapes into the exact same canonical entities the Sleeper
- * adapter produces. The fixture in `test/fixtures/yahoo.ts` is written in the
- * `YahooFlat*` shape so the canonical conversion is testable now.
+ * `fantasy_content`. `./fetch.ts` is the flattener that turns those into the
+ * `YahooFlat*` shapes below; THIS module converts those flattened shapes into
+ * the exact same canonical entities the Sleeper adapter produces. The fixture
+ * in `test/fixtures/yahoo.ts` is written in the `YahooFlat*` shape so the
+ * canonical conversion is independently testable from the raw-JSON flattener.
  */
 
-import { leagueId, managerId, teamId, transactionId } from "@/lib/canonical/ids";
+import { draftPickId, leagueId, managerId, matchupId, teamId, transactionId } from "@/lib/canonical/ids";
 import { attachLeagueFingerprints } from "@/lib/canonical/league-fingerprints";
 import type { PlayerCrosswalk } from "@/lib/canonical/players";
 import type {
+  CanonicalDraftPick,
   CanonicalFantasyTeam,
   CanonicalLeague,
   CanonicalManager,
+  CanonicalMatchup,
   CanonicalPlayer,
   CanonicalRoster,
   CanonicalStanding,
@@ -100,6 +102,26 @@ export interface YahooFlatBundle {
   transactions: YahooFlatTransaction[];
 }
 
+export interface YahooFlatDraftPick {
+  pick: number;
+  round: number;
+  team_key: string;
+  player_key: string | null;
+  cost: number | null;
+}
+
+export interface YahooFlatMatchupSide {
+  team_key: string;
+  points: number | null;
+  projected_points: number | null;
+}
+
+export interface YahooFlatMatchup {
+  week: number;
+  status: string | null;
+  sides: YahooFlatMatchupSide[];
+}
+
 const NON_STARTING = new Set(["BN", "IR", "IL", "NA", "TAXI"]);
 
 export interface YahooCanonicalResult {
@@ -109,6 +131,7 @@ export interface YahooCanonicalResult {
   rosters: CanonicalRoster[];
   standings: CanonicalStanding[];
   transactions: CanonicalTransaction[];
+  draft_picks: CanonicalDraftPick[];
   players: CanonicalPlayer[];
   unresolved_players: UnresolvedPlayer[];
 }
@@ -118,6 +141,7 @@ export function yahooBundleToCanonical(
   bundle: YahooFlatBundle,
   crosswalk: PlayerCrosswalk,
   syncedAt: string | null,
+  draftResults: YahooFlatDraftPick[] = [],
 ): YahooCanonicalResult {
   const L = bundle.league;
   const startingSlots: string[] = [];
@@ -349,6 +373,24 @@ export function yahooBundleToCanonical(
     };
   });
 
+  const draft_picks: CanonicalDraftPick[] = draftResults
+    .filter((d) => d.pick > 0 && d.team_key)
+    .map((d) => ({
+      canonical_draft_pick_id: draftPickId(leagueSlug, L.season, d.pick),
+      canonical_league_id: leagueId(leagueSlug),
+      season: L.season,
+      round: d.round,
+      pick_number: d.pick,
+      draft_slot: null,
+      canonical_team_id: teamKeyToCanonical(leagueSlug, bundle, d.team_key),
+      canonical_manager_id: null,
+      canonical_player_id: d.player_key ? resolveYahooKey(d.player_key) : null,
+      auction_amount: d.cost,
+      is_keeper: false,
+      provenance: prov(d.team_key, syncedAt),
+    }))
+    .sort((a, b) => a.pick_number - b.pick_number);
+
   return {
     league,
     managers: [...managers.values()],
@@ -356,9 +398,48 @@ export function yahooBundleToCanonical(
     rosters,
     standings: standings.sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99)),
     transactions,
+    draft_picks,
     players: [...players.values()],
     unresolved_players: unresolved,
   };
+}
+
+/**
+ * Convert a week's flattened Yahoo scoreboard into canonical matchups. Team
+ * identity uses the SAME `teamId(leagueSlug, team_id)` derivation as the main
+ * bundle conversion — never a second mapping — but this function only has
+ * `team_key`s (scoreboard doesn't repeat `team_id`), so it is passed the same
+ * `bundle.teams` list used to build the league state to resolve `team_key` ->
+ * `team_id`.
+ */
+export function yahooMatchupsToCanonical(
+  leagueSlug: string,
+  week: number,
+  matchups: YahooFlatMatchup[],
+  teams: YahooFlatTeam[],
+  syncedAt: string | null,
+): CanonicalMatchup[] {
+  const teamIdByKey = new Map(teams.map((t) => [t.team_key, teamId(leagueSlug, t.team_id)]));
+  return matchups.map((m) => {
+    const sideKeys = m.sides.map((s) => s.team_key).sort();
+    return {
+      canonical_matchup_id: matchupId(leagueSlug, week, sideKeys.join("-")),
+      canonical_league_id: leagueId(leagueSlug),
+      week,
+      status:
+        m.status === "postevent" ? "final" : m.status === "midevent" ? "in_progress" : m.status === "preevent" ? "pre" : "unknown",
+      sides: m.sides.map((s) => ({
+        canonical_team_id: teamIdByKey.get(s.team_key) ?? teamId(leagueSlug, s.team_key),
+        canonical_manager_ids: [],
+        starters: [],
+        bench: [],
+        actual_points: s.points,
+        player_points: {},
+        projected_points: s.projected_points,
+      })),
+      provenance: prov(null, syncedAt),
+    };
+  });
 }
 
 function teamKeyToCanonical(leagueSlug: string, bundle: YahooFlatBundle, teamKey: string): string {

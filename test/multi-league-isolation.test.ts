@@ -56,8 +56,22 @@ describe("registry: 5 leagues · 2 providers · 3 known manager contexts", () =>
     assert.equal(mc.external_league_id, "82713");
     assert.notEqual(rp.external_league_id, mc.external_league_id);
     assert.equal(rp.season, 2026);
-    assert.equal(leagueConfigStatus(rp), "AWAITING_CREDENTIALS");
-    assert.equal(leagueConfigStatus(mc), "AWAITING_CREDENTIALS");
+    // With no Yahoo OAuth env configured (this test's environment), both
+    // report the same honest static status: no credentials at all.
+    assert.equal(leagueConfigStatus(rp, { yahooOAuthConfigured: false }), "NOT_CONFIGURED");
+    assert.equal(leagueConfigStatus(mc, { yahooOAuthConfigured: false }), "NOT_CONFIGURED");
+    // Once Yahoo IS configured, a static read still can't assert either
+    // league's live accessibility — both report the SAME neutral status
+    // regardless of which one the connected account can actually reach
+    // (Maclin is expected to be FORBIDDEN live; Rogers Park READY). Only a
+    // live probe (`/api/providers`, or `YahooProvider#checkLeagueAccessibility`)
+    // can tell them apart.
+    assert.equal(leagueConfigStatus(rp, { yahooOAuthConfigured: true }), "LIVE_VALIDATION_REQUIRED");
+    assert.equal(leagueConfigStatus(mc, { yahooOAuthConfigured: true }), "LIVE_VALIDATION_REQUIRED");
+    // The default (no opts — every existing caller) must never claim READY
+    // for an unconfigured/unresolved Yahoo league.
+    assert.notEqual(leagueConfigStatus(rp), "READY");
+    assert.notEqual(leagueConfigStatus(mc), "READY");
   });
 
   it("exactly 3 known manager contexts across all leagues", () => {
