@@ -182,7 +182,12 @@ export async function fetchYahooTeamsAndStandings(
     const managers = collectionEntries(t.managers).map((m) => {
       const mm = mergeYahooEntity(unwrap(m, "manager"));
       return {
-        guid: asString(mm.guid) ?? asString(mm.manager_id) ?? `unknown-${team_id}`,
+        // Yahoo may privacy-mask GUIDs for managers other than the current
+        // login, while manager_id remains league-stable and unique. Canonical
+        // manager ids are league-scoped, so prefer manager_id and use GUID only
+        // as a fallback rather than collapsing multiple managers onto one
+        // masked GUID value.
+        guid: asString(mm.manager_id) ?? asString(mm.guid) ?? `unknown-${team_id}`,
         nickname: asString(mm.nickname) ?? "Unknown Manager",
         is_commissioner: asBool(mm.is_commissioner),
         is_current_login: asBool(mm.is_current_login),
@@ -449,6 +454,18 @@ export async function fetchYahooLeagueBundle(
     if (!team || !result) continue;
     team.roster = result.slots;
     for (const p of result.players) playersByKey.set(p.player_key, p);
+  }
+
+  // Fail closed on the exact production defect found during Rogers Park live
+  // certification: an in-season league with real teams must not silently
+  // normalize ten empty rosters as usable ownership state.
+  if (identity.current_week && teams.length > 0 && teams.every((t) => t.roster.length === 0)) {
+    throw new YahooApiError(
+      "MALFORMED",
+      `Yahoo returned no rostered players for any of ${teams.length} teams in in-season league ${leagueKey}.`,
+      null,
+      `/league/${leagueKey}/state`,
+    );
   }
 
   const draftResults = await fetchYahooDraftResults(client, leagueKey).catch(() => [] as YahooDraftPickRaw[]);

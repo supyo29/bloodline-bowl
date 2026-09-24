@@ -29,11 +29,10 @@ export function fantasyContent(body: Json): Record<string, Json> | null {
 export function collectionEntries(node: Json): Json[] {
   if (Array.isArray(node)) return node;
   if (!isRecord(node)) return [];
-  const out: Json[] = [];
-  for (const [k, v] of Object.entries(node)) {
-    if (/^\d+$/.test(k)) out.push(v);
-  }
-  return out;
+  return Object.entries(node)
+    .filter(([k]) => /^\d+$/.test(k))
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, v]) => v);
 }
 
 /**
@@ -79,9 +78,18 @@ export function mergeYahooEntity(node: Json): Record<string, Json> {
     if (Array.isArray(cur)) {
       queue.push(...cur);
     } else if (isRecord(cur)) {
+      const numericChildren: Array<[number, Json]> = [];
       for (const [k, v] of Object.entries(cur)) {
         if (!(k in merged)) merged[k] = v;
+        // Yahoo's JSON uses BOTH arrays and numeric-keyed objects as positional
+        // containers. Live roster/scoreboard payloads commonly look like
+        // { "0": { players: ... }, count: 1 }. Traverse only numeric wrapper
+        // keys so semantic nested objects (name, team_standings, etc.) stay
+        // intact while their positional container is flattened.
+        if (/^\d+$/.test(k)) numericChildren.push([Number(k), v]);
       }
+      numericChildren.sort(([a], [b]) => a - b);
+      queue.push(...numericChildren.map(([, v]) => v));
     }
   }
   return merged;

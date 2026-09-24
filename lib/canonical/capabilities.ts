@@ -196,6 +196,14 @@ export function assessCapabilities(
     integrityFailures.push(`live_provider_status=${snap.live_provider_status}`);
   }
   if (snap.teams.length === 0) integrityFailures.push("candidate has no teams");
+  const inSeasonEmptyRosters =
+    snap.league.status === "in_season" &&
+    snap.teams.length > 0 &&
+    snap.rosters.length > 0 &&
+    snap.rosters.every((r) => r.all_players.length === 0);
+  if (inSeasonEmptyRosters) {
+    integrityFailures.push("in-season candidate has roster shells but no rostered players");
+  }
   for (const w of snap.warnings) {
     if (!PUBLISH_TOLERATED_WARNINGS.has(w.code)) {
       integrityFailures.push(`publication-blocking warning: ${w.code}`);
@@ -219,20 +227,27 @@ export function assessCapabilities(
 
   const providerBroken = NON_PUBLISHABLE_STATUSES.has(snap.live_provider_status);
   const hasRosters = snap.rosters.length > 0;
+  const hasRosterPlayers = snap.rosters.some((r) => r.all_players.length > 0);
   const materialOn = (surface: string) =>
     material.some((m) => m.surfaces.includes(surface));
 
   const capabilities: Record<CapabilityName, CapabilityAssessment> = {
     roster_state: providerBroken
       ? cap("UNAVAILABLE", ["provider read failed"], ["provider"])
-      : !hasRosters && snap.teams.length > 0
-        ? cap("DEGRADED", ["teams present but no roster detail"], ["rosters"])
+      : (!hasRosters || !hasRosterPlayers) && snap.teams.length > 0
+        ? cap(
+            "DEGRADED",
+            [hasRosters ? "roster shells present but no rostered players" : "teams present but no roster detail"],
+            [hasRosters ? "roster_players" : "rosters"],
+          )
         : materialOn("roster") || materialOn("starting_lineup") || materialOn("bench")
           ? cap("DEGRADED", ["a rostered player has an unresolved identity"])
           : cap("HEALTHY"),
 
     ownership: providerBroken
       ? cap("UNAVAILABLE", ["provider read failed"], ["provider"])
+      : inSeasonEmptyRosters
+        ? cap("DEGRADED", ["in-season ownership cannot be derived from empty roster shells"], ["roster_players"])
       : (findings.structural ?? []).some((s) => s.includes("rostered by both"))
         ? cap("DEGRADED", ["ambiguous player ownership"])
         : materialOn("roster")

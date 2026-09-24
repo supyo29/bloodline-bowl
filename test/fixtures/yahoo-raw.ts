@@ -124,7 +124,7 @@ export const rawStandings = {
                     { waiver_priority: "2" },
                     {
                       managers: [
-                        { manager: { guid: "YAHOOGUID0000000000000101", nickname: "rpcommish", is_commissioner: "1" } },
+                        { manager: { manager_id: "1", guid: "PRIVATE", nickname: "rpcommish", is_commissioner: "1" } },
                       ],
                     },
                   ],
@@ -146,7 +146,7 @@ export const rawStandings = {
                     { name: "Glenwood Dead Ball" },
                     { waiver_priority: "1" },
                     {
-                      managers: [{ manager: { guid: "YAHOOGUID0000000000000102", nickname: "glenwood" } }],
+                      managers: [{ manager: { manager_id: "2", guid: "PRIVATE", nickname: "glenwood" } }],
                     },
                   ],
                   {
@@ -174,9 +174,13 @@ export function rawTeamRoster(teamKey: string, players: Array<{ key: string; id:
       team: [
         [{ team_key: teamKey }],
         {
-          roster: [
-            { coverage_type: "week", week: "3" },
-            {
+          // Live Yahoo JSON wraps roster subresources in numeric-keyed
+          // objects rather than the array shape our original constructed
+          // fixture used: fantasy_content.team[1].roster["0"].players.
+          roster: {
+            "0": {
+              coverage_type: "week",
+              week: "3",
               players: {
                 ...Object.fromEntries(
                   players.map((p, i) => [
@@ -200,7 +204,8 @@ export function rawTeamRoster(teamKey: string, players: Array<{ key: string; id:
                 count: players.length,
               },
             },
-          ],
+            count: 1,
+          },
         },
       ],
     },
@@ -281,9 +286,11 @@ export function rawScoreboard(week: number, sides: Array<{ team_key: string; poi
       league: [
         { league_key: LEAGUE_KEY },
         {
-          scoreboard: [
-            { week: String(week) },
-            {
+          // Live scoreboard responses can also use a numeric-keyed
+          // positional object around the named matchups collection.
+          scoreboard: {
+            "0": { week: String(week) },
+            "1": {
               matchups: {
                 "0": {
                   matchup: [
@@ -310,7 +317,8 @@ export function rawScoreboard(week: number, sides: Array<{ team_key: string; poi
                 count: 1,
               },
             },
-          ],
+            count: 2,
+          },
         },
       ],
     },

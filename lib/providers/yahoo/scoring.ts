@@ -35,7 +35,7 @@ function normalizeStatName(name: string): string {
  * game (names are stable across season game keys). Extend conservatively —
  * every addition here changes what scoring rule a league fingerprint captures.
  */
-const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
+const YAHOO_STAT_NAME_TO_CANONICAL_RAW: Record<string, string> = {
   // Passing
   "passing yards": "pass_yd",
   "passing touchdowns": "pass_td",
@@ -99,12 +99,15 @@ const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
   // int_ret_yd key). Guessing either risks scoring a yardage stat as a
   // per-turnover count or vice versa. Falls through to yahoo_stat_<id> +
   // warning until a live Yahoo response disambiguates it.
+  "fumble recovery": "fum_rec",
   "fumble recoveries": "fum_rec",
   "fumble return touchdowns": "fum_rec_td",
   "forced fumbles": "ff",
   safeties: "safe",
   safety: "safe",
+  "block kick": "blk_kick",
   "blocked kicks": "blk_kick",
+  touchdown: "def_td",
   "defensive touchdowns": "def_td",
   "kickoff and punt return touchdowns": "st_td",
   "points allowed": "pts_allow",
@@ -115,6 +118,7 @@ const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
   "points allowed 21-27 points": "pts_allow_21_27",
   "points allowed 28-34 points": "pts_allow_28_34",
   "points allowed 35+ points": "pts_allow_35p",
+  "extra point returned": "def_2pt",
   // "Yards Allowed" is deliberately NOT mapped to pts_allow (points allowed
   // is a materially different concept from yards allowed) or to any of the
   // canonical yds_allow_* bucket keys (yds_allow_0_100 ... yds_allow_550p):
@@ -122,6 +126,14 @@ const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = {
   // threshold Yahoo means. Falls through to yahoo_stat_<id> + warning until
   // live Rogers Park settings prove the exact Yahoo semantics.
 };
+
+// Normalize the table with the SAME function used on Yahoo's live names. This
+// matters for punctuation-heavy categories such as "Points Allowed 1-6
+// points": the live name normalizes to "points allowed 1 6 points", so an
+// un-normalized literal table would miss despite containing the right concept.
+const YAHOO_STAT_NAME_TO_CANONICAL: Record<string, string> = Object.fromEntries(
+  Object.entries(YAHOO_STAT_NAME_TO_CANONICAL_RAW).map(([name, key]) => [normalizeStatName(name), key]),
+);
 
 export interface YahooStatCategory {
   stat_id: string;
