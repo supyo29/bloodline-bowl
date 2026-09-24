@@ -65,7 +65,10 @@ describe("smoke: GET /api/providers", () => {
     for (const slug of ["maclin-on-chicks-xvi", "rogers-park"]) {
       const y = body.leagues.find((l) => l.league_slug === slug)!;
       assert.equal(y.provider, "yahoo");
-      assert.equal(y.config_status, "AWAITING_CREDENTIALS");
+      // This test environment has no Yahoo OAuth env configured, so the
+      // honest static status is NOT_CONFIGURED (never the old, misleading
+      // AWAITING_CREDENTIALS — see `leagueConfigStatus`).
+      assert.equal(y.config_status, "NOT_CONFIGURED");
     }
   });
 });

@@ -100,6 +100,7 @@ interface ResolvedYahooLeague {
   client: YahooFantasyClient;
   leagueKey: string;
   gameKey: string;
+  leagueName: string;
 }
 
 export class YahooProvider implements FantasyProvider {
@@ -180,7 +181,7 @@ export class YahooProvider implements FantasyProvider {
    * Every data method funnels through this before touching a league resource.
    */
   async #resolveLeague(
-    ctx: ProviderLeagueContext,
+    ctx: Pick<ProviderLeagueContext, "league_slug" | "external_league_id" | "season">,
   ): Promise<{ ok: true; resolved: ResolvedYahooLeague } | { ok: false; result: ProviderResult<never> }> {
     const auth = await this.#authStatus();
     if (!auth.ok) return auth;
@@ -230,7 +231,49 @@ export class YahooProvider implements FantasyProvider {
       };
     }
 
-    return { ok: true, resolved: { client, leagueKey: probe.league_key, gameKey } };
+    return {
+      ok: true,
+      resolved: { client, leagueKey: probe.league_key, gameKey, leagueName: probe.league?.name ?? ctx.league_slug },
+    };
+  }
+
+  /**
+   * Live per-league accessibility check — the piece `healthCheck()` (provider
+   * account-level) and the static registry (`leagueConfigStatus`) cannot do:
+   * "is THIS specific league reachable by the connected account, right now?"
+   * Not part of `FantasyProvider` (Sleeper has no equivalent concept — every
+   * public Sleeper league id is reachable) — callers that want it construct a
+   * `YahooProvider` directly (see `/api/providers`).
+   */
+  async checkLeagueAccessibility(
+    externalLeagueId: string,
+    season: number,
+  ): Promise<
+    | { status: "NOT_CONFIGURED" | "AUTH_REQUIRED" | "PROVIDER_ERROR"; accessible: false; detail: string }
+    | { status: "READY"; accessible: true; league_key: string; league_name: string }
+  > {
+    const resolved = await this.#resolveLeague({
+      league_slug: `__probe__:${externalLeagueId}`,
+      external_league_id: externalLeagueId,
+      season,
+    });
+    if (!resolved.ok) {
+      return {
+        status: resolved.result.status === "NOT_CONFIGURED" || resolved.result.status === "AUTH_REQUIRED"
+          ? resolved.result.status
+          : "PROVIDER_ERROR",
+        accessible: false,
+        detail: resolved.result.warnings[0]?.message ?? "Yahoo league is not accessible.",
+      };
+    }
+    // `#resolveLeague` already probed accessibility + the identity integrity
+    // check above; no need to hit Yahoo a second time.
+    return {
+      status: "READY",
+      accessible: true,
+      league_key: resolved.resolved.leagueKey,
+      league_name: resolved.resolved.leagueName,
+    };
   }
 
   async healthCheck(): Promise<ProviderHealth> {

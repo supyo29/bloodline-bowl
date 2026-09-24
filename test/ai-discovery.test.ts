@@ -251,19 +251,20 @@ describe("discovery capability catalog", () => {
     }
   });
 
-  it("every league has the eight canonical URL kinds", () => {
+  it("every league has the provider-independent canonical URL kinds", () => {
     for (const l of discoveryLeagues()) {
-      for (const key of [
-        "overview",
-        "managers",
-        "state",
-        "scoring",
-        "projections",
-        "draft",
-        "snapshot",
-        "transactions",
-      ] as const) {
+      for (const key of ["state", "transactions", "context_template", "history_template"] as const) {
         assert.ok(l.canonical_urls[key], `${l.league_slug} missing ${key}`);
+      }
+    }
+  });
+
+  it("Sleeper-only URLs are advertised only for Sleeper leagues", () => {
+    for (const l of discoveryLeagues()) {
+      if (l.provider === "sleeper") {
+        assert.ok(l.sleeper_only_urls, `${l.league_slug} (sleeper) should have sleeper_only_urls`);
+      } else {
+        assert.equal(l.sleeper_only_urls, null, `${l.league_slug} (${l.provider}) must not advertise Sleeper-only routes`);
       }
     }
   });

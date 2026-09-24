@@ -25,8 +25,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   const leaguePaths = discoveryLeagues().flatMap((l) => [
-    `/api/leagues/${l.league_slug}`,
-    `/api/leagues/${l.league_slug}/managers`,
+    `/api/league/${l.league_slug}/state`,
+    ...(l.sleeper_only_urls ? [`/api/leagues/${l.league_slug}`, `/api/leagues/${l.league_slug}/managers`] : []),
   ]);
 
   const managerPaths = discoveryManagers().map((m) => m.canonical_url);

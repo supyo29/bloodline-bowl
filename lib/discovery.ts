@@ -21,6 +21,7 @@ import {
   DEFAULT_LEAGUE_KEY,
 } from "@/lib/leagues/registry";
 import { findRegisteredManager } from "@/lib/leagues/managers";
+import { loadYahooConfig } from "@/lib/providers/yahoo/config";
 
 /** Canonical production origin. Override only for a bespoke deployment. */
 export const PRODUCTION_BASE_URL =
@@ -586,16 +587,32 @@ export interface DiscoveryLeague {
   config_status: string;
   is_default: boolean;
   known_manager_slugs: string[];
+  /**
+   * Provider-independent — every provider (Sleeper, Yahoo) serves these from
+   * the shared canonical layer. Always present.
+   */
   canonical_urls: {
+    state: string;
+    transactions: string;
+    context_template: string;
+    history_template: string;
+  };
+  /**
+   * Sleeper-specific legacy surface (`/api/leagues/{slug}/*`) — these import
+   * `lib/sleeper/*` directly and are NOT provider-independent. `null` for any
+   * non-Sleeper league (a request to them fails closed with
+   * `sleeper_only_route` rather than misrouting a foreign provider id into a
+   * Sleeper API call). A fresh AI client for a Yahoo league should use
+   * `canonical_urls` only.
+   */
+  sleeper_only_urls: {
     overview: string;
     managers: string;
-    state: string;
     scoring: string;
     projections: string;
     draft: string;
     snapshot: string;
-    transactions: string;
-  };
+  } | null;
 }
 
 export interface DiscoveryManager {
@@ -608,24 +625,35 @@ export interface DiscoveryManager {
 
 export function discoveryLeagues(): DiscoveryLeague[] {
   const { targets } = getLeagueRegistry();
+  // Env-only read (no network) — see `leagueConfigStatus`'s doc comment for
+  // why this distinction (Yahoo has no app configured vs. configured-but-
+  // live-accessibility-unknown-from-a-static-read) matters.
+  const yahooOAuthConfigured = loadYahooConfig().configured;
   return targets.map((t) => ({
     league_slug: t.key,
     league_name: t.display_name,
     provider: t.provider,
     season: t.season,
-    config_status: leagueConfigStatus(t),
+    config_status: leagueConfigStatus(t, { yahooOAuthConfigured }),
     is_default: t.key === DEFAULT_LEAGUE_KEY,
     known_manager_slugs: t.known_managers,
     canonical_urls: {
-      overview: `/api/leagues/${t.key}`,
-      managers: `/api/leagues/${t.key}/managers`,
       state: `/api/league/${t.key}/state`,
-      scoring: `/api/leagues/${t.key}/scoring`,
-      projections: `/api/leagues/${t.key}/projections`,
-      draft: `/api/leagues/${t.key}/draft`,
-      snapshot: `/api/leagues/${t.key}/snapshot`,
       transactions: `/api/transactions/${t.key}`,
+      context_template: `/api/context/${t.key}/{managerSlug}`,
+      history_template: `/api/history/${t.key}/week/{week}`,
     },
+    sleeper_only_urls:
+      t.provider === "sleeper"
+        ? {
+            overview: `/api/leagues/${t.key}`,
+            managers: `/api/leagues/${t.key}/managers`,
+            scoring: `/api/leagues/${t.key}/scoring`,
+            projections: `/api/leagues/${t.key}/projections`,
+            draft: `/api/leagues/${t.key}/draft`,
+            snapshot: `/api/leagues/${t.key}/snapshot`,
+          }
+        : null,
   }));
 }
 
