@@ -26,15 +26,12 @@ export async function GET(): Promise<Response> {
   const supabaseCfg = loadSupabaseConfig();
   const { targets } = getLeagueRegistry();
   const yahooOAuthConfigured = loadYahooConfig().configured;
-  const yahooProviderHealth = providers.find((p) => p.provider === "yahoo");
-
   // Static `config_status` distinguishes "no Yahoo app configured at all"
   // from "configured but this specific league's live accessibility isn't
   // known from a static read" (see `leagueConfigStatus` doc comment). This
   // route ALSO performs the live per-league probe those Yahoo entries need to
   // resolve to READY / FORBIDDEN / etc. — accurate per-request accessibility,
   // never a hard-coded league key.
-  const yahooProvider = new YahooProvider();
   const leagues = await Promise.all(
     targets.map(async (t) => {
       const config_status = leagueConfigStatus(t, { yahooOAuthConfigured });
@@ -44,17 +41,25 @@ export async function GET(): Promise<Response> {
         season: t.season,
         config_status,
         external_league_id: t.external_league_id,
+        provider_connection_id: t.yahoo_connection_id,
       };
       if (t.provider !== "yahoo" || config_status !== "LIVE_VALIDATION_REQUIRED") {
         return { ...base, live_accessible: t.provider === "sleeper" ? true : null, live_detail: null };
       }
-      // Only worth a live per-league call once the account itself is healthy —
-      // otherwise every league would fail for the same account-level reason.
-      if (yahooProviderHealth?.status !== "READY") {
+      // Yahoo auth is per registered connection. Rogers Park may be healthy
+      // while Maclin is unconnected (or vice versa), so never gate one league
+      // on the provider-level/default connection health.
+      const yahooProvider = new YahooProvider({
+        connectionId: t.yahoo_connection_id ?? undefined,
+      });
+      const yahooConnectionHealth = await yahooProvider.healthCheck();
+      if (yahooConnectionHealth.status !== "READY") {
         return {
           ...base,
           live_accessible: null,
-          live_detail: `Yahoo account is not connected/healthy (${yahooProviderHealth?.status ?? "unknown"}); per-league accessibility not checked.`,
+          live_detail:
+            `Yahoo connection "${t.yahoo_connection_id ?? "primary"}" is ${yahooConnectionHealth.status}: ` +
+            yahooConnectionHealth.detail,
         };
       }
       const access = await yahooProvider.checkLeagueAccessibility(t.external_league_id, t.season);
