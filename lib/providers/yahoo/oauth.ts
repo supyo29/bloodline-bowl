@@ -77,8 +77,9 @@ export interface YahooTokenStore {
 
 export class InMemoryYahooTokenStore implements YahooTokenStore {
   readonly backend = "memory";
-  readonly connection_id = "memory";
   #token: YahooToken | null = null;
+
+  constructor(readonly connection_id = "memory") {}
   async get(): Promise<YahooToken | null> {
     return this.#token;
   }
