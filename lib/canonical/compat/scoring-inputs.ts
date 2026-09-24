@@ -25,6 +25,7 @@
 import type { CanonicalLeagueSnapshot } from "../schema";
 
 export interface LegacyScoringInputs {
+  provider: CanonicalLeagueSnapshot["league"]["provenance"]["provider"];
   league_id: string;
   name: string;
   season: string;
@@ -49,6 +50,7 @@ export function reconstructRosterPositions(
 export function canonicalScoringInputs(snapshot: CanonicalLeagueSnapshot): LegacyScoringInputs {
   const league = snapshot.league;
   return {
+    provider: league.provenance.provider,
     league_id: league.provenance.provider_id ?? league.league_slug,
     name: league.name,
     season: String(snapshot.season),
