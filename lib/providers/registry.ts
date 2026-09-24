@@ -11,12 +11,19 @@ import { SleeperProvider } from "./sleeper/provider";
 import { YahooProvider } from "./yahoo/provider";
 import type { FantasyProvider, ProviderHealth } from "./types";
 
-export function getProvider(name: ProviderName): FantasyProvider {
+export interface ProviderFactoryOptions {
+  connectionId?: string | null;
+}
+
+export function getProvider(
+  name: ProviderName,
+  opts: ProviderFactoryOptions = {},
+): FantasyProvider {
   switch (name) {
     case "sleeper":
       return new SleeperProvider();
     case "yahoo":
-      return new YahooProvider();
+      return new YahooProvider({ connectionId: opts.connectionId ?? undefined });
     case "espn":
       throw new Error("ESPN provider is not implemented. Add lib/providers/espn/ and register it here.");
     default: {
