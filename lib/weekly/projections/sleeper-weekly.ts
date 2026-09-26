@@ -19,7 +19,11 @@
  *    `null` with `projection_status: "unavailable"`.
  */
 
-import { getSeasonProjections, getWeeklyProjectionArray } from "@/lib/sleeper/client";
+import {
+  getSeasonProjectionSegments,
+  getWeeklyProjectionSegments,
+  type ProjectionFeedSegmentResult,
+} from "@/lib/sleeper/client";
 import { canonicalPosition } from "@/lib/canonical/players";
 import { scoreWeeklyLine, NON_SCORING_KEY } from "../scoring";
 import { materializeScoringEvents } from "@/lib/scoring/derived-events";
@@ -68,16 +72,49 @@ function injuryToAvailability(status: string | null | undefined): number {
   }
 }
 
-async function fetchWeek(season: number, week: number): Promise<RawEntry[]> {
-  return getWeeklyProjectionArray(String(season), week, [...POSITIONS], {
+async function fetchWeekSegments(
+  season: number,
+  week: number,
+): Promise<ProjectionFeedSegmentResult[]> {
+  return getWeeklyProjectionSegments(String(season), week, [...POSITIONS], {
     revalidate: 30 * 60,
   });
 }
 
-async function fetchSeason(season: number): Promise<RawEntry[]> {
-  return getSeasonProjections(String(season), [...POSITIONS], {
+async function fetchSeasonSegments(
+  season: number,
+): Promise<ProjectionFeedSegmentResult[]> {
+  return getSeasonProjectionSegments(String(season), [...POSITIONS], {
     revalidate: 6 * 60 * 60,
-  }).catch(() => []);
+  });
+}
+
+function usableRows(segments: ProjectionFeedSegmentResult[]): RawEntry[] {
+  return segments
+    .filter((segment) => segment.status === "READY")
+    .flatMap((segment) => segment.rows);
+}
+
+function pushSegmentWarnings(
+  warnings: WeeklyWarning[],
+  scope: "weekly" | "season",
+  segments: ProjectionFeedSegmentResult[],
+): void {
+  for (const segment of segments) {
+    if (segment.status === "READY") continue;
+    const code =
+      segment.status === "EMPTY"
+        ? `${scope}_projection_segment_empty`
+        : `${scope}_projection_segment_unavailable`;
+    warnings.push({
+      code,
+      message:
+        `Sleeper ${scope} projection segment ${segment.segment_id} ` +
+        `(${segment.positions.join("/")}) is ${segment.status.toLowerCase()}` +
+        (segment.error ? `: ${segment.error}` : "."),
+      severity: "warning",
+    });
+  }
 }
 
 export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
@@ -89,10 +126,12 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
     const warnings: WeeklyWarning[] = [];
     await crosswalk.ensureLoaded();
 
-    let raw: RawEntry[];
-    try {
-      raw = await fetchWeek(league.season, week);
-    } catch (error) {
+    const weekSegments = await fetchWeekSegments(league.season, week);
+    pushSegmentWarnings(warnings, "weekly", weekSegments);
+    const raw = usableRows(weekSegments);
+    const weeklySegmentsReady = weekSegments.filter((segment) => segment.status === "READY").length;
+
+    if (weeklySegmentsReady === 0 || raw.length === 0) {
       return {
         league_slug: league.league_slug,
         season: league.season,
@@ -105,41 +144,26 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
         missing: [...req.canonical_player_ids],
         teams_with_games: [],
         warnings: [
+          ...warnings,
           {
             code: "weekly_projection_source_unavailable",
-            message: `Sleeper weekly projection feed failed: ${error instanceof Error ? error.message : String(error)}`,
+            message:
+              `No usable Sleeper weekly projection segment was available for ` +
+              `week ${week} of ${league.season}.`,
             severity: "error",
           },
         ],
       };
     }
 
-    if (!Array.isArray(raw) || raw.length === 0) {
-      return {
-        league_slug: league.league_slug,
-        season: league.season,
-        week,
-        status: "PROJECTIONS_UNAVAILABLE",
-        by_player: new Map(),
-        resolved_players: new Map(),
-        source: this.name,
-        model_version: this.model_version,
-        missing: [...req.canonical_player_ids],
-        teams_with_games: [],
-        warnings: [
-          {
-            code: "weekly_projection_empty",
-            message: `Sleeper published no week ${week} projections for ${league.season} yet.`,
-            severity: "error",
-          },
-        ],
-      };
-    }
-
-    // Optional rest-of-season, from the season feed, prorated + league-scored.
+    // Optional rest-of-season, from independently degradable season segments,
+    // prorated + league-scored. Missing season segments null only the affected
+    // ROS rows; they never erase successful weekly projections.
     const rosByCanonical = new Map<string, number>();
     if (req.want_rest_of_season) {
-      const seasonRaw = await fetchSeason(league.season);
+      const seasonSegments = await fetchSeasonSegments(league.season);
+      pushSegmentWarnings(warnings, "season", seasonSegments);
+      const seasonRaw = usableRows(seasonSegments);
       const weeksLeftFrac = Math.max(0, (REGULAR_SEASON_WEEKS - (week - 1)) / REGULAR_SEASON_WEEKS);
       for (const e of seasonRaw) {
         if (!e.player_id || !e.stats) continue;
