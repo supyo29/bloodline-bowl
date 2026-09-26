@@ -7,8 +7,9 @@
  * multi-MB source for each league.
  *
  * The cron forces LIVE projection evaluation and advances the durable Supabase
- * pointer. Regular requests prefer that pointer and only fall back live when it
- * is missing/stale/unavailable.
+ * pointer. On Vercel Hobby this route is a once-daily warm baseline; regular
+ * requests enforce the 90-minute freshness window themselves and fall back live
+ * + persist whenever the pointer is missing/stale/unavailable.
  */
 
 import { authorizeSecret } from "@/lib/http-auth";
