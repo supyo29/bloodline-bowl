@@ -38,6 +38,7 @@ import { RosterIntelReturnGameSeasonProvider, fetchRecentReturnAttempts, type Re
 import { assembleRosSignals, type RosAssemblyResult } from "./ros";
 import { buildLeagueAvailability } from "./availability";
 import { computeWeeklyReplacement, type ReplacementFrontier } from "./replacement";
+import { composeWeeklyReadiness } from "./readiness";
 import {
   WEEKLY_ENGINE_VERSION,
   type ByeInfo,
@@ -520,81 +521,22 @@ export async function buildWeeklyTeamContext(
       w.code === "season_projection_segment_empty",
   );
 
-  const weeklyProjectionReadiness: WeeklyReadinessContract["weekly_projections"] = {
-    status:
-      projections.status === "PROJECTIONS_UNAVAILABLE"
-        ? "UNAVAILABLE"
-        : projections.status === "PROJECTIONS_PARTIAL" || stillMissing.length > 0
-          ? "PARTIAL"
-          : "READY",
-    usable: projections.status !== "PROJECTIONS_UNAVAILABLE" && rosterProjected > 0,
+  const readiness = composeWeeklyReadiness({
+    live_provider_status: snap.live_provider_status === "READY" ? "READY" : "PARTIAL",
+    ownership: ownershipCapability,
+    market: market_readiness,
+    projection_status: projections.status,
     roster_players_projected: rosterProjected,
     roster_players_total: roster.all_players.length,
     missing_roster_players: stillMissing.length,
-  };
-
-  const rosReadiness: WeeklyReadinessContract["rest_of_season"] = {
-    status: !wantRos
-      ? "NOT_REQUESTED"
-      : externalRosAvailable === 0
-        ? "UNAVAILABLE"
-        : externalRosAvailable < roster.all_players.length || seasonSegmentDegraded
-          ? "PARTIAL"
-          : "READY",
-    usable: wantRos && externalRosAvailable > 0,
-    external_players_available: externalRosAvailable,
-    roster_players_total: roster.all_players.length,
-    ri_status: options.skipRiSeasonSignal === true
-      ? "NOT_REQUESTED"
-      : ros_meta?.ri_status ?? "UNAVAILABLE",
-  };
-
-  const ownershipReadiness: WeeklyReadinessContract["ownership"] = {
-    status:
-      ownershipCapability.status === "HEALTHY"
-        ? "READY"
-        : ownershipCapability.status === "DEGRADED"
-          ? "DEGRADED"
-          : "UNAVAILABLE",
-    usable: ownershipCapability.status !== "UNAVAILABLE",
-    reasons: [...ownershipCapability.reasons],
-    missing_inputs: [...ownershipCapability.missing_inputs],
-  };
-
-  const recommendationBlockedBy: string[] = [];
-  const recommendationLimitations: string[] = [];
-  if (!market_readiness.actionable) recommendationBlockedBy.push("market_not_actionable");
-  if (!ownershipReadiness.usable) recommendationBlockedBy.push("ownership_unavailable");
-  if (!weeklyProjectionReadiness.usable) recommendationBlockedBy.push("weekly_projections_unavailable");
-
-  if (market_readiness.status === "PARTIAL") recommendationLimitations.push("market_partial");
-  if (ownershipReadiness.status === "DEGRADED") recommendationLimitations.push("ownership_degraded");
-  if (weeklyProjectionReadiness.status === "PARTIAL") recommendationLimitations.push("weekly_projections_partial");
-  if (rosReadiness.status === "PARTIAL") recommendationLimitations.push("rest_of_season_partial");
-  if (rosReadiness.status === "UNAVAILABLE" && wantRos) recommendationLimitations.push("rest_of_season_unavailable");
-  if (rosReadiness.ri_status === "UNAVAILABLE") recommendationLimitations.push("ri_season_signal_unavailable");
-
-  const readiness: WeeklyReadinessContract = {
-    live_provider: {
-      status: snap.live_provider_status === "READY" ? "READY" : "PARTIAL",
-      usable: true,
-    },
-    ownership: ownershipReadiness,
-    market: market_readiness,
-    weekly_projections: weeklyProjectionReadiness,
-    rest_of_season: rosReadiness,
-    waiver_recommendations: {
-      status:
-        recommendationBlockedBy.length > 0
-          ? "NOT_READY"
-          : recommendationLimitations.length > 0
-            ? "READY_WITH_LIMITATIONS"
-            : "READY",
-      actionable: recommendationBlockedBy.length === 0,
-      blocked_by: recommendationBlockedBy,
-      limitations: recommendationLimitations,
-    },
-  };
+    want_rest_of_season: wantRos,
+    external_ros_players_available: externalRosAvailable,
+    season_segment_degraded: seasonSegmentDegraded,
+    ri_status:
+      options.skipRiSeasonSignal === true
+        ? "NOT_REQUESTED"
+        : ros_meta?.ri_status ?? "UNAVAILABLE",
+  });
 
   let status: DataQualityStatus = "READY";
   if (projections.status === "PROJECTIONS_UNAVAILABLE") status = "PROJECTIONS_UNAVAILABLE";
