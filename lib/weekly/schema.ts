@@ -397,6 +397,8 @@ export interface WeeklyTeamContext {
     roster_players_total: number;
     identity_unresolved: number;
     opponent_available: boolean;
+    /** Phase 5: durable canonical projection read provenance, when available. */
+    projection_snapshot?: WeeklyProjectionBatch["canonical_snapshot"] | null;
   };
   warnings: WeeklyWarning[];
 }
