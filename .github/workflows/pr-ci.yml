@@ -36,6 +36,9 @@ jobs:
           test/football-intel-read.test.ts
           test/start-sit-fi.test.ts
           test/ai-discovery.test.ts
+          test/sleeper-projection-cache.test.ts
+          test/weekly-waivers.test.ts
+          test/weekly-waiver-readiness.test.ts
       - run: npm run lint
 
   r-syntax:

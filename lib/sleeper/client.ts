@@ -1,7 +1,7 @@
 /**
  * Minimal read-only client for the Sleeper public API.
  *
- * Two caching layers are in play:
+ * Three caching strategies are in play:
  *
  *  1. Small resources (league, users, rosters, drafts, picks, state) go through
  *     Next's data cache via `next.revalidate`, so a warm deployment serves them
@@ -11,6 +11,11 @@
  *     down immediately, and held in a module-scoped map for the lifetime of the
  *     serverless instance. Sleeper's docs ask that this endpoint be called "once
  *     per day at most", which the 24h TTL respects.
+ *  3. Sleeper's all-position projection array feeds are also larger than the
+ *     Next data-cache entry limit (~2.8MB weekly / ~4.1MB season in 2026). They
+ *     use `no-store` plus a shared module TTL + in-flight de-duplication so
+ *     Weekly Intelligence, Roster Health, Schedule Planning, Trade Analysis and
+ *     Roster Intel do not each download the same raw feed in one process.
  */
 
 import type {
@@ -37,6 +42,9 @@ export const SLEEPER_ROOT_URL = "https://api.sleeper.app";
 export const CORE_REVALIDATE_SECONDS = 300;
 /** Sleeper explicitly asks for at most one player-database call per day. */
 export const PLAYER_DB_TTL_MS = 24 * 60 * 60 * 1000;
+/** Oversized projection feeds cannot use Next's 2MB-per-entry data cache. */
+export const WEEKLY_PROJECTION_FEED_TTL_MS = 30 * 60 * 1000;
+export const SEASON_PROJECTION_FEED_TTL_MS = 6 * 60 * 60 * 1000;
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 /** The player dump is large and slow; give it substantially more room. */
@@ -343,6 +351,81 @@ export interface RawSleeperProjectionEntry {
   } | null;
 }
 
+interface ProjectionFeedCacheEntry {
+  rows: RawSleeperProjectionEntry[];
+  fetchedAt: number;
+}
+
+/**
+ * Shared process-local cache for Sleeper's OVERSIZED projection array feeds.
+ *
+ * These responses exceed Next's per-entry Data Cache limit, so attempting
+ * `next.revalidate` only produces a cache-write warning and forces every
+ * downstream analytical assembly to fetch the same multi-MB payload again.
+ *
+ * Important: projections are time-sensitive. Unlike the player DB cache below,
+ * an expired projection entry is NOT served stale when refresh fails; the error
+ * propagates so the caller can degrade projection quality explicitly.
+ */
+const projectionFeedCache = new Map<string, ProjectionFeedCacheEntry>();
+const inFlightProjectionFeedFetches = new Map<
+  string,
+  Promise<RawSleeperProjectionEntry[]>
+>();
+
+async function getOversizedProjectionFeed(
+  path: string,
+  ttlMs: number,
+): Promise<RawSleeperProjectionEntry[]> {
+  const now = Date.now();
+  const cached = projectionFeedCache.get(path);
+  if (cached && now - cached.fetchedAt < ttlMs) return cached.rows;
+
+  const existing = inFlightProjectionFeedFetches.get(path);
+  if (existing) return existing;
+
+  const pending = fetchSleeper<RawSleeperProjectionEntry[]>(path, {
+    baseUrl: SLEEPER_ROOT_URL,
+    noStore: true,
+  })
+    .then((rows) => {
+      if (!Array.isArray(rows)) {
+        throw new SleeperError(
+          `Sleeper returned a non-array projection feed for ${path}`,
+          path,
+          502,
+        );
+      }
+      projectionFeedCache.set(path, { rows, fetchedAt: Date.now() });
+      return rows;
+    })
+    .finally(() => {
+      inFlightProjectionFeedFetches.delete(path);
+    });
+
+  inFlightProjectionFeedFetches.set(path, pending);
+  return pending;
+}
+
+/** Test/diagnostic hook; production callers should rely on TTL expiry. */
+export function clearProjectionFeedCache(): void {
+  projectionFeedCache.clear();
+  inFlightProjectionFeedFetches.clear();
+}
+
+/** Small, payload-free diagnostic surface for cache verification. */
+export function getProjectionFeedCacheStatus(): {
+  entries: number;
+  in_flight: number;
+  keys: string[];
+} {
+  return {
+    entries: projectionFeedCache.size,
+    in_flight: inFlightProjectionFeedFetches.size,
+    keys: [...projectionFeedCache.keys()].sort(),
+  };
+}
+
 /**
  * Sleeper season-long player projections: array form off the un-versioned root,
  * `GET https://api.sleeper.app/projections/nfl/{season}`. Undocumented but
@@ -356,9 +439,30 @@ export function getSeasonProjections(
 ): Promise<RawSleeperProjectionEntry[]> {
   const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
   for (const p of positions) q.append("position[]", p);
-  return fetchSleeper<RawSleeperProjectionEntry[]>(
+  const ttlMs = (options.revalidate ?? SEASON_PROJECTION_FEED_TTL_MS / 1000) * 1000;
+  return getOversizedProjectionFeed(
     `/projections/nfl/${season}?${q.toString()}`,
-    { baseUrl: SLEEPER_ROOT_URL, revalidate: 6 * 60 * 60, ...options },
+    ttlMs,
+  );
+}
+
+/**
+ * Sleeper WEEKLY projection array from the un-versioned root. This is distinct
+ * from `getWeeklyProjections` below, which exposes Sleeper's compact v1 dict
+ * feed for the legacy benchmark parser.
+ */
+export function getWeeklyProjectionArray(
+  season: string,
+  week: number,
+  positions: string[] = ["QB", "RB", "WR", "TE", "K", "DEF"],
+  options: { revalidate?: number } = {},
+): Promise<RawSleeperProjectionEntry[]> {
+  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
+  for (const p of positions) q.append("position[]", p);
+  const ttlMs = (options.revalidate ?? WEEKLY_PROJECTION_FEED_TTL_MS / 1000) * 1000;
+  return getOversizedProjectionFeed(
+    `/projections/nfl/${season}/${week}?${q.toString()}`,
+    ttlMs,
   );
 }
 
