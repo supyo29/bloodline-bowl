@@ -10,8 +10,9 @@
 
 import type { ProviderName } from "@/lib/canonical/schema";
 import { SleeperWeeklyProjectionProvider } from "./sleeper-weekly";
+import { CanonicalProjectionSnapshotProvider } from "./canonical-provider";
 import type { ProjectionProvider } from "./types";
 
 export function getWeeklyProjectionProvider(_provider: ProviderName): ProjectionProvider {
-  return new SleeperWeeklyProjectionProvider();
+  return new CanonicalProjectionSnapshotProvider(new SleeperWeeklyProjectionProvider());
 }
