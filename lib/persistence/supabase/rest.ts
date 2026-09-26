@@ -75,13 +75,14 @@ export class SupabaseRest {
 
   async select<T>(
     table: string,
-    opts: { filter?: Filter; order?: string; limit?: number; select?: string } = {},
+    opts: { filter?: Filter; order?: string; limit?: number; offset?: number; select?: string } = {},
   ): Promise<T[]> {
     const params = new URLSearchParams();
     params.set("select", opts.select ?? "*");
     for (const [k, v] of Object.entries(opts.filter ?? {})) params.set(k, v);
     if (opts.order) params.set("order", opts.order);
     if (opts.limit) params.set("limit", String(opts.limit));
+    if (opts.offset != null) params.set("offset", String(opts.offset));
     return this.#request<T[]>("GET", `${table}?${params.toString()}`, undefined, table);
   }
 

@@ -30,6 +30,7 @@ const SNAPSHOT_TABLE = "bridge_projection_snapshots";
 const PLAYER_TABLE = "bridge_projection_snapshot_players";
 const POINTER_TABLE = "bridge_projection_latest";
 const PLAYER_INSERT_CHUNK = 250;
+const PLAYER_READ_PAGE = 1000;
 
 interface SnapshotRow {
   artifact_id: string;
@@ -162,11 +163,21 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       return null;
     }
 
-    const players = await this.rest.select<PlayerRow>(PLAYER_TABLE, {
-      filter: { artifact_id: `eq.${pointer.artifact_id}` },
-      limit: 5000,
-      select: "artifact_id,canonical_player_id,projection,resolved_player",
-    });
+    const players: PlayerRow[] = [];
+    // Supabase/PostgREST commonly caps one response page at 1,000 rows even
+    // when the client asks for more. Projection artifacts are league-wide and
+    // can exceed 3,000 rows, so read deterministically in bounded pages.
+    for (let offset = 0; offset < parent.row_count; offset += PLAYER_READ_PAGE) {
+      const page = await this.rest.select<PlayerRow>(PLAYER_TABLE, {
+        filter: { artifact_id: `eq.${pointer.artifact_id}` },
+        order: "canonical_player_id.asc",
+        limit: PLAYER_READ_PAGE,
+        offset,
+        select: "artifact_id,canonical_player_id,projection,resolved_player",
+      });
+      players.push(...page);
+      if (page.length < PLAYER_READ_PAGE) break;
+    }
     const artifact = artifactFromRows(parent, players);
     if (!artifact) return null;
 

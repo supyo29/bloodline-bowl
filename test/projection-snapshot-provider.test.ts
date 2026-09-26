@@ -11,6 +11,8 @@ import {
   type ProjectionSnapshotWriteResult,
 } from "@/lib/weekly/projections/canonical-snapshot";
 import { CanonicalProjectionSnapshotProvider } from "@/lib/weekly/projections/canonical-provider";
+import { SupabaseProjectionSnapshotStore } from "@/lib/persistence/supabase/projection-snapshot";
+import type { SupabaseRest } from "@/lib/persistence/supabase/rest";
 import type { ProjectionProvider, ProjectionRequest } from "@/lib/weekly/projections/types";
 import type { WeeklyProjectionBatch } from "@/lib/weekly/schema";
 import { player, proj } from "./fixtures/weekly";
@@ -169,5 +171,78 @@ describe("Phase 5 canonical projection snapshot provider", () => {
     const c = buildProjectionSnapshotArtifact(changed, batch());
     assert.notEqual(a.artifact_id, c.artifact_id);
     assert.notEqual(a.scoring_fingerprint, c.scoring_fingerprint);
+  });
+});
+
+
+describe("Phase 5 Supabase projection snapshot pagination", () => {
+  it("hydrates an artifact larger than the PostgREST 1,000-row page cap", async () => {
+    const req = request();
+    const rows = Array.from({ length: 2305 }, (_, i) => {
+      const id = `bulk-${String(i).padStart(4, "0")}`;
+      return [id, proj(id, "WR", 8 + (i % 5), { rest_of_season_points: 100 + (i % 20) })] as const;
+    });
+    const bulkBatch: WeeklyProjectionBatch = {
+      ...batch(),
+      by_player: new Map(rows),
+      resolved_players: new Map(),
+      missing: [],
+    };
+    const artifact = buildProjectionSnapshotArtifact(req, bulkBatch);
+    const observedAt = new Date().toISOString();
+    const offsets: number[] = [];
+
+    const fakeRest = {
+      select: async (table: string, opts: { limit?: number; offset?: number }) => {
+        if (table === "bridge_projection_latest") {
+          return [{
+            league_slug: artifact.league_slug,
+            season: artifact.season,
+            week: artifact.week,
+            scoring_fingerprint: artifact.scoring_fingerprint,
+            artifact_id: artifact.artifact_id,
+            observed_at: observedAt,
+          }];
+        }
+        if (table === "bridge_projection_snapshots") {
+          return [{
+            artifact_id: artifact.artifact_id,
+            content_hash: artifact.content_hash,
+            league_slug: artifact.league_slug,
+            season: artifact.season,
+            week: artifact.week,
+            scoring_fingerprint: artifact.scoring_fingerprint,
+            status: artifact.status,
+            source: artifact.source,
+            model_version: artifact.model_version,
+            teams_with_games: artifact.teams_with_games,
+            warnings: artifact.warnings,
+            row_count: artifact.row_count,
+            format: artifact.format,
+          }];
+        }
+        if (table === "bridge_projection_snapshot_players") {
+          const offset = opts.offset ?? 0;
+          const limit = opts.limit ?? 1000;
+          offsets.push(offset);
+          return artifact.players.slice(offset, offset + limit).map((p) => ({
+            artifact_id: artifact.artifact_id,
+            canonical_player_id: p.canonical_player_id,
+            projection: p.projection,
+            resolved_player: p.resolved_player,
+          }));
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+    } as unknown as SupabaseRest;
+
+    const store = new SupabaseProjectionSnapshotStore(fakeRest);
+    const hit = await store.readLatest(req, { now: () => Date.parse(observedAt) + 1000 });
+
+    assert.ok(hit);
+    assert.equal(hit!.artifact.row_count, 2305);
+    assert.equal(hit!.batch.by_player.size, 2305);
+    assert.deepEqual(offsets, [0, 1000, 2000]);
+    assert.equal(hit!.batch.canonical_snapshot?.read_path, "SUPABASE_HIT");
   });
 });
