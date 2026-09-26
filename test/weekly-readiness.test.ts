@@ -24,7 +24,6 @@ describe("Phase 4 orthogonal readiness contract", () => {
       projection_status: "PROJECTIONS_PARTIAL",
       roster_players_projected: 12,
       roster_players_total: 14,
-      missing_roster_players: 2,
       want_rest_of_season: true,
       external_ros_players_available: 10,
       season_segment_degraded: true,
@@ -34,6 +33,12 @@ describe("Phase 4 orthogonal readiness contract", () => {
     assert.equal(r.market.status, "READY");
     assert.equal(r.market.actionable, true);
     assert.equal(r.weekly_projections.status, "PARTIAL");
+    assert.equal(r.weekly_projections.missing_roster_players, 2);
+    assert.equal(
+      r.weekly_projections.roster_players_projected +
+        r.weekly_projections.missing_roster_players,
+      r.weekly_projections.roster_players_total,
+    );
     assert.equal(r.waiver_recommendations.status, "READY_WITH_LIMITATIONS");
     assert.equal(r.waiver_recommendations.actionable, true);
     assert.deepEqual(r.waiver_recommendations.blocked_by, []);
@@ -53,7 +58,6 @@ describe("Phase 4 orthogonal readiness contract", () => {
       projection_status: "READY",
       roster_players_projected: 14,
       roster_players_total: 14,
-      missing_roster_players: 0,
       want_rest_of_season: true,
       external_ros_players_available: 14,
       season_segment_degraded: false,
@@ -81,7 +85,6 @@ describe("Phase 4 orthogonal readiness contract", () => {
       projection_status: "READY",
       roster_players_projected: 14,
       roster_players_total: 14,
-      missing_roster_players: 0,
       want_rest_of_season: true,
       external_ros_players_available: 14,
       season_segment_degraded: false,
@@ -102,7 +105,6 @@ describe("Phase 4 orthogonal readiness contract", () => {
       projection_status: "PROJECTIONS_UNAVAILABLE",
       roster_players_projected: 0,
       roster_players_total: 14,
-      missing_roster_players: 14,
       want_rest_of_season: true,
       external_ros_players_available: 0,
       season_segment_degraded: true,
@@ -150,7 +152,6 @@ describe("Phase 4 orthogonal readiness contract", () => {
       projection_status: "PROJECTIONS_PARTIAL",
       roster_players_projected: 9,
       roster_players_total: 10,
-      missing_roster_players: 1,
       want_rest_of_season: true,
       external_ros_players_available: 9,
       season_segment_degraded: false,
