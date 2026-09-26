@@ -16,7 +16,6 @@ export interface ComposeWeeklyReadinessInput {
   projection_status: WeeklyProjectionBatch["status"];
   roster_players_projected: number;
   roster_players_total: number;
-  missing_roster_players: number;
   want_rest_of_season: boolean;
   external_ros_players_available: number;
   season_segment_degraded: boolean;
@@ -38,11 +37,16 @@ export function composeWeeklyReadiness(
     missing_inputs: [...input.ownership.missing_inputs],
   };
 
+  const missingRosterPlayers = Math.max(
+    0,
+    input.roster_players_total - input.roster_players_projected,
+  );
+
   const weeklyProjectionReadiness: WeeklyReadinessContract["weekly_projections"] = {
     status:
       input.projection_status === "PROJECTIONS_UNAVAILABLE"
         ? "UNAVAILABLE"
-        : input.projection_status === "PROJECTIONS_PARTIAL" || input.missing_roster_players > 0
+        : input.projection_status === "PROJECTIONS_PARTIAL" || missingRosterPlayers > 0
           ? "PARTIAL"
           : "READY",
     usable:
@@ -50,7 +54,7 @@ export function composeWeeklyReadiness(
       (input.roster_players_total === 0 || input.roster_players_projected > 0),
     roster_players_projected: input.roster_players_projected,
     roster_players_total: input.roster_players_total,
-    missing_roster_players: input.missing_roster_players,
+    missing_roster_players: missingRosterPlayers,
   };
 
   const rosReadiness: WeeklyReadinessContract["rest_of_season"] = {
