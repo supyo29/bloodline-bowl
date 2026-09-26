@@ -654,6 +654,7 @@ export async function buildWeeklyTeamContext(
       roster_players_total: roster.all_players.length,
       identity_unresolved: snap.unresolved_players.length,
       opponent_available: Boolean(oppTeam),
+      projection_snapshot: projections.canonical_snapshot ?? null,
     },
     warnings,
   };
