@@ -356,6 +356,52 @@ interface ProjectionFeedCacheEntry {
   fetchedAt: number;
 }
 
+export type ProjectionFeedSegmentStatus = "READY" | "EMPTY" | "UNAVAILABLE";
+
+export interface ProjectionFeedSegmentResult {
+  segment_id: string;
+  positions: string[];
+  status: ProjectionFeedSegmentStatus;
+  rows: RawSleeperProjectionEntry[];
+  error: string | null;
+}
+
+/**
+ * Phase 3 projection transport segmentation.
+ *
+ * The three groups are intentionally football-semantic as well as size-bounded:
+ * - QB/RB: backfield / passing-volume skill players
+ * - WR/TE: receiving-volume skill players
+ * - K/DEF: special-teams / team-defense approximations
+ *
+ * A failure in one group must never erase successful rows from the other groups.
+ */
+export const PROJECTION_POSITION_SEGMENTS = [
+  { segment_id: "QB_RB", positions: ["QB", "RB"] },
+  { segment_id: "WR_TE", positions: ["WR", "TE"] },
+  { segment_id: "K_DEF", positions: ["K", "DEF"] },
+] as const;
+
+function projectionSegmentsFor(positions: string[]): Array<{ segment_id: string; positions: string[] }> {
+  const requested = new Set(positions.map((p) => p.toUpperCase()));
+  const out: Array<{ segment_id: string; positions: string[] }> = [];
+  const covered = new Set<string>();
+
+  for (const def of PROJECTION_POSITION_SEGMENTS) {
+    const selected = def.positions.filter((p) => requested.has(p));
+    if (selected.length === 0) continue;
+    selected.forEach((p) => covered.add(p));
+    out.push({ segment_id: def.segment_id, positions: selected });
+  }
+
+  // Future/experimental positions remain isolated rather than being silently
+  // appended to an existing segment with different failure semantics.
+  for (const p of requested) {
+    if (!covered.has(p)) out.push({ segment_id: `OTHER_${p}`, positions: [p] });
+  }
+  return out;
+}
+
 /**
  * Shared process-local cache for Sleeper's OVERSIZED projection array feeds.
  *
@@ -426,44 +472,135 @@ export function getProjectionFeedCacheStatus(): {
   };
 }
 
+async function projectionSegmentResult(
+  path: string,
+  ttlMs: number,
+  segment_id: string,
+  positions: string[],
+): Promise<ProjectionFeedSegmentResult> {
+  try {
+    const rows = await getOversizedProjectionFeed(path, ttlMs);
+    return {
+      segment_id,
+      positions,
+      status: rows.length > 0 ? "READY" : "EMPTY",
+      rows,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      segment_id,
+      positions,
+      status: "UNAVAILABLE",
+      rows: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function segmentPath(
+  season: string,
+  positions: string[],
+  week?: number,
+): string {
+  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
+  for (const p of positions) q.append("position[]", p);
+  return week == null
+    ? `/projections/nfl/${season}?${q.toString()}`
+    : `/projections/nfl/${season}/${week}?${q.toString()}`;
+}
+
 /**
- * Sleeper season-long player projections: array form off the un-versioned root,
- * `GET https://api.sleeper.app/projections/nfl/{season}`. Undocumented but
- * public and same-domain. `company` reports the upstream provider (RotoWire).
- * This is a BENCHMARK source for the Roster Intel model — never its target.
+ * Season projection segments. This is the PARTIAL-SUCCESS primitive used by the
+ * weekly provider. Each segment resolves independently; one source failure does
+ * not reject the whole call.
  */
-export function getSeasonProjections(
+export function getSeasonProjectionSegments(
   season: string,
   positions: string[] = ["QB", "RB", "WR", "TE", "K", "DEF"],
   options: { revalidate?: number } = {},
-): Promise<RawSleeperProjectionEntry[]> {
-  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
-  for (const p of positions) q.append("position[]", p);
+): Promise<ProjectionFeedSegmentResult[]> {
   const ttlMs = (options.revalidate ?? SEASON_PROJECTION_FEED_TTL_MS / 1000) * 1000;
-  return getOversizedProjectionFeed(
-    `/projections/nfl/${season}?${q.toString()}`,
-    ttlMs,
+  return Promise.all(
+    projectionSegmentsFor(positions).map((segment) =>
+      projectionSegmentResult(
+        segmentPath(season, segment.positions),
+        ttlMs,
+        segment.segment_id,
+        segment.positions,
+      ),
+    ),
   );
 }
 
 /**
- * Sleeper WEEKLY projection array from the un-versioned root. This is distinct
- * from `getWeeklyProjections` below, which exposes Sleeper's compact v1 dict
- * feed for the legacy benchmark parser.
+ * Weekly projection segments. Same contract as the season form: callers receive
+ * every successful segment plus explicit failure/empty metadata for the rest.
  */
-export function getWeeklyProjectionArray(
+export function getWeeklyProjectionSegments(
+  season: string,
+  week: number,
+  positions: string[] = ["QB", "RB", "WR", "TE", "K", "DEF"],
+  options: { revalidate?: number } = {},
+): Promise<ProjectionFeedSegmentResult[]> {
+  const ttlMs = (options.revalidate ?? WEEKLY_PROJECTION_FEED_TTL_MS / 1000) * 1000;
+  return Promise.all(
+    projectionSegmentsFor(positions).map((segment) =>
+      projectionSegmentResult(
+        segmentPath(season, segment.positions, week),
+        ttlMs,
+        segment.segment_id,
+        segment.positions,
+      ),
+    ),
+  );
+}
+
+function requireCompleteProjectionSegments(
+  resource: string,
+  segments: ProjectionFeedSegmentResult[],
+): RawSleeperProjectionEntry[] {
+  const incomplete = segments.filter((s) => s.status !== "READY");
+  if (incomplete.length > 0) {
+    const detail = incomplete
+      .map((s) => `${s.segment_id}=${s.status}${s.error ? `(${s.error})` : ""}`)
+      .join(", ");
+    throw new SleeperError(
+      `Sleeper projection segments incomplete for ${resource}: ${detail}`,
+      resource,
+      502,
+    );
+  }
+  return segments.flatMap((s) => s.rows);
+}
+
+/**
+ * Sleeper season-long player projections. Legacy/benchmark callers retain an
+ * all-or-nothing contract, but the underlying transport is now segmented and
+ * shares the same per-segment cache used by partial-success weekly consumers.
+ */
+export async function getSeasonProjections(
+  season: string,
+  positions: string[] = ["QB", "RB", "WR", "TE", "K", "DEF"],
+  options: { revalidate?: number } = {},
+): Promise<RawSleeperProjectionEntry[]> {
+  const segments = await getSeasonProjectionSegments(season, positions, options);
+  return requireCompleteProjectionSegments(`season:${season}`, segments);
+}
+
+/**
+ * Sleeper WEEKLY projection array. Legacy callers retain all-or-nothing
+ * semantics while the production weekly provider consumes the segmented
+ * primitive directly.
+ */
+export async function getWeeklyProjectionArray(
   season: string,
   week: number,
   positions: string[] = ["QB", "RB", "WR", "TE", "K", "DEF"],
   options: { revalidate?: number } = {},
 ): Promise<RawSleeperProjectionEntry[]> {
-  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
-  for (const p of positions) q.append("position[]", p);
-  const ttlMs = (options.revalidate ?? WEEKLY_PROJECTION_FEED_TTL_MS / 1000) * 1000;
-  return getOversizedProjectionFeed(
-    `/projections/nfl/${season}/${week}?${q.toString()}`,
-    ttlMs,
-  );
+  const segments = await getWeeklyProjectionSegments(season, week, positions, options);
+  return requireCompleteProjectionSegments(`weekly:${season}:w${week}`, segments);
 }
 
 /**

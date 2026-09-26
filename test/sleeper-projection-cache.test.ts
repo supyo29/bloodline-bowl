@@ -60,30 +60,30 @@ describe("oversized Sleeper projection feed cache", () => {
         getSeasonProjections("2026"),
         getSeasonProjections("2026"),
       ]);
-      assert.equal(calls, 1, "concurrent season callers should share one upstream read");
+      assert.equal(calls, 3, "concurrent season callers should share one upstream read per segment");
       assert.deepEqual(seasonCalls[0], seasonCalls[1]);
       assert.deepEqual(seasonCalls[1], seasonCalls[2]);
 
       await getSeasonProjections("2026");
-      assert.equal(calls, 1, "warm season call should reuse the process-local TTL entry");
+      assert.equal(calls, 3, "warm season call should reuse all process-local segment TTL entries");
 
       await Promise.all([
         getWeeklyProjectionArray("2026", 3),
         getWeeklyProjectionArray("2026", 3),
       ]);
-      assert.equal(calls, 2, "weekly feed has its own key but concurrent weekly callers dedupe");
+      assert.equal(calls, 6, "weekly feed has three distinct keys but concurrent weekly callers dedupe");
 
       await getWeeklyProjectionArray("2026", 3);
-      assert.equal(calls, 2, "warm weekly call should reuse the process-local TTL entry");
+      assert.equal(calls, 6, "warm weekly call should reuse all process-local segment TTL entries");
 
-      assert.ok(urls[0]!.includes("/projections/nfl/2026?"));
-      assert.ok(urls[1]!.includes("/projections/nfl/2026/3?"));
-      assert.deepEqual(cacheModes, ["no-store", "no-store"]);
+      assert.equal(urls.filter((u) => u.includes("/projections/nfl/2026?")).length, 3);
+      assert.equal(urls.filter((u) => u.includes("/projections/nfl/2026/3?")).length, 3);
+      assert.deepEqual(cacheModes, Array(6).fill("no-store"));
 
       const status = getProjectionFeedCacheStatus();
-      assert.equal(status.entries, 2);
+      assert.equal(status.entries, 6);
       assert.equal(status.in_flight, 0);
-      assert.equal(status.keys.length, 2);
+      assert.equal(status.keys.length, 6);
     } finally {
       globalThis.fetch = originalFetch;
       clearProjectionFeedCache();
@@ -112,13 +112,13 @@ describe("oversized Sleeper projection feed cache", () => {
     }) as typeof fetch;
 
     try {
-      const first = await getSeasonProjections("2026", undefined, { revalidate: 1 });
+      const first = await getSeasonProjections("2026", ["QB"], { revalidate: 1 });
       assert.equal(first[0]?.player_id, "fresh");
       assert.equal(calls, 1);
 
       now += 1_001;
       await assert.rejects(
-        () => getSeasonProjections("2026", undefined, { revalidate: 1 }),
+        () => getSeasonProjections("2026", ["QB"], { revalidate: 1 }),
         /Sleeper returned 404/,
       );
       assert.equal(calls, 2);
