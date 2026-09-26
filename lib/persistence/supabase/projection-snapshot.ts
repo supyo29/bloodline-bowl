@@ -31,6 +31,12 @@ const PLAYER_TABLE = "bridge_projection_snapshot_players";
 const POINTER_TABLE = "bridge_projection_latest";
 const PLAYER_INSERT_CHUNK = 250;
 const PLAYER_READ_PAGE = 1000;
+/**
+ * Process-local read memo. Shorter than the canonical 90-minute serving window:
+ * it only prevents repeated Supabase pagination inside one warm serverless
+ * process / logical orchestration; it is not a second freshness authority.
+ */
+export const PROJECTION_SNAPSHOT_LOCAL_READ_TTL_MS = 60_000;
 
 interface SnapshotRow {
   artifact_id: string;
@@ -120,13 +126,84 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
   readonly kind = "supabase";
   readonly durable = true;
 
+  #readCache = new Map<
+    string,
+    { artifact: ProjectionSnapshotArtifact; observed_at: string; cached_at_ms: number }
+  >();
+  #inFlightReads = new Map<
+    string,
+    Promise<{ artifact: ProjectionSnapshotArtifact; observed_at: string } | null>
+  >();
+
   constructor(private readonly rest: SupabaseRest) {}
+
+  #scopeKey(scope: ReturnType<typeof projectionSnapshotScope>): string {
+    return `${scope.league_slug}|${scope.season}|${scope.week}|${scope.scoring_fingerprint}`;
+  }
+
+  #hydrateHit(
+    req: ProjectionRequest,
+    artifact: ProjectionSnapshotArtifact,
+    observedAt: string,
+    nowMs: number,
+  ): ProjectionSnapshotHit {
+    const observedMs = Date.parse(observedAt);
+    const ageMs = Number.isFinite(observedMs)
+      ? Math.max(0, nowMs - observedMs)
+      : Number.POSITIVE_INFINITY;
+    return {
+      artifact,
+      observed_at: observedAt,
+      age_ms: ageMs,
+      batch: hydrateProjectionSnapshotBatch(artifact, req.canonical_player_ids, {
+        observed_at: observedAt,
+        age_ms: ageMs,
+        durable: true,
+      }),
+    };
+  }
 
   async readLatest(
     req: ProjectionRequest,
     opts: { maxAgeMs?: number; now?: () => number } = {},
   ): Promise<ProjectionSnapshotHit | null> {
     const scope = projectionSnapshotScope(req);
+    const key = this.#scopeKey(scope);
+    const now = opts.now ?? Date.now;
+    const nowMs = now();
+    const maxAgeMs = opts.maxAgeMs ?? PROJECTION_SNAPSHOT_MAX_AGE_MS;
+
+    const memo = this.#readCache.get(key);
+    if (memo && nowMs - memo.cached_at_ms <= PROJECTION_SNAPSHOT_LOCAL_READ_TTL_MS) {
+      const hit = this.#hydrateHit(req, memo.artifact, memo.observed_at, nowMs);
+      if (hit.age_ms <= maxAgeMs) return hit;
+      this.#readCache.delete(key);
+    }
+
+    let pending = this.#inFlightReads.get(key);
+    if (!pending) {
+      pending = this.#readArtifact(scope, maxAgeMs, nowMs);
+      this.#inFlightReads.set(key, pending);
+      void pending.finally(() => {
+        if (this.#inFlightReads.get(key) === pending) this.#inFlightReads.delete(key);
+      });
+    }
+
+    const loaded = await pending;
+    if (!loaded) return null;
+    this.#readCache.set(key, {
+      artifact: loaded.artifact,
+      observed_at: loaded.observed_at,
+      cached_at_ms: nowMs,
+    });
+    return this.#hydrateHit(req, loaded.artifact, loaded.observed_at, nowMs);
+  }
+
+  async #readArtifact(
+    scope: ReturnType<typeof projectionSnapshotScope>,
+    maxAgeMs: number,
+    nowMs: number,
+  ): Promise<{ artifact: ProjectionSnapshotArtifact; observed_at: string } | null> {
     const rows = await this.rest.select<PointerRow>(POINTER_TABLE, {
       filter: {
         league_slug: `eq.${scope.league_slug}`,
@@ -141,9 +218,8 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
     if (!pointer) return null;
 
     const observedMs = Date.parse(pointer.observed_at);
-    const nowMs = (opts.now ?? Date.now)();
     const ageMs = Number.isFinite(observedMs) ? Math.max(0, nowMs - observedMs) : Number.POSITIVE_INFINITY;
-    if (ageMs > (opts.maxAgeMs ?? PROJECTION_SNAPSHOT_MAX_AGE_MS)) return null;
+    if (ageMs > maxAgeMs) return null;
 
     const parent = (
       await this.rest.select<SnapshotRow>(SNAPSHOT_TABLE, {
@@ -184,12 +260,6 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
     return {
       artifact,
       observed_at: pointer.observed_at,
-      age_ms: ageMs,
-      batch: hydrateProjectionSnapshotBatch(artifact, req.canonical_player_ids, {
-        observed_at: pointer.observed_at,
-        age_ms: ageMs,
-        durable: true,
-      }),
     };
   }
 
@@ -223,13 +293,13 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       };
       // Create-once, then advance only if the stored observation is older. This
       // prevents a slow older request from overwriting a newer observation.
-      await this.rest.insertIgnoreDuplicates(POINTER_TABLE, [pointer], [
+      const pointerInserted = await this.rest.insertIgnoreDuplicates<PointerRow>(POINTER_TABLE, [pointer], [
         "league_slug",
         "season",
         "week",
         "scoring_fingerprint",
       ]);
-      await this.rest.updateReturning(
+      const pointerAdvanced = await this.rest.updateReturning<PointerRow>(
         POINTER_TABLE,
         {
           league_slug: `eq.${scope.league_slug}`,
@@ -240,6 +310,16 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
         },
         { artifact_id: artifact.artifact_id, observed_at: observedAt, updated_at: new Date().toISOString() },
       );
+
+      // If this write won the pointer race, make the normalized artifact
+      // immediately reusable by every other analytical stage in this process.
+      if (pointerInserted.length > 0 || pointerAdvanced.length > 0) {
+        this.#readCache.set(this.#scopeKey(scope), {
+          artifact,
+          observed_at: observedAt,
+          cached_at_ms: Date.now(),
+        });
+      }
 
       return {
         status: inserted.length > 0 ? "INSERTED" : "DUPLICATE_IDENTICAL",
