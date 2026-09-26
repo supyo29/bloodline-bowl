@@ -41,7 +41,17 @@ export async function GET(
 
   const healthy = result.intelligence.status === "READY";
   return jsonResponse(
-    { status: result.intelligence.status, intelligence: result.intelligence },
+    {
+      // Aggregate weekly status remains for compatibility; individual readiness
+      // axes below are authoritative for acquisition decisions.
+      status: result.intelligence.status,
+      market_status: result.intelligence.readiness.market.status,
+      projection_status: result.intelligence.readiness.weekly_projections.status,
+      ros_status: result.intelligence.readiness.rest_of_season.status,
+      waiver_recommendation_status: result.intelligence.readiness.waiver_recommendations.status,
+      readiness: result.intelligence.readiness,
+      intelligence: result.intelligence,
+    },
     {
       headers: {
         "Cache-Control": healthy ? cacheHeader(120, 300) : cacheHeader(45, 120),

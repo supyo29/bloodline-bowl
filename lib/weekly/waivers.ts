@@ -119,6 +119,8 @@ export interface WaiverResult {
    *                   clears the bar".
    */
   availability_status: "AVAILABLE" | "UNAVAILABLE";
+  /** Orthogonal Phase 4 readiness axes; recommendation actionability lives here. */
+  readiness: WeeklyTeamContext["readiness"];
   /** Stable machine code; set iff `availability_status === "UNAVAILABLE"`. */
   unavailable_reason_code: "FREE_AGENT_POOL_UNAVAILABLE" | null;
   /** Canonical capability reasons + missing inputs; set iff UNAVAILABLE. */
@@ -163,6 +165,7 @@ export function buildWaiverRecommendations(
       league_slug: ctx.league.slug,
       waiver_model,
       availability_status: "UNAVAILABLE",
+      readiness: ctx.readiness,
       unavailable_reason_code: readiness.reason_code ?? "FREE_AGENT_POOL_UNAVAILABLE",
       unavailable_detail: {
         capability: "free_agent_pool",
@@ -546,6 +549,7 @@ export function buildWaiverRecommendations(
     league_slug: ctx.league.slug,
     waiver_model,
     availability_status: "AVAILABLE",
+    readiness: ctx.readiness,
     unavailable_reason_code: null,
     unavailable_detail: null,
     roster_has_open_spot: openActiveSpot,

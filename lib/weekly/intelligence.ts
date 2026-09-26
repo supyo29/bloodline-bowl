@@ -43,6 +43,7 @@ export interface WeeklyIntelligence {
   week: number;
   status: DataQualityStatus;
   data_quality: WeeklyTeamContext["data_quality"];
+  readiness: WeeklyTeamContext["readiness"];
   persistence_status: string;
   /** Traceable lineage: the canonical snapshot + projection models behind this result. */
   lineage: RecommendationLineage;
@@ -93,6 +94,7 @@ export interface ContextView<T> {
     week: number;
     status: DataQualityStatus;
     data_quality: WeeklyTeamContext["data_quality"];
+    readiness: WeeklyTeamContext["readiness"];
     persistence_status: string;
     lineage: RecommendationLineage;
     warnings: WeeklyWarning[];
@@ -134,6 +136,7 @@ async function runWithWeeklyContextInner<T>(
       week: ctx.league.week,
       status: ctx.status,
       data_quality: ctx.data_quality,
+      readiness: ctx.readiness,
       persistence_status: ctx.persistence_status,
       lineage: ctx.lineage,
       warnings: ctx.warnings,
@@ -233,6 +236,7 @@ async function buildWeeklyIntelligenceInner(
       week: ctx.league.week,
       status: ctx.status,
       data_quality: ctx.data_quality,
+      readiness: ctx.readiness,
       persistence_status: ctx.persistence_status,
       lineage: ctx.lineage,
       top_actions,

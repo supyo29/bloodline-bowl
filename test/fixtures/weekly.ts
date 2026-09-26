@@ -320,6 +320,8 @@ export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
       provenance: { provider: "sleeper", provider_id: leagueSlug, provider_synced_at: null },
     };
   }
+  const freeAgentPoolReadiness = assessFreeAgentPoolReadiness(snapshot);
+
   const replacement = computeWeeklyReplacement({
     league_slug: leagueSlug,
     week,
@@ -372,7 +374,43 @@ export function weeklyContext(f: WeeklyContextFixture): WeeklyTeamContext {
     projections: projBatch,
     replacement,
     availability,
-    free_agent_pool_readiness: assessFreeAgentPoolReadiness(snapshot),
+    free_agent_pool_readiness: freeAgentPoolReadiness,
+    readiness: {
+      live_provider: { status: "READY", usable: true },
+      ownership: { status: "READY", usable: true, reasons: [], missing_inputs: [] },
+      market: {
+        status: freeAgentPoolReadiness.actionable ? "READY" : "NOT_READY",
+        actionable: freeAgentPoolReadiness.actionable,
+        source: "canonical_snapshot",
+        reasons: [...freeAgentPoolReadiness.reasons],
+        blocking_reasons: [...freeAgentPoolReadiness.missing_inputs],
+        limitations: [],
+      },
+      weekly_projections: {
+        status: projBatch.status === "READY" ? "READY" : projBatch.status === "PROJECTIONS_PARTIAL" ? "PARTIAL" : "UNAVAILABLE",
+        usable: projBatch.status !== "PROJECTIONS_UNAVAILABLE",
+        roster_players_projected: f.projections.filter((p) => p.projected_points != null || p.projection_status === "bye").length,
+        roster_players_total: f.myRoster.all_players.length,
+        missing_roster_players: Math.max(
+          0,
+          f.myRoster.all_players.length -
+            f.projections.filter((p) => p.projected_points != null || p.projection_status === "bye").length,
+        ),
+      },
+      rest_of_season: {
+        status: "READY",
+        usable: true,
+        external_players_available: f.projections.filter((p) => p.rest_of_season_points != null).length,
+        roster_players_total: f.myRoster.all_players.length,
+        ri_status: "UNAVAILABLE",
+      },
+      waiver_recommendations: {
+        status: freeAgentPoolReadiness.actionable ? "READY_WITH_LIMITATIONS" : "NOT_READY",
+        actionable: freeAgentPoolReadiness.actionable,
+        blocked_by: freeAgentPoolReadiness.actionable ? [] : ["market_not_actionable"],
+        limitations: freeAgentPoolReadiness.actionable ? ["ri_season_signal_unavailable"] : [],
+      },
+    },
     ros_signal: { status: "UNAVAILABLE", ri_model_version: null, external_source: "test", players_with_ri: 0, players_with_disagreement: 0 },
     byes: { bye_status: "VERIFIED", schedule_source: "test", by_player: {}, starters_on_bye_this_week: [], teams_on_bye: [] },
     positional_needs: [],

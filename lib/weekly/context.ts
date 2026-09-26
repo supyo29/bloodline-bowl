@@ -15,7 +15,11 @@
  */
 
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
-import { assessFreeAgentPoolReadiness, type FreeAgentPoolReadiness } from "@/lib/canonical/capabilities";
+import {
+  assessCapabilities,
+  assessFreeAgentPoolReadiness,
+  type FreeAgentPoolReadiness,
+} from "@/lib/canonical/capabilities";
 import { loadMarketSnapshot, type LoadMarketOptions, type MarketFetchers } from "@/lib/market-state/load";
 import type { MarketSnapshot } from "@/lib/market-state/contract";
 import { certifyFreeAgentPool } from "./market-pool-adapter";
@@ -34,12 +38,14 @@ import { RosterIntelReturnGameSeasonProvider, fetchRecentReturnAttempts, type Re
 import { assembleRosSignals, type RosAssemblyResult } from "./ros";
 import { buildLeagueAvailability } from "./availability";
 import { computeWeeklyReplacement, type ReplacementFrontier } from "./replacement";
+import { composeWeeklyReadiness } from "./readiness";
 import {
   WEEKLY_ENGINE_VERSION,
   type ByeInfo,
   type DataQualityStatus,
   type PositionalNeed,
   type RosterConstraints,
+  type WeeklyReadinessContract,
   type WeeklyTeamContext,
   type WeeklyWarning,
 } from "./schema";
@@ -410,7 +416,18 @@ export async function buildWeeklyTeamContext(
   // replacement/VOR framework below consumes for lineup + matchup + waiver
   // engines alike — is never touched, so lineup/matchup behavior is
   // byte-identical whether or not Market State enrichment runs.
+  const capabilityReport = assessCapabilities(snap);
+  const ownershipCapability = capabilityReport.capabilities.ownership;
+
   let free_agent_pool_readiness: FreeAgentPoolReadiness = assessFreeAgentPoolReadiness(snap);
+  let market_readiness: WeeklyReadinessContract["market"] = {
+    status: free_agent_pool_readiness.actionable ? "READY" : "NOT_READY",
+    actionable: free_agent_pool_readiness.actionable,
+    source: "canonical_snapshot",
+    reasons: [...free_agent_pool_readiness.reasons],
+    blocking_reasons: [...free_agent_pool_readiness.missing_inputs],
+    limitations: [],
+  };
   if (options.enableMarketStatePool) {
     try {
       const market =
@@ -422,6 +439,14 @@ export async function buildWeeklyTeamContext(
         }));
       const certified = certifyFreeAgentPool(market, availability);
       free_agent_pool_readiness = certified.free_agent_pool_readiness;
+      market_readiness = {
+        status: certified.market_readiness.status,
+        actionable: certified.free_agent_pool_readiness.actionable,
+        source: "market_state",
+        reasons: certified.market_readiness.reasons.map((r) => `${r.code}: ${r.detail}`),
+        blocking_reasons: [...certified.market_readiness.blocks],
+        limitations: [...certified.market_readiness.limitations],
+      };
       if (certified.free_agent_pool_readiness.actionable) {
         availability = { ...availability, free_agents: certified.free_agents };
       }
@@ -436,6 +461,17 @@ export async function buildWeeklyTeamContext(
         severity: "warning",
       });
       free_agent_pool_readiness = assessFreeAgentPoolReadiness(snap);
+      market_readiness = {
+        status: free_agent_pool_readiness.actionable ? "READY" : "NOT_READY",
+        actionable: free_agent_pool_readiness.actionable,
+        source: "canonical_snapshot",
+        reasons: [
+          ...free_agent_pool_readiness.reasons,
+          `MARKET_STATE_READ_FAILED: ${e instanceof Error ? e.message : String(e)}`,
+        ],
+        blocking_reasons: [...free_agent_pool_readiness.missing_inputs],
+        limitations: [],
+      };
     }
   }
 
@@ -472,6 +508,35 @@ export async function buildWeeklyTeamContext(
   const rosterProjected = roster.all_players.filter(
     (id) => projections.by_player.get(id)?.projected_points != null || projections.by_player.get(id)?.projection_status === "bye",
   ).length;
+
+  // Phase 4: orthogonal readiness axes. Never derive market availability from
+  // projection health (or vice versa).
+  const wantRos = options.wantRestOfSeason ?? true;
+  const externalRosAvailable = roster.all_players.filter(
+    (id) => projections.by_player.get(id)?.rest_of_season_points != null,
+  ).length;
+  const seasonSegmentDegraded = projections.warnings.some(
+    (w) =>
+      w.code === "season_projection_segment_unavailable" ||
+      w.code === "season_projection_segment_empty",
+  );
+
+  const readiness = composeWeeklyReadiness({
+    live_provider_status: snap.live_provider_status === "READY" ? "READY" : "PARTIAL",
+    ownership: ownershipCapability,
+    market: market_readiness,
+    projection_status: projections.status,
+    roster_players_projected: rosterProjected,
+    roster_players_total: roster.all_players.length,
+    missing_roster_players: stillMissing.length,
+    want_rest_of_season: wantRos,
+    external_ros_players_available: externalRosAvailable,
+    season_segment_degraded: seasonSegmentDegraded,
+    ri_status:
+      options.skipRiSeasonSignal === true
+        ? "NOT_REQUESTED"
+        : ros_meta?.ri_status ?? "UNAVAILABLE",
+  });
 
   let status: DataQualityStatus = "READY";
   if (projections.status === "PROJECTIONS_UNAVAILABLE") status = "PROJECTIONS_UNAVAILABLE";
@@ -567,6 +632,7 @@ export async function buildWeeklyTeamContext(
     // and still delegating to the ONE shared `lib/market-state/pool.ts` logic
     // the sibling shadow engine itself uses (no parallel readiness implementation).
     free_agent_pool_readiness,
+    readiness,
     ros_signal: ros_meta
       ? {
           status: ros_meta.ri_status,
