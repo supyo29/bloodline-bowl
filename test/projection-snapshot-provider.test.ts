@@ -191,10 +191,12 @@ describe("Phase 5 Supabase projection snapshot pagination", () => {
     const artifact = buildProjectionSnapshotArtifact(req, bulkBatch);
     const observedAt = new Date().toISOString();
     const offsets: number[] = [];
+    let pointerReads = 0;
 
     const fakeRest = {
       select: async (table: string, opts: { limit?: number; offset?: number }) => {
         if (table === "bridge_projection_latest") {
+          pointerReads += 1;
           return [{
             league_slug: artifact.league_slug,
             season: artifact.season,
@@ -237,12 +239,24 @@ describe("Phase 5 Supabase projection snapshot pagination", () => {
     } as unknown as SupabaseRest;
 
     const store = new SupabaseProjectionSnapshotStore(fakeRest);
-    const hit = await store.readLatest(req, { now: () => Date.parse(observedAt) + 1000 });
+    const now = () => Date.parse(observedAt) + 1000;
+    const [hit, concurrentHit] = await Promise.all([
+      store.readLatest(req, { now }),
+      store.readLatest(req, { now }),
+    ]);
 
     assert.ok(hit);
+    assert.ok(concurrentHit);
     assert.equal(hit!.artifact.row_count, 2305);
     assert.equal(hit!.batch.by_player.size, 2305);
-    assert.deepEqual(offsets, [0, 1000, 2000]);
+    assert.equal(concurrentHit!.batch.by_player.size, 2305);
+    assert.deepEqual(offsets, [0, 1000, 2000], "concurrent readers share one paged Supabase load");
+    assert.equal(pointerReads, 1, "concurrent readers share one pointer read");
     assert.equal(hit!.batch.canonical_snapshot?.read_path, "SUPABASE_HIT");
+
+    const warmHit = await store.readLatest(req, { now: () => Date.parse(observedAt) + 2000 });
+    assert.ok(warmHit);
+    assert.deepEqual(offsets, [0, 1000, 2000], "warm process-local read performs no extra page reads");
+    assert.equal(pointerReads, 1, "warm process-local read performs no extra pointer read");
   });
 });
