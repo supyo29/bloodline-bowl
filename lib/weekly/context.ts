@@ -528,7 +528,6 @@ export async function buildWeeklyTeamContext(
     projection_status: projections.status,
     roster_players_projected: rosterProjected,
     roster_players_total: roster.all_players.length,
-    missing_roster_players: stillMissing.length,
     want_rest_of_season: wantRos,
     external_ros_players_available: externalRosAvailable,
     season_segment_degraded: seasonSegmentDegraded,
