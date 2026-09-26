@@ -130,6 +130,17 @@ export interface WeeklyProjectionBatch {
    *  (team not here) from a genuine missing projection. Empty if unknown. */
   teams_with_games: string[];
   warnings: WeeklyWarning[];
+  /**
+   * Phase 5 canonical projection-snapshot provenance. Additive: projection
+   * values/source/model_version remain the model's own semantics.
+   */
+  canonical_snapshot?: {
+    read_path: "SUPABASE_HIT" | "LIVE_FALLBACK" | "LIVE_REFRESH" | "LIVE_BYPASS";
+    artifact_id: string | null;
+    observed_at: string | null;
+    age_ms: number | null;
+    durable: boolean;
+  };
 }
 
 /* -------------------------------------------------------------------------- */
