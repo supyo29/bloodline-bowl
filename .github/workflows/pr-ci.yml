@@ -37,6 +37,7 @@ jobs:
           test/start-sit-fi.test.ts
           test/ai-discovery.test.ts
           test/sleeper-projection-cache.test.ts
+          test/projection-snapshot-provider.test.ts
           test/weekly-projection-segments.test.ts
           test/weekly-readiness.test.ts
           test/weekly-waivers.test.ts

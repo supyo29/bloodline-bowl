@@ -72,6 +72,8 @@ export interface BuildWeeklyContextOptions {
   crosswalkOverride?: PlayerCrosswalk;
   providerOverride?: ReturnType<typeof getProvider>;
   projectionProviderOverride?: ReturnType<typeof getWeeklyProjectionProvider>;
+  /** Phase 5 canonical projection persistence policy (default "prefer"). */
+  projectionSnapshotPolicy?: "prefer" | "refresh" | "bypass";
   scheduleProviderOverride?: ScheduleProvider;
   /** Inject the RI season-signal provider (tests). `null` disables it. */
   riSeasonProviderOverride?: RiSeasonSignalProvider | null;
@@ -300,6 +302,7 @@ export async function buildWeeklyTeamContext(
     want_rest_of_season: options.wantRestOfSeason ?? true,
     return_game_season: returnGameSeason,
     return_game_recent_attempts: returnGameRecent,
+    projection_snapshot_policy: options.projectionSnapshotPolicy ?? "prefer",
   });
 
   // ---- Rest-of-season signal: external (Sleeper) absolute + Roster Intel ORDINAL.
@@ -651,6 +654,7 @@ export async function buildWeeklyTeamContext(
       roster_players_total: roster.all_players.length,
       identity_unresolved: snap.unresolved_players.length,
       opponent_available: Boolean(oppTeam),
+      projection_snapshot: projections.canonical_snapshot ?? null,
     },
     warnings,
   };

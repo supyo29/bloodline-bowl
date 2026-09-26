@@ -130,6 +130,17 @@ export interface WeeklyProjectionBatch {
    *  (team not here) from a genuine missing projection. Empty if unknown. */
   teams_with_games: string[];
   warnings: WeeklyWarning[];
+  /**
+   * Phase 5 canonical projection-snapshot provenance. Additive: projection
+   * values/source/model_version remain the model's own semantics.
+   */
+  canonical_snapshot?: {
+    read_path: "SUPABASE_HIT" | "LIVE_FALLBACK" | "LIVE_REFRESH" | "LIVE_BYPASS";
+    artifact_id: string | null;
+    observed_at: string | null;
+    age_ms: number | null;
+    durable: boolean;
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -386,6 +397,8 @@ export interface WeeklyTeamContext {
     roster_players_total: number;
     identity_unresolved: number;
     opponent_available: boolean;
+    /** Phase 5: durable canonical projection read provenance, when available. */
+    projection_snapshot?: WeeklyProjectionBatch["canonical_snapshot"] | null;
   };
   warnings: WeeklyWarning[];
 }
