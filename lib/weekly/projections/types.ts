@@ -32,6 +32,13 @@ export interface ProjectionRequest {
   return_game_season?: ReadonlyMap<string, ReturnGameSeasonSignal>;
   /** Most-recent-completed-games-first KR attempt counts, per Sleeper player_id. */
   return_game_recent_attempts?: ReadonlyMap<string, number[]>;
+  /**
+   * Phase 5 persistence policy.
+   * - prefer (default): serve a fresh canonical snapshot, live fallback + persist
+   * - refresh: force the live source, then persist/advance the canonical pointer
+   * - bypass: force live and do not read/write the canonical snapshot
+   */
+  projection_snapshot_policy?: "prefer" | "refresh" | "bypass";
 }
 
 export interface ProjectionProvider {
