@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron/projection-snapshot",
-      "schedule": "10 * * * *"
+      "schedule": "10 11 * * *"
     }
   ]
 }
