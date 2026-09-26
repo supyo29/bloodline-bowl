@@ -19,7 +19,7 @@
  *    `null` with `projection_status: "unavailable"`.
  */
 
-import { SLEEPER_ROOT_URL, fetchSleeper } from "@/lib/sleeper/client";
+import { getSeasonProjections, getWeeklyProjectionArray } from "@/lib/sleeper/client";
 import { canonicalPosition } from "@/lib/canonical/players";
 import { scoreWeeklyLine, NON_SCORING_KEY } from "../scoring";
 import { materializeScoringEvents } from "@/lib/scoring/derived-events";
@@ -69,19 +69,13 @@ function injuryToAvailability(status: string | null | undefined): number {
 }
 
 async function fetchWeek(season: number, week: number): Promise<RawEntry[]> {
-  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
-  for (const p of POSITIONS) q.append("position[]", p);
-  return fetchSleeper<RawEntry[]>(`/projections/nfl/${season}/${week}?${q.toString()}`, {
-    baseUrl: SLEEPER_ROOT_URL,
+  return getWeeklyProjectionArray(String(season), week, [...POSITIONS], {
     revalidate: 30 * 60,
   });
 }
 
 async function fetchSeason(season: number): Promise<RawEntry[]> {
-  const q = new URLSearchParams({ season_type: "regular", order_by: "pts_ppr" });
-  for (const p of POSITIONS) q.append("position[]", p);
-  return fetchSleeper<RawEntry[]>(`/projections/nfl/${season}?${q.toString()}`, {
-    baseUrl: SLEEPER_ROOT_URL,
+  return getSeasonProjections(String(season), [...POSITIONS], {
     revalidate: 6 * 60 * 60,
   }).catch(() => []);
 }
