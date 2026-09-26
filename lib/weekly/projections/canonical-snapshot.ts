@@ -17,7 +17,7 @@ import type { WeeklyProjection, WeeklyProjectionBatch, WeeklyWarning } from "../
 import type { ProjectionRequest } from "./types";
 
 export const PROJECTION_SNAPSHOT_FORMAT = 1 as const;
-/** Hourly capture + 30m source TTL: 90m gives one missed cron without forcing live. */
+/** 90-minute serving window. A daily cron warms the store; ordinary requests self-refresh stale/missing snapshots. */
 export const PROJECTION_SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
 
 export interface ProjectionSnapshotScope {
