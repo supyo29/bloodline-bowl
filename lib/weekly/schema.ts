@@ -252,6 +252,55 @@ export interface ByeInfo {
   teams_on_bye: string[];
 }
 
+/**
+ * Phase 4 availability/readiness contract.
+ *
+ * These axes are deliberately orthogonal. A PARTIAL projection source is not a
+ * market outage; an unavailable ROS signal is not an ownership failure; a
+ * generic canonical snapshot may lack a materialized waiver_state while the
+ * dedicated Market State substrate is fully actionable.
+ */
+export interface WeeklyReadinessContract {
+  live_provider: {
+    status: "READY" | "PARTIAL";
+    usable: boolean;
+  };
+  ownership: {
+    status: "READY" | "DEGRADED" | "UNAVAILABLE";
+    usable: boolean;
+    reasons: string[];
+    missing_inputs: string[];
+  };
+  market: {
+    status: "READY" | "PARTIAL" | "NOT_READY";
+    actionable: boolean;
+    source: "canonical_snapshot" | "market_state";
+    reasons: string[];
+    blocking_reasons: string[];
+    limitations: string[];
+  };
+  weekly_projections: {
+    status: "READY" | "PARTIAL" | "UNAVAILABLE";
+    usable: boolean;
+    roster_players_projected: number;
+    roster_players_total: number;
+    missing_roster_players: number;
+  };
+  rest_of_season: {
+    status: "READY" | "PARTIAL" | "UNAVAILABLE" | "NOT_REQUESTED";
+    usable: boolean;
+    external_players_available: number;
+    roster_players_total: number;
+    ri_status: "READY" | "UNAVAILABLE" | "NOT_REQUESTED";
+  };
+  waiver_recommendations: {
+    status: "READY" | "READY_WITH_LIMITATIONS" | "NOT_READY";
+    actionable: boolean;
+    blocked_by: string[];
+    limitations: string[];
+  };
+}
+
 export interface WeeklyTeamContext {
   engine_version: typeof WEEKLY_ENGINE_VERSION;
   generated_at: string;
@@ -307,6 +356,14 @@ export interface WeeklyTeamContext {
    * actionable — UNROSTERED != CERTIFIED_FREE_AGENT.
    */
   free_agent_pool_readiness: import("@/lib/canonical/capabilities").FreeAgentPoolReadiness;
+
+  /**
+   * Machine-readable orthogonal readiness axes. Consumers deciding whether
+   * waiver recommendations are usable should read
+   * `readiness.waiver_recommendations`, not infer actionability from the
+   * aggregate context `status`.
+   */
+  readiness: WeeklyReadinessContract;
 
   /** How the rest-of-season signal was assembled (external + RI ordinal). */
   ros_signal: {

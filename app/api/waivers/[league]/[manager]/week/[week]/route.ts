@@ -10,7 +10,7 @@
 import { runWithWeeklyContext } from "@/lib/weekly/intelligence";
 import { buildWaiverRecommendations } from "@/lib/weekly/waivers";
 import { parseWeek, viewResponse } from "@/lib/weekly/routes-shared";
-import { handleOptions, jsonResponse } from "@/lib/http";
+import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,6 +46,10 @@ export async function GET(
         detail:
           "Current free-agent pool is not materialized/certified for this league; waiver / free-agent / pickup / add-drop recommendations are unavailable. Unrostered in ownership data is not the same as a certified free agent.",
         capability: view.data.unavailable_detail,
+        readiness: view.data.readiness,
+        market_status: view.data.readiness.market.status,
+        projection_status: view.data.readiness.weekly_projections.status,
+        recommendation_status: view.data.readiness.waiver_recommendations.status,
         context: view.context_meta ?? null,
         data: view.data,
       },
@@ -56,7 +60,29 @@ export async function GET(
     );
   }
 
-  return viewResponse(view, contextLabel);
+  if (!view.data) return viewResponse(view, contextLabel);
+  const meta = view.context_meta!;
+  const healthy = view.data.readiness.waiver_recommendations.status === "READY";
+  return jsonResponse(
+    {
+      // Backward-compatible aggregate context status. Do NOT use this field to
+      // infer market actionability; use the explicit Phase 4 fields below.
+      status: meta.status,
+      market_status: view.data.readiness.market.status,
+      projection_status: view.data.readiness.weekly_projections.status,
+      ros_status: view.data.readiness.rest_of_season.status,
+      recommendation_status: view.data.readiness.waiver_recommendations.status,
+      readiness: view.data.readiness,
+      context: meta,
+      data: view.data,
+    },
+    {
+      headers: {
+        "Cache-Control": healthy ? cacheHeader(120, 300) : cacheHeader(45, 120),
+        "X-Bridge-Context": contextLabel,
+      },
+    },
+  );
 }
 
 export async function OPTIONS(): Promise<Response> {

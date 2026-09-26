@@ -14,6 +14,7 @@
 
 import { readLeagueState } from "@/lib/canonical/read";
 import { resolveFreshnessEnvelope } from "@/lib/canonical/freshness-envelope";
+import { assessCapabilities } from "@/lib/canonical/capabilities";
 import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export async function GET(
   const snap = result.snapshot;
   const healthy =
     snap.live_provider_status === "READY" && snap.history_persistence_status === "READY";
+  const capabilities = assessCapabilities(snap);
 
   // ADDITIVE (Stage D, observational): freshness + capability envelope. The
   // `state` field above is unchanged and still served by the legacy live path;
@@ -56,6 +58,20 @@ export async function GET(
       live_provider_status: snap.live_provider_status,
       history_persistence_status: snap.history_persistence_status,
       warnings: snap.warnings,
+      /**
+       * IMPORTANT acquisition scope: this generic route assesses only what is
+       * materialized in the canonical league snapshot. The dedicated waiver
+       * route enriches from canonical Market State and is the authority for
+       * current add/claim actionability.
+       */
+      acquisition_scope: {
+        authority: "CANONICAL_SNAPSHOT_ONLY",
+        waiver_actionability: "NOT_ASSESSED",
+        dedicated_route: `/api/waivers/${snap.league.league_slug}/{manager}/week/${snap.week}`,
+        detail:
+          "free_agent_pool=UNAVAILABLE here means the generic snapshot did not materialize waiver_state; it does not imply the dedicated Market State waiver surface is unavailable.",
+      },
+      capabilities,
       state: snap,
       ...(freshness ? { freshness } : {}),
     },

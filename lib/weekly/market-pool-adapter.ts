@@ -27,6 +27,8 @@ export const LEGACY_WAIVER_MARKET_POLICY: ConsumerPolicy = { consumer: "legacy-w
 
 export interface CertifiedFreeAgentPool {
   free_agent_pool_readiness: FreeAgentPoolReadiness;
+  /** Original canonical Market State readiness; never inferred from ownership. */
+  market_readiness: MarketSnapshot["readiness"];
   /**
    * `availability.free_agents` intersected with the certified Market State pool (matched by provider sleeper id).
    * Unchanged (still the raw canonical unrostered list) when the pool is not actionable — the readiness gate
@@ -53,6 +55,7 @@ export function certifyFreeAgentPool(market: MarketSnapshot, availability: Pick<
         reasons: reasons.length ? reasons : ["market state is not actionable for waiver/free-agent recommendations"],
         missing_inputs: verdict.blocked_by,
       },
+      market_readiness: market.readiness,
       free_agents: availability.free_agents,
       market_content_id: market.identities.market_content_id,
       pool_id: marketPool.pool_id,
@@ -64,6 +67,7 @@ export function certifyFreeAgentPool(market: MarketSnapshot, availability: Pick<
 
   return {
     free_agent_pool_readiness: { actionable: true, status: "HEALTHY", reason_code: null, reasons: [], missing_inputs: [] },
+    market_readiness: market.readiness,
     free_agents: certified,
     market_content_id: market.identities.market_content_id,
     pool_id: marketPool.pool_id,
