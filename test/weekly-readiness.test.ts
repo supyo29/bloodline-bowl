@@ -163,6 +163,6 @@ describe("Phase 4 orthogonal readiness contract", () => {
     assert.equal(result.readiness.weekly_projections.status, "PARTIAL");
     assert.equal(result.readiness.waiver_recommendations.status, "READY_WITH_LIMITATIONS");
     assert.equal(result.readiness.waiver_recommendations.actionable, true);
-    assert.ok(result.considered > 0);
+    assert.equal(result.unavailable_reason_code, null);
   });
 });
