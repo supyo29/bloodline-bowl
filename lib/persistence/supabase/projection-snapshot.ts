@@ -184,9 +184,10 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
     if (!pending) {
       pending = this.#readArtifact(scope, maxAgeMs, nowMs);
       this.#inFlightReads.set(key, pending);
-      void pending.finally(() => {
+      const cleanup = () => {
         if (this.#inFlightReads.get(key) === pending) this.#inFlightReads.delete(key);
-      });
+      };
+      void pending.then(cleanup, cleanup);
     }
 
     const loaded = await pending;
