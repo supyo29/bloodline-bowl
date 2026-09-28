@@ -12,7 +12,11 @@
 
 import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { buildLeagueManagementContext } from "@/lib/team-state/build";
-import { buildRosterHealthInputs, type RosterHealthInputOptions } from "./inputs";
+import {
+  buildRosterHealthInputs,
+  type RosterHealthInputs,
+  type RosterHealthInputOptions,
+} from "./inputs";
 import { evaluateHorizon } from "./evaluate";
 import { applyLeagueBenchmarks } from "./benchmark";
 import {
@@ -24,18 +28,26 @@ import {
 } from "./schema";
 import { TEAM_STATE_VERSION } from "@/lib/team-state/schema";
 
+export interface RosterHealthBuildOptions extends RosterHealthInputOptions {
+  /**
+   * Prebuilt league-wide inputs. This is an orchestration optimization only:
+   * standalone callers omit it and retain the original independent build.
+   */
+  inputsOverride?: RosterHealthInputs;
+}
+
 export async function buildRosterHealthContext(
   leagueSlug: string,
-  options: RosterHealthInputOptions = {},
+  options: RosterHealthBuildOptions = {},
 ): Promise<RosterHealthLeagueContext> {
   return runInLeagueStateScope(() => buildInner(leagueSlug, options));
 }
 
 async function buildInner(
   leagueSlug: string,
-  options: RosterHealthInputOptions,
+  options: RosterHealthBuildOptions,
 ): Promise<RosterHealthLeagueContext> {
-  const inputs = await buildRosterHealthInputs(leagueSlug, options);
+  const inputs = options.inputsOverride ?? await buildRosterHealthInputs(leagueSlug, options);
   const lmcRes = await buildLeagueManagementContext(leagueSlug, { snapshotOverride: inputs.snapshot });
   if (!lmcRes.ok || !lmcRes.context) {
     throw new Error(`roster-health: Team-State context unavailable (${lmcRes.code ?? "unknown"})`);
