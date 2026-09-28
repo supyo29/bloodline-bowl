@@ -35,6 +35,8 @@ test("Phase 6: orchestrator builds one shared projection-input package for roste
   assert.match(src, /roster_health_input_builds: number/);
   assert.match(src, /roster_health_inputs_shared: boolean/);
   assert.match(src, /metrics\.roster_health_inputs_shared = true/);
+  const fallbackCounts = src.match(/if \(!sharedRosterInputs\) metrics\.roster_health_input_builds \+= 1/g) ?? [];
+  assert.equal(fallbackCounts.length, 2, "successful independent fallback assemblies must also be counted");
 });
 
 test("Phase 6: production trace exposes whether shared-input convergence occurred", () => {
