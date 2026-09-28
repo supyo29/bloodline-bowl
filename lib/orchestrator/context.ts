@@ -17,12 +17,12 @@
  * scoring / slot eligibility / projection values / replacement levels / trade
  * or waiver calculations / Phase 6 or Phase 7 semantics.
  *
- * Bounded residual (documented, P8-2): `buildRosterHealthContext` and
- * `buildSchedulePlanningContext` each internally re-assemble the weekly
- * projection batch + RI signal from the (memoised) snapshot — 2 extra IN-MEMORY
- * projection assemblies, ZERO extra provider reads. Eliminating them would
- * require changing frozen Phase 6/7 builders, which §9 forbids. Measured in the
- * certification (§41).
+ * Projection-consumer convergence (repair Phase 6): Roster Health and Schedule
+ * Planning consume one shared league-wide projection/ROS/replacement input
+ * package. Their standalone APIs remain independent; only this composite
+ * orchestration path injects the shared inputs. Trade and Weekly Intelligence
+ * keep their own certified assembly semantics because those paths enrich/mutate
+ * projection batches differently.
  */
 
 import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
@@ -30,7 +30,11 @@ import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { resolveLeagueStrict, type ResolvedLeague } from "@/lib/leagues/resolve";
 import { resolveManager } from "@/lib/canonical/manager-context";
 import { buildLeagueManagementContext } from "@/lib/team-state/build";
-import { buildRosterHealthContext } from "@/lib/roster-health";
+import {
+  buildRosterHealthContext,
+  buildRosterHealthInputs,
+  type RosterHealthInputs,
+} from "@/lib/roster-health";
 import { buildSchedulePlanningContext } from "@/lib/schedule-planning";
 import { buildTradeAnalysisContext } from "@/lib/trades/context";
 import { buildManagerStrategicProfile } from "@/lib/trades/strategy/profile";
@@ -66,6 +70,8 @@ export interface SpecialistAvailability {
 export interface AssemblyMetrics {
   canonical_provider_reads: number;
   team_state_builds: number;
+  roster_health_input_builds: number;
+  roster_health_inputs_shared: boolean;
   roster_health_builds: number;
   schedule_planning_builds: number;
   trade_context_builds: number;
@@ -152,6 +158,8 @@ export async function buildManagementAnalysisContext(
     const metrics: AssemblyMetrics = {
       canonical_provider_reads: 0,
       team_state_builds: 0,
+      roster_health_input_builds: 0,
+      roster_health_inputs_shared: false,
       roster_health_builds: 0,
       schedule_planning_builds: 0,
       trade_context_builds: 0,
@@ -216,11 +224,33 @@ export async function buildManagementAnalysisContext(
     }
     metrics.ms.team_state = now() - t;
 
-    // ---- 3. Roster Health (all managers) ----------------------------------
+    // ---- 3. Shared projection/ROS/replacement inputs ----------------------
+    // Roster Health and Schedule Planning are both SHARED_CONTEXT consumers of
+    // this exact package. Build it once from the already-certified canonical
+    // snapshot and inject it into both specialists. If the shared preparation
+    // fails, retain each specialist's original independent fallback path.
+    let sharedRosterInputs: RosterHealthInputs | null = null;
+    t = now();
+    try {
+      sharedRosterInputs = await buildRosterHealthInputs(leagueSlug, { snapshotOverride: snapshot });
+      metrics.roster_health_input_builds += 1;
+      metrics.roster_health_inputs_shared = true;
+      noteSnapshot(sharedRosterInputs.snapshot.lineage?.league_snapshot_id, "shared_roster_inputs");
+    } catch (e) {
+      warnings.push(`shared roster-health inputs unavailable: ${e instanceof Error ? e.message : String(e)}; specialists will use independent fallback assembly`);
+    }
+    metrics.ms.shared_roster_inputs = now() - t;
+
+    // ---- 4. Roster Health (all managers) ----------------------------------
     let rosterHealth: RosterHealthLeagueContext | null = null;
     t = now();
     try {
-      rosterHealth = await buildRosterHealthContext(leagueSlug);
+      rosterHealth = await buildRosterHealthContext(
+        leagueSlug,
+        sharedRosterInputs
+          ? { inputsOverride: sharedRosterInputs }
+          : { snapshotOverride: snapshot },
+      );
       metrics.roster_health_builds += 1;
       availability.roster_health = true;
       noteSnapshot(rosterHealth.lineage.league_snapshot_id, "roster_health");
@@ -230,11 +260,16 @@ export async function buildManagementAnalysisContext(
     }
     metrics.ms.roster_health = now() - t;
 
-    // ---- 4. Schedule Planning (all managers) -----------------------------
+    // ---- 5. Schedule Planning (all managers) -----------------------------
     let schedulePlanning: SchedulePlanningLeagueContext | null = null;
     t = now();
     try {
-      schedulePlanning = await buildSchedulePlanningContext(leagueSlug);
+      schedulePlanning = await buildSchedulePlanningContext(
+        leagueSlug,
+        sharedRosterInputs
+          ? { inputsOverride: sharedRosterInputs }
+          : { snapshotOverride: snapshot },
+      );
       metrics.schedule_planning_builds += 1;
       availability.schedule_planning = true;
       noteSnapshot(schedulePlanning.lineage.league_snapshot_id, "schedule_planning");
@@ -244,7 +279,7 @@ export async function buildManagementAnalysisContext(
     }
     metrics.ms.schedule_planning = now() - t;
 
-    // ---- 5. Trade-analysis context (for strategy profiles) --------------
+    // ---- 6. Trade-analysis context (for strategy profiles) --------------
     let tradeCtx: TradeAnalysisContext | null = null;
     t = now();
     try {
