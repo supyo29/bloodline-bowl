@@ -297,6 +297,7 @@ describe("Phase 7 projection snapshot hardening", () => {
   it("hydration clones mutable player records so one caller cannot poison the cached artifact", () => {
     const req = request();
     const artifact = buildProjectionSnapshotArtifact(req, batch());
+    const originalRos = structuredClone(artifact.players[0]!.projection.ros);
     const first = hydrateProjectionSnapshotBatch(artifact, ["p1"], {
       observed_at: "2026-09-28T10:00:00.000Z",
       age_ms: 0,
@@ -325,9 +326,9 @@ describe("Phase 7 projection snapshot hardening", () => {
       durable: true,
     });
     assert.equal(second.by_player.get("p1")?.rest_of_season_points, 120);
-    assert.equal(second.by_player.get("p1")?.ros, null);
+    assert.deepEqual(second.by_player.get("p1")?.ros, originalRos);
     assert.equal(artifact.players[0]?.projection.rest_of_season_points, 120);
-    assert.equal(artifact.players[0]?.projection.ros, null);
+    assert.deepEqual(artifact.players[0]?.projection.ros, originalRos);
   });
 
   it("a slower old read cannot overwrite a newer process-local cache entry", async () => {
