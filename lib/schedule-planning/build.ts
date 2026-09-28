@@ -16,6 +16,7 @@ import { buildLeagueManagementContext } from "@/lib/team-state/build";
 import {
   buildRosterHealthInputs,
   evaluateHorizon,
+  type RosterHealthInputs,
   type RosterHealthInputOptions,
 } from "@/lib/roster-health";
 import { TEAM_STATE_VERSION } from "@/lib/team-state/schema";
@@ -36,7 +37,14 @@ import {
 /** NFL regular season length (weeks) — the planning ceiling when playoff config is absent. */
 const NFL_LAST_REGULAR_WEEK = 18;
 
-export type SchedulePlanningOptions = RosterHealthInputOptions;
+export interface SchedulePlanningOptions extends RosterHealthInputOptions {
+  /**
+   * Prebuilt league-wide projection/ROS/replacement inputs. Composite callers
+   * may share this with Roster Health; standalone callers retain the original
+   * independent build path.
+   */
+  inputsOverride?: RosterHealthInputs;
+}
 
 export async function buildSchedulePlanningContext(
   leagueSlug: string,
@@ -49,7 +57,7 @@ async function buildInner(
   leagueSlug: string,
   options: SchedulePlanningOptions,
 ): Promise<SchedulePlanningLeagueContext> {
-  const inputs = await buildRosterHealthInputs(leagueSlug, options);
+  const inputs = options.inputsOverride ?? await buildRosterHealthInputs(leagueSlug, options);
   const lmcRes = await buildLeagueManagementContext(leagueSlug, { snapshotOverride: inputs.snapshot });
   if (!lmcRes.ok || !lmcRes.context) {
     throw new Error(`schedule-planning: Team-State context unavailable (${lmcRes.code ?? "unknown"})`);
