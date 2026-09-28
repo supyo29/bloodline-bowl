@@ -47,6 +47,7 @@ export interface ProjectionSnapshotArtifact {
   season: number;
   week: number;
   scoring_fingerprint: string;
+  request_fingerprint: string;
   status: WeeklyProjectionBatch["status"];
   source: string;
   model_version: string;
