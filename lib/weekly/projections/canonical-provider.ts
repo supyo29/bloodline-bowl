@@ -31,6 +31,10 @@ export class CanonicalProjectionSnapshotProvider implements ProjectionProvider {
   }
 
   async getWeeklyProjections(req: ProjectionRequest): Promise<WeeklyProjectionBatch> {
+    // The request fingerprint includes crosswalk.version. Load it before ANY
+    // snapshot scope is computed so readLatest() and a later record() cannot
+    // disagree merely because the live provider initialized the crosswalk.
+    await req.crosswalk.ensureLoaded();
     const policy = req.projection_snapshot_policy ?? "prefer";
     let readFailure: string | null = null;
 

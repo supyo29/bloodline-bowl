@@ -251,6 +251,7 @@ export async function buildManagementAnalysisContext(
           ? { inputsOverride: sharedRosterInputs }
           : { snapshotOverride: snapshot },
       );
+      if (!sharedRosterInputs) metrics.roster_health_input_builds += 1;
       metrics.roster_health_builds += 1;
       availability.roster_health = true;
       noteSnapshot(rosterHealth.lineage.league_snapshot_id, "roster_health");
@@ -270,6 +271,7 @@ export async function buildManagementAnalysisContext(
           ? { inputsOverride: sharedRosterInputs }
           : { snapshotOverride: snapshot },
       );
+      if (!sharedRosterInputs) metrics.roster_health_input_builds += 1;
       metrics.schedule_planning_builds += 1;
       availability.schedule_planning = true;
       noteSnapshot(schedulePlanning.lineage.league_snapshot_id, "schedule_planning");

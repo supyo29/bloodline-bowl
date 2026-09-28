@@ -45,6 +45,7 @@ interface SnapshotRow {
   season: number;
   week: number;
   scoring_fingerprint: string;
+  request_fingerprint: string;
   status: WeeklyProjectionBatch["status"];
   source: string;
   model_version: string;
@@ -66,6 +67,7 @@ interface PointerRow {
   season: number;
   week: number;
   scoring_fingerprint: string;
+  request_fingerprint: string;
   artifact_id: string;
   observed_at: string;
 }
@@ -78,6 +80,7 @@ function parentRow(a: ProjectionSnapshotArtifact): SnapshotRow {
     season: a.season,
     week: a.week,
     scoring_fingerprint: a.scoring_fingerprint,
+    request_fingerprint: a.request_fingerprint,
     status: a.status,
     source: a.source,
     model_version: a.model_version,
@@ -108,6 +111,7 @@ function artifactFromRows(parent: SnapshotRow, players: PlayerRow[]): Projection
     season: parent.season,
     week: parent.week,
     scoring_fingerprint: parent.scoring_fingerprint,
+    request_fingerprint: parent.request_fingerprint,
     status: parent.status,
     source: parent.source,
     model_version: parent.model_version,
@@ -138,7 +142,24 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
   constructor(private readonly rest: SupabaseRest) {}
 
   #scopeKey(scope: ReturnType<typeof projectionSnapshotScope>): string {
-    return `${scope.league_slug}|${scope.season}|${scope.week}|${scope.scoring_fingerprint}`;
+    return `${scope.league_slug}|${scope.season}|${scope.week}|${scope.scoring_fingerprint}|${scope.request_fingerprint}`;
+  }
+
+
+  #cacheNewerOrEqual(
+    key: string,
+    next: { artifact: ProjectionSnapshotArtifact; observed_at: string; cached_at_ms: number },
+  ): { artifact: ProjectionSnapshotArtifact; observed_at: string; cached_at_ms: number } {
+    const current = this.#readCache.get(key);
+    if (current) {
+      const currentMs = Date.parse(current.observed_at);
+      const nextMs = Date.parse(next.observed_at);
+      if (Number.isFinite(currentMs) && Number.isFinite(nextMs) && currentMs > nextMs) {
+        return current;
+      }
+    }
+    this.#readCache.set(key, next);
+    return next;
   }
 
   #hydrateHit(
@@ -192,12 +213,12 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
 
     const loaded = await pending;
     if (!loaded) return null;
-    this.#readCache.set(key, {
+    const chosen = this.#cacheNewerOrEqual(key, {
       artifact: loaded.artifact,
       observed_at: loaded.observed_at,
       cached_at_ms: nowMs,
     });
-    return this.#hydrateHit(req, loaded.artifact, loaded.observed_at, nowMs);
+    return this.#hydrateHit(req, chosen.artifact, chosen.observed_at, nowMs);
   }
 
   async #readArtifact(
@@ -211,9 +232,10 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
         season: `eq.${scope.season}`,
         week: `eq.${scope.week}`,
         scoring_fingerprint: `eq.${scope.scoring_fingerprint}`,
+        request_fingerprint: `eq.${scope.request_fingerprint}`,
       },
       limit: 1,
-      select: "league_slug,season,week,scoring_fingerprint,artifact_id,observed_at",
+      select: "league_slug,season,week,scoring_fingerprint,request_fingerprint,artifact_id,observed_at",
     });
     const pointer = rows[0];
     if (!pointer) return null;
@@ -227,7 +249,7 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
         filter: { artifact_id: `eq.${pointer.artifact_id}` },
         limit: 1,
         select:
-          "artifact_id,content_hash,league_slug,season,week,scoring_fingerprint,status,source,model_version,teams_with_games,warnings,row_count,format",
+          "artifact_id,content_hash,league_slug,season,week,scoring_fingerprint,request_fingerprint,status,source,model_version,teams_with_games,warnings,row_count,format",
       })
     )[0];
     if (!parent) return null;
@@ -235,7 +257,8 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       parent.league_slug !== scope.league_slug ||
       parent.season !== scope.season ||
       parent.week !== scope.week ||
-      parent.scoring_fingerprint !== scope.scoring_fingerprint
+      parent.scoring_fingerprint !== scope.scoring_fingerprint ||
+      parent.request_fingerprint !== scope.request_fingerprint
     ) {
       return null;
     }
@@ -299,6 +322,7 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
         "season",
         "week",
         "scoring_fingerprint",
+        "request_fingerprint",
       ]);
       const pointerAdvanced = await this.rest.updateReturning<PointerRow>(
         POINTER_TABLE,
@@ -307,6 +331,7 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
           season: `eq.${scope.season}`,
           week: `eq.${scope.week}`,
           scoring_fingerprint: `eq.${scope.scoring_fingerprint}`,
+          request_fingerprint: `eq.${scope.request_fingerprint}`,
           observed_at: `lt.${observedAt}`,
         },
         { artifact_id: artifact.artifact_id, observed_at: observedAt, updated_at: new Date().toISOString() },
@@ -315,7 +340,7 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       // If this write won the pointer race, make the normalized artifact
       // immediately reusable by every other analytical stage in this process.
       if (pointerInserted.length > 0 || pointerAdvanced.length > 0) {
-        this.#readCache.set(this.#scopeKey(scope), {
+        this.#cacheNewerOrEqual(this.#scopeKey(scope), {
           artifact,
           observed_at: observedAt,
           cached_at_ms: Date.now(),
