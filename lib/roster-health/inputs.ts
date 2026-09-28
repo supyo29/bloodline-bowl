@@ -65,6 +65,13 @@ export interface RosterHealthInputOptions {
   projectionProviderOverride?: ReturnType<typeof getWeeklyProjectionProvider>;
   scheduleProviderOverride?: ReturnType<typeof getScheduleProvider>;
   skipRi?: boolean;
+  /**
+   * Reuse an already-certified canonical league snapshot. Composite consumers
+   * (notably the Team Management Orchestrator) can then build this expensive
+   * projection/ROS/replacement input package once without asking this adapter
+   * to re-enter canonical state assembly.
+   */
+  snapshotOverride?: CanonicalLeagueSnapshot;
 }
 
 export async function buildRosterHealthInputs(
@@ -77,10 +84,12 @@ export async function buildRosterHealthInputs(
   const crosswalk = defaultCrosswalkSource()
     ? new PlayerCrosswalk(defaultCrosswalkSource()!)
     : new PlayerCrosswalk(NoCrosswalk);
-  const state = await buildCanonicalLeagueState(leagueSlug, {
-    includeMatchups: true,
-    crosswalkOverride: crosswalk,
-  });
+  const state = options.snapshotOverride
+    ? { ok: true as const, snapshot: options.snapshotOverride, code: undefined as string | undefined }
+    : await buildCanonicalLeagueState(leagueSlug, {
+        includeMatchups: true,
+        crosswalkOverride: crosswalk,
+      });
   if (!state.ok || !state.snapshot) {
     throw new Error(`roster-health: could not build canonical league state (${state.code ?? "unknown"})`);
   }
