@@ -9,7 +9,7 @@
  * See docs/TEAM_MANAGEMENT_PHASE_6.md.
  */
 export * from "./schema";
-export { buildRosterHealthContext } from "./build";
+export { buildRosterHealthContext, type RosterHealthBuildOptions } from "./build";
 export { rosterHealthDelta } from "./delta";
 export { buildRosterHealthInputs, type RosterHealthInputs, type RosterHealthInputOptions } from "./inputs";
 export { evaluateHorizon } from "./evaluate";
