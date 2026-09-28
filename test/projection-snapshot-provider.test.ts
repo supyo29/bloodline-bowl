@@ -6,6 +6,8 @@ import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import {
   buildProjectionSnapshotArtifact,
   hydrateProjectionSnapshotBatch,
+  projectionSnapshotRequestFingerprint,
+  projectionSnapshotScope,
   type ProjectionSnapshotHit,
   type ProjectionSnapshotStore,
   type ProjectionSnapshotWriteResult,
@@ -165,6 +167,7 @@ describe("Phase 5 canonical projection snapshot provider", () => {
     assert.equal(a.artifact_id, b.artifact_id);
     assert.equal(a.content_hash, b.content_hash);
     assert.equal(a.scoring_fingerprint, scoringFingerprint(request().league.raw_scoring));
+    assert.equal(a.request_fingerprint, projectionSnapshotRequestFingerprint(request()));
 
     const changed = request();
     changed.league = { ...changed.league, raw_scoring: { ...changed.league.raw_scoring, rec: 0.5 } };
@@ -202,6 +205,7 @@ describe("Phase 5 Supabase projection snapshot pagination", () => {
             season: artifact.season,
             week: artifact.week,
             scoring_fingerprint: artifact.scoring_fingerprint,
+            request_fingerprint: artifact.request_fingerprint,
             artifact_id: artifact.artifact_id,
             observed_at: observedAt,
           }];
@@ -214,6 +218,7 @@ describe("Phase 5 Supabase projection snapshot pagination", () => {
             season: artifact.season,
             week: artifact.week,
             scoring_fingerprint: artifact.scoring_fingerprint,
+            request_fingerprint: artifact.request_fingerprint,
             status: artifact.status,
             source: artifact.source,
             model_version: artifact.model_version,
@@ -258,5 +263,162 @@ describe("Phase 5 Supabase projection snapshot pagination", () => {
     assert.ok(warmHit);
     assert.deepEqual(offsets, [0, 1000, 2000], "warm process-local read performs no extra page reads");
     assert.equal(pointerReads, 1, "warm process-local read performs no extra pointer read");
+  });
+});
+
+
+describe("Phase 7 projection snapshot hardening", () => {
+  it("request fingerprint separates ROS, return-game, and crosswalk variants", () => {
+    const base = request();
+    const noRos = request();
+    noRos.want_rest_of_season = false;
+
+    const returnA = request();
+    returnA.return_game_recent_attempts = new Map([["s1", [1, 0, 0]]]);
+    const returnB = request();
+    returnB.return_game_recent_attempts = new Map([["s1", [2, 0, 0]]]);
+
+    assert.notEqual(
+      projectionSnapshotRequestFingerprint(base),
+      projectionSnapshotRequestFingerprint(noRos),
+      "ROS mode changes normalized projection output and must not share a pointer",
+    );
+    assert.notEqual(
+      projectionSnapshotRequestFingerprint(returnA),
+      projectionSnapshotRequestFingerprint(returnB),
+      "return-game evidence changes normalized projection output and must not share a pointer",
+    );
+    assert.notEqual(
+      projectionSnapshotScope(base).request_fingerprint,
+      projectionSnapshotScope(noRos).request_fingerprint,
+    );
+  });
+
+  it("hydration clones mutable player records so one caller cannot poison the cached artifact", () => {
+    const req = request();
+    const artifact = buildProjectionSnapshotArtifact(req, batch());
+    const first = hydrateProjectionSnapshotBatch(artifact, ["p1"], {
+      observed_at: "2026-09-28T10:00:00.000Z",
+      age_ms: 0,
+      durable: true,
+    });
+    const firstProjection = first.by_player.get("p1")!;
+    firstProjection.rest_of_season_points = 999;
+    firstProjection.ros = {
+      points: 999,
+      source: "sleeper_season_rotowire_prorated",
+      external_season_points: 999,
+      ri_season_points: null,
+      ri_position_rank: null,
+      ri_vor: null,
+      ri_tier: null,
+      ri_confidence: null,
+      disagreement_pct: null,
+      disagreement_direction: "ONE_SOURCE",
+      confidence: "LOW",
+      warnings: ["caller mutation"],
+    };
+
+    const second = hydrateProjectionSnapshotBatch(artifact, ["p1"], {
+      observed_at: "2026-09-28T10:00:00.000Z",
+      age_ms: 1,
+      durable: true,
+    });
+    assert.equal(second.by_player.get("p1")?.rest_of_season_points, 120);
+    assert.equal(second.by_player.get("p1")?.ros, null);
+    assert.equal(artifact.players[0]?.projection.rest_of_season_points, 120);
+    assert.equal(artifact.players[0]?.projection.ros, null);
+  });
+
+  it("a slower old read cannot overwrite a newer process-local cache entry", async () => {
+    const req = request();
+    const oldBatch = batch(10);
+    const newBatch = batch(20);
+    const oldArtifact = buildProjectionSnapshotArtifact(req, oldBatch);
+    const newArtifact = buildProjectionSnapshotArtifact(req, newBatch);
+    const oldObserved = "2026-09-28T10:00:00.000Z";
+    const newObserved = "2026-09-28T10:01:00.000Z";
+
+    let releaseOldPage!: () => void;
+    const oldPageBlocked = new Promise<void>((resolve) => { releaseOldPage = resolve; });
+    let oldPageStarted!: () => void;
+    const oldPageStartedPromise = new Promise<void>((resolve) => { oldPageStarted = resolve; });
+
+    const fakeRest = {
+      select: async (table: string) => {
+        if (table === "bridge_projection_latest") {
+          return [{
+            league_slug: oldArtifact.league_slug,
+            season: oldArtifact.season,
+            week: oldArtifact.week,
+            scoring_fingerprint: oldArtifact.scoring_fingerprint,
+            request_fingerprint: oldArtifact.request_fingerprint,
+            artifact_id: oldArtifact.artifact_id,
+            observed_at: oldObserved,
+          }];
+        }
+        if (table === "bridge_projection_snapshots") {
+          return [{
+            artifact_id: oldArtifact.artifact_id,
+            content_hash: oldArtifact.content_hash,
+            league_slug: oldArtifact.league_slug,
+            season: oldArtifact.season,
+            week: oldArtifact.week,
+            scoring_fingerprint: oldArtifact.scoring_fingerprint,
+            request_fingerprint: oldArtifact.request_fingerprint,
+            status: oldArtifact.status,
+            source: oldArtifact.source,
+            model_version: oldArtifact.model_version,
+            teams_with_games: oldArtifact.teams_with_games,
+            warnings: oldArtifact.warnings,
+            row_count: oldArtifact.row_count,
+            format: oldArtifact.format,
+          }];
+        }
+        if (table === "bridge_projection_snapshot_players") {
+          oldPageStarted();
+          await oldPageBlocked;
+          return oldArtifact.players.map((p) => ({
+            artifact_id: oldArtifact.artifact_id,
+            canonical_player_id: p.canonical_player_id,
+            projection: p.projection,
+            resolved_player: p.resolved_player,
+          }));
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+      insertIgnoreDuplicates: async (table: string) => {
+        if (table === "bridge_projection_snapshots") return [{ artifact_id: newArtifact.artifact_id }];
+        return [];
+      },
+      updateReturning: async () => [{
+        league_slug: newArtifact.league_slug,
+        season: newArtifact.season,
+        week: newArtifact.week,
+        scoring_fingerprint: newArtifact.scoring_fingerprint,
+        request_fingerprint: newArtifact.request_fingerprint,
+        artifact_id: newArtifact.artifact_id,
+        observed_at: newObserved,
+      }],
+    } as unknown as SupabaseRest;
+
+    const store = new SupabaseProjectionSnapshotStore(fakeRest);
+    const oldRead = store.readLatest(req, { now: () => Date.parse(oldObserved) + 1000 });
+    await oldPageStartedPromise;
+
+    const write = await store.record(req, newBatch, newObserved);
+    assert.notEqual(write.status, "ERROR");
+    releaseOldPage();
+
+    const resolvedOldRead = await oldRead;
+    assert.ok(resolvedOldRead);
+    assert.equal(
+      resolvedOldRead!.batch.by_player.get("p1")?.projected_points,
+      20,
+      "newer winning write remains authoritative even when an older read finishes later",
+    );
+
+    const warm = await store.readLatest(req, { now: () => Date.parse(newObserved) + 1000 });
+    assert.equal(warm?.batch.by_player.get("p1")?.projected_points, 20);
   });
 });
