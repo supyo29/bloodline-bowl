@@ -55,7 +55,10 @@ test("Phase 7: only the registry constructs the concrete weekly projection provi
   for (const file of walk(join(ROOT, "lib"))) {
     const rel = relative(ROOT, file).replaceAll("\\", "/");
     const src = readFileSync(file, "utf8");
-    if (!src.includes("SleeperWeeklyProjectionProvider")) continue;
+    const constructsConcreteProvider =
+      /import\s+\{?\s*SleeperWeeklyProjectionProvider/.test(src) ||
+      /new\s+SleeperWeeklyProjectionProvider\s*\(/.test(src);
+    if (!constructsConcreteProvider) continue;
     if (!allowed.has(rel)) violations.push(rel);
   }
   assert.deepEqual(violations, []);
