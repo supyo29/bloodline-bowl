@@ -25,6 +25,12 @@ export interface ProjectionSnapshotScope {
   season: number;
   week: number;
   scoring_fingerprint: string;
+  /**
+   * Fingerprint of every request input that can change normalized projection
+   * output while league/week/scoring stay constant. This prevents one caller's
+   * ROS / return-game / crosswalk variant from being served to another.
+   */
+  request_fingerprint: string;
 }
 
 export interface ProjectionSnapshotPlayerRecord {
@@ -85,12 +91,31 @@ export interface ProjectionSnapshotStore {
   ): Promise<ProjectionSnapshotWriteResult>;
 }
 
+function sortedMapEntries<T>(m: ReadonlyMap<string, T> | undefined): Array<[string, T]> {
+  return m ? [...m.entries()].sort(([a], [b]) => a.localeCompare(b)) : [];
+}
+
+export function projectionSnapshotRequestFingerprint(req: ProjectionRequest): string {
+  const semantic = {
+    format: 1,
+    want_rest_of_season: req.want_rest_of_season === true,
+    crosswalk_version: req.crosswalk.version ?? null,
+    return_game_season: sortedMapEntries(req.return_game_season),
+    return_game_recent_attempts: sortedMapEntries(req.return_game_recent_attempts).map(([id, attempts]) => [
+      id,
+      [...attempts],
+    ]),
+  };
+  return `projreq:v1:${contentHash(semantic).slice(0, 24)}`;
+}
+
 export function projectionSnapshotScope(req: ProjectionRequest): ProjectionSnapshotScope {
   return {
     league_slug: req.league.league_slug,
     season: req.league.season,
     week: req.week,
     scoring_fingerprint: scoringFingerprint(req.league.raw_scoring),
+    request_fingerprint: projectionSnapshotRequestFingerprint(req),
   };
 }
 
@@ -141,8 +166,14 @@ export function hydrateProjectionSnapshotBatch(
   const by_player = new Map<string, WeeklyProjection>();
   const resolved_players = new Map<string, CanonicalPlayer>();
   for (const row of artifact.players) {
-    by_player.set(row.canonical_player_id, row.projection);
-    if (row.resolved_player) resolved_players.set(row.canonical_player_id, row.resolved_player);
+    // The durable/process-local artifact is immutable shared evidence. Every
+    // caller receives its own mutable projection/player objects because
+    // downstream enrichment (for example assembleRosSignals) intentionally
+    // mutates the returned batch in place.
+    by_player.set(row.canonical_player_id, structuredClone(row.projection));
+    if (row.resolved_player) {
+      resolved_players.set(row.canonical_player_id, structuredClone(row.resolved_player));
+    }
   }
 
   const warnings = [
