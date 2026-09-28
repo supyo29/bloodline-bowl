@@ -70,6 +70,8 @@ export interface OrchestratorTrace {
   /** the shared-context assembly health. */
   assembly: {
     canonical_provider_reads: number;
+    roster_health_input_builds: number;
+    roster_health_inputs_shared: boolean;
     snapshot_ids_seen: string[];
     snapshot_coherent: boolean;
     stage_ms: Record<string, number>;
@@ -227,6 +229,8 @@ export function buildOrchestratorTrace(mac: ManagementAnalysisContext, result: O
     action_traces,
     assembly: {
       canonical_provider_reads: mac.metrics.canonical_provider_reads,
+      roster_health_input_builds: mac.metrics.roster_health_input_builds,
+      roster_health_inputs_shared: mac.metrics.roster_health_inputs_shared,
       snapshot_ids_seen: mac.metrics.snapshot_ids_seen,
       snapshot_coherent: mac.metrics.snapshot_coherent,
       stage_ms: mac.metrics.ms,
