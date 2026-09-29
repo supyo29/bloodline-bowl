@@ -81,12 +81,50 @@ export function candidatesFromCapture(cap: { capture_id: string; content_hash: s
   return out;
 }
 
+/** Fallback identities never override this week's own snapshot identities. Pure. */
+export function mergeFallbackIdentities(primary: Map<string, PlayerIdentity>, fallback: ReadonlyMap<string, PlayerIdentity>, source: string): number {
+  let added = 0;
+  for (const [id, i] of fallback) if (!primary.has(id)) { primary.set(id, { ...i, identity_source: source }); added++; }
+  return added;
+}
+
+/**
+ * Identity precedence (pure): this week's snapshot rows > crosswalk fallback from another week (ONLY when this week has no
+ * snapshot identities of its own) > capture-only identities (sparse: they never carry a crosswalk sleeper id).
+ * The fallback decision depends on SNAPSHOT identities alone — capture identities must never suppress it.
+ */
+export function resolveWeekIdentities(args: { snapshot: ReadonlyMap<string, PlayerIdentity>; captureOnly: ReadonlyMap<string, PlayerIdentity>; fallback: ReadonlyMap<string, PlayerIdentity> | null; fallbackSource: string | null }): { identities: Map<string, PlayerIdentity>; fallback_used: boolean } {
+  const identities = new Map(args.snapshot);
+  let used = false;
+  if (identities.size === 0 && args.fallback && args.fallbackSource) { mergeFallbackIdentities(identities, args.fallback, args.fallbackSource); used = identities.size > 0; }
+  for (const [id, i] of args.captureOnly) if (!identities.has(id)) identities.set(id, i);
+  return { identities, fallback_used: used };
+}
+
+/** Provider stat rows for offensive players that NO crosswalk identity (this week's or fallback) covers -> explicit unresolved identities. Pure. */
+export function unresolvedIdentitiesFromStats(
+  rawByPlayer: ReadonlyMap<string, Record<string, number>>, identities: ReadonlyMap<string, PlayerIdentity>,
+  index: ReadonlyMap<string, { position?: string | null; team?: string | null; full_name?: string | null }>,
+): PlayerIdentity[] {
+  const known = new Set([...identities.values()].map((i) => i.sleeper_id?.toUpperCase()).filter(Boolean) as string[]);
+  const out: PlayerIdentity[] = [];
+  for (const [sid, row] of rawByPlayer) {
+    if (known.has(sid) || !/^\d+$/.test(sid)) continue;
+    const pl = index.get(sid) ?? index.get(sid.toLowerCase());
+    const pos = pl?.position ?? null;
+    if (!pl || !pos || !["QB", "RB", "WR", "TE", "K"].includes(pos)) continue;
+    if (!Object.keys(row).some((k) => /^(pass_att|rush_att|rec_tgt|rec|fga|xpa)$/.test(k))) continue;
+    out.push({ canonical_player_id: `unresolved:sleeper:${sid}`, sleeper_id: sid, provider_ids: { sleeper_id: sid }, name: pl.full_name ?? null, position: pos, nfl_team: normalizeTeamCode(pl.team ?? null), resolved: false });
+  }
+  return out;
+}
+
 export interface MaterializeArgs { season: number; week: number; leagues: LeagueScoringInput[]; rest: SupabaseRest | null; write: boolean; now?: string }
 export interface MaterializeSummary extends Omit<BuildWeekResult, "cases" | "football_outcomes"> {
   season: number; week: number; games_total: number; games_final: number; games_missing_kickoff: number;
   cases_built: number; football_outcomes_built: number; wrote: boolean;
   writes: { games: WriteCounts | null; football_outcomes: WriteCounts | null; cases: WriteCounts | null };
-  artifacts_read: Record<string, number>; captures_read: number; stats_available: boolean; identities: number;
+  artifacts_read: Record<string, number>; identity_fallback: string | null; captures_read: number; stats_available: boolean; identities: number;
 }
 
 export async function materializeCalibrationWeek(args: MaterializeArgs): Promise<{ summary: MaterializeSummary; built: BuildWeekResult; games: NflGame[] }> {
@@ -97,7 +135,8 @@ export async function materializeCalibrationWeek(args: MaterializeArgs): Promise
   const finalGames = games.filter((g) => g.status === "complete" || /^(postponed|cancel+ed)$/.test(g.status));
   const latestFinalKickoff = finalGames.reduce((m, g) => Math.max(m, Date.parse(g.kickoff_at)), 0);
 
-  const identities = new Map<string, PlayerIdentity>();
+  const snapshotIdentities = new Map<string, PlayerIdentity>();
+  const captureIdentities = new Map<string, PlayerIdentity>();
   const candidates = new Map<string, ProjectionCandidate[]>();
   const push = (league: string, canonical: string, c: ProjectionCandidate) => { const k = `${league}|${canonical}`; (candidates.get(k) ?? candidates.set(k, []).get(k)!).push(c); };
   const artifactsRead: Record<string, number> = {};
@@ -109,7 +148,7 @@ export async function materializeCalibrationWeek(args: MaterializeArgs): Promise
     artifactsRead[league.league_slug] = metas.length;
     for (const meta of metas) {
       for (const p of await readSnapshotPlayers(rest, meta.artifact_id)) {
-        if (!identities.has(p.canonical_player_id)) identities.set(p.canonical_player_id, identityFromSnapshotRow(p));
+        if (!snapshotIdentities.has(p.canonical_player_id)) snapshotIdentities.set(p.canonical_player_id, identityFromSnapshotRow(p));
         push(league.league_slug, p.canonical_player_id, candidateFromSnapshotRow(meta, p, league.raw_scoring));
       }
     }
@@ -117,26 +156,32 @@ export async function materializeCalibrationWeek(args: MaterializeArgs): Promise
     capturesRead += caps.length;
     for (const cap of caps) for (const { canonical, c } of candidatesFromCapture(cap, league.raw_scoring)) {
       push(league.league_slug, canonical, c);
-      if (!identities.has(canonical)) identities.set(canonical, { canonical_player_id: canonical, sleeper_id: /^player:sleeper:(.+)$/.exec(canonical)?.[1]?.toUpperCase() ?? null, provider_ids: {}, name: null, position: c.position, nfl_team: c.nfl_team, resolved: true });
+      if (!captureIdentities.has(canonical)) captureIdentities.set(canonical, { canonical_player_id: canonical, sleeper_id: /^player:sleeper:(.+)$/.exec(canonical)?.[1]?.toUpperCase() ?? null, provider_ids: {}, name: null, position: c.position, nfl_team: c.nfl_team, resolved: true });
     }
   }
 
   const actualsRaw = await loadWeekActuals(args.season, args.week).catch(() => null);
   const actuals: WeekActualsLike | null = actualsRaw && actualsRaw.raw.size ? actualsRaw : null;
 
-  // Provider stat rows for offensive players the crosswalk-backed snapshots never resolved: explicit UNRESOLVED_IDENTITY cases.
-  if (actuals) {
-    const known = new Set([...identities.values()].map((i) => i.sleeper_id?.toUpperCase()).filter(Boolean) as string[]);
-    const index = await getPlayerIndex().catch(() => null);
-    if (index) for (const [sid, row] of actuals.raw) {
-      if (known.has(sid) || !/^\d+$/.test(sid)) continue;
-      const pl = index.get(sid) ?? index.get(sid.toLowerCase());
-      const pos = pl?.position ?? null;
-      if (!pl || !pos || !["QB", "RB", "WR", "TE", "K"].includes(pos)) continue;
-      if (!Object.keys(row).some((k) => /^(pass_att|rush_att|rec_tgt|rec|fga|xpa)$/.test(k))) continue;
-      const canonical = `unresolved:sleeper:${sid}`;
-      identities.set(canonical, { canonical_player_id: canonical, sleeper_id: sid, provider_ids: { sleeper_id: sid }, name: pl.full_name ?? null, position: pos, nfl_team: normalizeTeamCode(pl.team ?? null), resolved: false });
+  // A week with no snapshot rows of its own (e.g. before the durable snapshot tables existed) still has stable crosswalk ids:
+  // borrow identities from the nearest other-week snapshot of any league. Never used for projection evidence.
+  let fallbackMap: Map<string, PlayerIdentity> | null = null, fallbackSource: string | null = null;
+  if (snapshotIdentities.size === 0) {
+    const others = await rest.select<SnapshotMeta & { week: number }>("bridge_projection_snapshots", { filter: { season: `eq.${args.season}`, week: `neq.${args.week}` }, select: "artifact_id,week,recorded_at,league_slug,scoring_fingerprint,request_fingerprint,source,model_version,content_hash,warnings", order: "recorded_at.desc", limit: 1 });
+    if (others[0]) {
+      fallbackMap = new Map();
+      for (const p of await readSnapshotPlayers(rest, others[0].artifact_id)) fallbackMap.set(p.canonical_player_id, identityFromSnapshotRow(p));
+      fallbackSource = `crosswalk_fallback:${others[0].artifact_id}(week ${others[0].week})`;
     }
+  }
+  const resolved = resolveWeekIdentities({ snapshot: snapshotIdentities, captureOnly: captureIdentities, fallback: fallbackMap, fallbackSource });
+  const identities = resolved.identities;
+  const identityFallback = resolved.fallback_used ? fallbackSource : null;
+
+  // Provider stat rows for offensive players NO crosswalk identity covers: explicit UNRESOLVED_IDENTITY cases.
+  if (actuals) {
+    const index = await getPlayerIndex().catch(() => null);
+    if (index) for (const i of unresolvedIdentitiesFromStats(actuals.raw, identities, index)) identities.set(i.canonical_player_id, i);
   }
 
   const weather = await rest.select<WeatherSnapshotRow>("nfl_game_weather_snapshots", { filter: { season: `eq.${args.season}`, week: `eq.${args.week}` }, select: "id,season,week,game_id,home_team,away_team,source_name,source_timestamp,retrieved_at,roof,temp,wind,weather_status,weather_risk_score", limit: 1000 });
@@ -155,6 +200,6 @@ export async function materializeCalibrationWeek(args: MaterializeArgs): Promise
   return {
     built, games,
     summary: { ...counts, season: args.season, week: args.week, games_total: games.length + missing_kickoff.length, games_final: finalGames.length, games_missing_kickoff: missing_kickoff.length,
-      cases_built: cases.length, football_outcomes_built: football_outcomes.length, wrote: args.write, writes, artifacts_read: artifactsRead, captures_read: capturesRead, stats_available: !!actuals, identities: identities.size },
+      cases_built: cases.length, football_outcomes_built: football_outcomes.length, wrote: args.write, writes, artifacts_read: artifactsRead, identity_fallback: identityFallback, captures_read: capturesRead, stats_available: !!actuals, identities: identities.size },
   };
 }

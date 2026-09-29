@@ -11,9 +11,11 @@ import { selectPregameWeather, type WeatherSnapshotRow } from "./weather";
 import { CALIBRATION_LEDGER_VERSION, type CalibrationCase, type EvidenceStatus, type FootballOutcome, type NflGame, type ProjectionCandidate, type ScoringExactness } from "./types";
 
 export interface LeagueScoringInput { league_slug: string; provider: string; scoring_fingerprint: string | null; raw_scoring: Record<string, number> | null; note?: string }
-export interface PlayerIdentity { canonical_player_id: string; sleeper_id: string | null; provider_ids: Record<string, string>; name: string | null; position: string | null; nfl_team: string | null; resolved: boolean }
+export interface PlayerIdentity { canonical_player_id: string; sleeper_id: string | null; provider_ids: Record<string, string>; name: string | null; position: string | null; nfl_team: string | null; resolved: boolean;
+  /** Set when the crosswalk identity came from a DIFFERENT week's snapshot (this week had no snapshot rows). Team is then approximate. */
+  identity_source?: string }
 export interface WeekActualsLike { clean: ReadonlyMap<string, Record<string, number>>; raw: ReadonlyMap<string, Record<string, number>> }
-export interface ExistingCaseHead { evidence_digest: string; revision: number }
+export interface ExistingCaseHead { evidence_digest: string; revision: number; provider_player_ids?: Record<string, string> | null }
 
 export interface BuildWeekInput {
   season: number; week: number; now: string; stats_source: string;
@@ -68,6 +70,7 @@ export function buildWeekCases(input: BuildWeekInput): BuildWeekResult {
       const fp = chosen?.scoring_fingerprint ?? league.scoring_fingerprint ?? "unavailable";
       const cid = caseId(input.season, input.week, game.nfl_game_id, canonical, league.league_slug, fp);
       const notes: string[] = [];
+      if (ident.identity_source) notes.push(`canonical identity resolved via ${ident.identity_source}; nfl_team taken from that source unless a pre-kickoff projection supplied it`);
 
       // ---- football reality (league independent) ----------------------------------------------------------------
       let fo: FootballOutcome | null = null;
@@ -118,12 +121,20 @@ export function buildWeekCases(input: BuildWeekInput): BuildWeekResult {
       if (OUT_INJURY.test(injury ?? "") && part.state !== "INACTIVE" && part.state !== "DID_NOT_PLAY") notes.push(`injury status at projection: ${injury}`);
 
       const weather = selectPregameWeather(input.weather, game);
-      const digest = sha(JSON.stringify([
+      const core = [
         CALIBRATION_LEDGER_VERSION, cid, game.kickoff_at,
         chosen ? [chosen.kind, chosen.artifact_id, chosen.content_hash, chosen.projected_points, chosen.floor_points, chosen.ceiling_points] : null,
         fo?.stats_digest ?? null, actual, basis, part.state, status, weather?.snapshot_id ?? null,
-      ]), 16);
+      ];
+      const baseDigest = sha(JSON.stringify(core), 16);
+      // Identity-provenance enrichment: a head written before the crosswalk identity was available (empty provider ids) is
+      // superseded ONCE by an explicit revision whose digest also covers name + provider ids. Never triggers for a head that
+      // already carries provider ids, so a re-run (and every already-complete case) stays a no-op.
       const ex = input.existing.get(cid);
+      const enrichedDigest = sha(JSON.stringify([...core, ident.name, Object.entries(ident.provider_ids).sort()]), 16);
+      const headPoorer = !!ex && Object.keys(ex.provider_player_ids ?? {}).length === 0 && Object.keys(ident.provider_ids).length > 0;
+      if (ex && !headPoorer && (ex.evidence_digest === baseDigest || ex.evidence_digest === enrichedDigest)) { out.unchanged++; continue; }
+      const digest = headPoorer ? enrichedDigest : baseDigest;
       if (ex?.evidence_digest === digest) { out.unchanged++; continue; }
       if (ex) out.revisions_of_existing++;
 

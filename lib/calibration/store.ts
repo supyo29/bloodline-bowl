@@ -23,8 +23,8 @@ export const writeGames = (rest: SupabaseRest, games: readonly NflGame[]) =>
 export async function readCaseHeads(rest: SupabaseRest, season: number, week: number): Promise<Map<string, ExistingCaseHead>> {
   const heads = new Map<string, ExistingCaseHead>();
   for (let offset = 0; ; offset += 1000) {
-    const rows = await rest.select<{ case_id: string; evidence_digest: string; revision: number }>(CASE_TABLE, { filter: { season: `eq.${season}`, week: `eq.${week}` }, select: "case_id,evidence_digest,revision", order: "case_id.asc,revision.asc", limit: 1000, offset });
-    for (const r of rows) heads.set(r.case_id, { evidence_digest: r.evidence_digest, revision: r.revision }); // ascending revision => last write wins = head
+    const rows = await rest.select<{ case_id: string; evidence_digest: string; revision: number; provider_player_ids: Record<string, string> | null }>(CASE_TABLE, { filter: { season: `eq.${season}`, week: `eq.${week}` }, select: "case_id,evidence_digest,revision,provider_player_ids", order: "case_id.asc,revision.asc", limit: 1000, offset });
+    for (const r of rows) heads.set(r.case_id, { evidence_digest: r.evidence_digest, revision: r.revision, provider_player_ids: r.provider_player_ids }); // ascending revision => last write wins = head
     if (rows.length < 1000) break;
   }
   return heads;

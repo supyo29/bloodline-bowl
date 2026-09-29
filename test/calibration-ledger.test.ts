@@ -5,6 +5,8 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { selectPregameEvidence } from "@/lib/calibration/evidence-selection";
 import { aggregateMetrics, caseErrors, rangeResult } from "@/lib/calibration/metrics";
 import { buildWeekCases, caseId, type BuildWeekInput, type LeagueScoringInput, type PlayerIdentity } from "@/lib/calibration/case-builder";
@@ -12,7 +14,7 @@ import { buildNflGames } from "@/lib/calibration/games";
 import { buildCalibrationReport } from "@/lib/calibration/report";
 import { buildLedgerWeekAudit } from "@/lib/calibration/audit";
 import { selectPregameWeather } from "@/lib/calibration/weather";
-import { candidatesFromCapture, candidateFromSnapshotRow, identityFromSnapshotRow } from "@/lib/calibration/materialize";
+import { candidatesFromCapture, candidateFromSnapshotRow, identityFromSnapshotRow, mergeFallbackIdentities, resolveWeekIdentities, unresolvedIdentitiesFromStats } from "@/lib/calibration/materialize";
 import { writeCases } from "@/lib/calibration/store";
 import type { SupabaseRest } from "@/lib/persistence/supabase/rest";
 import type { ProjectionCandidate, NflGame } from "@/lib/calibration/types";
@@ -216,7 +218,7 @@ describe("metrics (hand-verifiable)", () => {
 describe("idempotency + revisions", () => {
   test("a second materialization over unchanged evidence creates no cases", () => {
     const first = buildWeekCases(week3());
-    const heads = new Map(first.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision }]));
+    const heads = new Map(first.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision, provider_player_ids: c.provider_player_ids }]));
     const second = buildWeekCases({ ...week3(), existing: heads });
     assert.equal(second.cases.length, 0); assert.equal(second.unchanged, first.cases.length);
   });
@@ -228,7 +230,7 @@ describe("idempotency + revisions", () => {
   });
   test("a provider correction writes an explicit NEW revision that supersedes the old one — never a duplicate, never an update", () => {
     const first = buildWeekCases(week3());
-    const heads = new Map(first.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision }]));
+    const heads = new Map(first.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision, provider_player_ids: c.provider_player_ids }]));
     const inp = week3(); (inp.actuals!.raw as Map<string, Record<string, number>>).set("222", { rec: 6, rec_yd: 50, gp: 1, off_snp: 50, tm_off_snp: 60 }); (inp.actuals!.clean as Map<string, Record<string, number>>).set("222", { rec: 6, rec_yd: 50, gp: 1, off_snp: 50, tm_off_snp: 60 });
     const second = buildWeekCases({ ...inp, existing: heads });
     assert.equal(second.cases.length, 1); assert.equal(second.revisions_of_existing, 1);
@@ -320,8 +322,6 @@ describe("adapters + weather + game identity", () => {
 });
 
 describe("no production influence (Phase 1 observes and records)", () => {
-  const { readFileSync, readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
-  const { join } = require("node:path") as typeof import("node:path");
   const walk = (dir: string, out: string[] = []): string[] => { for (const n of readdirSync(dir)) { const f = join(dir, n); if (statSync(f).isDirectory()) { if (!["node_modules", ".next", "data"].includes(n)) walk(f, out); } else if (/\.(ts|tsx)$/.test(n)) out.push(f); } return out; };
   test("only the weekly audit composer, the calibration routes and lib/calibration itself import lib/calibration", () => {
     const allowed = (f: string) => f.includes(join("lib", "calibration")) || f.includes(join("app", "api", "calibration")) || f.includes(join("app", "api", "cron", "calibration-materialize")) || f.endsWith(join("lib", "weekly-audit", "build.ts")) || f.endsWith(join("lib", "weekly-audit", "contract.ts"));
@@ -339,5 +339,59 @@ describe("no production influence (Phase 1 observes and records)", () => {
     const sql = readFileSync("supabase/migrations/20260929150000_projection_calibration_ledger.sql", "utf8").split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
     assert.ok(!/drop table|alter table public\.bridge_(projection|startsit|matchup2|waiver2|weekly)/i.test(sql));
     assert.equal((sql.match(/before update or delete on public\.bridge_calibration_/g) ?? []).length, 3);
+  });
+});
+
+describe("regression: a week with no snapshot rows must not mass-produce UNRESOLVED_IDENTITY (Week 2 failure mode)", () => {
+  const stats = new Map<string, Record<string, number>>([["6804", { pass_yd: 250, pass_att: 30, gp: 1 }], ["13287", { rush_att: 20, rush_yd: 90, gp: 1 }], ["99999", { rec: 2, rec_tgt: 3, gp: 1 }]]);
+  const index = new Map([["6804", { position: "QB", team: "GB", full_name: "Jordan Love" }], ["13287", { position: "RB", team: "ARI", full_name: "Jeremiyah Love" }], ["99999", { position: "WR", team: "BUF", full_name: "Mystery" }]]);
+  test("reproduces the bug: with an EMPTY identity map every stat-row player becomes unresolved", () => {
+    const u = unresolvedIdentitiesFromStats(stats, new Map(), index);
+    assert.equal(u.length, 3); assert.ok(u.every((i) => i.canonical_player_id.startsWith("unresolved:") && !i.resolved));
+  });
+  test("with crosswalk identities borrowed from another week, resolvable players keep their CANONICAL id; only genuinely unknown ids stay unresolved", () => {
+    const primary = new Map<string, PlayerIdentity>();
+    const fb = new Map<string, PlayerIdentity>([["player:sleeper:6804", ident("player:sleeper:6804", "6804", "GB", "QB")], ["player:gsis:00-0040", ident("player:gsis:00-0040", "13287", "ARI", "RB")]]);
+    assert.equal(mergeFallbackIdentities(primary, fb, "crosswalk_fallback:x(week 3)"), 2);
+    const u = unresolvedIdentitiesFromStats(stats, primary, index);
+    assert.deepEqual(u.map((i) => i.canonical_player_id), ["unresolved:sleeper:99999"]);
+    assert.equal(primary.get("player:sleeper:6804")!.identity_source, "crosswalk_fallback:x(week 3)");
+  });
+  test("fallback never overrides this week's own identity", () => {
+    const primary = new Map<string, PlayerIdentity>([["player:gsis:a", ident("player:gsis:a", "1", "BUF", "WR")]]);
+    assert.equal(mergeFallbackIdentities(primary, new Map([["player:gsis:a", ident("player:gsis:a", "1", "NYG", "WR")]]), "fb"), 0);
+    assert.equal(primary.get("player:gsis:a")!.nfl_team, "BUF"); assert.equal(primary.get("player:gsis:a")!.identity_source, undefined);
+  });
+  test("a fallback-resolved player with stats but no projection is NO_PREKICKOFF_PROJECTION with a canonical id — never UNRESOLVED_IDENTITY", () => {
+    const inp = week3(); inp.candidates.clear(); inp.identities.clear();
+    inp.identities.set("player:sleeper:6804", { ...ident("player:sleeper:6804", "111", "GB", "QB"), identity_source: "crosswalk_fallback:x(week 3)" });
+    const r = buildWeekCases(inp);
+    const c = r.cases[0]!;
+    assert.equal(c.canonical_player_id, "player:sleeper:6804"); assert.equal(c.evidence_status, "NO_PREKICKOFF_PROJECTION"); assert.ok(c.evidence_notes.some((n) => n.includes("crosswalk_fallback")));
+    assert.ok(!r.cases.some((x) => x.evidence_status === "UNRESOLVED_IDENTITY"));
+  });
+  test("EXACT production failure: no snapshots BUT Start/Sit captures present -> capture identities must NOT suppress the crosswalk fallback", () => {
+    const capture = new Map<string, PlayerIdentity>([["player:sleeper:6804", ident("player:sleeper:6804", "6804", "GB", "QB")]]);
+    const fallback = new Map<string, PlayerIdentity>([["player:sleeper:6804", ident("player:sleeper:6804", "6804", "GB", "QB")], ["player:gsis:00-0040", ident("player:gsis:00-0040", "13287", "ARI", "RB")]]);
+    const r = resolveWeekIdentities({ snapshot: new Map(), captureOnly: capture, fallback, fallbackSource: "fb" });
+    assert.equal(r.fallback_used, true); assert.ok(r.identities.has("player:gsis:00-0040"));
+    assert.equal(r.identities.get("player:sleeper:6804")!.identity_source, "fb"); // fallback (full crosswalk) wins over the sparse capture identity
+    assert.deepEqual(unresolvedIdentitiesFromStats(stats, r.identities, index).map((i) => i.canonical_player_id), ["unresolved:sleeper:99999"]);
+  });
+  test("with this week's own snapshot identities the fallback is never used", () => {
+    const snap = new Map<string, PlayerIdentity>([["player:gsis:a", ident("player:gsis:a", "1", "BUF", "WR")]]);
+    const r = resolveWeekIdentities({ snapshot: snap, captureOnly: new Map(), fallback: new Map([["player:gsis:b", ident("player:gsis:b", "2", "BUF", "WR")]]), fallbackSource: "fb" });
+    assert.equal(r.fallback_used, false); assert.equal(r.identities.size, 1);
+  });
+  test("provenance enrichment: a head written with EMPTY provider ids is superseded exactly once; the re-run and complete heads stay no-ops", () => {
+    const first = buildWeekCases(week3());
+    const sparseHeads = new Map(first.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision, provider_player_ids: {} }]));
+    const second = buildWeekCases({ ...week3(), existing: sparseHeads });
+    assert.equal(second.cases.length, first.cases.length); assert.ok(second.cases.every((c) => c.revision === 2 && c.supersedes_evidence_digest != null));
+    assert.ok(second.cases.every((c) => c.projection_artifact_id === first.cases.find((f) => f.case_id === c.case_id)!.projection_artifact_id)); // evidence untouched
+    const heads2 = new Map(second.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision, provider_player_ids: c.provider_player_ids }]));
+    assert.equal(buildWeekCases({ ...week3(), existing: heads2 }).cases.length, 0); // idempotent after enrichment
+    const completeHeads = new Map(first.cases.map((c) => [c.case_id, { evidence_digest: c.evidence_digest, revision: c.revision, provider_player_ids: c.provider_player_ids }]));
+    assert.equal(buildWeekCases({ ...week3(), existing: completeHeads }).cases.length, 0); // already-complete heads: no spurious revisions
   });
 });
