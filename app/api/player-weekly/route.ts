@@ -12,6 +12,9 @@
  */
 
 import {
+  NonSleeperLeagueSelectorError,
+} from "@/lib/sleeper/service";
+import {
   SleeperError,
   getMatchups,
   getNflState,
@@ -63,7 +66,18 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
   const leagueSelector = params.get("league") ?? "bloodline-bowl";
-  const defaultLeagueId = resolveLeagueId(leagueSelectorResult.value);
+  let defaultLeagueId: string;
+  try {
+    defaultLeagueId = resolveLeagueId(leagueSelectorResult.value);
+  } catch (error) {
+    // This route scores Sleeper matchup points + Sleeper league scoring. A Yahoo league must never be answered with
+    // Sleeper scores, and must not surface as an opaque 500. Yahoo fantasy outcomes live in the calibration ledger
+    // (lib/calibration), scored under the Yahoo league's own canonical scoring.
+    if (error instanceof NonSleeperLeagueSelectorError) {
+      return errorResponse(400, "provider_not_supported", `${error.message} /api/player-weekly is Sleeper-only; use /api/calibration/report for provider-independent league-scored outcomes.`);
+    }
+    throw error;
+  }
 
   try {
     const nflState = await getNflState().catch(() => null);
