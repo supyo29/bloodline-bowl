@@ -14,7 +14,9 @@ import { isValidTransition } from "@/lib/weekly/start-sit-fi/deployment";
 const walk = (dir: string, out: string[] = []): string[] => { for (const n of readdirSync(dir)) { const f = join(dir, n); const s = statSync(f); if (s.isDirectory()) { if (!["node_modules", ".next", "data"].includes(n)) walk(f, out); } else if (/\.(ts|tsx)$/.test(n)) out.push(f); } return out; };
 
 describe("production isolation — allowed direction is production/captures -> weekly audit, never the reverse", () => {
-  const prod = ["lib", "app"].flatMap((d) => walk(join(process.cwd(), d))).filter((f) => !f.includes(join("lib", "weekly-audit")) && !f.includes(join("app", "api", "cron", "weekly-audit")) && !f.includes(join("lib", "book-ready", "families", "weekly-audit.ts")) && !f.endsWith(join("persistence", "supabase", "weekly-audit-store.ts")) && !f.endsWith(join("lib", "book-ready", "query.ts")));
+  const prod = ["lib", "app"].flatMap((d) => walk(join(process.cwd(), d))).filter((f) => !f.includes(join("lib", "weekly-audit")) && !f.includes(join("app", "api", "cron", "weekly-audit")) && !f.includes(join("lib", "book-ready", "families", "weekly-audit.ts")) && !f.endsWith(join("persistence", "supabase", "weekly-audit-store.ts")) && !f.endsWith(join("lib", "book-ready", "query.ts"))
+    // Projection Calibration ledger: a sibling downstream evidence layer (never on a recommendation path; guarded by test/calibration-ledger.test.ts)
+    && !f.includes(join("lib", "calibration")) && !f.includes(join("app", "api", "cron", "calibration-materialize")));
   test("no production/recommendation module imports lib/weekly-audit (Book-Ready's own reader family is the one sanctioned exception, itself excluded above)", () => {
     const code = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     const offenders = prod.filter((f) => /weekly-audit\//.test(code(f)) || /buildWeeklyModelAudit\(/.test(code(f)));

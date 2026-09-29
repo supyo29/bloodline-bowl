@@ -1,6 +1,6 @@
 {
   "registry_version": "intelligence-surface-registry-2026.3",
-  "generated_by": "Phase 3.5B \u2014 verified against the repository by test/intelligence-surface-registry.test.ts",
+  "generated_by": "Phase 3.5B — verified against the repository by test/intelligence-surface-registry.test.ts",
   "surfaces": [
     {
       "id": "canonical-spine",
@@ -314,7 +314,7 @@
         "waiver2",
         "matchup2"
       ],
-      "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) \u2014 documented, not a defect.",
+      "notes": "No HTTP API by documented design (Phase 3 audit). snap_share_derived may exceed 1.0 for QBs (kneel exclusion) — documented, not a defect.",
       "book_ready": {
         "query_topics": [
           "role.player_profile",
@@ -367,7 +367,7 @@
       "status": [
         "SHADOW"
       ],
-      "nature": "CONDITIONAL scenario allocator (IF player X is unavailable) \u2014 never P(unavailable); production numeric influence PROHIBITED",
+      "nature": "CONDITIONAL scenario allocator (IF player X is unavailable) — never P(unavailable); production numeric influence PROHIBITED",
       "deployment": "SHADOW_ONLY",
       "builder": {
         "command": "Rscript analysis/opportunity_propagation/run_build.R && Rscript analysis/opportunity_propagation/serve_opportunity_propagation.R",
@@ -463,7 +463,7 @@
       "nature": "SHARED_DESCRIPTIVE; no fantasy adjustment; Tier B is PRIOR_ONLY/DESCRIPTIVE_ONLY; FTN progression is UNVERIFIED_SOURCE_CONFLICT",
       "deployment": "SHARED_DESCRIPTIVE",
       "builder": {
-        "command": "Rscript analysis/player_scheme_intelligence/build_tierA.R && \u2026build_tierB.R && \u2026build_tierC.R",
+        "command": "Rscript analysis/player_scheme_intelligence/build_tierA.R && …build_tierB.R && …build_tierC.R",
         "entrypoints": [
           "analysis/player_scheme_intelligence/build_tierA.R",
           "analysis/player_scheme_intelligence/build_tierB.R",
@@ -527,7 +527,7 @@
         "history": {
           "class": "CURRENT_ONLY",
           "source": "snapshot_store(identity)",
-          "note": "one served content identity per rebuild; windows (career/recent/current_team) are cumulative and PRIOR_ONLY through 2025 \u2014 no in-season history exists"
+          "note": "one served content identity per rebuild; windows (career/recent/current_team) are cumulative and PRIOR_ONLY through 2025 — no in-season history exists"
         },
         "comparison_populations": [
           "NFL_QB_FTN_<WINDOW>",
@@ -593,7 +593,7 @@
       "reachability": "FULLY_REACHABLE",
       "source_data": "walk-forward over 2019-2025 against a reconstructable production-like baseline",
       "data_cutoff_field": "data_cutoff",
-      "confidence_semantics": "verdict per family (PREDICTIVE_INCREMENTAL / EXPLANATORY_ONLY / REJECTED / \u2026)",
+      "confidence_semantics": "verdict per family (PREDICTIVE_INCREMENTAL / EXPLANATORY_ONLY / REJECTED / …)",
       "freshness_owner": "n/a (research)",
       "lineage_owner": "lib/player-scheme-intelligence/query.ts",
       "reproducibility": "PINNED_STATIC",
@@ -697,7 +697,7 @@
         "weekly-audit/outcomes-startsit.ts",
         "persistence/supabase/weekly-audit-store.ts"
       ],
-      "notes": "Model frozen: sha256 85d2ddd5\u20266293. start_sit_manifest.json / start_sit_validation.csv / start_sit_feature_status.csv are training provenance with no runtime reader (INTERNAL).",
+      "notes": "Model frozen: sha256 85d2ddd5…6293. start_sit_manifest.json / start_sit_validation.csv / start_sit_feature_status.csv are training provenance with no runtime reader (INTERNAL).",
       "book_ready": {
         "query_topics": [
           "startsit.shadow"
@@ -749,7 +749,7 @@
       "nature": "SHADOW calibrated score distributions + correlations; never changes the production matchup",
       "deployment": "SHADOW_ONLY",
       "builder": {
-        "command": "Rscript analysis/football_intel_matchup/fit_distributions.R && \u2026/fit_correlations.R",
+        "command": "Rscript analysis/football_intel_matchup/fit_distributions.R && …/fit_correlations.R",
         "entrypoints": [
           "analysis/football_intel_matchup/fit_distributions.R",
           "analysis/football_intel_matchup/fit_correlations.R"
@@ -1178,7 +1178,7 @@
       "reachability": "FULLY_REACHABLE",
       "source_data": "canonical snapshot, market values, league history",
       "data_cutoff_field": null,
-      "confidence_semantics": "VERY_LOW\u2026HIGH passed through, never upgraded; transaction_readiness separate from classification",
+      "confidence_semantics": "VERY_LOW…HIGH passed through, never upgraded; transaction_readiness separate from classification",
       "freshness_owner": "snapshot lineage",
       "lineage_owner": "lib/canonical/lineage.ts",
       "reproducibility": "NO_ARTIFACT",
@@ -1417,12 +1417,12 @@
     },
     {
       "id": "matchup-intelligence-2",
-      "name": "Matchup Intelligence 2.0 (player \u00d7 defensive-structure interaction)",
+      "name": "Matchup Intelligence 2.0 (player × defensive-structure interaction)",
       "owning_module": "lib/matchup2",
       "status": [
         "SHADOW"
       ],
-      "nature": "structured interaction evidence: position-aware player-profile \u00d7 defensive-structure components with origin, uncertainty and explicit unsupported items; NO numeric fantasy adjustment",
+      "nature": "structured interaction evidence: position-aware player-profile × defensive-structure components with origin, uncertainty and explicit unsupported items; NO numeric fantasy adjustment",
       "deployment": "SHADOW_ONLY (matchup-2-2026.1); no production surface reads it; production matchup (lib/weekly/matchup.ts) and Matchup Intelligence v1 are unchanged",
       "builder": {
         "command": null,
@@ -1445,7 +1445,7 @@
       ],
       "routes": [],
       "reachability": "COMPUTED_AT_REQUEST",
-      "source_data": "Football Intelligence (fi:2026) + Player-Scheme (psi:2025 w18, PRIOR_ONLY) + Role & Opportunity \u2014 consumed through their certified readers, never recomputed",
+      "source_data": "Football Intelligence (fi:2026) + Player-Scheme (psi:2025 w18, PRIOR_ONLY) + Role & Opportunity — consumed through their certified readers, never recomputed",
       "data_cutoff_field": null,
       "confidence_semantics": "evidence tier (STRONG/MODERATE/WEAK/INSUFFICIENT) per component and a structured uncertainty list; a directional label requires both a player-specific z among the 32 defenses and a declared materiality floor",
       "freshness_owner": "lib/matchup2/context.ts (source vintages carried and never blended)",
@@ -1530,7 +1530,7 @@
       "status": [
         "DESCRIPTIVE_ONLY"
       ],
-      "nature": "descriptive contract: per scoring rule, who supplies the statistical event in each layer (weekly projection, season projection, completed games, waiver role pricing) and the resulting support class (FULLY_PROPAGATED \u2026 UNSUPPORTED); never a valuation",
+      "nature": "descriptive contract: per scoring rule, who supplies the statistical event in each layer (weekly projection, season projection, completed games, waiver role pricing) and the resulting support class (FULLY_PROPAGATED … UNSUPPORTED); never a valuation",
       "deployment": "SHARED_DESCRIPTIVE contract; the derived-events materializer (lib/scoring/derived-events.ts) is consumed by weekly, season and waiver scoring, but the contract itself influences nothing and no matchup or projection weight exists",
       "builder": {
         "command": "npx tsx scripts/scoring-support-matrix.ts",
@@ -1838,9 +1838,10 @@
       ],
       "consumers": [
         "book-ready",
-        "persistence/supabase/weekly-audit-store.ts"
+        "persistence/supabase/weekly-audit-store.ts",
+        "calibration"
       ],
-      "notes": "Role-change, prior/current disagreement, defense/offense profile-shift and injury/opportunity sections are NOT_APPLICABLE in this pass \u2014 they need a persisted week-over-week history that does not exist yet (documented limitation, not fabricated).",
+      "notes": "Role-change, prior/current disagreement, defense/offense profile-shift and injury/opportunity sections are NOT_APPLICABLE in this pass — they need a persisted week-over-week history that does not exist yet (documented limitation, not fabricated).",
       "book_ready": {
         "query_topics": [
           "audit.weekly_model"

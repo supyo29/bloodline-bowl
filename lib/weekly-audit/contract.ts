@@ -73,6 +73,8 @@ export interface WeeklyModelAudit {
   source_readiness: ComponentResult<{ family: string; status: string; lag_classification: string }[]>;
   freshness_history_recorded: boolean;
   projection_calibration: ComponentResult<ProjectionCalibration>;
+  /** Projection Calibration Phase 1: aggregate composed from granular bridge_calibration_cases rows (absent on audits written before the ledger existed). */
+  calibration_ledger?: ComponentResult<import("@/lib/calibration/audit").LedgerWeekAudit>;
   start_sit: ComponentResult<{ decisions: StartSitDecisionOutcome[]; calibration: StartSitCalibration }>;
   fi_weekly_calibration: ComponentResult<{ by_family_position: FiRetestProgress[] }>;
   matchup2: ComponentResult<Matchup2Audit>;
