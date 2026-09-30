@@ -19,6 +19,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadFootballIntelligence, type FootballIntelligence } from "@/lib/football-intel";
+import { usageValueFor } from "./usage-values";
 import type {
   StartSitFiAdjustment,
   FiFamilyContribution,
@@ -214,6 +215,12 @@ export function translateFiAdjustment(input: TranslateInput): StartSitFiAdjustme
     if (fiValue == null && input.fiValues?.[fam.value_col]) {
       fiValue = input.fiValues[fam.value_col]!.value;
       fiConf = (input.fiValues[fam.value_col]!.confidence ?? null) as FiFamilyContribution["fi_confidence"];
+    }
+    // Projection Calibration Phase 2: resolve the player-usage families directly from the published FI usage profile
+    // (previously nothing injected `fiValues`, so these were ALWAYS null). SHADOW-path only; gated in usage-values.ts.
+    if (fiValue == null && fam.value_col.startsWith("fi_usage_")) {
+      const u = usageValueFor(fi, input.canonical_player_id, input.position, fam.value_col);
+      if (u) { fiValue = u.value; fiConf = (u.confidence ?? null) as FiFamilyContribution["fi_confidence"]; }
     }
 
     const cw = confWeight(mp, fam.routing, fiConf ?? null);

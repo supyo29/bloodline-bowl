@@ -75,6 +75,8 @@ export interface WeeklyModelAudit {
   projection_calibration: ComponentResult<ProjectionCalibration>;
   /** Projection Calibration Phase 1: aggregate composed from granular bridge_calibration_cases rows (absent on audits written before the ledger existed). */
   calibration_ledger?: ComponentResult<import("@/lib/calibration/audit").LedgerWeekAudit>;
+  /** Projection Calibration Phase 2: Role & Opportunity calibration (SHADOW_ONLY) composed from bridge_role_calibration_analysis rows. */
+  role_calibration?: ComponentResult<import("@/lib/role-calibration/report").RoleAuditComponent>;
   start_sit: ComponentResult<{ decisions: StartSitDecisionOutcome[]; calibration: StartSitCalibration }>;
   fi_weekly_calibration: ComponentResult<{ by_family_position: FiRetestProgress[] }>;
   matchup2: ComponentResult<Matchup2Audit>;

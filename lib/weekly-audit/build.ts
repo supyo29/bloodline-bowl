@@ -25,6 +25,8 @@ import { runDataQualityChecks } from "./data-quality";
 import { errorStats } from "./calibration";
 import { readCurrentCases } from "@/lib/calibration/store";
 import { buildLedgerWeekAudit } from "@/lib/calibration/audit";
+import { readCurrentAnalysis } from "@/lib/role-calibration/store";
+import { roleAuditComponent } from "@/lib/role-calibration/report";
 import { fiRetestProgress, matchup2EvidenceGate, waiver2EvidenceGate } from "./gates";
 import {
   defaultWeeklyAuditRest, readStartSitCaptures, readMatchup2Captures, readWaiver2Captures,
@@ -175,6 +177,15 @@ export async function buildWeeklyModelAudit(input: BuildWeeklyAuditInput): Promi
     } catch { /* ledger tables absent / unreadable: the rest of the audit is unaffected */ }
   }
 
+  // ---- Role & Opportunity calibration (Phase 2; composed from analysis rows; read-only, SHADOW_ONLY) --------------------
+  let roleComponent: ComponentResult<ReturnType<typeof roleAuditComponent>> = unavailable("role calibration analysis unavailable or not materialized for this week");
+  if (rest) {
+    try {
+      const rows = await readCurrentAnalysis(rest, input.season, input.week);
+      if (rows.length) roleComponent = ready(roleAuditComponent(rows));
+    } catch { /* tables absent / unreadable: the rest of the audit is unaffected */ }
+  }
+
   // ---- Phase 8 FI retest monitoring (never promotes) ----------------------------------------------------------
   const cert = loadFiCertification();
   const reeval = loadReevaluationManifest(true);
@@ -203,12 +214,13 @@ export async function buildWeeklyModelAudit(input: BuildWeeklyAuditInput): Promi
     waiver2_capture_ids: w2Clean.map((c) => c.capture_id), waiver2_outcome_sources: w2OutcomeRows.map((o) => o.source),
     certification_version: cert?.certification_version ?? null,
     ledger_digest: ledgerComponent.status === "READY" ? ledgerComponent.data!.ledger_digest : null,
+    role_digest: roleComponent.status === "READY" ? roleComponent.data!.role_digest : null,
   });
 
   const audit: WeeklyModelAudit = {
     audit_id: auditId(input.season, input.week, digest), season: input.season, week: input.week, audit_schema_version: WEEKLY_AUDIT_SCHEMA_VERSION, evidence_digest: digest,
     status, severity, generated_at: nowIso, week_closure: closure, source_readiness: sourceReadiness, freshness_history_recorded: freshnessRecorded,
-    projection_calibration: projCal, calibration_ledger: ledgerComponent, start_sit: startSit as never, fi_weekly_calibration: ready({ by_family_position: progress }), matchup2: matchup2Result, waiver2: waiver2Result,
+    projection_calibration: projCal, calibration_ledger: ledgerComponent, role_calibration: roleComponent, start_sit: startSit as never, fi_weekly_calibration: ready({ by_family_position: progress }), matchup2: matchup2Result, waiver2: waiver2Result,
     role_changes: notApplicable("Role-change audit needs a persisted prior-week Role snapshot; only the current Role profile is served today (see Phase 9 limitations)."),
     prior_current_disagreements: notApplicable("Requires a persisted history of prior-vs-current values across weeks; not yet accumulated."),
     defense_shifts: notApplicable("Requires a persisted week-over-week FI defense-profile history; only the current snapshot is served today."),
