@@ -139,7 +139,7 @@ export function coverage(rows: readonly RoleAnalysisRow[], positions: readonly s
     for (const m of ["snap_share", "route_participation", "target_share", "rush_share"]) {
       const applicable = sub.filter((r) => r.role[m as keyof RoleAnalysisRow["role"]] !== undefined);
       const has = applicable.filter((r) => r.role[m as keyof RoleAnalysisRow["role"]]!.forecast != null);
-      metrics[m] = { with_value: has.length, pct: applicable.length ? r4(has.length / applicable.length) : null, prior_season_only_pct: has.length ? r4(has.filter((r) => (r.confidence_score ?? 1) === 0 || false).length / has.length) : null };
+      metrics[m] = { with_value: has.length, pct: applicable.length ? r4(has.length / applicable.length) : null, prior_season_only_pct: has.length ? r4(has.filter((r) => r.role[m as keyof RoleAnalysisRow["role"]]!.prior_season_only).length / has.length) : null };
     }
     out[pos] = { cases: sub.length, with_forecast: withF.length, pct_with_forecast: sub.length ? r4(withF.length / sub.length) : null, metrics };
   }

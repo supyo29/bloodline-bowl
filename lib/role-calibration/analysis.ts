@@ -22,7 +22,7 @@ export interface CaseLike {
 export interface ExclusionEntry { season: number; week: number; gsis_id: string; reason: string; note: string }
 const r4 = (v: number): number => Math.round(v * 1e4) / 1e4;
 
-export interface MetricComparison { forecast: number | null; forecast_with_pressure: number | null; actual: number | null; error: number | null; naive_last_game: number | null; naive_season_mean: number | null }
+export interface MetricComparison { forecast: number | null; forecast_with_pressure: number | null; actual: number | null; error: number | null; naive_last_game: number | null; naive_season_mean: number | null; prior_season_only: boolean }
 export interface RoleAnalysisRow {
   analysis_id: string; analysis_version: string;
   case_id: string; evidence_digest: string; forecast_id: string | null;
@@ -92,7 +92,7 @@ export function buildRoleAnalysis(input: BuildAnalysisInput): RoleAnalysisRow[] 
       const mf = f?.metrics[m];
       const actual = actualRow ? (m === "snap_share" ? actualRow.snap_share : (actualRow[m as keyof ObservedRow] as number | null)) : null;
       const last = lastGame ? (m === "snap_share" ? lastGame.snap_share : (lastGame[m as keyof ObservedRow] as number | null)) : null;
-      role[m] = { forecast: mf?.value ?? null, forecast_with_pressure: mf?.value_with_pressure ?? null, actual: actual ?? null, error: mf?.value != null && actual != null ? r4(actual - mf.value) : null, naive_last_game: last ?? null, naive_season_mean: mf?.season_mean ?? null };
+      role[m] = { forecast: mf?.value ?? null, forecast_with_pressure: mf?.value_with_pressure ?? null, actual: actual ?? null, error: mf?.value != null && actual != null ? r4(actual - mf.value) : null, naive_last_game: last ?? null, naive_season_mean: mf?.season_mean ?? null, prior_season_only: mf?.prior_season_only ?? false };
     }
 
     const actualOpp = actualRow ? opportunityFromObserved(pos, actualRow) : null;

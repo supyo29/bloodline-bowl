@@ -4,15 +4,10 @@ name: Role Calibration Inputs Refresh
 #   (1) freeze PRE-GAME role forecasts for the coming week and (2) join actual role to the Phase-1 calibration ledger after games finalize.
 # Rebuilds the canonical Role Intelligence substrate from the refreshed nflverse raw cache, then exports ONLY lib/role-calibration/data/**.
 # It deliberately does NOT commit lib/player-role-intelligence/data (the served Role artifact is a separate product). Data-only commits do not
-# match the push paths below, so there is no refresh loop.
+# trigger a run (schedule + manual dispatch only; the first run is deliberate, not automatic on merge).
 on:
   schedule:
     - cron: "30 13 * * *"   # after the Football Intelligence refresh (0 13 * * *); UTC, DST drift as documented in football-intel-daily-refresh.yml
-  push:
-    branches: [main]
-    paths:
-      - "analysis/role_calibration/**"
-      - ".github/workflows/role-calibration-refresh.yml"
   workflow_dispatch:
     inputs:
       target_weeks:

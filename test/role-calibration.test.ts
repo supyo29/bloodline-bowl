@@ -12,7 +12,7 @@ import { ewma, forecastTeamVolume, forecastQbVolume } from "@/lib/role-calibrati
 import { buildRoleForecast, assertPointInTime, designationOf, P_ABSENT } from "@/lib/role-calibration/forecast";
 import { buildWeekForecasts } from "@/lib/role-calibration/forecast-week";
 import { buildRoleAnalysis, selectForecast, type CaseLike } from "@/lib/role-calibration/analysis";
-import { expectedPoints, expectedStatLine, opportunityFromObserved } from "@/lib/role-calibration/xfp";
+import { expectedPoints, expectedStatLine } from "@/lib/role-calibration/xfp";
 import { shadowCandidate, ROLE_SHADOW_KAPPA } from "@/lib/role-calibration/shadow";
 import { compare, tail, roleAccuracy, pearson, dedupeFootball, roleVsFantasy } from "@/lib/role-calibration/evaluate";
 import { loadOpportunityPropagationModel } from "@/lib/opportunity-propagation-intelligence/read";
@@ -198,6 +198,12 @@ describe("teammate-availability propagation", () => {
     const qb = fcast(prof("qb", "QB", "AAA", { snap_share: 0.98, rush_share: 0.1 }), [wr1, wr2], weekHasReports([inj("wr1", "Out")]));
     assert.equal(qb.teammate_pressure, null);
   });
+  test("redistribution never REDUCES a healthy teammate's forecast (renormalization artifacts suppressed) and stale zero-game roster entries are not beneficiaries", () => {
+    const crowd = [1, 2, 3, 4, 5].map((i) => prof(`w${i}`, "WR", "AAA", { target_share: 0.25, snap_share: 0.7 }));
+    const out = prof("wrOut", "WR", "AAA", { target_share: 0.2, snap_share: 0.9 });
+    const stale = prof("stale", "WR", "AAA", { target_share: 0.4, snap_share: 0.9 }, 0);
+    for (const self of crowd) { const f = fcast(self, [...crowd.filter((c) => c !== self), out, stale], weekHasReports([inj("wrOut", "Out")])); assert.ok(f.metrics.target_share!.value_with_pressure! >= f.metrics.target_share!.value! - 1e-12); }
+  });
   test("a teammate with no prior role evidence vacates nothing (no fabricated redistribution)", () => {
     const ghost: ProfileRow = { ...prof("ghost", "WR", "AAA", {}, 0), metrics: { target_share: metric(null, 0) } };
     const f = fcast(wr2, [ghost, te], weekHasReports([inj("ghost", "Out")]));
@@ -295,7 +301,7 @@ describe("evaluation math (hand-verifiable)", () => {
   });
   test("pearson and role accuracy vs naive predictors; football dedupe never double-counts the same scoring fingerprint or includes Yahoo", () => {
     assert.equal(pearson([1, 2, 3, 4], [2, 4, 6, 8]), 1); assert.equal(pearson([1, 2, 3, 4], [4, 3, 2, 1]), -1); assert.equal(pearson([1, 2], [1, 2]), null);
-    const mk = (id: string, f: number, a: number, last: number) => row(id, 1, 1, 1, { role: { target_share: { forecast: f, forecast_with_pressure: f, actual: a, error: a - f, naive_last_game: last, naive_season_mean: f } } });
+    const mk = (id: string, f: number, a: number, last: number) => row(id, 1, 1, 1, { role: { target_share: { forecast: f, forecast_with_pressure: f, actual: a, error: a - f, naive_last_game: last, naive_season_mean: f, prior_season_only: false } } });
     const acc = roleAccuracy([mk("a", 0.2, 0.25, 0.4), mk("b", 0.3, 0.2, 0.5)]);
     assert.equal(acc[0]!.n, 2); assert.equal(acc[0]!.forecast_mae, 0.075); assert.equal(acc[0]!.naive_last_game_mae, 0.225); assert.equal(acc[0]!.forecast_beats_last_game, true);
     const dup = [row("p", 1, 1, 1, { league_slug: "Devoted" }), row("p", 1, 1, 1, { league_slug: "Sportys" }), row("p", 1, 1, 1, { league_slug: "Rogers", provider: "yahoo", scoring_fingerprint: "y" })];

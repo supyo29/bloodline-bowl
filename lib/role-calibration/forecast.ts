@@ -126,7 +126,8 @@ export function buildRoleForecast(input: ForecastInput): RoleForecast {
     }
     if (absent.length) {
       const absentIds = new Set(absent.filter((a) => a.p_absent >= 0.75).map((a) => a.gsis_id));
-      const pool = [profile, ...mates.filter((t) => !absentIds.has(t.gsis_id))];
+      // beneficiary pool: healthy teammates who have actually played this season (stale/zero-game roster entries are never beneficiaries), plus this player
+      const pool = [profile, ...mates.filter((t) => !absentIds.has(t.gsis_id) && t.games_before_target_season >= 1)];
       const deltas: Partial<Record<RoleMetricName, number>> = {};
       for (const m of Object.keys(metrics) as RoleMetricName[]) {
         if (!PRESSURE_DIMENSIONS.has(m) || metrics[m]!.value == null) continue;
@@ -140,7 +141,9 @@ export function buildRoleForecast(input: ForecastInput): RoleForecast {
           const cands: CandidateInput[] = pool.filter((t) => (dim.positions as string[]).includes(t.position)).map((t) => ({ gsis_id: t.gsis_id, position: t.position, pre_event_recent: t.metrics[m]?.recent ?? null, pre_event_season: t.metrics[m]?.season ?? null }));
           const preds = allocateHierarchical(input.propagation, profile.team, a.position, m, vacated * a.p_absent, cands);
           const mine = preds.find((p) => p.gsis_id === profile.gsis_id);
-          if (mine) { total += mine.predicted_delta; hit = true; }
+          // An absence can only ADD opportunity for a healthy teammate; the model's share renormalization can push a delta negative when the pool's
+          // pre-event shares already sum past 1 (a stale-pool artifact) — such reductions are suppressed, never applied.
+          if (mine) { total += Math.max(0, mine.predicted_delta); hit = true; }
         }
         if (hit) deltas[m] = Math.round(total * 1e6) / 1e6;
       }
