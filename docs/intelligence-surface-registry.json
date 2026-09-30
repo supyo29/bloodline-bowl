@@ -408,7 +408,8 @@
       ],
       "consumers": [
         "book-ready",
-        "waiver2"
+        "waiver2",
+        "role-calibration"
       ],
       "notes": "No consumer and no route, by documented design. Inheritance 'rates' are ratios that may exceed 1.0 by design (not probabilities).",
       "book_ready": {
@@ -1568,7 +1569,8 @@
         "book-ready",
         "projections",
         "waiver2",
-        "weekly"
+        "weekly",
+        "role-calibration"
       ],
       "notes": "CATALOG COVERAGE != SCORING SUPPORT. Weekly K/D-ST values remain Sleeper standard points (league-agnostic) and this surface says so per rule. Threshold/tier rules are exact on completed games only.",
       "book_ready": {

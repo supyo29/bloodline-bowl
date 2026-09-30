@@ -324,7 +324,7 @@ describe("adapters + weather + game identity", () => {
 describe("no production influence (Phase 1 observes and records)", () => {
   const walk = (dir: string, out: string[] = []): string[] => { for (const n of readdirSync(dir)) { const f = join(dir, n); if (statSync(f).isDirectory()) { if (!["node_modules", ".next", "data"].includes(n)) walk(f, out); } else if (/\.(ts|tsx)$/.test(n)) out.push(f); } return out; };
   test("only the weekly audit composer, the calibration routes and lib/calibration itself import lib/calibration", () => {
-    const allowed = (f: string) => f.includes(join("lib", "calibration")) || f.includes(join("app", "api", "calibration")) || f.includes(join("app", "api", "cron", "calibration-materialize")) || f.endsWith(join("lib", "weekly-audit", "build.ts")) || f.endsWith(join("lib", "weekly-audit", "contract.ts"));
+    const allowed = (f: string) => f.includes(join("lib", "calibration")) || f.includes(join("app", "api", "calibration")) || f.includes(join("app", "api", "cron", "calibration-materialize")) || f.includes(join("lib", "role-calibration")) || f.includes(join("app", "api", "role-calibration")) || f.includes(join("app", "api", "cron", "role-calibration")) || f.endsWith(join("lib", "weekly-audit", "build.ts")) || f.endsWith(join("lib", "weekly-audit", "contract.ts"));
     const offenders = ["lib", "app"].flatMap((d) => walk(join(process.cwd(), d))).filter((f) => !allowed(f) && /@\/lib\/calibration\//.test(readFileSync(f, "utf8")));
     assert.deepEqual(offenders, []);
   });

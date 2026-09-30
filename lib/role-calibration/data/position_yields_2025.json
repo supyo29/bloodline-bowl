@@ -1,0 +1,187 @@
+{
+  "source": "nflverse pbp 2025 REG season (prior-season yields; out-of-sample for 2026)",
+  "prior_season": 2025,
+  "zone_definition": "rz = yardline_100 <= 20",
+  "rush": [
+    {
+      "position": "QB",
+      "kind": "designed",
+      "zone": "nonrz",
+      "n": 528,
+      "ypc": 3.13826,
+      "td": 0.00568,
+      "fum_lost": 0.04356
+    },
+    {
+      "position": "QB",
+      "kind": "designed",
+      "zone": "rz",
+      "n": 229,
+      "ypc": 2.11416,
+      "td": 0.26201,
+      "fum_lost": 0.01747
+    },
+    {
+      "position": "QB",
+      "kind": "scramble",
+      "zone": "nonrz",
+      "n": 920,
+      "ypc": 7.84239,
+      "td": 0.00217,
+      "fum_lost": 0.00652
+    },
+    {
+      "position": "QB",
+      "kind": "scramble",
+      "zone": "rz",
+      "n": 167,
+      "ypc": 5.51497,
+      "td": 0.25749,
+      "fum_lost": 0
+    },
+    {
+      "position": "RB",
+      "kind": "rush",
+      "zone": "nonrz",
+      "n": 9798,
+      "ypc": 4.69973,
+      "td": 0.00735,
+      "fum_lost": 0.00357
+    },
+    {
+      "position": "RB",
+      "kind": "rush",
+      "zone": "rz",
+      "n": 2094,
+      "ypc": 2.67921,
+      "td": 0.14804,
+      "fum_lost": 0.00669
+    },
+    {
+      "position": "TE",
+      "kind": "rush",
+      "zone": "nonrz",
+      "n": 49,
+      "ypc": 3.77551,
+      "td": 0.02041,
+      "fum_lost": 0.02041
+    },
+    {
+      "position": "TE",
+      "kind": "rush",
+      "zone": "rz",
+      "n": 29,
+      "ypc": 1.03448,
+      "td": 0.2069,
+      "fum_lost": 0
+    },
+    {
+      "position": "WR",
+      "kind": "rush",
+      "zone": "nonrz",
+      "n": 323,
+      "ypc": 5.4582,
+      "td": 0.00619,
+      "fum_lost": 0.00619
+    },
+    {
+      "position": "WR",
+      "kind": "rush",
+      "zone": "rz",
+      "n": 52,
+      "ypc": 4.66667,
+      "td": 0.21154,
+      "fum_lost": 0.03846
+    }
+  ],
+  "receiving": [
+    {
+      "position": "RB",
+      "zone": "nonrz",
+      "n": 2579,
+      "catch_rate": 0.78596,
+      "yards_per_target": 6.03839,
+      "td_per_target": 0.00853,
+      "fum_lost": 0.00465
+    },
+    {
+      "position": "RB",
+      "zone": "rz",
+      "n": 410,
+      "catch_rate": 0.73415,
+      "yards_per_target": 3.99268,
+      "td_per_target": 0.20244,
+      "fum_lost": 0
+    },
+    {
+      "position": "TE",
+      "zone": "nonrz",
+      "n": 3315,
+      "catch_rate": 0.73906,
+      "yards_per_target": 7.86727,
+      "td_per_target": 0.01116,
+      "fum_lost": 0.00362
+    },
+    {
+      "position": "TE",
+      "zone": "rz",
+      "n": 665,
+      "catch_rate": 0.61353,
+      "yards_per_target": 4.37895,
+      "td_per_target": 0.29173,
+      "fum_lost": 0.00451
+    },
+    {
+      "position": "WR",
+      "zone": "nonrz",
+      "n": 8385,
+      "catch_rate": 0.63506,
+      "yards_per_target": 8.47752,
+      "td_per_target": 0.02063,
+      "fum_lost": 0.00346
+    },
+    {
+      "position": "WR",
+      "zone": "rz",
+      "n": 1292,
+      "catch_rate": 0.52322,
+      "yards_per_target": 3.62229,
+      "td_per_target": 0.22988,
+      "fum_lost": 0.00155
+    }
+  ],
+  "qb_dropback": [
+    {
+      "zone": "nonrz",
+      "n": 16964,
+      "pass_att_rate": 0.87963,
+      "sack_rate": 0.06608,
+      "scramble_rate": 0.05429
+    },
+    {
+      "zone": "rz",
+      "n": 2866,
+      "pass_att_rate": 0.88346,
+      "sack_rate": 0.05792,
+      "scramble_rate": 0.05862
+    }
+  ],
+  "qb_pass_attempt": [
+    {
+      "zone": "nonrz",
+      "n": 14922,
+      "cmp_rate": 0.65862,
+      "yards_per_att": 7.58431,
+      "td_per_att": 0.01568,
+      "int_per_att": 0.02118
+    },
+    {
+      "zone": "rz",
+      "n": 2532,
+      "cmp_rate": 0.54858,
+      "yards_per_att": 3.64929,
+      "td_per_att": 0.22788,
+      "int_per_att": 0.02528
+    }
+  ]
+}

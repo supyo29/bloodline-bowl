@@ -21,6 +21,8 @@ export function evidenceDigest(inputs: {
   certification_version: string | null;
   /** Projection Calibration ledger digest; omitted from the hash when absent so pre-ledger audit_ids are unchanged. */
   ledger_digest?: string | null;
+  /** Role calibration digest; omitted from the hash when absent so earlier audit_ids are unchanged. */
+  role_digest?: string | null;
 }): string {
   const norm = {
     fi_version: inputs.fi_version,
@@ -33,6 +35,7 @@ export function evidenceDigest(inputs: {
     waiver2_outcome_sources: [...inputs.waiver2_outcome_sources].sort(),
     certification_version: inputs.certification_version,
     ...(inputs.ledger_digest ? { ledger_digest: inputs.ledger_digest } : {}),
+    ...(inputs.role_digest ? { role_digest: inputs.role_digest } : {}),
   };
   return createHash("sha256").update(JSON.stringify(norm)).digest("hex").slice(0, 16);
 }
