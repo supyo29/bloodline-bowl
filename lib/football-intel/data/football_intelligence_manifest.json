@@ -1,8 +1,8 @@
 {
-  "football_intelligence_version": "fi:2026:w04:8acdfa7ff76b",
+  "football_intelligence_version": "fi:2026:w04:47a55baaf50c",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-10-02T18:11:45+0000",
+  "generated_at": "2026-10-03T16:57:18+0000",
   "season": 2026,
   "through_week": 4,
   "week_completion": {
@@ -13,7 +13,7 @@
     "latest_completed_game_date": "2026-10-01"
   },
   "data_cutoff": {
-    "ftn_charting": 3,
+    "ftn_charting": 4,
     "ngs_passing": 4,
     "ngs_receiving": 4,
     "ngs_rushing": 4,
