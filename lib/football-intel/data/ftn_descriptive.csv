@@ -130,7 +130,7 @@
 2026,4,"PHI","motion_rate",0.4234,222,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
 2026,4,"PHI","no_huddle_rate",0.1261,222,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
 2026,4,"PIT","play_action_rate",0.1098,337,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
-2026,4,"PIT","screen_rate",0.0534,337,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
+2026,4,"PIT","screen_rate",0.0504,337,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
 2026,4,"PIT","rpo_rate",0.0682,337,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
 2026,4,"PIT","motion_rate",0.3917,337,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
 2026,4,"PIT","no_huddle_rate",0.0801,337,"AVAILABLE","DESCRIPTIVE_ONLY","FTN charting (nflreadr::load_ftn_charting)","2022-2026"
