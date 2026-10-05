@@ -29,7 +29,10 @@ source(file.path(BASE, "lib_role_domains.R"))
 args <- commandArgs(TRUE)
 season <- if (length(args) >= 1) as.integer(args[1]) else ROLE$SEASON_CURRENT
 target_weeks <- if (length(args) >= 2) as.integer(strsplit(args[2], ",")[[1]]) else 2:4
-OUT <- file.path(getwd(), "lib", "role-calibration", "data")
+# Phase 3: optional 3rd arg = output suffix (e.g. "_2025") and 4th arg "profiles_only" => export ONLY the as-of profiles (historical calibration runs)
+suffix <- if (length(args) >= 3) args[3] else ""
+profiles_only <- length(args) >= 4 && args[4] == "profiles_only"
+OUT <- file.path(getwd(), "lib", if (nzchar(suffix)) "game-distribution" else "role-calibration", "data")
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 SKILL <- c("QB", "RB", "WR", "TE")
 
@@ -51,8 +54,7 @@ team_tot <- pgr %>% filter(season >= !!season - 1L, season <= !!season) %>% grou
 obs <- obs %>% left_join(team_tot, by = c("season", "week", "team")) %>%
   mutate(inside_10_carry_share = ifelse(team_inside_10_carries > 0, inside_10_carries / team_inside_10_carries, NA_real_),
          goal_line_carry_share = ifelse(team_goal_line_carries > 0, goal_line_carries / team_goal_line_carries, NA_real_))
-write.csv(obs, file.path(OUT, "observed_role_game.csv"), row.names = FALSE, na = "")
-cat(sprintf("observed_role_game.csv: %d rows\n", nrow(obs)))
+write.csv(obs, file.path(OUT, sprintf("observed_role_game%s.csv", suffix)), row.names = FALSE, na = ""); cat(sprintf("observed_role_game%s.csv: %d rows\n", suffix, nrow(obs)))
 
 # ---- 2. pre-game role profiles (synthetic NA target-week row) ------------------------------------------------------
 rw <- readRDS(file.path(FI$CACHE_DIR, "rosters_weekly.rds"))
@@ -99,8 +101,9 @@ for (N in target_weeks) {
   }
 }
 prof <- bind_rows(profiles)
-write.csv(prof, file.path(OUT, "role_profile_asof.csv"), row.names = FALSE, na = "")
-cat(sprintf("role_profile_asof.csv: %d rows\n", nrow(prof)))
+write.csv(prof, file.path(OUT, sprintf("role_profile_asof%s.csv", suffix)), row.names = FALSE, na = "")
+cat(sprintf("role_profile_asof%s.csv: %d rows\n", suffix, nrow(prof)))
+if (profiles_only) quit(save = "no", status = 0)
 
 # ---- 3. official injury designations (team-week) ---------------------------------------------------------------------
 inj <- load_injuries(seasons = c(season - 1L, season)) %>% filter(position %in% SKILL) %>%

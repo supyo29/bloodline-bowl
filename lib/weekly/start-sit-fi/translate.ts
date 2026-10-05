@@ -19,7 +19,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadFootballIntelligence, type FootballIntelligence } from "@/lib/football-intel";
-import { usageValueFor } from "./usage-values";
+import { interactionValueFor, usageValueFor, INTERACTION_PROXY_NOTE } from "./usage-values";
 import type {
   StartSitFiAdjustment,
   FiFamilyContribution,
@@ -221,6 +221,11 @@ export function translateFiAdjustment(input: TranslateInput): StartSitFiAdjustme
     if (fiValue == null && fam.value_col.startsWith("fi_usage_")) {
       const u = usageValueFor(fi, input.canonical_player_id, input.position, fam.value_col);
       if (u) { fiValue = u.value; fiConf = (u.confidence ?? null) as FiFamilyContribution["fi_confidence"]; }
+    }
+    // Phase 3: the interaction families, from the published FI contextual-matchup feature (LABELED PROXY — see usage-values.ts)
+    if (fiValue == null && fam.value_col.startsWith("fi_interaction_")) {
+      const x = interactionValueFor(fi, input.nfl_team, input.opponent, fam.value_col);
+      if (x) { fiValue = x.value; fiConf = (x.confidence ?? null) as FiFamilyContribution["fi_confidence"]; if (!warnings.includes(INTERACTION_PROXY_NOTE)) warnings.push(INTERACTION_PROXY_NOTE); }
     }
 
     const cw = confWeight(mp, fam.routing, fiConf ?? null);

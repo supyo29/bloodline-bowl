@@ -20,11 +20,8 @@ export interface ObservedRow {
 }
 const clip01 = (v: number | null): number | null => (v == null ? null : Math.min(1, Math.max(0, v)));
 
-let observedCache: ObservedRow[] | null = null;
-export function loadObservedRoleGames(): ObservedRow[] {
-  if (observedCache) return observedCache;
-  const t = read("observed_role_game.csv");
-  observedCache = t ? parseCsv(t).map((r) => ({
+export function parseObservedCsv(text: string): ObservedRow[] {
+  return parseCsv(text).map((r) => ({
     season: Number(r.season), week: Number(r.week), game_id: str(r.game_id), gsis_id: r.gsis_id!, sleeper_id: str(r.sleeper_id), full_name: str(r.full_name), position: r.position!, team: r.team!, opponent: str(r.opponent),
     offensive_snaps: num(r.offensive_snaps), team_offensive_plays: num(r.team_offensive_plays),
     // snap share = offensive snaps / team offensive plays; provider definitions can differ slightly, so clip to [0,1] (raw ratio is recomputable from the two counts)
@@ -36,7 +33,13 @@ export function loadObservedRoleGames(): ObservedRow[] {
     team_rz_pass_att: num(r.team_rz_pass_att), team_rz_rush_att: num(r.team_rz_rush_att), rz_target_share: num(r.rz_target_share), rz_carry_share: num(r.rz_carry_share),
     third_down_targets: num(r.third_down_targets), third_down_carries: num(r.third_down_carries), two_minute_targets: num(r.two_minute_targets), two_minute_carries: num(r.two_minute_carries),
     inside_10_carry_share: num(r.inside_10_carry_share), goal_line_carry_share: num(r.goal_line_carry_share),
-  })) : [];
+  }));
+}
+let observedCache: ObservedRow[] | null = null;
+export function loadObservedRoleGames(): ObservedRow[] {
+  if (observedCache) return observedCache;
+  const t = read("observed_role_game.csv");
+  observedCache = t ? parseObservedCsv(t) : [];
   return observedCache;
 }
 
@@ -46,18 +49,21 @@ export interface ProfileRow {
   last_game_season: number; last_game_week: number; last_game_team: string | null; games_before_target_season: number; roster_team_source: string;
   metrics: Partial<Record<RoleMetricName, ProfileMetricRow>>;
 }
-let profileCache: ProfileRow[] | null = null;
-export function loadRoleProfilesAsOf(): ProfileRow[] {
-  if (profileCache) return profileCache;
-  const t = read("role_profile_asof.csv");
-  profileCache = t ? parseCsv(t).map((r) => {
+export function parseProfileCsv(text: string): ProfileRow[] {
+  return parseCsv(text).map((r) => {
     const metrics: ProfileRow["metrics"] = {};
     for (const m of ROLE_METRICS) {
       if (!(`${m}_n_games` in r)) continue;
       metrics[m] = { recent: num(r[`${m}_recent`]), season: num(r[`${m}_season`]), prior: num(r[`${m}_prior`]), prior_conf: str(r[`${m}_prior_conf`]), discontinuity: str(r[`${m}_discontinuity`]), n_games: num(r[`${m}_n_games`]) ?? 0, opp_total: num(r[`${m}_opp_total`]), conf: str(r[`${m}_conf`]) };
     }
     return { target_week: Number(r.target_week), gsis_id: r.gsis_id!, sleeper_id: str(r.sleeper_id), full_name: str(r.full_name), position: r.position!, team: r.team!, last_game_season: Number(r.last_game_season), last_game_week: Number(r.last_game_week), last_game_team: str(r.last_game_team), games_before_target_season: Number(r.games_before_target_season), roster_team_source: r.roster_team_source ?? "", metrics };
-  }) : [];
+  });
+}
+let profileCache: ProfileRow[] | null = null;
+export function loadRoleProfilesAsOf(): ProfileRow[] {
+  if (profileCache) return profileCache;
+  const t = read("role_profile_asof.csv");
+  profileCache = t ? parseProfileCsv(t) : [];
   return profileCache;
 }
 

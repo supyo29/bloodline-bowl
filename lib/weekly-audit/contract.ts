@@ -77,6 +77,8 @@ export interface WeeklyModelAudit {
   calibration_ledger?: ComponentResult<import("@/lib/calibration/audit").LedgerWeekAudit>;
   /** Projection Calibration Phase 2: Role & Opportunity calibration (SHADOW_ONLY) composed from bridge_role_calibration_analysis rows. */
   role_calibration?: ComponentResult<import("@/lib/role-calibration/report").RoleAuditComponent>;
+  /** Projection Calibration Phase 3: game-environment + outcome-distribution calibration (models A/B/C/D, SHADOW_ONLY) composed from bridge_distribution_calibration_analysis rows. */
+  distribution_calibration?: ComponentResult<import("@/lib/game-distribution/report").DistributionAuditComponent>;
   start_sit: ComponentResult<{ decisions: StartSitDecisionOutcome[]; calibration: StartSitCalibration }>;
   fi_weekly_calibration: ComponentResult<{ by_family_position: FiRetestProgress[] }>;
   matchup2: ComponentResult<Matchup2Audit>;

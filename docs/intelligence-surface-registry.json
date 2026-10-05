@@ -135,7 +135,8 @@
         "book-ready",
         "waiver2",
         "matchup2",
-        "weekly-audit/build.ts"
+        "weekly-audit/build.ts",
+        "game-distribution"
       ],
       "notes": "Phase 3.5B: usage rows with no observed value are class MODELED (deferred defect #3). The reader enforces it until the next daily refresh republishes the artifact.",
       "book_ready": {

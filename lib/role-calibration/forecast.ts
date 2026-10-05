@@ -183,7 +183,7 @@ export function buildRoleForecast(input: ForecastInput): RoleForecast {
     nfl_game_id: input.nflGameId, kickoff_at: input.kickoffAt, capture_kind: input.captureKind, as_of_at: input.asOfAt, data_cutoff_at, data_cutoff_week: last ? last.week : null,
     metrics, volumes, opportunity, opportunity_no_pressure, availability: { designation, p_absent, expected_absent: designation === "OUT" }, depth, teammate_pressure: pressure,
     confidence: conf.confidence, confidence_score: conf.score, prior_season_only: priorSeasonOnly, reason_codes: [...new Set(reasons)],
-    provenance: { profile_source: "lib/role-calibration/data/role_profile_asof.csv (canonical analysis/player_role build_role_profile at a synthetic NA target-week row)", role_substrate: "analysis/player_role player_game_role (nflverse pbp + snap_counts)", injury_source: "nflverse team-week official designation", depth_source: "nflverse/ESPN depth chart snapshots (dt < kickoff)", route_note: "2026 route participation unpublished upstream; route metrics are prior-season evidence only", roster_team_source: profile.roster_team_source, last_game: last },
+    provenance: { profile_source: "lib/role-calibration/data/role_profile_asof.csv (canonical analysis/player_role build_role_profile at a synthetic NA target-week row)", role_substrate: "analysis/player_role player_game_role (nflverse pbp + snap_counts)", injury_source: "nflverse team-week official designation", depth_source: "nflverse/ESPN depth chart snapshots (dt < kickoff)", route_note: "2026 route participation unpublished upstream; route metrics are prior-season evidence only", roster_team_source: profile.roster_team_source, last_game: last, games_before_target_season: profile.games_before_target_season },
   };
 }
 

@@ -1,0 +1,1201 @@
+{
+ "generated_at": "2026-10-04T21:07:40.372Z",
+ "best": {
+  "sigma_team": 0.16,
+  "sigma_player": 0.12,
+  "pinball": 1.732
+ },
+ "grid": [
+  {
+   "sigma_team": 0.16,
+   "sigma_player": 0.12,
+   "pinball": 1.732
+  },
+  {
+   "sigma_team": 0.08,
+   "sigma_player": 0.12,
+   "pinball": 1.7321
+  },
+  {
+   "sigma_team": 0.24,
+   "sigma_player": 0.12,
+   "pinball": 1.7328
+  },
+  {
+   "sigma_team": 0.24,
+   "sigma_player": 0,
+   "pinball": 1.7335
+  },
+  {
+   "sigma_team": 0.08,
+   "sigma_player": 0,
+   "pinball": 1.7341
+  },
+  {
+   "sigma_team": 0.16,
+   "sigma_player": 0.24,
+   "pinball": 1.7343
+  },
+  {
+   "sigma_team": 0.16,
+   "sigma_player": 0,
+   "pinball": 1.7344
+  },
+  {
+   "sigma_team": 0,
+   "sigma_player": 0,
+   "pinball": 1.7348
+  },
+  {
+   "sigma_team": 0.24,
+   "sigma_player": 0.24,
+   "pinball": 1.7349
+  },
+  {
+   "sigma_team": 0.08,
+   "sigma_player": 0.36,
+   "pinball": 1.7362
+  },
+  {
+   "sigma_team": 0,
+   "sigma_player": 0.36,
+   "pinball": 1.7363
+  },
+  {
+   "sigma_team": 0,
+   "sigma_player": 0.24,
+   "pinball": 1.7366
+  },
+  {
+   "sigma_team": 0,
+   "sigma_player": 0.12,
+   "pinball": 1.7369
+  },
+  {
+   "sigma_team": 0.08,
+   "sigma_player": 0.24,
+   "pinball": 1.7375
+  },
+  {
+   "sigma_team": 0.24,
+   "sigma_player": 0.36,
+   "pinball": 1.7403
+  },
+  {
+   "sigma_team": 0.16,
+   "sigma_player": 0.36,
+   "pinball": 1.7421
+  }
+ ],
+ "holdout_overall_recalibrated": {
+  "pit_intervals": [
+   {
+    "name": "50% (P25-P75)",
+    "nominal": 0.5,
+    "observed": 0.51,
+    "calibration_error": 0.01
+   },
+   {
+    "name": "60% (P20-P80) = production floor/ceiling definition",
+    "nominal": 0.6,
+    "observed": 0.6075,
+    "calibration_error": 0.0075
+   },
+   {
+    "name": "68% (P16-P84)",
+    "nominal": 0.68,
+    "observed": 0.6745,
+    "calibration_error": -0.0055
+   },
+   {
+    "name": "80% (P10-P90)",
+    "nominal": 0.8,
+    "observed": 0.7815,
+    "calibration_error": -0.0185
+   }
+  ],
+  "pit_mean": 0.4918,
+  "n": 1149,
+  "mean_pinball": 1.6685,
+  "crps_approx": 3.3369,
+  "intervals": [
+   {
+    "name": "50% (P25-P75)",
+    "nominal": 0.5,
+    "observed": 0.5866,
+    "calibration_error": 0.0866,
+    "mean_width": 9.9164,
+    "mean_interval_score": 17.6247
+   },
+   {
+    "name": "60% (P20-P80) = production floor/ceiling definition",
+    "nominal": 0.6,
+    "observed": 0.6893,
+    "calibration_error": 0.0893,
+    "mean_width": 12.3153,
+    "mean_interval_score": 19.4545
+   },
+   {
+    "name": "68% (P16-P84)",
+    "nominal": 0.68,
+    "observed": 0.7607,
+    "calibration_error": 0.0807,
+    "mean_width": 14.3836,
+    "mean_interval_score": 21.1878
+   },
+   {
+    "name": "80% (P10-P90)",
+    "nominal": 0.8,
+    "observed": 0.8616,
+    "calibration_error": 0.0616,
+    "mean_width": 18.139,
+    "mean_interval_score": 24.4633
+   }
+  ],
+  "exceed_p90": 0.1097,
+  "below_p10": 0.0287,
+  "exceed_p95": 0.054,
+  "below_p05": 0.0026
+ },
+ "holdout_overall_raw": {
+  "pit_intervals": [
+   {
+    "name": "50% (P25-P75)",
+    "nominal": 0.5,
+    "observed": 0.5091,
+    "calibration_error": 0.0091
+   },
+   {
+    "name": "60% (P20-P80) = production floor/ceiling definition",
+    "nominal": 0.6,
+    "observed": 0.6136,
+    "calibration_error": 0.0136
+   },
+   {
+    "name": "68% (P16-P84)",
+    "nominal": 0.68,
+    "observed": 0.6884,
+    "calibration_error": 0.0084
+   },
+   {
+    "name": "80% (P10-P90)",
+    "nominal": 0.8,
+    "observed": 0.799,
+    "calibration_error": -0.001
+   }
+  ],
+  "pit_mean": 0.5434,
+  "n": 1149,
+  "mean_pinball": 1.6984,
+  "crps_approx": 3.3968,
+  "intervals": [
+   {
+    "name": "50% (P25-P75)",
+    "nominal": 0.5,
+    "observed": 0.5936,
+    "calibration_error": 0.0936,
+    "mean_width": 9.1763,
+    "mean_interval_score": 18.0097
+   },
+   {
+    "name": "60% (P20-P80) = production floor/ceiling definition",
+    "nominal": 0.6,
+    "observed": 0.7006,
+    "calibration_error": 0.1006,
+    "mean_width": 11.595,
+    "mean_interval_score": 19.8924
+   },
+   {
+    "name": "68% (P16-P84)",
+    "nominal": 0.68,
+    "observed": 0.7702,
+    "calibration_error": 0.0902,
+    "mean_width": 13.8107,
+    "mean_interval_score": 21.6819
+   },
+   {
+    "name": "80% (P10-P90)",
+    "nominal": 0.8,
+    "observed": 0.8634,
+    "calibration_error": 0.0634,
+    "mean_width": 17.5752,
+    "mean_interval_score": 24.9012
+   }
+  ],
+  "exceed_p90": 0.1323,
+  "below_p10": 0.0044,
+  "exceed_p95": 0.0661,
+  "below_p05": 0.0026
+ },
+ "holdout_by_position": {
+  "QB": {
+   "raw": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.3989,
+      "calibration_error": -0.1011
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.5137,
+      "calibration_error": -0.0863
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.6393,
+      "calibration_error": -0.0407
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.765,
+      "calibration_error": -0.035
+     }
+    ],
+    "pit_mean": 0.5978,
+    "n": 183,
+    "mean_pinball": 2.1906,
+    "crps_approx": 4.3812,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5137,
+      "calibration_error": 0.0137,
+      "mean_width": 10.5447,
+      "mean_interval_score": 23.6905
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6066,
+      "calibration_error": 0.0066,
+      "mean_width": 13.7338,
+      "mean_interval_score": 25.7883
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.694,
+      "calibration_error": 0.014,
+      "mean_width": 16.816,
+      "mean_interval_score": 27.8211
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8197,
+      "calibration_error": 0.0197,
+      "mean_width": 21.8368,
+      "mean_interval_score": 31.7582
+     }
+    ],
+    "exceed_p90": 0.1749,
+    "below_p10": 0.0055,
+    "exceed_p95": 0.082,
+    "below_p05": 0.0055
+   },
+   "recalibrated": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5191,
+      "calibration_error": 0.0191
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6066,
+      "calibration_error": 0.0066
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.6776,
+      "calibration_error": -0.0024
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.7869,
+      "calibration_error": -0.0131
+     }
+    ],
+    "pit_mean": 0.5274,
+    "n": 183,
+    "mean_pinball": 2.0606,
+    "crps_approx": 4.1212,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.6503,
+      "calibration_error": 0.1503,
+      "mean_width": 13.6089,
+      "mean_interval_score": 21.7238
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.7213,
+      "calibration_error": 0.1213,
+      "mean_width": 15.8693,
+      "mean_interval_score": 24.093
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7814,
+      "calibration_error": 0.1014,
+      "mean_width": 18.1546,
+      "mean_interval_score": 26.2781
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8306,
+      "calibration_error": 0.0306,
+      "mean_width": 23.2471,
+      "mean_interval_score": 30.3256
+     }
+    ],
+    "exceed_p90": 0.1366,
+    "below_p10": 0.0328,
+    "exceed_p95": 0.0765,
+    "below_p05": 0.0055
+   }
+  },
+  "RB": {
+   "raw": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5621,
+      "calibration_error": 0.0621
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6724,
+      "calibration_error": 0.0724
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7276,
+      "calibration_error": 0.0476
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8379,
+      "calibration_error": 0.0379
+     }
+    ],
+    "pit_mean": 0.5203,
+    "n": 290,
+    "mean_pinball": 1.6966,
+    "crps_approx": 3.3932,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.6034,
+      "calibration_error": 0.1034,
+      "mean_width": 9.1568,
+      "mean_interval_score": 17.6578
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.7276,
+      "calibration_error": 0.1276,
+      "mean_width": 11.7506,
+      "mean_interval_score": 19.7587
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7897,
+      "calibration_error": 0.1097,
+      "mean_width": 14.0592,
+      "mean_interval_score": 21.861
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8862,
+      "calibration_error": 0.0862,
+      "mean_width": 18.1023,
+      "mean_interval_score": 25.6744
+     }
+    ],
+    "exceed_p90": 0.1103,
+    "below_p10": 0.0034,
+    "exceed_p95": 0.0621,
+    "below_p05": 0.0034
+   },
+   "recalibrated": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5138,
+      "calibration_error": 0.0138
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6241,
+      "calibration_error": 0.0241
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7069,
+      "calibration_error": 0.0269
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.7966,
+      "calibration_error": -0.0034
+     }
+    ],
+    "pit_mean": 0.4527,
+    "n": 290,
+    "mean_pinball": 1.6951,
+    "crps_approx": 3.3903,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5345,
+      "calibration_error": 0.0345,
+      "mean_width": 9.7616,
+      "mean_interval_score": 17.7651
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6517,
+      "calibration_error": 0.0517,
+      "mean_width": 12.8226,
+      "mean_interval_score": 19.718
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7552,
+      "calibration_error": 0.0752,
+      "mean_width": 15.1138,
+      "mean_interval_score": 21.6102
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8552,
+      "calibration_error": 0.0552,
+      "mean_width": 18.6586,
+      "mean_interval_score": 25.3544
+     }
+    ],
+    "exceed_p90": 0.0862,
+    "below_p10": 0.0586,
+    "exceed_p95": 0.0448,
+    "below_p05": 0.0034
+   }
+  },
+  "WR": {
+   "raw": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5358,
+      "calibration_error": 0.0358
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6356,
+      "calibration_error": 0.0356
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.6963,
+      "calibration_error": 0.0163
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8156,
+      "calibration_error": 0.0156
+     }
+    ],
+    "pit_mean": 0.54,
+    "n": 461,
+    "mean_pinball": 1.5616,
+    "crps_approx": 3.1233,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.6269,
+      "calibration_error": 0.1269,
+      "mean_width": 9.089,
+      "mean_interval_score": 16.6478
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.7245,
+      "calibration_error": 0.1245,
+      "mean_width": 11.2726,
+      "mean_interval_score": 18.3695
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7787,
+      "calibration_error": 0.0987,
+      "mean_width": 13.2466,
+      "mean_interval_score": 19.9103
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8698,
+      "calibration_error": 0.0698,
+      "mean_width": 16.8201,
+      "mean_interval_score": 22.45
+     }
+    ],
+    "exceed_p90": 0.1236,
+    "below_p10": 0.0065,
+    "exceed_p95": 0.0564,
+    "below_p05": 0.0022
+   },
+   "recalibrated": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5119,
+      "calibration_error": 0.0119
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6074,
+      "calibration_error": 0.0074
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.6768,
+      "calibration_error": -0.0032
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8004,
+      "calibration_error": 0.0004
+     }
+    ],
+    "pit_mean": 0.4978,
+    "n": 461,
+    "mean_pinball": 1.5438,
+    "crps_approx": 3.0875,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5922,
+      "calibration_error": 0.0922,
+      "mean_width": 9.1481,
+      "mean_interval_score": 16.4671
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6963,
+      "calibration_error": 0.0963,
+      "mean_width": 11.324,
+      "mean_interval_score": 18.0276
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7636,
+      "calibration_error": 0.0836,
+      "mean_width": 13.3825,
+      "mean_interval_score": 19.5116
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8807,
+      "calibration_error": 0.0807,
+      "mean_width": 17.3837,
+      "mean_interval_score": 22.1968
+     }
+    ],
+    "exceed_p90": 0.0976,
+    "below_p10": 0.0217,
+    "exceed_p95": 0.0347,
+    "below_p05": 0.0022
+   }
+  },
+  "TE": {
+   "raw": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.4744,
+      "calibration_error": -0.0256
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.5721,
+      "calibration_error": -0.0279
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.6605,
+      "calibration_error": -0.0195
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.7395,
+      "calibration_error": -0.0605
+     }
+    ],
+    "pit_mean": 0.5354,
+    "n": 215,
+    "mean_pinball": 1.5753,
+    "crps_approx": 3.1505,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5767,
+      "calibration_error": 0.0767,
+      "mean_width": 8.2248,
+      "mean_interval_score": 16.5692
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.693,
+      "calibration_error": 0.093,
+      "mean_width": 10.2562,
+      "mean_interval_score": 18.3199
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7907,
+      "calibration_error": 0.1107,
+      "mean_width": 12.1272,
+      "mean_interval_score": 20.0134
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8558,
+      "calibration_error": 0.0558,
+      "mean_width": 14.856,
+      "mean_interval_score": 23.2775
+     }
+    ],
+    "exceed_p90": 0.1442,
+    "below_p10": 0,
+    "exceed_p95": 0.0791,
+    "below_p05": 0
+   },
+   "recalibrated": {
+    "pit_intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.493,
+      "calibration_error": -0.007
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.586,
+      "calibration_error": -0.014
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.6233,
+      "calibration_error": -0.0567
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.7163,
+      "calibration_error": -0.0837
+     }
+    ],
+    "pit_mean": 0.5014,
+    "n": 215,
+    "mean_pinball": 1.5662,
+    "crps_approx": 3.1324,
+    "intervals": [
+     {
+      "name": "50% (P25-P75)",
+      "nominal": 0.5,
+      "observed": 0.5907,
+      "calibration_error": 0.0907,
+      "mean_width": 8.6299,
+      "mean_interval_score": 16.4284
+     },
+     {
+      "name": "60% (P20-P80) = production floor/ceiling definition",
+      "nominal": 0.6,
+      "observed": 0.6977,
+      "calibration_error": 0.0977,
+      "mean_width": 10.7314,
+      "mean_interval_score": 18.2105
+     },
+     {
+      "name": "68% (P16-P84)",
+      "nominal": 0.68,
+      "observed": 0.7442,
+      "calibration_error": 0.0642,
+      "mean_width": 12.3355,
+      "mean_interval_score": 19.8794
+     },
+     {
+      "name": "80% (P10-P90)",
+      "nominal": 0.8,
+      "observed": 0.8558,
+      "calibration_error": 0.0558,
+      "mean_width": 14.71,
+      "mean_interval_score": 23.1315
+     }
+    ],
+    "exceed_p90": 0.1442,
+    "below_p10": 0,
+    "exceed_p95": 0.0884,
+    "below_p05": 0
+   }
+  }
+ },
+ "recalibration_n": {
+  "ALL": 1594,
+  "QB": 256,
+  "RB": 410,
+  "WR": 636,
+  "TE": 292
+ },
+ "n_forecasts": 10231,
+ "n_pairs": 224,
+ "regime": {
+  "qb_change_dispersion_ratio": 1.1649,
+  "n_qb_change_games": 74,
+  "n_other_games": 374,
+  "applied": true
+ },
+ "pool_sizes": {
+  "QB|HEALTHY|ACT|T0|2": 28,
+  "QB|HEALTHY|ACT|m2": 370,
+  "QB|HEALTHY|ACT|T0": 58,
+  "QB|HEALTHY|ACT": 504,
+  "QB|HEALTHY": 2766,
+  "QB|HEALTHY|LAP|T0|0": 360,
+  "QB|HEALTHY|LAP|m0": 434,
+  "QB|HEALTHY|LAP|T0": 675,
+  "QB|HEALTHY|LAP": 843,
+  "QB|HEALTHY|LAP|T0|1": 259,
+  "QB|HEALTHY|LAP|m1": 331,
+  "QB|HEALTHY|ACT|T0|1": 17,
+  "QB|HEALTHY|ACT|m1": 106,
+  "QB|HEALTHY|LAP|T0|2": 56,
+  "QB|HEALTHY|LAP|m2": 78,
+  "RB|HEALTHY|ACT|T0|0": 49,
+  "RB|HEALTHY|ACT|m0": 504,
+  "RB|HEALTHY|ACT|T0": 133,
+  "RB|HEALTHY|ACT": 1500,
+  "RB|HEALTHY": 5204,
+  "WR|HEALTHY|ACT|T0|2": 71,
+  "WR|HEALTHY|ACT|m2": 915,
+  "WR|HEALTHY|ACT|T0": 192,
+  "WR|HEALTHY|ACT": 2295,
+  "WR|HEALTHY": 7687,
+  "TE|HEALTHY|ACT|T0|2": 36,
+  "TE|HEALTHY|ACT|m2": 519,
+  "TE|HEALTHY|ACT|T0": 117,
+  "TE|HEALTHY|ACT": 1437,
+  "TE|HEALTHY": 4125,
+  "WR|HEALTHY|ACT|T0|1": 56,
+  "WR|HEALTHY|ACT|m1": 765,
+  "TE|HEALTHY|ACT|T0|0": 47,
+  "TE|HEALTHY|ACT|m0": 433,
+  "WR|HEALTHY|LAP|T0|1": 306,
+  "WR|HEALTHY|LAP|m1": 382,
+  "WR|HEALTHY|LAP|T0": 1066,
+  "WR|HEALTHY|LAP": 1385,
+  "RB|HEALTHY|LAP|T0|0": 376,
+  "RB|HEALTHY|LAP|m0": 483,
+  "RB|HEALTHY|LAP|T0": 791,
+  "RB|HEALTHY|LAP": 1029,
+  "TE|OUT|LAP|T0|2": 2,
+  "TE|OUT|LAP|m2": 2,
+  "TE|OUT|LAP|T0": 3,
+  "TE|OUT|LAP": 8,
+  "TE|OUT": 71,
+  "RB|HEALTHY|LAP|T0|1": 328,
+  "RB|HEALTHY|LAP|m1": 419,
+  "WR|HEALTHY|ACT|T0|0": 65,
+  "WR|HEALTHY|ACT|m0": 615,
+  "RB|HEALTHY|LAP|T0|2": 87,
+  "RB|HEALTHY|LAP|m2": 127,
+  "TE|HEALTHY|ACT|T0|1": 34,
+  "TE|HEALTHY|ACT|m1": 485,
+  "RB|HEALTHY|ACT|T0|2": 48,
+  "RB|HEALTHY|ACT|m2": 634,
+  "WR|HEALTHY|LAP|T0|0": 651,
+  "WR|HEALTHY|LAP|m0": 832,
+  "QB|HEALTHY|ACT|T0|0": 13,
+  "QB|HEALTHY|ACT|m0": 28,
+  "WR|OUT|ACT|T0|1": 3,
+  "WR|OUT|ACT|m1": 32,
+  "WR|OUT|ACT|T0": 10,
+  "WR|OUT|ACT": 140,
+  "WR|OUT": 174,
+  "WR|OUT|ACT|T0|2": 5,
+  "WR|OUT|ACT|m2": 67,
+  "TE|OUT|ACT|T0|2": 3,
+  "TE|OUT|ACT|m2": 22,
+  "TE|OUT|ACT|T0": 5,
+  "TE|OUT|ACT": 63,
+  "WR|OUT|LAP|T0|2": 13,
+  "WR|OUT|LAP|m2": 18,
+  "WR|OUT|LAP|T0": 27,
+  "WR|OUT|LAP": 34,
+  "TE|HEALTHY|LAP|T0|0": 241,
+  "TE|HEALTHY|LAP|m0": 345,
+  "TE|HEALTHY|LAP|T0": 391,
+  "TE|HEALTHY|LAP": 558,
+  "WR|HEALTHY|LAP|T0|2": 109,
+  "WR|HEALTHY|LAP|m2": 171,
+  "RB|HEALTHY|ACT|T0|1": 36,
+  "RB|HEALTHY|ACT|m1": 362,
+  "TE|HEALTHY|LAP|T0|2": 66,
+  "TE|HEALTHY|LAP|m2": 81,
+  "WR|QUESTIONABLE|ACT|T0|0": 2,
+  "WR|QUESTIONABLE|ACT|m0": 23,
+  "WR|QUESTIONABLE|ACT|T0": 11,
+  "WR|QUESTIONABLE|ACT": 120,
+  "WR|QUESTIONABLE": 146,
+  "TE|QUESTIONABLE|ACT|T0|1": 3,
+  "TE|QUESTIONABLE|ACT|m1": 15,
+  "TE|QUESTIONABLE|ACT|T0": 7,
+  "TE|QUESTIONABLE|ACT": 54,
+  "TE|QUESTIONABLE": 60,
+  "WR|QUESTIONABLE|ACT|T0|2": 7,
+  "WR|QUESTIONABLE|ACT|m2": 63,
+  "RB|QUESTIONABLE|ACT|T0|2": 2,
+  "RB|QUESTIONABLE|ACT|m2": 29,
+  "RB|QUESTIONABLE|ACT|T0": 3,
+  "RB|QUESTIONABLE|ACT": 52,
+  "RB|QUESTIONABLE": 72,
+  "TE|HEALTHY|LAP|T0|1": 84,
+  "TE|HEALTHY|LAP|m1": 132,
+  "TE|OUT|ACT|T0|0": 2,
+  "TE|OUT|ACT|m0": 15,
+  "RB|OUT|ACT|T0|0": 3,
+  "RB|OUT|ACT|m0": 14,
+  "RB|OUT|ACT|T0": 3,
+  "RB|OUT|ACT": 46,
+  "RB|OUT": 70,
+  "QB|OUT|ACT|T0|1": 1,
+  "QB|OUT|ACT|m1": 14,
+  "QB|OUT|ACT|T0": 7,
+  "QB|OUT|ACT": 28,
+  "QB|OUT": 45,
+  "QB|QUESTIONABLE|ACT|T0|2": 2,
+  "QB|QUESTIONABLE|ACT|m2": 11,
+  "QB|QUESTIONABLE|ACT|T0": 2,
+  "QB|QUESTIONABLE|ACT": 15,
+  "QB|QUESTIONABLE": 25,
+  "QB|QUESTIONABLE|LAP|T0|1": 2,
+  "QB|QUESTIONABLE|LAP|m1": 3,
+  "QB|QUESTIONABLE|LAP|T0": 8,
+  "QB|QUESTIONABLE|LAP": 10,
+  "TE|QUESTIONABLE|ACT|T0|2": 3,
+  "TE|QUESTIONABLE|ACT|m2": 29,
+  "WR|QUESTIONABLE|LAP|T0|0": 3,
+  "WR|QUESTIONABLE|LAP|m0": 9,
+  "WR|QUESTIONABLE|LAP|T0": 18,
+  "WR|QUESTIONABLE|LAP": 26,
+  "RB|DOUBTFUL|ACT|T0|2": 1,
+  "RB|DOUBTFUL|ACT|m2": 2,
+  "RB|DOUBTFUL|ACT|T0": 1,
+  "RB|DOUBTFUL|ACT": 3,
+  "RB|DOUBTFUL": 4,
+  "WR|QUESTIONABLE|ACT|T0|1": 2,
+  "WR|QUESTIONABLE|ACT|m1": 34,
+  "TE|QUESTIONABLE|ACT|T0|0": 1,
+  "TE|QUESTIONABLE|ACT|m0": 10,
+  "QB|OUT|ACT|T0|2": 6,
+  "QB|OUT|ACT|m2": 14,
+  "RB|QUESTIONABLE|ACT|T0|0": 1,
+  "RB|QUESTIONABLE|ACT|m0": 8,
+  "QB|HEALTHY|ACT|T1|2": 117,
+  "QB|HEALTHY|ACT|T1": 171,
+  "RB|HEALTHY|ACT|T1|0": 158,
+  "RB|HEALTHY|ACT|T1": 504,
+  "WR|HEALTHY|ACT|T1|2": 302,
+  "WR|HEALTHY|ACT|T1": 790,
+  "TE|HEALTHY|ACT|T1|2": 166,
+  "TE|HEALTHY|ACT|T1": 484,
+  "WR|HEALTHY|ACT|T1|1": 248,
+  "WR|QUESTIONABLE|ACT|T1|2": 21,
+  "WR|QUESTIONABLE|ACT|T1": 35,
+  "WR|OUT|ACT|T1|2": 32,
+  "WR|OUT|ACT|T1": 61,
+  "TE|HEALTHY|ACT|T1|0": 158,
+  "WR|HEALTHY|ACT|T1|0": 240,
+  "RB|HEALTHY|ACT|T1|2": 203,
+  "TE|QUESTIONABLE|ACT|T1|2": 9,
+  "TE|QUESTIONABLE|ACT|T1": 17,
+  "TE|HEALTHY|ACT|T1|1": 160,
+  "WR|OUT|ACT|T1|1": 14,
+  "WR|QUESTIONABLE|LAP|T0|2": 8,
+  "WR|QUESTIONABLE|LAP|m2": 9,
+  "WR|OUT|ACT|T1|0": 15,
+  "WR|OUT|ACT|m0": 41,
+  "QB|QUESTIONABLE|ACT|T1|2": 6,
+  "QB|QUESTIONABLE|ACT|T1": 7,
+  "RB|HEALTHY|ACT|T1|1": 143,
+  "TE|OUT|ACT|T1|2": 7,
+  "TE|OUT|ACT|T1": 21,
+  "RB|QUESTIONABLE|ACT|T1|2": 8,
+  "RB|QUESTIONABLE|ACT|T1": 15,
+  "RB|DOUBTFUL|LAP|T0|0": 1,
+  "RB|DOUBTFUL|LAP|m0": 1,
+  "RB|DOUBTFUL|LAP|T0": 1,
+  "RB|DOUBTFUL|LAP": 1,
+  "TE|QUESTIONABLE|LAP|T0|2": 3,
+  "TE|QUESTIONABLE|LAP|m2": 5,
+  "TE|QUESTIONABLE|LAP|T0": 4,
+  "TE|QUESTIONABLE|LAP": 6,
+  "TE|OUT|ACT|T1|1": 10,
+  "TE|OUT|ACT|m1": 26,
+  "RB|OUT|LAP|T0|0": 11,
+  "RB|OUT|LAP|m0": 13,
+  "RB|OUT|LAP|T0": 15,
+  "RB|OUT|LAP": 24,
+  "RB|OUT|ACT|T1|2": 8,
+  "RB|OUT|ACT|m2": 21,
+  "RB|OUT|ACT|T1": 13,
+  "WR|OUT|ACT|T0|0": 2,
+  "QB|HEALTHY|ACT|T1|1": 45,
+  "TE|QUESTIONABLE|ACT|T1|1": 6,
+  "TE|OUT|ACT|T1|0": 4,
+  "RB|OUT|LAP|T0|2": 1,
+  "RB|OUT|LAP|m2": 8,
+  "TE|DOUBTFUL|ACT|T1|2": 2,
+  "TE|DOUBTFUL|ACT|m2": 3,
+  "TE|DOUBTFUL|ACT|T1": 2,
+  "TE|DOUBTFUL|ACT": 4,
+  "TE|DOUBTFUL": 4,
+  "WR|OUT|LAP|T0|1": 3,
+  "WR|OUT|LAP|m1": 3,
+  "QB|OUT|ACT|T1|2": 5,
+  "QB|OUT|ACT|T1": 8,
+  "RB|QUESTIONABLE|ACT|T1|1": 6,
+  "RB|QUESTIONABLE|ACT|m1": 15,
+  "WR|QUESTIONABLE|ACT|T1|1": 7,
+  "WR|QUESTIONABLE|ACT|T1|0": 7,
+  "RB|QUESTIONABLE|LAP|T0|2": 2,
+  "RB|QUESTIONABLE|LAP|m2": 5,
+  "RB|QUESTIONABLE|LAP|T0": 11,
+  "RB|QUESTIONABLE|LAP": 20,
+  "WR|OUT|LAP|T0|0": 11,
+  "WR|OUT|LAP|m0": 13,
+  "WR|QUESTIONABLE|LAP|T0|1": 7,
+  "WR|QUESTIONABLE|LAP|m1": 8,
+  "RB|DOUBTFUL|ACT|T1|2": 1,
+  "RB|DOUBTFUL|ACT|T1": 1,
+  "TE|QUESTIONABLE|ACT|T1|0": 2,
+  "RB|OUT|ACT|T1|1": 1,
+  "RB|OUT|ACT|m1": 11,
+  "RB|QUESTIONABLE|LAP|T0|0": 7,
+  "RB|QUESTIONABLE|LAP|m0": 12,
+  "QB|OUT|LAP|T0|2": 3,
+  "QB|OUT|LAP|m2": 3,
+  "QB|OUT|LAP|T0": 13,
+  "QB|OUT|LAP": 17,
+  "QB|HEALTHY|ACT|T1|0": 9,
+  "QB|QUESTIONABLE|LAP|T0|0": 2,
+  "QB|QUESTIONABLE|LAP|m0": 3,
+  "WR|DOUBTFUL|ACT|T1|1": 1,
+  "WR|DOUBTFUL|ACT|m1": 2,
+  "WR|DOUBTFUL|ACT|T1": 2,
+  "WR|DOUBTFUL|ACT": 7,
+  "WR|DOUBTFUL": 7,
+  "WR|DOUBTFUL|ACT|T1|2": 1,
+  "WR|DOUBTFUL|ACT|m2": 4,
+  "RB|OUT|ACT|T1|0": 4,
+  "QB|QUESTIONABLE|LAP|T0|2": 4,
+  "QB|QUESTIONABLE|LAP|m2": 4,
+  "QB|HEALTHY|ACT|T2|2": 225,
+  "QB|HEALTHY|ACT|T2": 275,
+  "QB|HEALTHY|LAP|T1|0": 74,
+  "QB|HEALTHY|LAP|T1": 166,
+  "QB|OUT|LAP|T1|1": 2,
+  "QB|OUT|LAP|m1": 14,
+  "QB|OUT|LAP|T1": 2,
+  "RB|HEALTHY|ACT|T2|0": 297,
+  "RB|HEALTHY|ACT|T2": 863,
+  "TE|HEALTHY|ACT|T2|2": 317,
+  "TE|HEALTHY|ACT|T2": 836,
+  "WR|HEALTHY|ACT|T2|2": 542,
+  "WR|HEALTHY|ACT|T2": 1313,
+  "WR|HEALTHY|ACT|T2|1": 461,
+  "TE|HEALTHY|ACT|T2|0": 228,
+  "RB|HEALTHY|LAP|T1|1": 86,
+  "RB|HEALTHY|LAP|T1": 221,
+  "QB|HEALTHY|LAP|T1|1": 72,
+  "TE|HEALTHY|ACT|T2|1": 291,
+  "TE|HEALTHY|LAP|T1|0": 99,
+  "TE|HEALTHY|LAP|T1": 157,
+  "RB|HEALTHY|ACT|T2|2": 383,
+  "WR|HEALTHY|ACT|T2|0": 310,
+  "RB|HEALTHY|ACT|T2|1": 183,
+  "RB|HEALTHY|LAP|T1|2": 38,
+  "WR|OUT|LAP|T1|2": 5,
+  "WR|OUT|LAP|T1": 7,
+  "WR|HEALTHY|LAP|T1|0": 170,
+  "WR|HEALTHY|LAP|T1": 296,
+  "TE|HEALTHY|LAP|T1|1": 45,
+  "WR|HEALTHY|LAP|T1|2": 56,
+  "WR|OUT|ACT|T2|2": 30,
+  "WR|OUT|ACT|T2": 69,
+  "RB|HEALTHY|LAP|T1|0": 97,
+  "RB|OUT|LAP|T1|0": 2,
+  "RB|OUT|LAP|T1": 9,
+  "RB|OUT|ACT|T2|1": 10,
+  "RB|OUT|ACT|T2": 30,
+  "TE|HEALTHY|LAP|T1|2": 13,
+  "RB|QUESTIONABLE|ACT|T2|2": 19,
+  "RB|QUESTIONABLE|ACT|T2": 34,
+  "TE|OUT|ACT|T2|1": 16,
+  "TE|OUT|ACT|T2": 37,
+  "QB|DOUBTFUL|ACT|T2|2": 1,
+  "QB|DOUBTFUL|ACT|m2": 1,
+  "QB|DOUBTFUL|ACT|T2": 2,
+  "QB|DOUBTFUL|ACT": 2,
+  "QB|DOUBTFUL": 2,
+  "TE|OUT|ACT|T2|0": 9,
+  "WR|QUESTIONABLE|LAP|T1|0": 5,
+  "WR|QUESTIONABLE|LAP|T1": 7,
+  "WR|HEALTHY|LAP|T1|1": 70,
+  "TE|QUESTIONABLE|ACT|T2|2": 17,
+  "TE|QUESTIONABLE|ACT|T2": 30,
+  "QB|QUESTIONABLE|ACT|T2|2": 3,
+  "QB|QUESTIONABLE|ACT|T2": 6,
+  "QB|QUESTIONABLE|ACT|T1|1": 1,
+  "QB|QUESTIONABLE|ACT|m1": 3,
+  "WR|OUT|ACT|T2|0": 24,
+  "WR|QUESTIONABLE|ACT|T2|2": 35,
+  "WR|QUESTIONABLE|ACT|T2": 74,
+  "RB|OUT|ACT|T2|2": 13,
+  "WR|QUESTIONABLE|ACT|T2|0": 14,
+  "QB|HEALTHY|ACT|T2|1": 44,
+  "TE|DOUBTFUL|ACT|T2|1": 1,
+  "TE|DOUBTFUL|ACT|m1": 1,
+  "TE|DOUBTFUL|ACT|T2": 2,
+  "QB|OUT|LAP|T0|1": 10,
+  "WR|OUT|ACT|T2|1": 15,
+  "RB|QUESTIONABLE|LAP|T1|2": 3,
+  "RB|QUESTIONABLE|LAP|T1": 9,
+  "TE|QUESTIONABLE|ACT|T2|0": 7,
+  "RB|QUESTIONABLE|ACT|T1|0": 1,
+  "TE|QUESTIONABLE|ACT|T2|1": 6,
+  "RB|QUESTIONABLE|LAP|T0|1": 2,
+  "RB|QUESTIONABLE|LAP|m1": 3,
+  "WR|QUESTIONABLE|ACT|T2|1": 25,
+  "RB|OUT|ACT|T2|0": 7,
+  "QB|OUT|ACT|T2|1": 10,
+  "QB|OUT|ACT|T2": 13,
+  "RB|OUT|LAP|T1|2": 7,
+  "QB|OUT|ACT|T1|1": 3,
+  "QB|HEALTHY|LAP|T1|2": 20,
+  "RB|QUESTIONABLE|ACT|T2|1": 9,
+  "WR|DOUBTFUL|ACT|T2|2": 3,
+  "WR|DOUBTFUL|ACT|T2": 5,
+  "RB|QUESTIONABLE|ACT|T2|0": 6,
+  "TE|OUT|ACT|T2|2": 12,
+  "RB|QUESTIONABLE|LAP|T1|0": 5,
+  "QB|QUESTIONABLE|ACT|T2|1": 2,
+  "RB|DOUBTFUL|ACT|T2|1": 1,
+  "RB|DOUBTFUL|ACT|m1": 1,
+  "RB|DOUBTFUL|ACT|T2": 1,
+  "TE|QUESTIONABLE|LAP|T1|2": 2,
+  "TE|QUESTIONABLE|LAP|T1": 2,
+  "QB|HEALTHY|ACT|T2|0": 6,
+  "RB|QUESTIONABLE|LAP|T1|1": 1,
+  "TE|OUT|LAP|T1|0": 3,
+  "TE|OUT|LAP|m0": 4,
+  "TE|OUT|LAP|T1": 5,
+  "TE|OUT|LAP|T0|0": 1,
+  "WR|QUESTIONABLE|LAP|T1|1": 1,
+  "QB|OUT|ACT|T2|2": 3,
+  "WR|DOUBTFUL|ACT|T2|1": 1,
+  "WR|OUT|LAP|T1|0": 2,
+  "TE|OUT|LAP|T1|1": 2,
+  "TE|OUT|LAP|m1": 2,
+  "RB|OUT|LAP|T0|1": 3,
+  "RB|OUT|LAP|m1": 3,
+  "WR|QUESTIONABLE|LAP|T1|2": 1,
+  "TE|QUESTIONABLE|LAP|T0|0": 1,
+  "TE|QUESTIONABLE|LAP|m0": 1,
+  "TE|DOUBTFUL|ACT|T2|2": 1,
+  "QB|QUESTIONABLE|LAP|T1|1": 1,
+  "QB|QUESTIONABLE|LAP|T1": 2,
+  "QB|HEALTHY|LAP|T2|2": 2,
+  "QB|HEALTHY|LAP|T2": 2,
+  "TE|HEALTHY|LAP|T2|2": 2,
+  "TE|HEALTHY|LAP|T2": 10,
+  "TE|HEALTHY|LAP|T2|0": 5,
+  "WR|HEALTHY|LAP|T2|0": 11,
+  "WR|HEALTHY|LAP|T2": 23,
+  "WR|HEALTHY|LAP|T2|1": 6,
+  "RB|HEALTHY|LAP|T2|0": 10,
+  "RB|HEALTHY|LAP|T2": 17,
+  "WR|HEALTHY|LAP|T2|2": 6,
+  "RB|HEALTHY|LAP|T2|1": 5,
+  "TE|HEALTHY|LAP|T2|1": 3,
+  "RB|HEALTHY|LAP|T2|2": 2,
+  "WR|QUESTIONABLE|LAP|T2|0": 1,
+  "WR|QUESTIONABLE|LAP|T2": 1,
+  "QB|OUT|LAP|T2|1": 2,
+  "QB|OUT|LAP|T2": 2,
+  "QB|DOUBTFUL|ACT|T2|1": 1,
+  "QB|DOUBTFUL|ACT|m1": 1,
+  "WR|DOUBTFUL|ACT|T2|0": 1,
+  "WR|DOUBTFUL|ACT|m0": 1,
+  "QB|QUESTIONABLE|LAP|T1|0": 1,
+  "QB|QUESTIONABLE|ACT|T2|0": 1,
+  "QB|QUESTIONABLE|ACT|m0": 1
+ }
+}

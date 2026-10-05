@@ -37,3 +37,17 @@ export function usageValueFor(fi: FootballIntelligence, canonicalPlayerId: strin
   if (!metric || metric.modeled == null || !Number.isFinite(metric.modeled)) return null;
   return { value: metric.modeled, confidence: metric.confidence ?? null, source: "fi_player_usage_profile" };
 }
+
+/**
+ * `interaction_*` model families (previously always null for the same reason as the usage families: nothing ever resolved them). The only point-in-time source is
+ * the published FI contextual-matchup feature. LABELED PROXY: the trained family paired the offense's pass-EPA percentile with the defense's SUCCESS-RATE-allowed
+ * percentile, while the served feature pairs it with the defense's PASS-EPA-allowed percentile (same `off_pct - (1 - def_pct)` form, different defensive metric).
+ * Confidence passes through (LOW today). Never used when the FI feature is unavailable; missing stays null.
+ */
+export const INTERACTION_PROXY_NOTE = "fi_interaction proxy: served pass_epa_vs_pass_defense uses def pass-EPA-allowed; trained family used def success-rate-allowed";
+export function interactionValueFor(fi: FootballIntelligence, team: string | null, opponent: string | null, valueCol: string): (UsageValue & { proxy: string }) | null {
+  const m = /^fi_interaction_(.+)_modeled$/.exec(valueCol); if (!m || !team || !opponent) return null;
+  const r = fi.contextualMatchup(m[1]!, team, opponent) as { availability?: string; interaction_signal?: number | null; confidence?: string | null };
+  if (r.availability === "NOT_AVAILABLE" || r.interaction_signal == null || !Number.isFinite(r.interaction_signal)) return null;
+  return { value: r.interaction_signal, confidence: r.confidence ?? null, source: "fi_player_usage_profile", proxy: INTERACTION_PROXY_NOTE };
+}

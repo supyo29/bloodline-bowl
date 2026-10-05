@@ -272,7 +272,7 @@ describe("SHADOW_ONLY role candidate", () => {
   });
   test("production isolation: nothing in production imports lib/role-calibration except the weekly audit and the calibration routes; it imports no production model/weight module", () => {
     const walk = (dir: string, out: string[] = []): string[] => { for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) { if (!["node_modules", ".next", "data"].includes(n)) walk(p, out); } else if (/\.(ts|tsx)$/.test(n)) out.push(p); } return out; };
-    const allowed = (f: string) => f.includes(join("lib", "role-calibration")) || f.includes(join("app", "api", "role-calibration")) || f.includes(join("app", "api", "cron", "role-calibration")) || f.endsWith(join("lib", "weekly-audit", "build.ts")) || f.endsWith(join("lib", "weekly-audit", "contract.ts"));
+    const allowed = (f: string) => f.includes(join("lib", "role-calibration")) || f.includes(join("lib", "game-distribution")) || f.includes(join("lib", "game-weather")) || f.includes(join("app", "api", "game-distribution")) || f.includes(join("app", "api", "cron", "game-environment")) || f.includes(join("app", "api", "role-calibration")) || f.includes(join("app", "api", "cron", "role-calibration")) || f.endsWith(join("lib", "weekly-audit", "build.ts")) || f.endsWith(join("lib", "weekly-audit", "contract.ts"));
     const offenders = ["lib", "app"].flatMap((d) => walk(join(process.cwd(), d))).filter((f) => !allowed(f) && /@\/lib\/role-calibration\//.test(readFileSync(f, "utf8")));
     assert.deepEqual(offenders, []);
     for (const f of walk(join(process.cwd(), "lib", "role-calibration"))) {

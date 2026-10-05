@@ -1,0 +1,39 @@
+name: Pregame Capture (game environment + weather + distributions)
+
+# Vercel's cron on this plan runs once per day, which cannot freeze the FINAL pre-kickoff state (late injury news, forecast updates, depth-chart moves).
+# On NFL game days this workflow re-invokes the same idempotent, insert-only, kickoff-guarded capture route every two hours. It is INERT unless BOTH repo secrets
+# exist (CRON_SECRET, APP_URL) — nothing here can write without them. Re-running is harmless: ids are content-addressed and the database rejects any LIVE row at/after kickoff.
+#   Thursday night games ~00:15Z Fri, Sunday windows 17:00/20:05/20:25/00:20Z, Monday night ~00:15Z Tue.
+on:
+  schedule:
+    - cron: "15 12,14,16,18,20,22 * * 0,4"    # Sunday + Thursday daytime/evening UTC
+    - cron: "15 0,2 * * 1,5"                  # Monday/Friday small hours UTC (Sunday-night / Thursday-night finals before kickoff windows)
+    - cron: "15 14,16,18,20,22 * * 1"         # Monday daytime UTC (Monday night game)
+  workflow_dispatch: {}
+
+concurrency:
+  group: pregame-capture
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check secrets
+        id: gate
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_URL" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; echo "CRON_SECRET/APP_URL not configured: capture skipped (inert by design)"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Capture live (environment + weather + distributions)
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          curl --fail-with-body -sS -m 280 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron/game-environment?mode=live" | head -c 4000
