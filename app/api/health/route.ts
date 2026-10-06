@@ -10,6 +10,7 @@
  *              never builds a published candidate, never advances the pointer.
  */
 
+import { authorizeSecret } from "@/lib/http-auth";
 import {
   SleeperError,
   getLeagueDrafts,
@@ -43,6 +44,12 @@ export async function GET(request: Request): Promise<Response> {
   const leagueId = resolveLeagueId(leagueSelectorResult.value);
   const wantsDraft = searchParams.get("draft") === "1";
   const wantsDeep = searchParams.get("deep") === "1";
+  if (wantsDeep) {
+    // Deep health is an internal operations surface (persistence / feature-flag /
+    // snapshot-integrity state). It is NOT part of the public API: operator secret required.
+    const auth = authorizeSecret(request, "REFRESH_SECRET", { header: "x-refresh-secret" });
+    if (!auth.ok) return errorResponse(auth.status, auth.code, auth.detail);
+  }
 
   const base = {
     ok: true,

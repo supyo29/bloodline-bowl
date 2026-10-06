@@ -17,13 +17,20 @@ import { loadYahooSession } from "@/lib/providers/yahoo/session";
 import { accessStateFromSession } from "@/lib/providers/yahoo/access-state";
 import { runLeagueDiscovery } from "@/lib/providers/yahoo/diagnostics";
 import { resolveYahooConnectionSelection } from "@/lib/providers/yahoo/connections";
-import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
+import { authorizeSecret } from "@/lib/http-auth";
+import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function GET(request: Request): Promise<Response> {
+  // Account-wide discovery lists EVERY NFL league the connected Yahoo account
+  // belongs to (private league names/ids). Not part of the public API: it needs
+  // the operator secret. Public callers use /api/yahoo/leagues/{registered-slug}.
+  const auth = authorizeSecret(request, "REFRESH_SECRET", { header: "x-refresh-secret" });
+  if (!auth.ok) return errorResponse(auth.status, auth.code, auth.detail);
+
   const url = new URL(request.url);
   const selection = resolveYahooConnectionSelection(url.searchParams);
   if (!selection.ok) {
