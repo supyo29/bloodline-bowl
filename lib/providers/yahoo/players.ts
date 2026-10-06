@@ -360,3 +360,73 @@ export function classifyOwnership(type: string | null): YahooAvailabilityCode | 
       return null;
   }
 }
+
+export type YahooPoolSelector = "available" | "FA" | "W" | "rostered" | "all";
+
+export interface LeaguePoolQuery {
+  status: YahooPoolSelector;
+  position?: string | null;
+  search?: string | null;
+  start?: number;
+  /** Players wanted per pool; null = paginate to the end of each pool. */
+  count: number | null;
+  maxPages?: number;
+  deadlineMs?: number;
+}
+
+export interface LeaguePoolResult {
+  players: YahooPoolPlayer[];
+  pools: PoolResult[];
+  /** True only when every queried pool was read to Yahoo's end-of-pool signal. */
+  complete: boolean;
+}
+
+/** Availability codes queried for a selector. `available` = FA + W (never rostered). */
+export function codesForSelector(status: YahooPoolSelector): YahooAvailabilityCode[] {
+  switch (status) {
+    case "available":
+      return ["FA", "W"];
+    case "rostered":
+      return ["T"];
+    case "all":
+      return ["FA", "W", "T"];
+    default:
+      return [status];
+  }
+}
+
+/**
+ * Query one or more availability pools (concurrently) and merge them, deduping by
+ * player_key. Waiver (W) and rostered (T) pools request the ownership sub-resource
+ * so waiver dates / owners come through. All paging is delegated to `fetchPlayerPool`.
+ */
+export async function fetchLeaguePlayerPools(
+  client: YahooFantasyClient,
+  leagueKey: string,
+  q: LeaguePoolQuery,
+): Promise<LeaguePoolResult> {
+  const pools = await Promise.all(
+    codesForSelector(q.status).map((code) =>
+      fetchPlayerPool(client, leagueKey, {
+        status: code,
+        position: q.position,
+        search: q.search,
+        start: q.start ?? 0,
+        count: q.count,
+        maxPages: q.maxPages,
+        deadlineMs: q.deadlineMs,
+        withOwnership: code === "W" || code === "T",
+      }),
+    ),
+  );
+  const seen = new Set<string>();
+  const players: YahooPoolPlayer[] = [];
+  for (const pool of pools) {
+    for (const p of pool.players) {
+      if (seen.has(p.player_key)) continue;
+      seen.add(p.player_key);
+      players.push(p);
+    }
+  }
+  return { players, pools, complete: pools.every((p) => p.complete) };
+}

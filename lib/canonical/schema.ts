@@ -394,6 +394,10 @@ export interface CanonicalAvailablePlayer {
   canonical_team_id: string | null;
   /** When a waiver claim would clear, if the provider exposes it. */
   waiver_clears_at: string | null;
+  /** Provider-native player id (e.g. Yahoo `player_id`), when the provider supplies it. */
+  provider_player_id?: string | null;
+  /** Provider injury/designation (Q, IR, NA…). Independent of `ownership` — never an availability signal. */
+  injury_status?: string | null;
 }
 
 /* -------------------------------------------------------------------------- */

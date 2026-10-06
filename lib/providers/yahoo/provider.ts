@@ -20,6 +20,7 @@
  * degraded `ProviderResult` for what actually happened.
  */
 
+import { leagueId, teamId } from "@/lib/canonical/ids";
 import { canonicalPosition } from "@/lib/canonical/players";
 import type {
   CanonicalDraftPick,
@@ -55,6 +56,14 @@ import {
 } from "./fetch";
 import { resolveNflGameKey } from "./games";
 import {
+  YAHOO_PLAYERS_PAGE_SIZE,
+  fetchLeaguePlayerPools,
+  sanitizePosition,
+  type PoolResult,
+  type YahooPoolPlayer,
+  type YahooPoolSelector,
+} from "./players";
+import {
   InMemoryYahooTokenStore,
   getValidAccessToken,
   type YahooTokenStore,
@@ -66,6 +75,33 @@ export interface YahooProviderOptions {
   tokenStore?: YahooTokenStore;
   /** Durable OAuth connection id. Defaults to the legacy/certified "primary". */
   connectionId?: string;
+}
+
+const POOL_TIME_BUDGET_MS = 48_000;
+
+export interface AvailablePlayersQuery {
+  status?: YahooPoolSelector;
+  position?: string | null;
+  search?: string | null;
+  start?: number;
+  count?: number;
+  /** Paginate each pool to Yahoo's end-of-pool signal (bounded by the players.ts safety limit). */
+  all?: boolean;
+}
+
+export interface YahooAvailablePlayers {
+  league_key: string;
+  status: YahooPoolSelector;
+  players: YahooPoolPlayer[];
+  pools: Array<Omit<PoolResult, "players" | "requests">>;
+  complete: boolean;
+}
+
+function summarizePool(p: PoolResult): Omit<PoolResult, "players" | "requests"> {
+  const { players: _players, requests: _requests, ...rest } = p;
+  void _players;
+  void _requests;
+  return rest;
 }
 
 function describe(error: unknown): string {
@@ -132,9 +168,11 @@ export class YahooProvider implements FantasyProvider {
 
   capabilities(): ProviderCapabilities {
     // A capability is true only once it is implemented, normalized, and tested
-    // (see `test/yahoo-fetch.test.ts` / `test/yahoo-provider.test.ts`). Full
-    // free-agent pool materialization is NOT implemented (see `getWaiverState`),
-    // so `free_agents` stays false rather than a fabricated true.
+    // (see `test/yahoo-fetch.test.ts` / `test/yahoo-players.test.ts` /
+    // `test/yahoo-provider-availability.test.ts`). `free_agents` / `waivers` are
+    // true because the Yahoo player pool (FA + W + rostered, with waiver dates) is
+    // served via `getFreeAgents` / `getWaiverPlayers` / `getAvailablePlayers` and
+    // `getWaiverState`, all backed by `./players.ts`.
     return {
       league: true,
       settings: true,
@@ -144,8 +182,8 @@ export class YahooProvider implements FantasyProvider {
       matchups: true,
       transactions: true,
       players: true,
-      free_agents: false,
-      waivers: false,
+      free_agents: true,
+      waivers: true,
       draft_results: true,
       live_authenticated_access: true,
     };
@@ -520,37 +558,136 @@ export class YahooProvider implements FantasyProvider {
     }
   }
 
-  async getWaiverState(ctx: ProviderLeagueContext): Promise<ProviderResult<CanonicalWaiverState>> {
-    // Conservative, same contract as Sleeper: only rostered ownership is
-    // reported (derived from the live league state). Yahoo's full free-agent
-    // pool is NOT materialized in this phase — `capabilities().free_agents` and
-    // `.waivers` are honestly `false`, and this always returns PARTIAL.
-    const state = await this.getLeagueState(ctx);
-    if (!state.data) {
-      return degraded(state.status, "yahoo_waiver_state_unavailable", state.warnings[0]?.message ?? "unavailable");
+  /**
+   * Provider-level read of Yahoo's league player pool (FA / W / available /
+   * rostered). Thin wrapper over `./players.ts` — all Yahoo querying, paging and
+   * parsing lives there. NOT part of `FantasyProvider` (Yahoo-specific, like
+   * `checkLeagueAccessibility`).
+   */
+  async getAvailablePlayers(
+    ctx: ProviderLeagueContext,
+    query: AvailablePlayersQuery = {},
+  ): Promise<ProviderResult<YahooAvailablePlayers>> {
+    const resolved = await this.#resolveLeague(ctx);
+    if (!resolved.ok) return resolved.result;
+    const { client, leagueKey } = resolved.resolved;
+    const status = query.status ?? "available";
+    const position = sanitizePosition(query.position);
+    if (query.position && !position) {
+      return degraded("PROVIDER_ERROR", "yahoo_invalid_position", `position "${query.position}" is not valid.`);
     }
-    const players: CanonicalWaiverState["players"] = [];
-    for (const roster of state.data.rosters) {
-      for (const pid of roster.all_players) {
-        players.push({ canonical_player_id: pid, ownership: "rostered", canonical_team_id: roster.canonical_team_id, waiver_clears_at: null });
+    try {
+      const pool = await fetchLeaguePlayerPools(client, leagueKey, {
+        status,
+        position,
+        search: query.search?.trim() || null,
+        start: query.start ?? 0,
+        count: query.all ? null : (query.count ?? YAHOO_PLAYERS_PAGE_SIZE),
+        deadlineMs: Date.now() + POOL_TIME_BUDGET_MS,
+      });
+      const warnings: ProviderResult<unknown>["warnings"] = [];
+      if (!pool.complete) {
+        warnings.push({
+          code: "yahoo_pool_incomplete",
+          message: "At least one Yahoo pool was not read to its end (count, safety limit or time budget); see pools[].next_start.",
+        });
       }
+      return ok(
+        { league_key: leagueKey, status, players: pool.players, pools: pool.pools.map(summarizePool), complete: pool.complete },
+        { warnings, status: "READY" },
+      );
+    } catch (error) {
+      return mapYahooError(error, `the ${status} player pool for "${ctx.league_slug}"`);
+    }
+  }
+
+  getFreeAgents(ctx: ProviderLeagueContext, query: Omit<AvailablePlayersQuery, "status"> = {}) {
+    return this.getAvailablePlayers(ctx, { ...query, status: "FA" });
+  }
+
+  getWaiverPlayers(ctx: ProviderLeagueContext, query: Omit<AvailablePlayersQuery, "status"> = {}) {
+    return this.getAvailablePlayers(ctx, { ...query, status: "W" });
+  }
+
+  /**
+   * Per-player availability in THIS league: free agents, waiver players (with
+   * Yahoo's waiver date) and rostered players (with owning team).
+   *
+   * Contract decision: `CanonicalWaiverState` is "per-player availability in this
+   * league" with `free_agent` / `waiver` / `rostered` ownership, so the complete
+   * pool is materialized (Rogers Park: ~1,000 unrostered + ~155 rostered, ~50
+   * requests in concurrent waves). Nothing in production calls this per request
+   * (the snapshot's `waiver_state` stays null), so cost is paid only by explicit
+   * callers; narrower reads should use `getAvailablePlayers`. If any pool is cut
+   * short (safety limit / time budget) the result is PARTIAL with a
+   * `yahoo_pool_incomplete` warning rather than a plausible-looking full pool.
+   */
+  async getWaiverState(ctx: ProviderLeagueContext): Promise<ProviderResult<CanonicalWaiverState>> {
+    const resolved = await this.#resolveLeague(ctx);
+    if (!resolved.ok) return resolved.result;
+    const { client, leagueKey } = resolved.resolved;
+
+    let pool;
+    try {
+      pool = await fetchLeaguePlayerPools(client, leagueKey, {
+        status: "all",
+        count: null,
+        deadlineMs: Date.now() + POOL_TIME_BUDGET_MS,
+      });
+    } catch (error) {
+      return mapYahooError(error, `waiver state for "${ctx.league_slug}"`);
+    }
+
+    await ctx.crosswalk.ensureLoaded();
+    const syncedAt = new Date().toISOString();
+    let unresolved = 0;
+    const players: CanonicalWaiverState["players"] = pool.players.map((yp) => {
+      const { player, unresolved: u } = ctx.crosswalk.resolve({
+        provider: "yahoo",
+        provider_player_id: yp.player_key,
+        full_name: yp.name,
+        first_name: yp.first_name,
+        last_name: yp.last_name,
+        position: yp.display_position,
+        nfl_team: yp.editorial_team_abbr,
+        status: yp.injury_status,
+        eligible_positions: yp.eligible_positions,
+        known_identifiers: { yahoo_id: yp.player_id, yahoo_player_key: yp.player_key },
+      });
+      if (u) unresolved += 1;
+      const ownerTeam = yp.owner_team_key?.split(".t.")[1];
+      return {
+        canonical_player_id: player.canonical_player_id,
+        ownership: yp.status === "FA" ? "free_agent" : yp.status === "W" ? "waiver" : "rostered",
+        canonical_team_id: yp.status === "T" && ownerTeam ? teamId(ctx.league_slug, ownerTeam) : null,
+        // Yahoo exposes a date (YYYY-MM-DD), not a time; passed through verbatim.
+        waiver_clears_at: yp.status === "W" ? yp.waiver_clear_date : null,
+        provider_player_id: yp.player_id,
+        injury_status: yp.injury_status,
+      };
+    });
+
+    const warnings: ProviderResult<unknown>["warnings"] = [];
+    if (!pool.complete) {
+      warnings.push({
+        code: "yahoo_pool_incomplete",
+        message: "The Yahoo player pool was not read to its end (safety limit or time budget); availability is partial.",
+      });
+    }
+    if (unresolved > 0) {
+      warnings.push({
+        code: "unresolved_player_identities",
+        message: `${unresolved} player id(s) could not be resolved to a stable identity; provider ids are preserved on each row.`,
+      });
     }
     return ok(
       {
-        canonical_league_id: state.data.league.canonical_league_id,
+        canonical_league_id: leagueId(ctx.league_slug),
         league_slug: ctx.league_slug,
         players,
-        provenance: { provider: "yahoo", provider_id: ctx.external_league_id, provider_synced_at: state.provider_synced_at },
+        provenance: { provider: "yahoo", provider_id: ctx.external_league_id, provider_synced_at: syncedAt },
       },
-      {
-        status: "PARTIAL",
-        warnings: [
-          {
-            code: "free_agent_pool_not_materialized",
-            message: "Only rostered ownership is reported. Yahoo's full free-agent/waiver pool is not yet materialized in this phase.",
-          },
-        ],
-      },
+      { warnings, provider_synced_at: syncedAt },
     );
   }
 }
