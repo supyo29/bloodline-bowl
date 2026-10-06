@@ -5,12 +5,12 @@
  */
 
 import assert from "node:assert/strict";
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 
-import { PUBLIC_API_POLICY, classifyPath, decide } from "../lib/public-api/policy";
+import { PREFIX_RULES, PUBLIC_API_POLICY, classifyPath, decide } from "../lib/public-api/policy";
 import { RATE_LIMITS, resetRateLimits } from "../lib/public-api/rate-limit";
 import { proxy, config } from "../proxy";
 
@@ -32,11 +32,25 @@ beforeEach(() => resetRateLimits());
 
 describe("policy table", () => {
   it("classifies EVERY app/api route file exactly (no unclassified route can ship public by accident)", () => {
-    const files = new Set(routeTemplates());
+    const files = new Set(routeTemplates().filter((t) => !PREFIX_RULES.some((r) => t.startsWith(r.prefix))));
     const table = new Set(PUBLIC_API_POLICY.map((e) => e.template));
     assert.deepEqual([...files].filter((t) => !table.has(t)), [], "route files missing from the policy");
     assert.deepEqual([...table].filter((t) => !files.has(t)), [], "policy entries with no route file");
     assert.equal(table.size, PUBLIC_API_POLICY.length, "duplicate template in policy");
+  });
+
+  it("every /api/cron route (prefix rule) rejects an unauthenticated call itself — before doing any work", async () => {
+    const cron = routeTemplates().filter((t) => t.startsWith("/api/cron/"));
+    assert.ok(cron.length >= 9);
+    delete process.env.CRON_SECRET;
+    for (const t of cron) {
+      assert.equal(classifyPath(t)?.access, "self-guarded");
+      const mod = (await import(`../app${t}/route`)) as { GET: (r: Request) => Promise<Response> };
+      for (const headers of [{} as Record<string, string>, { authorization: "Bearer not-the-secret" }]) {
+        const res = await mod.GET(new Request(`${BASE}${t}`, { headers }));
+        assert.ok(res.status === 401 || res.status === 403, `${t} answered ${res.status} to an unauthenticated call`);
+      }
+    }
   });
 
   it("static segments outrank params (draft/debug vs draft/:leagueSlug)", () => {

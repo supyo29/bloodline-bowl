@@ -39,15 +39,6 @@ export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/bridge/board", access: "public-read", cost: "standard" },
   { template: "/api/calibration/report", access: "public-read", cost: "standard" },
   { template: "/api/context/:league/:manager", access: "public-read", cost: "standard" },
-  { template: "/api/cron/calibration-materialize", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/capture", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/game-environment", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/matchup2-capture", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/projection-snapshot", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/publish", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/role-calibration", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/waiver2-capture", access: "self-guarded", cost: "standard" },
-  { template: "/api/cron/weekly-audit", access: "self-guarded", cost: "standard" },
   { template: "/api/draft", access: "public-read", cost: "standard" },
   { template: "/api/draft/:leagueSlug", access: "public-read", cost: "standard" },
   { template: "/api/draft/debug", access: "public-read", cost: "standard" },
@@ -130,6 +121,15 @@ export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/yahoo/status", access: "public-read", cost: "standard" },
 ];
 
+/**
+ * Prefix rules for route families that are classified as a group. `/api/cron/*`
+ * are scheduler endpoints that each authenticate themselves with CRON_SECRET;
+ * `test/public-api-policy.test.ts` asserts every cron route file calls the guard.
+ */
+export const PREFIX_RULES: readonly { prefix: string; access: RouteAccess; cost: RouteCost }[] = [
+  { prefix: "/api/cron/", access: "self-guarded", cost: "standard" },
+];
+
 const READ_METHODS = ["GET", "HEAD", "OPTIONS"] as const;
 const COMPUTE_METHODS = ["POST", "OPTIONS"] as const;
 
@@ -149,6 +149,9 @@ function specificity(template: string): number {
 }
 
 export function classifyPath(pathname: string): PolicyEntry | null {
+  for (const rule of PREFIX_RULES) {
+    if (pathname.startsWith(rule.prefix)) return { template: `${rule.prefix}*`, access: rule.access, cost: rule.cost };
+  }
   let best: PolicyEntry | null = null;
   for (const { entry, re } of COMPILED) {
     if (re.test(pathname) && (!best || specificity(entry.template) > specificity(best.template))) best = entry;
