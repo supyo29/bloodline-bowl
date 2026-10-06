@@ -8,7 +8,7 @@ matchup, waivers). Every request operates on exactly one league; nothing is merg
 ## The one URL to give an AI assistant
 
 ```text
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/ai
+https://api.rosterintel.com/api/ai
 ```
 
 `GET /api/ai` is the universal discovery endpoint — the **canonical discovery contract**. From that
@@ -25,8 +25,8 @@ routes span several namespaces (`/api/leagues/…`, `/api/league/…`, `/api/con
 `BLOCKED`, `DEGRADED`, `AUTH_REQUIRED`, `PERSISTENCE_NOT_CONFIGURED`, or `UNSUPPORTED_MODE`. Never
 read HTTP 200 alone as "recommendations are currently available".
 
-Supplemental: [`/ai`](https://bloodline-bowl-sleeper-bridge.vercel.app/ai) (human-readable HTML
-overview), [`/llms.txt`](https://bloodline-bowl-sleeper-bridge.vercel.app/llms.txt) (plain-text
+Supplemental: [`/ai`](https://api.rosterintel.com/ai) (human-readable HTML
+overview), [`/llms.txt`](https://api.rosterintel.com/llms.txt) (plain-text
 guide), `/sitemap.xml`, `/robots.txt`.
 
 ## Canonical league / manager routing
@@ -53,9 +53,9 @@ Given only a manager username, find its league via `registered_managers` in `/ap
 ### The three known manager routes
 
 ```text
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/bloodline-bowl/managers/supyo29
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/bloodline-bowl/managers/bijimac
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/devoted-to-the-game/managers/darthmarker
+https://api.rosterintel.com/api/leagues/bloodline-bowl/managers/supyo29
+https://api.rosterintel.com/api/leagues/bloodline-bowl/managers/bijimac
+https://api.rosterintel.com/api/leagues/devoted-to-the-game/managers/darthmarker
 ```
 
 | Key                        | League              | Sleeper league ID     | Sleeper account | Known managers      |
@@ -165,8 +165,8 @@ An unrecognized _non-numeric_ selector is rejected with `400` by `parseLeagueSel
 contract every other input in this bridge follows (`?season=`, `?week=`, `?position=`, …).
 
 ```bash
-curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/league?league=devoted-to-the-game"
-curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/scoring?league=1389735763649761280"
+curl "https://api.rosterintel.com/api/league?league=devoted-to-the-game"
+curl "https://api.rosterintel.com/api/scoring?league=1389735763649761280"
 ```
 
 ### The league registry
@@ -539,7 +539,7 @@ Top-level keys:
 Live draft-night view, built for repeated polling by an AI during the auction.
 
 ```text
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/draft
+https://api.rosterintel.com/api/draft
 ```
 
 Answers, at any moment: who has been drafted and by whom, what each player cost,
@@ -552,7 +552,7 @@ manager can still make**, and what positions each roster still needs.
 | `position`        | none    | One of `QB`, `RB`, `WR`, `TE`, `K`, `DEF`. Validated against the league's own roster positions. |
 
 ```bash
-curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/draft?position=RB&available_limit=20"
+curl "https://api.rosterintel.com/api/draft?position=RB&available_limit=20"
 ```
 
 Response headers carry `X-Draft-Status` and a status-dependent `Cache-Control`.
@@ -572,7 +572,7 @@ diagnostics — built for an AI to assess scoring balance without hand-parsing
 Sleeper's raw keys.
 
 ```text
-https://bloodline-bowl-sleeper-bridge.vercel.app/api/scoring
+https://api.rosterintel.com/api/scoring
 ```
 
 Answers questions like "are rushing touchdowns worth more than passing touchdowns",
@@ -595,7 +595,7 @@ Apply the league's live scoring settings to an arbitrary stat line — useful fo
 simulations. Read-only and stateless; no authentication.
 
 ```bash
-curl -X POST "https://bloodline-bowl-sleeper-bridge.vercel.app/api/scoring/calculate" \
+curl -X POST "https://api.rosterintel.com/api/scoring/calculate" \
   -H "Content-Type: application/json" \
   -d '{"stats": {"pass_yd": 300, "pass_td": 2, "pass_int": 1, "rush_yd": 20}}'
 ```
@@ -647,7 +647,7 @@ Allowed: `league`, `users`, `rosters`, `drafts`, `traded_picks`, `state`, `draft
 `draft_picks` additionally requires a numeric `&draft_id=`.
 
 ```bash
-curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/raw?resource=rosters"
+curl "https://api.rosterintel.com/api/raw?resource=rosters"
 ```
 
 The full player database is deliberately **not** exposed here.
@@ -1408,8 +1408,8 @@ roster-weeks (12 rosters × 18 weeks) reconciled with zero discrepancy.**
 ### Sample requests (Devoted to the Game 2025)
 
 ```bash
-curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/player-weekly?league=devoted-to-the-game&season=2025&week=1"
-curl "https://bloodline-bowl-sleeper-bridge.vercel.app/api/lineups?league=devoted-to-the-game&season=2025"
+curl "https://api.rosterintel.com/api/player-weekly?league=devoted-to-the-game&season=2025&week=1"
+curl "https://api.rosterintel.com/api/lineups?league=devoted-to-the-game&season=2025"
 ```
 
 ### Response metadata
@@ -1690,8 +1690,8 @@ Already deployed:
 
 |                |                                                               |
 | -------------- | ------------------------------------------------------------- |
-| Production     | <https://bloodline-bowl-sleeper-bridge.vercel.app>            |
-| Main endpoint  | <https://bloodline-bowl-sleeper-bridge.vercel.app/api/league> |
+| Production     | <https://api.rosterintel.com> (fallback: <https://api.rosterintel.com>) |
+| Main endpoint  | <https://api.rosterintel.com/api/league> |
 | Vercel project | `supyo29s-projects/bloodline-bowl-sleeper-bridge`             |
 
 To ship subsequent changes:

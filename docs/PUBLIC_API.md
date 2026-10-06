@@ -1,5 +1,7 @@
 # Public read-only fantasy API
 
+**Preferred public base URL: `https://api.rosterintel.com`.** `https://bloodline-bowl-sleeper-bridge.vercel.app` serves the identical API and remains a fallback (some analysis sandboxes block `*.vercel.app`). Both hosts are production, share one policy, and are not redirected to each other. Yahoo's registered OAuth redirect URI is intentionally unchanged.
+
 The bridge is a public, credential-free, read-only fantasy-football API for every registered league, regardless of upstream provider (Bloodline Bowl → Sleeper, Rogers Park → Yahoo). Yahoo OAuth stays server-side.
 
 ## Where the policy lives
@@ -33,4 +35,4 @@ Unchanged, set per route: canonical state 45 s, league metadata 60 s, managers/c
 Project setting: Vercel Authentication covers **preview** deployments only; production (including `bloodline-bowl-sleeper-bridge.vercel.app`) is not behind SSO, password or trusted-IP protection, and there is no custom firewall config.
 
 ## Validate from outside
-`BASE=https://bloodline-bowl-sleeper-bridge.vercel.app scripts/validate-public-api.sh`
+`BASE=https://api.rosterintel.com scripts/validate-public-api.sh`

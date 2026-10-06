@@ -76,7 +76,7 @@ describe("GET /api/ai", () => {
     const body = await res.json();
     assert.equal(
       body.service.production_base_url,
-      "https://bloodline-bowl-sleeper-bridge.vercel.app",
+      "https://api.rosterintel.com",
     );
     assert.equal(body.service.read_only, true);
     assert.equal(body.meta.contains_secrets, false);
@@ -346,7 +346,7 @@ describe("crawler discovery files", () => {
     assert.equal(rules[0]?.allow, "/");
     assert.equal(
       robots.sitemap,
-      "https://bloodline-bowl-sleeper-bridge.vercel.app/sitemap.xml",
+      "https://api.rosterintel.com/sitemap.xml",
     );
   });
 
@@ -355,22 +355,22 @@ describe("crawler discovery files", () => {
     const entries = mod.default();
     const urls = entries.map((e) => e.url);
     assert.ok(
-      urls.includes("https://bloodline-bowl-sleeper-bridge.vercel.app/api/ai"),
+      urls.includes("https://api.rosterintel.com/api/ai"),
     );
     assert.ok(
-      urls.includes("https://bloodline-bowl-sleeper-bridge.vercel.app/"),
+      urls.includes("https://api.rosterintel.com/"),
     );
     assert.ok(
-      urls.includes("https://bloodline-bowl-sleeper-bridge.vercel.app/ai"),
+      urls.includes("https://api.rosterintel.com/ai"),
     );
     assert.ok(
       urls.includes(
-        "https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/bloodline-bowl/managers/bijimac",
+        "https://api.rosterintel.com/api/leagues/bloodline-bowl/managers/bijimac",
       ),
     );
     assert.ok(
       urls.includes(
-        "https://bloodline-bowl-sleeper-bridge.vercel.app/api/leagues/devoted-to-the-game/managers/darthmarker",
+        "https://api.rosterintel.com/api/leagues/devoted-to-the-game/managers/darthmarker",
       ),
     );
   });
