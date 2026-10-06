@@ -1,0 +1,122 @@
+name: Public API external probe
+
+# Anonymous, read-only reachability probe of the PRODUCTION bridge from a
+# GitHub-hosted runner (an ordinary internet client: no Vercel account, no
+# cookies, no Authorization header, no bypass token, no repository secrets).
+# Covers DNS / TCP / TLS / HTTP versions / user agents, every registered league,
+# cross-league isolation, and protected-route negatives. Makes no writes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Base URL to probe"
+        required: false
+        default: "https://bloodline-bowl-sleeper-bridge.vercel.app"
+  push:
+    branches: [claude/yahoo-fa-waiver-access-5ksw6f]
+    paths: [".github/workflows/public-api-external-probe.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE: ${{ github.event.inputs.base || 'https://bloodline-bowl-sleeper-bridge.vercel.app' }}
+    steps:
+      - name: Network layers (DNS, TCP, TLS, HTTP versions)
+        run: |
+          set +e
+          HOST="${BASE#https://}"; HOST="${HOST%%/*}"
+          echo "== client egress IP"; curl -s -m 10 https://api.ipify.org; echo
+          echo "== DNS A";    dig +short A "$HOST"
+          echo "== DNS AAAA"; dig +short AAAA "$HOST"
+          echo "== DNS CNAME"; dig +short CNAME "$HOST"
+          echo "== TLS (openssl, SNI=$HOST)"
+          echo | timeout 15 openssl s_client -connect "$HOST:443" -servername "$HOST" -alpn h2,http/1.1 2>/dev/null \
+            | grep -E "^subject=|^issuer=|Protocol *:|Cipher *:|ALPN|Verify return code" | head -8
+          for v in "-4 --http1.1" "-4 --http2" "-6 --http1.1" "-6 --http2"; do
+            printf '== curl %-14s ' "$v"
+            curl -s $v -m 20 -o /dev/null \
+              -w 'http=%{http_code} ver=%{http_version} ip=%{remote_ip} tls_verify=%{ssl_verify_result} redirects=%{num_redirects} ctype=%{content_type}\n' \
+              "$BASE/api/health" || echo "FAILED (exit $?)"
+          done
+          echo "== HTTP/3 support advertised (alt-svc)"; curl -sI -m 15 "$BASE/api/health" | grep -i '^alt-svc' || echo "(none)"
+          echo "== full response headers /api/providers (anonymous)"
+          curl -sS -D - -o /tmp/p.json -m 30 "$BASE/api/providers" | tr -d '\r'
+          head -c 300 /tmp/p.json; echo
+
+      - name: Client / user-agent / method variants (edge filtering check)
+        run: |
+          set +e
+          ua() { printf '%-44s ' "$1"; curl -s -m 20 -A "$2" -o /tmp/u.body -w 'http=%{http_code} ctype=%{content_type} final=%{url_effective}\n' "$BASE/api/providers"; }
+          ua "curl default"                 "curl/8"
+          ua "python-requests"              "python-requests/2.32.3"
+          ua "browser (Chrome)"             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+          ua "ChatGPT-User"                 "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"
+          ua "GPTBot"                       "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot"
+          ua "ClaudeBot"                    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)"
+          ua "Claude-User"                  "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)"
+          ua "empty UA"                     ""
+          printf '%-44s ' "HEAD /api/health";  curl -s -I -m 15 -o /dev/null -w 'http=%{http_code}\n' "$BASE/api/health"
+          printf '%-44s ' "Accept-Encoding: identity"; curl -s -m 20 -H 'Accept-Encoding: identity' -o /dev/null -w 'http=%{http_code} size=%{size_download}\n' "$BASE/api/providers"
+          printf '%-44s ' "Origin: https://example.com"; curl -s -m 20 -H 'Origin: https://example.com' -D - -o /dev/null "$BASE/api/providers" | tr -d '\r' | grep -iE '^HTTP|^access-control-allow-origin'
+          printf '%-44s ' "Node fetch";  node -e "fetch(process.env.BASE+'/api/providers').then(r=>console.log('http='+r.status,'ctype='+r.headers.get('content-type')))"
+          printf '%-44s ' "Python urllib"; python3 -c "import os,urllib.request as u; r=u.urlopen(os.environ['BASE']+'/api/providers',timeout=30); print('http=%s ctype=%s'%(r.status,r.headers['content-type']))"
+          echo "== robots.txt"; curl -s -m 15 "$BASE/robots.txt" | head -20
+          echo "== CORS preflight"; curl -s -m 15 -X OPTIONS -H 'Origin: https://example.com' -H 'Access-Control-Request-Method: GET' -D - -o /dev/null "$BASE/api/league/bloodline-bowl/state" | tr -d '\r' | grep -iE '^HTTP|^access-control'
+
+      - name: Every registered league (state, provider, isolation, analysis routes)
+        run: |
+          set +e
+          fail=0
+          # slug|provider|external league id  (mirrors lib/leagues/registry.ts)
+          LEAGUES="bloodline-bowl|sleeper|1395549281678532608
+          devoted-to-the-game|sleeper|1389735763649761280
+          sportys-alumni|sleeper|1389404340015370240
+          maclin-on-chicks-xvi|yahoo|82713
+          rogers-park|yahoo|287140"
+          echo "== registry as served (/api/providers .leagues)"
+          curl -s -m 60 "$BASE/api/providers" | jq -c '.leagues[] | {league_slug, provider, external_league_id, live_accessible}'
+          get() { curl -s -m 90 -o /tmp/r.json -w '%{http_code}|%{content_type}' "$BASE$1"; }
+          while IFS='|' read -r slug prov ext; do
+            slug=$(echo "$slug" | xargs)
+            echo; echo "################ $slug (expected provider=$prov id=$ext)"
+            out=$(get "/api/league/$slug/state"); code=${out%%|*}; ct=${out#*|}
+            summary=$(jq -c --arg ext "$ext" '{status, slug: .state.league.league_slug, canonical: .state.league.canonical_league_id, provider: .state.league.provenance.provider, provider_id: .state.league.provenance.provider_id, name: .state.league.name, teams: (.state.teams|length), rosters: (.state.rosters|length), week: .state.league.current_week, id_matches: ((.state.league.provenance.provider_id // "") | tostring | (. == $ext or endswith(".l." + $ext)))}' /tmp/r.json 2>/dev/null)
+            echo "state: http=$code ctype=$ct $summary"
+            echo "$summary" | jq -e --arg s "$slug" --arg p "$prov" '.slug==$s and .provider==$p and .id_matches==true' >/dev/null || { echo "  !! ISOLATION/STATE CHECK FAILED"; fail=1; }
+            if [ "$prov" = sleeper ]; then
+              routes="/api/leagues/$slug /api/leagues/$slug/managers /api/transactions/$slug /api/matchups?league=$slug /api/standings?league=$slug /api/roster-analysis?league=$slug /api/leagues/$slug/draft /api/history/$slug/week/4"
+            else
+              routes="/api/yahoo/status?league=$slug /api/yahoo/leagues/$slug /api/transactions/$slug /api/yahoo/leagues/$slug/players/available?status=W&count=3 /api/yahoo/leagues/$slug/provider-availability?view=capabilities"
+            fi
+            for r in $routes; do
+              o=$(get "$r"); printf '  %-70s http=%s ctype=%s\n' "$r" "${o%%|*}" "${o#*|}"
+              case "${o%%|*}" in 200) ;; *) fail=1;; esac
+            done
+          done <<< "$LEAGUES"
+          echo; echo "per-league overall: $([ $fail = 0 ] && echo PASS || echo FAIL)"
+
+      - name: Protected routes stay protected (anonymous negatives)
+        run: |
+          set +e
+          chk() { printf '%-8s %-52s want=%s ' "$1" "$2" "$3"; c=$(curl -s -m 30 -X "$1" -o /tmp/n.body -w '%{http_code}' "$BASE$2"); echo "got=$c $( [ "$c" = "$3" ] && echo OK || echo MISMATCH ) $(head -c 90 /tmp/n.body)"; }
+          chk GET    /api/cron/capture 401
+          chk GET    /api/refresh 405
+          chk POST   /api/refresh 401
+          chk GET    /api/yahoo/leagues 401
+          chk GET    "/api/health?deep=1" 401
+          chk POST   /api/yahoo/diagnostics 401
+          chk POST   /api/league/rogers-park/state 405
+          chk DELETE /api/league/bloodline-bowl/state 405
+          chk PUT    /api/leagues/devoted-to-the-game 405
+          chk GET    /api/yahoo/leagues/99999999 404
+          chk GET    /api/env 404
+          echo "== no Yahoo token material in public Yahoo responses"
+          for p in /api/yahoo/status /api/yahoo/leagues/rogers-park /api/yahoo/leagues/maclin-on-chicks-xvi; do
+            curl -s -m 60 "$BASE$p" | grep -qiE '"(access|refresh)_token"\s*:|client_secret|Bearer [A-Za-z0-9._-]{12,}' && echo "LEAK? $p" || echo "clean $p"
+          done
