@@ -23,13 +23,10 @@ import {
 import { findRegisteredManager } from "@/lib/leagues/managers";
 import { loadYahooConfig } from "@/lib/providers/yahoo/config";
 
-/**
- * Canonical public origin for outside consumers. `bloodline-bowl-sleeper-bridge.vercel.app` keeps
- * serving the same API as a fallback. Override only for a bespoke deployment.
- */
+/** Canonical production origin. Override only for a bespoke deployment. */
 export const PRODUCTION_BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") ||
-  "https://api.rosterintel.com";
+  "https://bloodline-bowl-sleeper-bridge.vercel.app";
 
 /** Public repository — methodology / implementation inspection only. */
 export const GITHUB_REPOSITORY = "https://github.com/supyo29/bloodline-bowl";

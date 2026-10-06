@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Anonymous external validation of the public fantasy API.
 # Run from any machine with NO Vercel login, cookies, tokens or bypass headers:
-#   BASE=https://api.rosterintel.com scripts/validate-public-api.sh
+#   BASE=https://bloodline-bowl-sleeper-bridge.vercel.app scripts/validate-public-api.sh
 set -u
-BASE="${BASE:-https://api.rosterintel.com}"
+BASE="${BASE:-https://bloodline-bowl-sleeper-bridge.vercel.app}"
 pass=0; fail=0
 check() { # name method path expect_status expect_ctype_substr
   local name="$1" method="$2" path="$3" want="$4" ctype="${5:-application/json}"
