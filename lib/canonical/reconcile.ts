@@ -15,7 +15,7 @@
  * candidate is recorded as rejected. It never merely logs.
  */
 
-import { certify, factsFromCanonical, type Discrepancy, type LeagueFacts, type TeamFacts } from "./certification/harness";
+import { certify, factsFromCanonical, teamOrdinal, type Discrepancy, type LeagueFacts, type TeamFacts } from "./certification/harness";
 import { assessCapabilities, summarizeCapabilities, type CapabilityReport } from "./capabilities";
 import type { CanonicalLeagueSnapshot } from "./schema";
 
@@ -38,7 +38,7 @@ function factsFromTeamRecords(snap: CanonicalLeagueSnapshot): LeagueFacts {
   const managerById = new Map(snap.managers.map((m) => [m.canonical_manager_id, m]));
   const teams = new Map<number, TeamFacts>();
   for (const team of snap.teams) {
-    const rosterId = Number(team.provider_team_id);
+    const rosterId = teamOrdinal(team.provider_team_id);
     if (!Number.isFinite(rosterId)) continue;
     const owner = team.canonical_manager_ids[0]
       ? managerById.get(team.canonical_manager_ids[0])

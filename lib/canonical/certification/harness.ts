@@ -91,6 +91,20 @@ const sleeperId = (p: CanonicalPlayer): string | null =>
     ? p.canonical_player_id.slice("player:sleeper:".length)
     : null);
 
+/**
+ * Provider-neutral numeric team ordinal used to key `LeagueFacts.teams`.
+ * Sleeper's provider_team_id IS the numeric roster_id (unchanged behavior).
+ * Yahoo's is a team key like `470.l.287140.t.4`, whose ordinal is the `.t.<n>`
+ * suffix — `Number()` of the whole key is NaN, which used to collapse every
+ * Yahoo team into one `team:NaN` bucket and raise a false cross-surface discrepancy.
+ */
+export function teamOrdinal(providerTeamId: string | null): number {
+  const direct = Number(providerTeamId);
+  if (Number.isFinite(direct)) return direct;
+  const yahoo = providerTeamId ? /\.t\.(\d+)$/.exec(providerTeamId) : null;
+  return yahoo ? Number(yahoo[1]) : Number.NaN;
+}
+
 export function factsFromCanonical(snap: CanonicalLeagueSnapshot): LeagueFacts {
   const playerById = new Map(snap.players.map((p) => [p.canonical_player_id, p]));
   const managerById = new Map<string, CanonicalManager>(
@@ -105,7 +119,7 @@ export function factsFromCanonical(snap: CanonicalLeagueSnapshot): LeagueFacts {
 
   const teams = new Map<number, TeamFacts>();
   for (const team of snap.teams) {
-    const rosterId = Number(team.provider_team_id);
+    const rosterId = teamOrdinal(team.provider_team_id);
     const roster = snap.rosters.find((r) => r.canonical_team_id === team.canonical_team_id);
     const standing = snap.standings.find((s) => s.canonical_team_id === team.canonical_team_id);
     const owner = team.canonical_manager_ids[0]
