@@ -157,6 +157,19 @@ describe("fetchPlayersWithOwnership", () => {
   });
 });
 
+describe("fetchPlayersWithOwnership unknown ids", () => {
+  it("retries per key when Yahoo 400s the batch and reports the unknown key", async () => {
+    const { c } = client((url) =>
+      url.includes("470.p.999")
+        ? { status: 400, body: { error: { description: "Player key 470.p.999 does not exist." } } }
+        : { body: page([playerNode(1, { own: { type: "waivers", waiver_date: "2026-10-07" } })]) },
+    );
+    const r = await fetchPlayersWithOwnership(c, LK, ["471.p.1", "470.p.999"]);
+    assert.equal(r.players.length, 1);
+    assert.deepEqual(r.unclassified, ["470.p.999"]);
+  });
+});
+
 describe("diagnostics", () => {
   it("surfaces Yahoo's message, status and path without credentials", async () => {
     const { c } = client(() => ({ status: 400, body: { error: { description: "Invalid status filter" } } }));

@@ -210,12 +210,13 @@ export async function GET(
       const keys = playerIds.map((id) => `${gameKey}.p.${id}`);
       const found = await fetchPlayersWithOwnership(client, leagueKey, keys);
       const foundIds = new Set(found.players.map((p) => p.player_id));
+      const unknownIds = playerIds.filter((id) => !foundIds.has(id));
       return jsonResponse(
         {
           ok: true,
           ...meta,
           pagination: { returned: found.players.length, total: found.players.length, start: 0, complete: true },
-          not_found_or_unclassified: playerIds.filter((id) => !foundIds.has(id)),
+          not_found_or_unclassified: unknownIds,
           players: found.players,
           yahoo_requests: found.requests,
           generated_at,

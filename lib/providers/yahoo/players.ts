@@ -310,20 +310,39 @@ export async function fetchPlayersWithOwnership(
   const keys = [...new Set(playerKeys)];
   for (let i = 0; i < keys.length; i += YAHOO_PLAYERS_PAGE_SIZE) {
     const batch = keys.slice(i, i + YAHOO_PLAYERS_PAGE_SIZE);
-    const path = buildPlayersPath(leagueKey, { start: 0, count: batch.length, playerKeys: batch }, true);
-    requests.push(path);
-    const { data } = await client.get(path);
-    const fc = fantasyContent(data);
-    const league = mergeYahooEntity(fc?.league);
-    for (const entry of collectionEntries(league.players)) {
-      const probe = parseYahooPoolPlayer(entry, "FA");
-      if (!probe) continue;
-      const code = classifyOwnership(probe.ownership_type);
-      if (!code) {
-        unclassified.push(probe.player_key);
-        continue;
+    const groups: string[][] = [batch];
+    for (let g = 0; g < groups.length; g++) {
+      const keysInGroup = groups[g] as string[];
+      const path = buildPlayersPath(leagueKey, { start: 0, count: keysInGroup.length, playerKeys: keysInGroup }, true);
+      requests.push(path);
+      let data: unknown;
+      try {
+        ({ data } = await client.get(path));
+      } catch (err) {
+        // Yahoo rejects the WHOLE request (HTTP 400) if any one key does not exist.
+        // Retry one key at a time so valid players still resolve; unknown keys are reported.
+        if (err instanceof YahooApiError && err.httpStatus === 400) {
+          if (keysInGroup.length > 1) {
+            for (const k of keysInGroup) groups.push([k]);
+          } else {
+            unclassified.push(keysInGroup[0] as string);
+          }
+          continue;
+        }
+        throw err;
       }
-      players.push({ ...probe, status: code, availability: AVAILABILITY_BY_CODE[code] });
+      const fc = fantasyContent(data);
+      const league = mergeYahooEntity(fc?.league);
+      for (const entry of collectionEntries(league.players)) {
+        const probe = parseYahooPoolPlayer(entry, "FA");
+        if (!probe) continue;
+        const code = classifyOwnership(probe.ownership_type);
+        if (!code) {
+          unclassified.push(probe.player_key);
+          continue;
+        }
+        players.push({ ...probe, status: code, availability: AVAILABILITY_BY_CODE[code] });
+      }
     }
   }
   return { players, requests, unclassified };
