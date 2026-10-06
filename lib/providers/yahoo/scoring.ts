@@ -61,12 +61,11 @@ const YAHOO_STAT_NAME_TO_CANONICAL_RAW: Record<string, string> = {
 
   // Return / misc offense
   //
-  // "Return Yards" is deliberately NOT mapped. The canonical catalog splits
-  // return yardage into distinct kr_yd (kick return) and pr_yd (punt return)
-  // buckets; a generic Yahoo "Return Yards" category does not itself say
-  // which (or both, combined) it covers. Guessing kr_yd would misattribute
-  // punt-return yardage as kick-return yardage. Falls through to
-  // yahoo_stat_<id> + warning until a live Yahoo response's stat_id disambiguates it.
+  // "Return Yards" is not a one-to-one name: it is the SUM of kick + punt
+  // return yardage, for players (position_type O) or team defense (DT). It is
+  // handled by YAHOO_COMBINED_CATEGORIES below, which needs Yahoo's
+  // position_type to pick kr_yd+pr_yd vs def_kr_yd+def_pr_yd; without it the
+  // category stays yahoo_stat_<id> + warning.
   "return touchdowns": "st_td",
   "offensive fumble return td": "fum_rec_td",
   "fumbles lost": "fum_lost",
@@ -85,6 +84,13 @@ const YAHOO_STAT_NAME_TO_CANONICAL_RAW: Record<string, string> = {
   "field goal missed 30-39 yards": "fgmiss_30_39",
   "field goal missed 40-49 yards": "fgmiss_40_49",
   "field goal missed 50+ yards": "fgmiss_50p",
+  // Yahoo's live category names use the plural "Field Goals Missed …" (observed
+  // in production Maclin settings); same buckets as the singular spellings above.
+  "field goals missed 0-19 yards": "fgmiss_0_19",
+  "field goals missed 20-29 yards": "fgmiss_20_29",
+  "field goals missed 30-39 yards": "fgmiss_30_39",
+  "field goals missed 40-49 yards": "fgmiss_40_49",
+  "field goals missed 50+ yards": "fgmiss_50p",
   "extra points made": "xpm",
   "point after attempt made": "xpm",
   "point after attempt missed": "xpmiss",
@@ -142,7 +148,26 @@ export interface YahooStatCategory {
   stat_id: string;
   name: string | null;
   display_name: string | null;
+  /** Yahoo `position_type`: "O" offense, "K" kicker, "DT" team defense, "DP" defensive player. */
+  position_type?: string | null;
 }
+
+/**
+ * Yahoo categories that are the exact SUM of several canonical buckets. Applying
+ * the same per-unit value to every bucket scores identically to Yahoo
+ * (points = value x (a + b + ...) = value x a + value x b + ...). Expansion
+ * never overwrites a bucket the league already scores via a more specific
+ * category, and a category whose scope depends on `position_type` stays
+ * unmapped (warning) when the position type is absent or unexpected.
+ */
+const YAHOO_COMBINED_CATEGORIES: Record<string, (positionType: string | null) => string[] | null> = {
+  // Generic offensive 2-PT conversions: Yahoo credits every involved player
+  // (passer, receiver, rusher), exactly the canonical pass/rec/rush split.
+  [normalizeStatName("2-Point Conversions")]: (pt) => (pt === null || pt === "O" ? ["pass_2pt", "rush_2pt", "rec_2pt"] : null),
+  // Return yardage = kickoff + punt return yards; player (O) vs team defense (DT).
+  [normalizeStatName("Return Yards")]: (pt) =>
+    pt === "O" ? ["kr_yd", "pr_yd"] : pt === "DT" ? ["def_kr_yd", "def_pr_yd"] : null,
+};
 
 export interface YahooStatModifier {
   stat_id: string;
@@ -168,21 +193,36 @@ export function mapYahooScoringSettings(
   modifiers: YahooStatModifier[],
 ): MappedYahooScoring {
   const nameById = new Map<string, string | null>();
-  for (const c of categories) nameById.set(c.stat_id, c.name ?? c.display_name);
+  const positionTypeById = new Map<string, string | null>();
+  for (const c of categories) {
+    nameById.set(c.stat_id, c.name ?? c.display_name);
+    positionTypeById.set(c.stat_id, c.position_type ?? null);
+  }
 
   const raw_scoring: Record<string, number> = {};
   const unmapped: MappedYahooScoring["unmapped"] = [];
+  const combined: Array<{ m: YahooStatModifier; name: string; keys: string[] }> = [];
 
+  // Pass 1: one-to-one names. Pass 2 (below) expands combined categories only
+  // into buckets pass 1 did not already set, so a specific category always wins.
   for (const m of modifiers) {
     if (!Number.isFinite(m.value) || m.value === 0) continue;
     const name = nameById.get(m.stat_id) ?? null;
-    const canonicalKey = name ? YAHOO_STAT_NAME_TO_CANONICAL[normalizeStatName(name)] : undefined;
+    const normalized = name ? normalizeStatName(name) : null;
+    const canonicalKey = normalized ? YAHOO_STAT_NAME_TO_CANONICAL[normalized] : undefined;
+    const expand = normalized ? YAHOO_COMBINED_CATEGORIES[normalized] : undefined;
+    const keys = !canonicalKey && expand ? expand(positionTypeById.get(m.stat_id) ?? null) : null;
     if (canonicalKey) {
       raw_scoring[canonicalKey] = m.value;
+    } else if (keys && name) {
+      combined.push({ m, name, keys });
     } else {
       raw_scoring[`yahoo_stat_${m.stat_id}`] = m.value;
       unmapped.push({ stat_id: m.stat_id, name, value: m.value });
     }
+  }
+  for (const { m, keys } of combined) {
+    for (const k of keys) if (!(k in raw_scoring)) raw_scoring[k] = m.value;
   }
 
   return { raw_scoring, unmapped };

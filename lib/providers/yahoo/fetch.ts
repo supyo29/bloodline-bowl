@@ -115,10 +115,13 @@ export async function fetchYahooLeagueSettings(
   const statCategories = asRecord(settings.stat_categories);
   const stat_categories: YahooStatCategory[] = collectionEntries(statCategories?.stats).map((entry) => {
     const s = mergeYahooEntity(unwrap(entry, "stat"));
+    const position_type = asString(s.position_type);
     return {
       stat_id: asString(s.stat_id) ?? "",
       name: asString(s.name),
       display_name: asString(s.display_name),
+      // Only when Yahoo supplies it (disambiguates e.g. player vs team-defense "Return Yards").
+      ...(position_type ? { position_type } : {}),
     };
   }).filter((s) => s.stat_id !== "");
 
