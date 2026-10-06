@@ -136,7 +136,7 @@ export async function syncLeagueTransactions(
     trigger: options.trigger ?? "CLI",
   });
 
-  const provider = getProvider(league.provider);
+  const provider = getProvider(league.provider, { connectionId: league.provider_connection_id });
   const crosswalk = defaultCrosswalkSource()
     ? new PlayerCrosswalk(defaultCrosswalkSource()!)
     : new PlayerCrosswalk(NoCrosswalk);

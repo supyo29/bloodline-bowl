@@ -18,7 +18,7 @@ import {
 import { resolveNflGameKey } from "@/lib/providers/yahoo/games";
 import { probeLeague, readOnlyLeagueProbe, probeUserTeams } from "@/lib/providers/yahoo/discovery";
 import { YAHOO_TARGET_SEASON } from "@/lib/providers/yahoo/config";
-import { findLeagueTarget } from "@/lib/leagues/registry";
+import { findLeagueTarget, listLeagueTargets } from "@/lib/leagues/registry";
 import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -30,14 +30,21 @@ export async function GET(
   { params }: { params: Promise<{ leagueId: string }> },
 ): Promise<Response> {
   const { leagueId: raw } = await params;
-  const fromRegistry = findLeagueTarget(raw);
+  const fromRegistry =
+    findLeagueTarget(raw) ??
+    listLeagueTargets().find((t) => t.provider === "yahoo" && t.external_league_id === raw) ??
+    null;
   const leagueId = fromRegistry?.provider === "yahoo" ? fromRegistry.external_league_id : raw;
 
   if (!/^\d+$/.test(leagueId)) {
     return errorResponse(400, "yahoo_invalid_league_id", `"${raw}" is not a Yahoo league id or a known Yahoo registry slug.`);
   }
 
-  const session = await loadYahooSession();
+  // Use the league's own registered OAuth connection (e.g. Maclin -> "maclin");
+  // the default connection belongs to a different Yahoo account.
+  const session = await loadYahooSession(process.env, {
+    connectionId: fromRegistry?.provider === "yahoo" ? fromRegistry.yahoo_connection_id ?? undefined : undefined,
+  });
   if (session.state !== "READY" || !session.client) {
     const access = accessStateFromSession(session);
     return jsonResponse(
