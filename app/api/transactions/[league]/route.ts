@@ -81,7 +81,9 @@ export async function GET(
   // degradation are owned by the provider adapter itself; do not special-case
   // Yahoo here or a healthy OAuth session will be incorrectly reported as
   // AUTH_REQUIRED.
-  const provider = getProvider(league.provider);
+  // Each Yahoo league is bound to its own OAuth connection in the registry; using
+  // the default connection would read a different account (FORBIDDEN for its league).
+  const provider = getProvider(league.provider, { connectionId: league.provider_connection_id });
   const crosswalk = defaultCrosswalkSource()
     ? new PlayerCrosswalk(defaultCrosswalkSource()!)
     : new PlayerCrosswalk(NoCrosswalk);
