@@ -55,6 +55,7 @@ import {
   fetchYahooTransactions,
 } from "./fetch";
 import { resolveNflGameKey } from "./games";
+import { fetchYahooGameWeeks, weekFilterIsAuthoritative, weekForTimestamp, type YahooGameWeek } from "./game-weeks";
 import {
   YAHOO_PLAYERS_PAGE_SIZE,
   fetchLeaguePlayerPools,
@@ -483,7 +484,7 @@ export class YahooProvider implements FantasyProvider {
   ): Promise<ProviderResult<CanonicalTransaction[]>> {
     const resolved = await this.#resolveLeague(ctx);
     if (!resolved.ok) return resolved.result;
-    const { client, leagueKey } = resolved.resolved;
+    const { client, leagueKey, gameKey } = resolved.resolved;
     try {
       await ctx.crosswalk.ensureLoaded();
       const [teams, txResult] = await Promise.all([
@@ -522,22 +523,40 @@ export class YahooProvider implements FantasyProvider {
         transactions: txResult.transactions,
       };
       const canon = yahooBundleToCanonical(ctx.league_slug, minimalBundle, ctx.crosswalk, new Date().toISOString());
-      let transactions = canon.transactions;
+      // Yahoo transactions carry a timestamp but no fantasy-week field; stamp the
+      // week from Yahoo's own game-week calendar (best effort, never fatal).
+      let weeks: YahooGameWeek[] = [];
+      try {
+        weeks = await fetchYahooGameWeeks(client, gameKey);
+      } catch {
+        weeks = [];
+      }
+      const tsSeconds = (t: { provider_timestamp: string | null }) =>
+        t.provider_timestamp ? Date.parse(t.provider_timestamp) / 1000 : Number.NaN;
+      let transactions = canon.transactions.map((t) =>
+        t.fantasy_week != null ? t : { ...t, fantasy_week: weekForTimestamp(weeks, tsSeconds(t)) },
+      );
 
       const warnings: ProviderResult<unknown>["warnings"] = [];
-      // Yahoo transaction resources expose timestamps but no fantasy-week
-      // field. Do not turn an unsupported week filter into a false empty
-      // result. Return the recent feed unfiltered and mark week-specific
-      // chronology as unavailable so callers can degrade honestly.
-      if (query.week != null && transactions.some((t) => t.fantasy_week == null)) {
-        warnings.push({
-          code: "week_transactions_unavailable",
-          message:
-            `Yahoo transactions do not expose fantasy-week metadata; returned recent transactions without applying week=${query.week}. ` +
-            "Do not treat this result as authoritative current-week transaction history.",
-        });
-      } else if (query.week != null) {
-        transactions = transactions.filter((t) => t.fantasy_week === query.week);
+      if (query.week != null) {
+        const authoritative = weekFilterIsAuthoritative(
+          weeks,
+          query.week,
+          transactions.map((t) => ({ fantasy_week: t.fantasy_week, timestamp_seconds: tsSeconds(t) })),
+        );
+        if (authoritative) {
+          transactions = transactions.filter((t) => t.fantasy_week === query.week);
+        } else {
+          // Calendar unavailable, or a transaction falls outside every Yahoo
+          // week window: do not turn an unverifiable week filter into a false
+          // empty/partial result. Return the recent feed and say so.
+          warnings.push({
+            code: "week_transactions_unavailable",
+            message:
+              `Yahoo transaction weeks could not be fully resolved from Yahoo's game-week calendar; returned recent transactions without applying week=${query.week}. ` +
+              "Do not treat this result as authoritative current-week transaction history.",
+          });
+        }
       }
       if (query.limit && transactions.length > query.limit) transactions = transactions.slice(0, query.limit);
       if (canon.unresolved_players.length > 0) {
