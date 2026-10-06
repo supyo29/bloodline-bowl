@@ -26,6 +26,7 @@ import { probeLeague } from "@/lib/providers/yahoo/discovery";
 import { resolveNflGameKey } from "@/lib/providers/yahoo/games";
 import {
   YAHOO_PLAYERS_MAX_PAGES,
+  buildPlayersPath,
   YAHOO_PLAYERS_PAGE_SIZE,
   fetchPlayerPool,
   fetchPlayersWithOwnership,
@@ -62,6 +63,18 @@ function intParam(raw: string | null, fallback: number, min: number, max: number
   if (!/^\d+$/.test(raw)) return null;
   const n = Number(raw);
   return n < min || n > max ? null : n;
+}
+
+/** Structure-only skeleton of a Yahoo JSON body (keys/types, first array element) for debugging parsers. */
+function skeleton(v: unknown, depth = 0): unknown {
+  if (v === null || typeof v !== "object") return typeof v === "string" ? `string(${v.slice(0, 24)})` : typeof v;
+  if (depth >= 9) return "…";
+  if (Array.isArray(v)) return v.length === 0 ? [] : [`len=${v.length}`, skeleton(v[0], depth + 1), ...(v.length > 1 ? [skeleton(v[1], depth + 1)] : [])];
+  const out: Record<string, unknown> = {};
+  const entries = Object.entries(v as Record<string, unknown>);
+  for (const [k, val] of entries.slice(0, 3 + (entries.some(([kk]) => !/^\d+$/.test(kk)) ? 20 : 0))) out[k] = skeleton(val, depth + 1);
+  if (entries.length > 23) out["…"] = `${entries.length} keys`;
+  return out;
 }
 
 function diagnostics(
@@ -209,6 +222,13 @@ export async function GET(
         },
         { headers: NO_STORE },
       );
+    }
+
+    if (sp.get("debug") === "shape") {
+      const code = status === "available" ? "A" : status === "rostered" ? "T" : status;
+      const path = buildPlayersPath(leagueKey, { status: code, position, search, start, count: Math.min(count, 25) }, sp.get("ownership") === "1");
+      const { data, meta: ym } = await client.get(path);
+      return jsonResponse({ ok: true, ...meta, debug: { path, http_status: ym.http_status, refreshed: ym.refreshed, shape: skeleton(data) }, generated_at }, { headers: NO_STORE });
     }
 
     // ── Pool queries ─────────────────────────────────────────────────────────
