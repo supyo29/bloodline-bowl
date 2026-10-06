@@ -35,10 +35,35 @@ export class YahooApiError extends Error {
     message: string,
     readonly httpStatus: number | null = null,
     readonly resourcePath: string | null = null,
+    /** Yahoo's own error description (truncated, from the response body) when it sent one. */
+    readonly yahooMessage: string | null = null,
+    /** True when a forced token refresh + retry was attempted for this request. */
+    readonly refreshAttempted: boolean = false,
   ) {
     super(message);
     this.name = "YahooApiError";
   }
+}
+
+/**
+ * Pull Yahoo's error description out of a non-2xx body (JSON `{error:{description}}`
+ * or XML `<description>`). Bounded + whitespace-collapsed; response bodies never
+ * carry credentials, but we still cap the length.
+ */
+export function extractYahooErrorMessage(bodyText: string): string | null {
+  if (!bodyText) return null;
+  let msg: string | null = null;
+  try {
+    const parsed = JSON.parse(bodyText) as { error?: { description?: unknown } | unknown };
+    const err = parsed?.error as { description?: unknown } | string | undefined;
+    if (typeof err === "string") msg = err;
+    else if (err && typeof err.description === "string") msg = err.description;
+  } catch {
+    const m = /<description>([\s\S]*?)<\/description>/i.exec(bodyText);
+    if (m?.[1]) msg = m[1];
+  }
+  if (!msg) return null;
+  return msg.replace(/\s+/g, " ").trim().slice(0, 300) || null;
 }
 
 export interface YahooRequestMeta {
@@ -120,16 +145,29 @@ export class YahooFantasyClient {
           `Yahoo returned 401 and the refresh retry failed: ${second.detail ?? second.status}`,
           401,
           path,
+          null,
+          true,
         );
       }
       refreshed = true;
       attempt = await this.#send<T>(url, second.access_token, path, true);
       if (attempt.retryableAuth) {
-        throw new YahooApiError("AUTH", "Yahoo returned 401 even after a token refresh.", 401, path);
+        throw new YahooApiError("AUTH", "Yahoo returned 401 even after a token refresh.", 401, path, null, true);
       }
     }
 
-    if (attempt.error) throw attempt.error;
+    if (attempt.error) {
+      throw refreshed && !attempt.error.refreshAttempted
+        ? new YahooApiError(
+            attempt.error.kind,
+            attempt.error.message,
+            attempt.error.httpStatus,
+            attempt.error.resourcePath,
+            attempt.error.yahooMessage,
+            true,
+          )
+        : attempt.error;
+    }
     return { data: attempt.data as T, meta: { ...attempt.meta!, refreshed } };
   }
 
@@ -201,6 +239,7 @@ export class YahooFantasyClient {
           `Yahoo ${path} -> HTTP ${res.status}${request_id ? ` (req ${request_id})` : ""}`,
           res.status,
           path,
+          extractYahooErrorMessage(bodyText),
         ),
       };
     }
