@@ -355,6 +355,12 @@ export interface WeeklyTeamContext {
   } | null;
 
   projections: WeeklyProjectionBatch;
+  /**
+   * W1.P1 canonical weekly player forecast: the authoritative, provenance-carrying representation of each player's
+   * week. Additive and numerically identical to `projections` for `expected_points` (golden-tested). New decision code
+   * should read this; reading `projections` directly is the legacy path (see the architecture ratchet test).
+   */
+  forecasts?: import("./forecast/schema").CanonicalWeeklyForecastBatch;
   replacement: WeeklyReplacement;
   availability: LeagueAvailability;
 

@@ -31,6 +31,7 @@ import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-sou
 import { getProvider } from "@/lib/providers/registry";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { getWeeklyProjectionProvider } from "./projections/registry";
+import { buildCanonicalForecastBatch } from "./forecast/build";
 import { getScheduleProvider } from "./schedule/registry";
 import type { ScheduleProvider } from "./schedule/types";
 import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
@@ -332,6 +333,9 @@ export async function buildWeeklyTeamContext(
 
   const byeByPlayer: Record<string, number | null> = {};
   const startersOnBye: string[] = [];
+  // W1.P1: the pre-override source value for schedule-proven byes, so the canonical forecast can keep a bye's underlying value
+  // visible instead of letting the compat zero stand in for it. Read-only bookkeeping; does not touch the production batch.
+  const byeSourcePoints = new Map<string, number | null>();
 
   for (const p of lookup(allRosteredIds)) {
     const t = (p.nfl_team ?? "").toUpperCase();
@@ -341,6 +345,7 @@ export async function buildWeeklyTeamContext(
     byeByPlayer[p.canonical_player_id] = scheduleProvenBye ? week : null;
 
     if (scheduleProvenBye) {
+      byeSourcePoints.set(p.canonical_player_id, projected?.projected_points ?? null);
       // A bye is a genuine 0 (the player will not play). Overrides any stale
       // feed entry.
       projections.by_player.set(p.canonical_player_id, {
@@ -391,6 +396,15 @@ export async function buildWeeklyTeamContext(
     (id) => (projections.by_player.get(id)?.projected_points ?? null) == null && projections.by_player.get(id)?.projection_status !== "bye",
   );
   projections.missing = stillMissing;
+
+  // W1.P1: the canonical weekly player forecast — ONE construction path (lib/weekly/forecast/build.ts). Built from the
+  // production-resolved batch AFTER bye handling, so `expected_points` is exactly what every consumer below already reads.
+  const forecasts = buildCanonicalForecastBatch({
+    batch: projections,
+    requested_player_ids: allRosteredIds,
+    players: playerById,
+    bye_source_points: byeSourcePoints,
+  });
 
   // Availability — candidate universe is every player projected this week + rostered.
   const candidates: CanonicalPlayer[] = uniq([
@@ -590,7 +604,7 @@ export async function buildWeeklyTeamContext(
     generated_at: new Date().toISOString(),
     lineage: buildRecommendationLineage(
       snapLineage,
-      { weekly_engine: WEEKLY_ENGINE_VERSION },
+      { weekly_engine: WEEKLY_ENGINE_VERSION, canonical_weekly_forecast: forecasts.model_version },
       projectionLineage,
     ),
     league: {
@@ -623,6 +637,7 @@ export async function buildWeeklyTeamContext(
         }
       : null,
     projections,
+    forecasts,
     replacement,
     availability,
     // Authoritative capability gate for every downstream waiver / pickup surface.
