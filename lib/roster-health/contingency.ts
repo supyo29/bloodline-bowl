@@ -12,6 +12,7 @@
 
 import { buildOptimalLineup, type LineupResult } from "@/lib/weekly/lineup";
 import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
+import { deriveForwardRow } from "@/lib/weekly/forecast/bye";
 import type { RosterConstraints, WeeklyProjectionBatch, WeeklyProjection } from "@/lib/weekly/schema";
 
 /** synthesize a projection batch for a non-weekly horizon (ROS) from a points map. */
@@ -21,17 +22,7 @@ export function horizonBatch(
 ): WeeklyProjectionBatch {
   const by_player = new Map<string, WeeklyProjection>();
   for (const [cid, wp] of base.by_player) {
-    const pts = pointsByCid.get(cid) ?? null;
-    by_player.set(cid, {
-      ...wp,
-      projected_points: pts,
-      floor_points: pts != null ? pts * 0.7 : null,
-      ceiling_points: pts != null ? pts * 1.3 : null,
-      std_dev: pts != null ? pts * 0.3 : null,
-      projection_status: pts != null ? "projected" : wp.projection_status,
-      // a non-current-week horizon (ROS) has its own value per player: the CURRENT week's bye state does not apply to it
-      is_bye: pts != null ? false : wp.is_bye,
-    });
+    by_player.set(cid, deriveForwardRow(wp, pointsByCid.get(cid) ?? null));
   }
   return { ...base, by_player };
 }

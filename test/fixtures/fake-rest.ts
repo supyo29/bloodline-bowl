@@ -2,7 +2,7 @@
  * In-memory stand-in for the subset of SupabaseRest the W1.P4 stores use: eq/lt/lte/gt/gte/is.null/in filters, order, limit/offset
  * (with a hard 1000-row page cap like PostgREST), insertIgnoreDuplicates, update/updateReturning. Deterministic; no network.
  */
-import type { SupabaseRest } from "../../lib/persistence/supabase/rest";
+import { SupabaseRestError, type SupabaseRest } from "../../lib/persistence/supabase/rest";
 
 type Row = Record<string, unknown>;
 const ISO = /^\d{4}-\d\d-\d\dT/;
@@ -46,20 +46,39 @@ export class FakeRest {
   selects: Array<{ table: string; limit?: number; offset?: number }> = [];
   /** column names that do not exist (simulates a not-yet-applied migration) */
   missingColumns = new Set<string>();
+  /** tables that do not exist */
+  missingTables = new Set<string>();
+  /** one-shot injected failures (consumed in order): any matching call throws the REAL wrapper error shape */
+  failures: Array<{ method?: string; table: string; status: number; code?: string }> = [];
 
   t(table: string): Row[] {
     if (!this.tables.has(table)) this.tables.set(table, []);
     return this.tables.get(table)!;
   }
 
-  #guard(cols: string[]): void {
-    for (const c of cols) if (this.missingColumns.has(c)) throw new Error(`column ${c} does not exist (schema cache)`);
+  /**
+   * Errors are raised EXACTLY as `SupabaseRest` raises them in production: `Supabase <METHOD> <table> -> <status> [<code>]`, with structured
+   * status/code/table/method and NO server text (the wrapper never echoes the response body). Codes follow PostgREST/Postgres:
+   * reading or filtering a missing column -> 400 42703; writing a body key that is not a column -> 400 PGRST204; missing table -> 404 PGRST205.
+   */
+  #raise(method: string, table: string, status: number, code?: string): never {
+    throw new SupabaseRestError(`Supabase ${method} ${table} -> ${status}${code ? ` [${code}]` : ""}`, status, table, code, method);
+  }
+
+  #guard(method: "GET" | "POST" | "PATCH", table: string, cols: string[]): void {
+    const idx = this.failures.findIndex((f) => f.table === table && (!f.method || f.method === method));
+    if (idx >= 0) {
+      const f = this.failures.splice(idx, 1)[0]!;
+      this.#raise(method, table, f.status, f.code);
+    }
+    if (this.missingTables.has(table)) this.#raise(method, table, 404, "PGRST205");
+    for (const c of cols) if (this.missingColumns.has(c)) this.#raise(method, table, 400, method === "GET" ? "42703" : "PGRST204");
   }
 
   async select<T>(table: string, opts: { filter?: Record<string, string>; order?: string; limit?: number; offset?: number; select?: string } = {}): Promise<T[]> {
     this.requests += 1;
     this.selects.push({ table, limit: opts.limit, offset: opts.offset });
-    this.#guard([...Object.keys(opts.filter ?? {}), ...(opts.select ? opts.select.split(",") : [])]);
+    this.#guard("GET", table, [...Object.keys(opts.filter ?? {}), ...(opts.select ? opts.select.split(",") : [])]);
     let rows = this.t(table).filter((r) => matches(r, opts.filter ?? {}));
     if (opts.order) {
       const keys = opts.order.split(",").map((o) => {
@@ -82,8 +101,9 @@ export class FakeRest {
   async insertIgnoreDuplicates<T>(table: string, rows: unknown[], conflictCols: string[]): Promise<T[]> {
     this.requests += 1;
     const out: Row[] = [];
+    this.#guard("POST", table, []);
     for (const r of rows as Row[]) {
-      this.#guard(Object.keys(r));
+      this.#guard("POST", table, Object.keys(r));
       const dup = this.t(table).some((e) => conflictCols.every((c) => String(e[c]) === String(r[c])));
       if (!dup) {
         this.t(table).push(structuredClone(r));
@@ -95,6 +115,7 @@ export class FakeRest {
 
   async insert<T>(table: string, row: unknown): Promise<T[]> {
     this.requests += 1;
+    this.#guard("POST", table, Object.keys(row as Row));
     this.t(table).push(structuredClone(row as Row));
     return [row as T];
   }
@@ -105,7 +126,7 @@ export class FakeRest {
 
   async updateReturning<T>(table: string, filter: Record<string, string>, patch: unknown): Promise<T[]> {
     this.requests += 1;
-    this.#guard([...Object.keys(filter), ...Object.keys(patch as Row)]);
+    this.#guard("PATCH", table, [...Object.keys(filter), ...Object.keys(patch as Row)]);
     const out: Row[] = [];
     for (const r of this.t(table)) {
       if (matches(r, filter)) {

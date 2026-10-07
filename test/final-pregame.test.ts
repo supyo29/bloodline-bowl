@@ -14,6 +14,11 @@ const H = 60 * MIN;
 const at = (off: number) => new Date(KICK + off).toISOString();
 
 const rec = (offMs: number, pts: number, over: Partial<FinalPregameRecord> = {}): FinalPregameRecord => ({
+  record_version: 2,
+  forecast_id: `fpf:test-${pts}-${offMs}`,
+  composed_at: at(offMs),
+  content_signature: `sig:${pts}`,
+  forecast_snapshot: null,
   league_slug: "bloodline-bowl",
   provider: "sleeper",
   season: 2026,

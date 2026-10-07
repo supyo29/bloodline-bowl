@@ -6,8 +6,7 @@
  * calls. Shared services only — no logic in this route.
  */
 
-import { runWithWeeklyContext, buildCloseCalls } from "@/lib/weekly/intelligence";
-import { buildOptimalLineup } from "@/lib/weekly/lineup";
+import { runWithWeeklyContext, lineupEndpointView } from "@/lib/weekly/intelligence";
 import { parseWeek, viewResponse } from "@/lib/weekly/routes-shared";
 import { handleOptions } from "@/lib/http";
 
@@ -23,20 +22,8 @@ export async function GET(
   const parsed = parseWeek(weekRaw);
   if (!parsed.ok) return parsed.response;
 
-  const view = await runWithWeeklyContext(league, manager, { week: parsed.week }, (ctx) => {
-    const players = new Map(ctx.all_rostered.map((p) => [p.canonical_player_id, p]));
-    const lineup = buildOptimalLineup({
-      week: ctx.league.week,
-      roster: ctx.roster,
-      constraints: ctx.league.roster_constraints,
-      players,
-      projections: ctx.projections,
-    });
-    // Same start/sit derivation as the intelligence endpoint — paired
-    // entering/leaving sets, cross-position reshuffle legs excluded.
-    const start_sit = buildCloseCalls(ctx, lineup);
-    return { lineup, start_sit, roster_constraints: ctx.league.roster_constraints };
-  });
+  // W1.R1: the SAME view function /api/intelligence uses (canonical injury-aware decision value + matching close calls).
+  const view = await runWithWeeklyContext(league, manager, { week: parsed.week }, lineupEndpointView);
 
   return viewResponse(view, `lineup:${league}/${manager}/w${parsed.week}`);
 }

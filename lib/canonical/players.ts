@@ -16,6 +16,7 @@
  * (`lib/persistence/supabase/crosswalk-source.ts`) is used in production.
  */
 
+import { resolveDefenseTeam, teamDefenseId } from "./team-defense";
 import { normalizeTeamCode } from "./team-codes";
 import {
   normalizeName,
@@ -188,6 +189,35 @@ export class PlayerCrosswalk {
       identifiers.yahoo_player_key = observed.provider_player_id;
     }
 
+    // W1.R1 / P1-3: a team defense is ONE canonical entity per NFL franchise, derived from team evidence only (never a person id, a provider
+    // numeric id or a crosswalk row). Evidence that disagrees or names several franchises is NOT mapped: it keeps the provider-scoped id,
+    // flagged low-confidence, so a defense can never be silently attached to the wrong team.
+    let defenseAmbiguity: string | null = null;
+    if (isDef) {
+      const t = resolveDefenseTeam({
+        nfl_team: observed.nfl_team,
+        provider_player_id: observed.provider_player_id,
+        full_name: name,
+        first_name: observed.first_name,
+        last_name: observed.last_name,
+      });
+      if (t.status === "RESOLVED") {
+        if (name) identifiers.name_key = playerNameKey(name, "DEF", t.team);
+        return {
+          player: buildPlayer(
+            teamDefenseId(t.team),
+            name ?? `${t.team} D/ST`,
+            { ...observed, nfl_team: t.team, position: "DEF" },
+            identifiers,
+            { method: "stable_id", confidence: "exact", note: `team_defense:${t.team} via ${t.via}` },
+            true,
+          ),
+          unresolved: null,
+        };
+      }
+      if (t.status === "AMBIGUOUS") defenseAmbiguity = t.reason;
+    }
+
     // 1. Cross-provider row via a stable provider id. GSIS is the strongest key
     //    (it is THE cross-provider nfl identity), so it is tried first when the
     //    caller already has one.
@@ -285,7 +315,9 @@ export class PlayerCrosswalk {
         resolvedName,
         observed,
         identifiers,
-        { method, confidence, note: null },
+        defenseAmbiguity
+          ? { method, confidence: "low", note: `team_defense_ambiguous: ${defenseAmbiguity}` }
+          : { method, confidence, note: null },
         isDef,
         row,
       ),

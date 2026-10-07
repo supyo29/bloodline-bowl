@@ -149,7 +149,16 @@ export function buildWeekCases(input: BuildWeekInput): BuildWeekResult {
         projected_points: chosen?.projected_points ?? null, projected_floor: chosen?.floor_points ?? null, projected_ceiling: chosen?.ceiling_points ?? null, projected_std_dev: chosen?.std_dev ?? null,
         expected_availability: chosen?.expected_availability ?? null, injury_status_at_projection: injury, projection_warnings: chosen?.warnings ?? [],
         projection_scoring_exactness: chosen ? chosen.scoring_exactness : null,
-        projection_selection: { rule: sel.rule, considered: sel.considered, rejected_not_before_kickoff: sel.rejected_not_before_kickoff, rejected_invalid: sel.rejected_invalid, ...(chosen?.detail ?? {}) },
+        projection_selection: {
+          rule: sel.rule, considered: sel.considered, rejected_not_before_kickoff: sel.rejected_not_before_kickoff, rejected_invalid: sel.rejected_invalid,
+          // W1.R1: WHICH basis `projected_points`/`error` are measured on. A final canonical forecast is the decision value users received; its
+          // SOURCE value for the same player-game is scored beside it so source quality and decision quality compare on one actual.
+          evaluation_basis: chosen?.kind === "FINAL_PREGAME_FORECAST" ? "CANONICAL_EXPECTED_POINTS" : chosen ? "SOURCE_PROJECTION" : null,
+          ...(chosen?.kind === "FINAL_PREGAME_FORECAST" && certified && actual != null && typeof chosen.detail?.source_points === "number"
+            ? { source_basis_error: caseErrors(chosen.detail.source_points as number, actual) }
+            : {}),
+          ...(chosen?.detail ?? {}),
+        },
         weather_snapshot_id: weather?.snapshot_id ?? null, weather_evidence: weather,
         football_outcome_id: fo?.outcome_id ?? null, stats_digest: fo?.stats_digest ?? null,
         participation_state: part.state, actual_fantasy_points: actual, actual_scoring_basis: basis, actual_scoring_exactness: actualExact, actual_warnings: actualWarnings,

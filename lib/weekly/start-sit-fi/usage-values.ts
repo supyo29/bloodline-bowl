@@ -15,12 +15,13 @@
  * Missing stays missing (null): never coerced to zero.
  */
 import type { FootballIntelligence } from "@/lib/football-intel";
+import { sleeperIdFromCanonicalId } from "@/lib/canonical/team-defense";
 
 export function fiIdsFromCanonical(canonicalPlayerId: string): { gsis_id: string | null; sleeper_id: string | null } {
   const g = /^player:gsis:(.+)$/.exec(canonicalPlayerId);
   if (g) return { gsis_id: g[1]!, sleeper_id: null };
-  const s = /^player:sleeper:(.+)$/.exec(canonicalPlayerId);
-  if (s) return { gsis_id: null, sleeper_id: s[1]! };
+  const s = sleeperIdFromCanonicalId(canonicalPlayerId);
+  if (s) return { gsis_id: null, sleeper_id: s };
   return { gsis_id: null, sleeper_id: null };
 }
 

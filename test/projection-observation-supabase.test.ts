@@ -92,6 +92,7 @@ describe("W1.P4 Supabase observation store", () => {
 const KICK = Date.parse("2026-10-11T17:00:00.000Z");
 const fat = (off: number) => new Date(KICK + off).toISOString();
 const frec = (offMin: number, pts: number, over: Partial<FinalPregameRecord> = {}): FinalPregameRecord => ({
+  record_version: 2, forecast_id: `fpf:test-${pts}-${offMin}`, composed_at: fat(offMin * 60_000), content_signature: `sig:${pts}`, forecast_snapshot: null,
   league_slug: "bloodline-bowl", provider: "sleeper", season: 2026, week: 5, canonical_player_id: "player:x", identifiers: {}, game_id: "g1",
   kickoff_at: fat(0), source_observed_at: fat(offMin * 60_000), confirmed_through: fat(offMin * 60_000), source_observation_id: null,
   seconds_before_kickoff: -offMin * 60, source_provider: "sleeper", source_version: "v", forecast_model_version: "m1", injury_model_version: "i1",

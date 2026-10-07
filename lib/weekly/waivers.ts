@@ -261,7 +261,12 @@ export function buildWaiverRecommendations(
    */
   const weeklyKnown = (id: string): boolean => {
     const p = proj(id);
-    return p != null && (p.projected_points != null || isVerifiedBye(p));
+    if (p == null) return false;
+    // W1.R1 (P1-4): a verified bye carries a KNOWN current-week zero, but that zero says nothing about what he is worth. He is an
+    // assessable drop only when his hold value (underlying asset value) is known — exactly the rule an unknown non-bye player already
+    // follows. UNKNOWN is never read as LOW: a bye player whose value cannot be established is not offered up as the cheap drop.
+    if (isVerifiedBye(p)) return holdFor(id).points != null;
+    return p.projected_points != null;
   };
   // Per-LABEL empty-slot counts (not a Set) so the legality check catches a
   // hypothetical that turns one "RB" hole into two.
@@ -336,13 +341,14 @@ export function buildWaiverRecommendations(
     const wv = ctx.forecasts?.by_player.get(id)?.weekly_value;
     return wv && wv.underlying_basis === "SOURCE_PROJECTION_PRE_BYE" ? wv.underlying_points_if_game_played : null;
   };
+  const holdFor = (id: string) => holdWeeklyValue({ row: proj(id), underlying_points: preByeSource(id), week: ctx.league.week });
   const rosterValue = ctx.all_rostered.map((p) => {
     const wp = proj(p.canonical_player_id);
     // W1.P3: the DROP side asks "what asset am I giving up?", not "what does he score this week?". For a verified bye the current-week
     // zero is real but is NOT evidence about the player, so hold value uses the bye-neutral underlying value. Non-bye players are
     // untouched (hold basis = their current-week projection, exactly as before).
     const bye = isVerifiedBye(wp);
-    const hold = holdWeeklyValue({ row: wp, underlying_points: preByeSource(p.canonical_player_id), week: ctx.league.week });
+    const hold = holdFor(p.canonical_player_id);
     const rosEdge = rosEdgePerWeek(p.position, wp?.rest_of_season_points ?? null) ?? 0;
     const isStarter = ctx.roster.starters.includes(p.canonical_player_id);
     const keepFor = (weeklyPts: number | null): number => {
@@ -504,6 +510,25 @@ export function buildWaiverRecommendations(
               : recommended
                 ? `${nameOf(d.player)} is on bye, but he is still the preferred drop: even with the bye removed his hold value (${hv}) is the weakest drop-adjusted asset on the roster (bye-neutral rank ${rn}).`
                 : `${nameOf(d.player)} is on bye (hold value ${hv}); the bye ${rl === rn ? "did not change" : "changed"} his drop ranking (with-bye rank ${rl ?? "n/a"}, bye-neutral rank ${rn ?? "n/a"}) and he is not the recommended drop.`,
+          });
+        }
+        // W1.R1: verified-bye players EXCLUDED from the drop board because their hold value is unknown. Reported, not silent.
+        for (const d of dropBoard.filter((x) => x.bye && x.hold.points == null && activeIds.includes(x.player.canonical_player_id) && x.player.canonical_player_id !== fa.canonical_player_id)) {
+          diags.push({
+            player_id: d.player.canonical_player_id,
+            name: nameOf(d.player),
+            is_bye: true,
+            current_week_points: d.weekly,
+            hold_value_weekly: null,
+            hold_basis: d.hold.basis,
+            drop_rank_with_bye_zero: null,
+            drop_rank_bye_neutral: null,
+            rank_changed_by_bye: false,
+            preferred_drop_with_bye_zero: legacyId,
+            preferred_drop_bye_neutral: neutralId,
+            bye_guardrail_applied: true,
+            is_recommended_drop: false,
+            reason: `${nameOf(d.player)} is on a verified bye and his underlying value is UNKNOWN (no pre-bye source projection and no rest-of-season value). Unknown is not low: he is not offered as the preferred drop unless independent evidence shows he is marginal.`,
           });
         }
         byeDiagnostics = diags;

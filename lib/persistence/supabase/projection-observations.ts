@@ -5,7 +5,9 @@
  *   bridge_projection_source_observation_rows  changed players only (FULL: everyone), tombstones for players that left the feed
  *   bridge_projection_source_latest            mutable pointer: last observation seen/confirmed (+ last FULL anchor time)
  *   bridge_projection_source_events            derived invalidation events
- *   bridge_final_pregame_forecasts             league-scoped frozen pregame forecasts (DB CHECKs forbid post-kickoff observations)
+ *   bridge_final_pregame_forecasts             league-scoped final POINTER per league/season/week/player (thin: references a revision)
+ *   bridge_final_pregame_revisions             W1.R1: IMMUTABLE append-only revisions holding the complete frozen canonical forecast
+ *                                              (DB CHECKs forbid a post-kickoff observation OR composition; insert-only trigger)
  *
  * Reads are paginated in bounded pages (PostgREST caps responses at ~1000 rows) — the same discipline as the projection snapshot store.
  * Nothing here mutates league state or any production table.
@@ -19,7 +21,7 @@ import {
   type SourceObservationStore,
 } from "@/lib/weekly/freshness/observation";
 import type { InvalidationEvent } from "@/lib/weekly/freshness/events";
-import { decideCandidate, type FinalPregameRecord, type FinalPregameStore, type FinalPregameWrite } from "@/lib/weekly/freshness/final-pregame";
+import { compareRevisions, decideCandidate, emptyWriteCounts, thinRecord, type FinalPregameRecord, type FinalPregameStore, type FinalPregameWrite, type FinalPregameWriteCounts } from "@/lib/weekly/freshness/final-pregame";
 import { loadSupabaseConfig, SupabaseRest } from "./rest";
 
 const HEADERS = "bridge_projection_source_observations";
@@ -27,6 +29,7 @@ const ROWS = "bridge_projection_source_observation_rows";
 const LATEST = "bridge_projection_source_latest";
 const EVENTS = "bridge_projection_source_events";
 const FINAL = "bridge_final_pregame_forecasts";
+const REVISIONS = "bridge_final_pregame_revisions";
 const PAGE = 1000;
 const INSERT_CHUNK = 250;
 const IN_CHUNK = 20;
@@ -182,6 +185,25 @@ interface FinalRow {
   kickoff_at: string;
   source_observed_at: string;
   confirmed_through: string;
+  /** W1.R1 (nullable for rows written before the remediation migration) */
+  forecast_id: string | null;
+  composed_at: string | null;
+  /** thin record: `forecast_snapshot` is null — the immutable revision holds the evidence */
+  record: FinalPregameRecord;
+}
+
+interface RevisionRow {
+  forecast_id: string;
+  league_slug: string;
+  season: number;
+  week: number;
+  canonical_player_id: string;
+  provider: string;
+  kickoff_at: string;
+  source_observed_at: string;
+  composed_at: string;
+  content_signature: string;
+  scoring_fingerprint: string | null;
   record: FinalPregameRecord;
 }
 
@@ -190,12 +212,39 @@ export class SupabaseFinalPregameStore implements FinalPregameStore {
   constructor(private readonly rest: SupabaseRest) {}
 
   #row(rec: FinalPregameRecord): FinalRow {
-    return { league_slug: rec.league_slug, season: rec.season, week: rec.week, canonical_player_id: rec.canonical_player_id, provider: rec.provider, kickoff_at: rec.kickoff_at, source_observed_at: rec.source_observed_at, confirmed_through: rec.confirmed_through, record: rec };
+    return {
+      league_slug: rec.league_slug, season: rec.season, week: rec.week, canonical_player_id: rec.canonical_player_id, provider: rec.provider,
+      kickoff_at: rec.kickoff_at, source_observed_at: rec.source_observed_at, confirmed_through: rec.confirmed_through,
+      forecast_id: rec.forecast_id, composed_at: rec.composed_at, record: thinRecord(rec),
+    };
+  }
+
+  #revisionRow(rec: FinalPregameRecord): RevisionRow {
+    return {
+      forecast_id: rec.forecast_id, league_slug: rec.league_slug, season: rec.season, week: rec.week, canonical_player_id: rec.canonical_player_id, provider: rec.provider,
+      kickoff_at: rec.kickoff_at, source_observed_at: rec.source_observed_at, composed_at: rec.composed_at, content_signature: rec.content_signature,
+      scoring_fingerprint: rec.scoring_fingerprint, record: rec,
+    };
+  }
+
+  /** the pointer row as a FinalPregameRecord (with the pointer's own confirmed_through / composed_at overlaid) */
+  #fromRow(r: FinalRow): FinalPregameRecord {
+    return { ...r.record, confirmed_through: r.confirmed_through, ...(r.forecast_id ? { forecast_id: r.forecast_id } : {}), ...(r.composed_at ? { composed_at: r.composed_at } : {}), forecast_snapshot: null };
   }
 
   async get(league_slug: string, season: number, week: number, canonical_player_id: string): Promise<FinalPregameRecord | null> {
     const [r] = await this.rest.select<FinalRow>(FINAL, { filter: { league_slug: `eq.${league_slug}`, season: `eq.${season}`, week: `eq.${week}`, canonical_player_id: `eq.${canonical_player_id}` }, limit: 1 });
-    return r ? { ...r.record, confirmed_through: r.confirmed_through } : null;
+    return r ? this.#fromRow(r) : null;
+  }
+
+  async getRevision(forecast_id: string): Promise<FinalPregameRecord | null> {
+    const [r] = await this.rest.select<RevisionRow>(REVISIONS, { filter: { forecast_id: `eq.${forecast_id}` }, limit: 1 });
+    return r ? r.record : null;
+  }
+
+  async listRevisions(league_slug: string, season: number, week: number, canonical_player_id: string): Promise<FinalPregameRecord[]> {
+    const rows = await paged<RevisionRow>(this.rest, REVISIONS, { league_slug: `eq.${league_slug}`, season: `eq.${season}`, week: `eq.${week}`, canonical_player_id: `eq.${canonical_player_id}` }, "source_observed_at.asc,composed_at.asc,forecast_id.asc");
+    return rows.map((r) => r.record).sort(compareRevisions);
   }
 
   async upsertCandidate(rec: FinalPregameRecord): Promise<FinalPregameWrite> {
@@ -203,8 +252,8 @@ export class SupabaseFinalPregameStore implements FinalPregameStore {
     return (Object.entries(out).find(([, n]) => n > 0)?.[0] ?? "UNCHANGED") as FinalPregameWrite;
   }
 
-  async upsertMany(recs: readonly FinalPregameRecord[]): Promise<Record<FinalPregameWrite, number>> {
-    const out: Record<FinalPregameWrite, number> = { RECORDED: 0, CONFIRMED: 0, UNCHANGED: 0, REJECTED_POST_KICKOFF: 0, REJECTED_OLDER_OBSERVATION: 0, REJECTED_NO_KICKOFF: 0 };
+  async upsertMany(recs: readonly FinalPregameRecord[]): Promise<FinalPregameWriteCounts> {
+    const out = emptyWriteCounts();
     const groups = new Map<string, FinalPregameRecord[]>();
     for (const r of recs) (groups.get(`${r.league_slug}|${r.season}|${r.week}`) ?? groups.set(`${r.league_slug}|${r.season}|${r.week}`, []).get(`${r.league_slug}|${r.season}|${r.week}`)!).push(r);
 
@@ -212,7 +261,7 @@ export class SupabaseFinalPregameStore implements FinalPregameStore {
       const first = group[0]!;
       // ONE paginated read of what is already frozen for this league/week
       const existingRows = await paged<FinalRow>(this.rest, FINAL, { league_slug: `eq.${first.league_slug}`, season: `eq.${first.season}`, week: `eq.${first.week}` }, "canonical_player_id.asc");
-      const existing = new Map(existingRows.map((r) => [r.canonical_player_id, { ...r.record, confirmed_through: r.confirmed_through } as FinalPregameRecord]));
+      const existing = new Map(existingRows.map((r) => [r.canonical_player_id, this.#fromRow(r)]));
       const inserts: FinalPregameRecord[] = [];
       const replaces: FinalPregameRecord[] = [];
       const confirms: FinalPregameRecord[] = [];
@@ -222,11 +271,23 @@ export class SupabaseFinalPregameStore implements FinalPregameStore {
         if (d === "RECORDED") (existing.has(rec.canonical_player_id) ? replaces : inserts).push(rec);
         if (d === "CONFIRMED") confirms.push(rec);
       }
+      // 1) the immutable revision FIRST (idempotent: the content-addressed id makes a retry or a concurrent twin a no-op) ...
+      const revisions = [...inserts, ...replaces];
+      for (let i = 0; i < revisions.length; i += INSERT_CHUNK) {
+        await this.rest.insertIgnoreDuplicates(REVISIONS, revisions.slice(i, i + INSERT_CHUNK).map((r) => this.#revisionRow(r)), ["forecast_id"]);
+      }
+      // 2) ... then the pointer
       for (let i = 0; i < inserts.length; i += INSERT_CHUNK) {
         await this.rest.insertIgnoreDuplicates(FINAL, inserts.slice(i, i + INSERT_CHUNK).map((r) => this.#row(r)), ["league_slug", "season", "week", "canonical_player_id"]);
       }
       for (const r of replaces) {
-        await this.rest.updateReturning(FINAL, { league_slug: `eq.${r.league_slug}`, season: `eq.${r.season}`, week: `eq.${r.week}`, canonical_player_id: `eq.${r.canonical_player_id}`, confirmed_through: `lte.${r.source_observed_at}` }, this.#row(r));
+        const scope = { league_slug: `eq.${r.league_slug}`, season: `eq.${r.season}`, week: `eq.${r.week}`, canonical_player_id: `eq.${r.canonical_player_id}` };
+        // the pointer only ever moves FORWARD: never past newer evidence (a concurrent request that already advanced it wins), never from a stale read
+        const moved = await this.rest.updateReturning(FINAL, { ...scope, confirmed_through: `lte.${r.source_observed_at}`, composed_at: `lte.${r.composed_at}` }, this.#row(r));
+        if (moved.length === 0) {
+          // pointer rows written before the remediation migration have no composed_at: upgrade them once, still guarded by the observation
+          await this.rest.updateReturning(FINAL, { ...scope, confirmed_through: `lte.${r.source_observed_at}`, composed_at: "is.null" }, this.#row(r));
+        }
       }
       if (confirms.length > 0) {
         // unchanged content confirmed by a newer valid observation: ONE batched update for the whole league/week (not one per player).
@@ -247,11 +308,17 @@ class NoopFinalPregameStore implements FinalPregameStore {
   async upsertCandidate(): Promise<FinalPregameWrite> {
     return "UNCHANGED";
   }
-  async upsertMany(): Promise<Record<FinalPregameWrite, number>> {
-    return { RECORDED: 0, CONFIRMED: 0, UNCHANGED: 0, REJECTED_POST_KICKOFF: 0, REJECTED_OLDER_OBSERVATION: 0, REJECTED_NO_KICKOFF: 0 };
+  async upsertMany(): Promise<FinalPregameWriteCounts> {
+    return emptyWriteCounts();
   }
   async get(): Promise<null> {
     return null;
+  }
+  async getRevision(): Promise<null> {
+    return null;
+  }
+  async listRevisions(): Promise<FinalPregameRecord[]> {
+    return [];
   }
 }
 

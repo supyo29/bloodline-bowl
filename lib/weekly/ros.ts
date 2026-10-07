@@ -20,6 +20,16 @@ const REGULAR_SEASON_WEEKS = 17;
 const AGREE_PCT = 0.12;
 const MATERIAL_DISAGREE_PCT = 0.3;
 
+/**
+ * Remaining-season points from a (league-scored) full-season benchmark, prorated by weeks left. THE one formula: `assembleRosSignals` uses it
+ * for projected rows and the bye override uses it for a bye player the weekly feed omitted (W1.R1), so the two can never disagree.
+ */
+export function rosFromSeasonPoints(seasonPoints: number | null | undefined, week: number): number | null {
+  if (seasonPoints == null) return null;
+  const weeksLeftFrac = Math.max(0, (REGULAR_SEASON_WEEKS - (week - 1)) / REGULAR_SEASON_WEEKS);
+  return Math.round(seasonPoints * weeksLeftFrac * 100) / 100;
+}
+
 export interface RosAssemblyResult {
   ri_status: "READY" | "UNAVAILABLE";
   ri_model_version: string | null;
@@ -34,7 +44,6 @@ export function assembleRosSignals(
   ri: RiSeasonSignalResult,
   week: number,
 ): RosAssemblyResult {
-  const weeksLeftFrac = Math.max(0, (REGULAR_SEASON_WEEKS - (week - 1)) / REGULAR_SEASON_WEEKS);
   let withRi = 0;
   let withDisagreement = 0;
   const warnings: string[] = [];
@@ -57,10 +66,7 @@ export function assembleRosSignals(
     // External absolute ROS: prefer RI's benchmark field (already league-scored),
     // else the provider's own prorated figure.
     const externalSeason = riEntry?.external_season_points ?? null;
-    const externalRos =
-      externalSeason != null
-        ? Math.round(externalSeason * weeksLeftFrac * 100) / 100
-        : wp.rest_of_season_points;
+    const externalRos = externalSeason != null ? rosFromSeasonPoints(externalSeason, week) : wp.rest_of_season_points;
 
     let disagreement_pct: number | null = null;
     let disagreement_direction: RosSignal["disagreement_direction"] = "NONE";

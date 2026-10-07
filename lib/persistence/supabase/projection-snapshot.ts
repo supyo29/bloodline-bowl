@@ -24,7 +24,7 @@ import {
 import { STALE_FALLBACK_MAX_AGE_MS, TIER_MAX_AGE_MS } from "@/lib/weekly/freshness/policy";
 import type { ProjectionRequest } from "@/lib/weekly/projections/types";
 import type { WeeklyProjectionBatch, WeeklyWarning } from "@/lib/weekly/schema";
-import { loadSupabaseConfig, SupabaseRest } from "./rest";
+import { classifySchemaMismatch, loadSupabaseConfig, SupabaseRest, SupabaseRestError } from "./rest";
 
 const SNAPSHOT_TABLE = "bridge_projection_snapshots";
 const PLAYER_TABLE = "bridge_projection_snapshot_players";
@@ -77,8 +77,14 @@ interface PointerRow {
 
 const POINTER_BASE_COLUMNS = "league_slug,season,week,scoring_fingerprint,request_fingerprint,artifact_id,observed_at";
 const POINTER_SOURCE_COLUMNS = ",source_observed_at,source_observation_id";
-/** PostgREST error text when a column is not in the schema cache (migration not yet applied) */
-const isMissingColumn = (e: unknown): boolean => /source_observed_at|source_observation_id|column .* does not exist|schema cache/i.test(e instanceof Error ? e.message : String(e));
+/**
+ * W1.R1: the W1.P4 pointer columns are absent (migration not applied). Decided from the STRUCTURED error (status/code/table) the REST
+ * wrapper raises — never from message text, which the wrapper deliberately does not populate with the server's body. Only a missing-column
+ * failure on the pointer table counts; an unrelated 400/404 (other code, other table) must surface, not silently enable legacy mode.
+ */
+const isPointerSchemaLegacy = (e: unknown): boolean => classifySchemaMismatch(e) === "MISSING_COLUMN" && e instanceof SupabaseRestError && e.table === POINTER_TABLE;
+/** a "legacy schema" verdict is re-probed after this long, so applying the migration to a live deployment takes effect without a restart */
+const LEGACY_SCHEMA_REPROBE_MS = 5 * 60_000;
 
 function parentRow(a: ProjectionSnapshotArtifact): SnapshotRow {
   return {
@@ -148,6 +154,7 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
 
   /** null = unknown yet; false = the W1.P4 pointer columns are not deployed (legacy mode: source time unknown) */
   #pointerHasSourceColumns: boolean | null = null;
+  #legacySinceMs = 0;
   #readCache = new Map<string, CacheEntry>();
   #inFlightReads = new Map<string, Promise<Loaded | null>>();
 
@@ -182,6 +189,15 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       source_observed_at: loaded.source_observed_at,
       source_observation_id: loaded.source_observation_id,
     });
+    if (loaded.source_observed_at == null) {
+      // honest degradation: gating used the snapshot pointer time as a conservative stand-in, which cannot prove the source's age
+      batch.warnings.push({
+        code: "projection_snapshot_source_time_unknown",
+        message:
+          "This snapshot's pointer carries no source observation time (the W1.P4 freshness columns are not applied, or the pointer predates them). Its age was gated on the snapshot write time, so freshness confidence is degraded; the source observation time is reported as unknown, not guessed.",
+        severity: "info",
+      });
+    }
     return {
       artifact: loaded.artifact,
       observed_at: loaded.observed_at,
@@ -233,6 +249,15 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
     return this.#hydrateHit(req, chosen, nowMs, allowStale && ageOf(chosen) > (opts.maxAgeMs ?? TIER_MAX_AGE_MS.KICKOFF_UNKNOWN));
   }
 
+  #markLegacy(): void {
+    this.#pointerHasSourceColumns = false;
+    this.#legacySinceMs = Date.now();
+  }
+
+  #expireLegacyVerdict(): void {
+    if (this.#pointerHasSourceColumns === false && Date.now() - this.#legacySinceMs >= LEGACY_SCHEMA_REPROBE_MS) this.#pointerHasSourceColumns = null;
+  }
+
   async #readPointer(scope: ReturnType<typeof projectionSnapshotScope>): Promise<PointerRow | undefined> {
     const filter = {
       league_slug: `eq.${scope.league_slug}`,
@@ -241,14 +266,15 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       scoring_fingerprint: `eq.${scope.scoring_fingerprint}`,
       request_fingerprint: `eq.${scope.request_fingerprint}`,
     };
+    this.#expireLegacyVerdict();
     if (this.#pointerHasSourceColumns !== false) {
       try {
         const rows = await this.rest.select<PointerRow>(POINTER_TABLE, { filter, limit: 1, select: POINTER_BASE_COLUMNS + POINTER_SOURCE_COLUMNS });
         this.#pointerHasSourceColumns = true;
         return rows[0];
       } catch (e) {
-        if (!isMissingColumn(e)) throw e;
-        this.#pointerHasSourceColumns = false; // legacy schema: fall through to the base columns
+        if (!isPointerSchemaLegacy(e)) throw e;
+        this.#markLegacy(); // legacy schema: fall through to the base columns
       }
     }
     return (await this.rest.select<PointerRow>(POINTER_TABLE, { filter, limit: 1, select: POINTER_BASE_COLUMNS }))[0];
@@ -328,6 +354,7 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
       const scope = projectionSnapshotScope(req);
       const sourceAt = batch.source_observation?.observed_at ?? null;
       const sourceId = batch.source_observation?.observation_id ?? null;
+      this.#expireLegacyVerdict();
       const withSource = this.#pointerHasSourceColumns !== false;
       const pointer = {
         ...scope,
@@ -368,8 +395,8 @@ export class SupabaseProjectionSnapshotStore implements ProjectionSnapshotStore 
         await attempt(withSource);
         if (withSource) this.#pointerHasSourceColumns = true;
       } catch (e) {
-        if (!withSource || !isMissingColumn(e)) throw e;
-        this.#pointerHasSourceColumns = false;
+        if (!withSource || !isPointerSchemaLegacy(e)) throw e;
+        this.#markLegacy();
         await attempt(false);
       }
 

@@ -112,6 +112,9 @@ function sortedMapEntries<T>(m: ReadonlyMap<string, T> | undefined): Array<[stri
 export function projectionSnapshotRequestFingerprint(req: ProjectionRequest): string {
   const semantic = {
     format: 1,
+    // W1.R1: identity scheme. Team defenses moved from provider-scoped ids to `defense:nfl:<team>`; an artifact built under the old
+    // scheme must never be served to a request that asks for the new ids (it would report every defense as missing).
+    identity_scheme: "team-defense-v1",
     want_rest_of_season: req.want_rest_of_season === true,
     crosswalk_version: req.crosswalk.version ?? null,
     return_game_season: sortedMapEntries(req.return_game_season),

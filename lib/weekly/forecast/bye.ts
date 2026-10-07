@@ -108,3 +108,38 @@ export function verifiedByeRow(a: {
     warnings: a.warnings,
   };
 }
+
+/** warnings that describe THIS WEEK's bye state of a row (they never describe another horizon) */
+const CURRENT_WEEK_BYE_WARNING = /^bye_/;
+
+/**
+ * W1.R1 — the ONE way to turn a CURRENT-WEEK projection row into a row for ANOTHER horizon (rest of season, a future week, a per-week basis).
+ *
+ * A current-week row carries current-week GAME STATE: the bye flag and `bye` status, the 0 availability a bye row has, this week's opponent,
+ * bye warnings. None of that describes another horizon. Rewriters that copied the row (`{...wp, projected_points: ...}`) and patched only some
+ * fields leaked it (audit: surviving mutations E1/E2 — a rewritten schedule-planning row and a synthesized trade-ROS row kept `is_bye`).
+ *
+ *   points != null   a projected row for the new horizon: status `projected`, `is_bye` false, availability 1 if the source row was a bye
+ *                    (a bye's 0 means "not playing THIS week"), no opponent, bye warnings dropped
+ *   points == null   the horizon's value is UNKNOWN: status `unavailable` (never `bye`), `is_bye` false, no bands. A current-week bye is NOT
+ *                    evidence about another horizon — treating it as one turned an unknown ROS into a verified zero.
+ *
+ * Player-level facts (injury designation, team, position, ROS) are kept. A horizon that IS itself a bye is built with `verifiedByeRow`, not here.
+ */
+export function deriveForwardRow(src: WeeklyProjection, points: number | null, opts: { proportionalBands?: boolean } = {}): WeeklyProjection {
+  const wasBye = isVerifiedBye(src);
+  const bands = opts.proportionalBands !== false && points != null ? { floor: points * 0.7, ceiling: points * 1.3, std: points * 0.3 } : null;
+  return {
+    ...src,
+    projected_points: points,
+    floor_points: bands?.floor ?? null,
+    ceiling_points: bands?.ceiling ?? null,
+    std_dev: bands?.std ?? null,
+    projection_status: points != null ? "projected" : "unavailable",
+    is_bye: false,
+    opponent: null,
+    is_home: null,
+    expected_availability: wasBye ? 1 : src.expected_availability,
+    warnings: src.warnings.filter((w) => !CURRENT_WEEK_BYE_WARNING.test(w)),
+  };
+}

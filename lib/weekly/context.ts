@@ -43,7 +43,8 @@ import { getScheduleProvider } from "./schedule/registry";
 import type { ScheduleProvider } from "./schedule/types";
 import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
 import { RosterIntelReturnGameSeasonProvider, fetchRecentReturnAttempts, type ReturnGameSeasonSignal } from "./return-game-weekly";
-import { assembleRosSignals, type RosAssemblyResult } from "./ros";
+import { assembleRosSignals, rosFromSeasonPoints, type RosAssemblyResult } from "./ros";
+import type { RiSeasonSignalResult } from "./projections-ri";
 import { buildLeagueAvailability } from "./availability";
 import { computeWeeklyReplacement, type ReplacementFrontier } from "./replacement";
 import { composeWeeklyReadiness } from "./readiness";
@@ -320,6 +321,7 @@ export async function buildWeeklyTeamContext(
   // ---- Rest-of-season signal: external (Sleeper) absolute + Roster Intel ORDINAL.
   // Best-effort — weekly analytics run unchanged if RI is unavailable.
   let ros_meta: RosAssemblyResult | null = null;
+  let riSeasonSignal: RiSeasonSignalResult | null = null;
   if ((options.skipRiSeasonSignal ?? false) === false && projections.by_player.size > 0) {
     const riProvider =
       options.riSeasonProviderOverride === null
@@ -333,6 +335,7 @@ export async function buildWeeklyTeamContext(
           warning: "RI season signal threw",
         }))
       : { status: "UNAVAILABLE" as const, model_version: null, by_sleeper_id: new Map(), warning: null };
+    riSeasonSignal = ri as RiSeasonSignalResult;
     ros_meta = assembleRosSignals(projections, ri, week);
     for (const w of ros_meta.warnings) warnings.push({ code: "ros_signal", message: w, severity: "info" });
   }
@@ -357,6 +360,13 @@ export async function buildWeeklyTeamContext(
 
     if (scheduleProvenBye) {
       byeSourcePoints.set(p.canonical_player_id, projected?.projected_points ?? null);
+      // W1.R1 (P1-4): a bye team is commonly ABSENT from the weekly feed, so there is no weekly row to carry ROS and the bye row used to be
+      // built with `rest_of_season_points: null` — erasing the evidence of the player's asset value. The RI season benchmark is keyed by
+      // player (not by weekly row), so a feed-absent bye player's remaining-season value is read from it with the SAME formula
+      // assembleRosSignals uses for projected rows. No evidence at all stays null (unknown), never a guessed number.
+      const riEntry = riSeasonSignal?.by_canonical_id?.get(p.canonical_player_id) ?? (p.identifiers?.sleeper_id ? riSeasonSignal?.by_sleeper_id.get(p.identifiers.sleeper_id) : null) ?? null;
+      const riRos = rosFromSeasonPoints(riEntry?.external_season_points, week);
+      const holdRos = projected?.rest_of_season_points ?? riRos;
       // A bye is a genuine 0 (the player will not play). Overrides any stale
       // feed entry.
       projections.by_player.set(
@@ -368,11 +378,15 @@ export async function buildWeeklyTeamContext(
           position: p.position,
           nfl_team: p.nfl_team,
           injury_status: p.injury_status,
-          rest_of_season_points: projected?.rest_of_season_points ?? null,
+          rest_of_season_points: holdRos,
           ros: projected?.ros ?? null,
           source: projections.source,
           model_version: projections.model_version,
-          warnings: ["bye_verified_by_schedule"],
+          warnings: [
+            "bye_verified_by_schedule",
+            ...(projected == null ? ["bye_player_absent_from_weekly_feed"] : []),
+            ...(projected?.rest_of_season_points == null && riRos != null ? ["bye_hold_ros_from_ri_season_benchmark"] : []),
+          ],
           band: "ZERO",
         }),
       );
@@ -462,7 +476,10 @@ export async function buildWeeklyTeamContext(
             recorded_at: new Date(composedMs).toISOString(),
           }),
         )
-        .filter((r): r is NonNullable<typeof r> => r != null);
+        .filter((r): r is NonNullable<typeof r> => r != null)
+        // W1.R1 (G2): a request composed at/after a player's kickoff can read the frozen record but never propose one — it would pair an old
+        // pregame observation with live status that is not pregame evidence. (The store enforces the same rule; this just avoids the round trip.)
+        .filter((r) => composedMs < Date.parse(r.kickoff_at));
       if (recs.length > 0) await (options.finalPregameStoreOverride ?? getFinalPregameStore()).upsertMany(recs);
     } catch {
       /* calibration capture is best-effort */

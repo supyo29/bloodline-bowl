@@ -11,6 +11,7 @@
  */
 import type { WaiverOutcome } from "@/lib/waiver2/capture";
 import type { RawTransaction } from "@/lib/sleeper/types";
+import { sleeperIdFromCanonicalId } from "@/lib/canonical/team-defense";
 
 export interface Waiver2CaptureRow {
   capture_id: string; capture_class: string; record_type: string; season: number; week: number;
@@ -21,8 +22,7 @@ export interface Waiver2CaptureRow {
 /** Resolves a canonical `player:sleeper:<id>` to a bare Sleeper id for the transaction join. Any other identity scheme is unresolvable (never guessed). */
 function bareSleeperId(canonicalId: string | null): string | null {
   if (!canonicalId) return null;
-  const m = /^player:sleeper:(.+)$/.exec(canonicalId);
-  return m ? m[1]! : null;
+  return sleeperIdFromCanonicalId(canonicalId);
 }
 
 export interface Waiver2Finding { capture_id: string; executed: boolean; claimed_by_other: boolean; outcome: WaiverOutcome }
