@@ -33,6 +33,12 @@ import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { getWeeklyProjectionProvider } from "./projections/registry";
 import { buildCanonicalForecastBatch } from "./forecast/build";
 import { isVerifiedBye, verifiedByeRow } from "./forecast/bye";
+import { buildForecastSetIdentity } from "./freshness/identity";
+import { FRESHNESS_POLICY_VERSION } from "./freshness/policy";
+import { gameForTeam } from "./freshness/kickoff";
+import { buildFinalPregameRecord, type FinalPregameStore } from "./freshness/final-pregame";
+import { getFinalPregameStore } from "@/lib/persistence/supabase/projection-observations";
+import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import { getScheduleProvider } from "./schedule/registry";
 import type { ScheduleProvider } from "./schedule/types";
 import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
@@ -74,6 +80,10 @@ export interface BuildWeeklyContextOptions {
   crosswalkOverride?: PlayerCrosswalk;
   providerOverride?: ReturnType<typeof getProvider>;
   projectionProviderOverride?: ReturnType<typeof getWeeklyProjectionProvider>;
+  /** W1.P4: injected clock for forecast composition (tests). Default: the instant the projection provider resolved the batch. */
+  nowMs?: () => number;
+  /** W1.P4: where final-pregame candidates are recorded (default: Supabase when configured, otherwise nothing is persisted). */
+  finalPregameStoreOverride?: FinalPregameStore;
   /** Phase 5 canonical projection persistence policy (default "prefer"). */
   projectionSnapshotPolicy?: "prefer" | "refresh" | "bypass";
   scheduleProviderOverride?: ScheduleProvider;
@@ -396,12 +406,68 @@ export async function buildWeeklyTeamContext(
 
   // W1.P1: the canonical weekly player forecast — ONE construction path (lib/weekly/forecast/build.ts). Built from the
   // production-resolved batch AFTER bye handling, so `expected_points` is exactly what every consumer below already reads.
+  // W1.P4 freshness inputs come from the provider layer that owns the clock, the kickoff source and the invalidation ledger. When absent
+  // (fake providers) freshness is UNKNOWN rather than guessed. Kickoff is an absolute NFL instant per game — never league- or timezone-derived.
+  const fctx = projections.freshness_context ?? null;
+  const composedMs = options.nowMs ? options.nowMs() : fctx?.now_ms ?? null;
+  const gameClock = fctx?.game_clock?.games ?? null;
   const forecasts = buildCanonicalForecastBatch({
     batch: projections,
     requested_player_ids: allRosteredIds,
     players: playerById,
     bye_source_points: byeSourcePoints,
+    freshness: {
+      now_ms: composedMs,
+      events: fctx?.events ?? [],
+      refresh: fctx?.refresh ?? null,
+      league_slug: league.league_slug,
+      provider: league.provider,
+      kickoffFor: (team) => {
+        const g = gameClock ? gameForTeam(gameClock, team) : null;
+        return { kickoff_at: g?.kickoff_at ?? null, game_id: g?.game_id ?? null };
+      },
+    },
   });
+  forecasts.identity = buildForecastSetIdentity({
+    league_slug: league.league_slug,
+    provider: league.provider,
+    season: league.season,
+    week,
+    scoring_fingerprint: scoringFingerprint(snap.league.raw_scoring),
+    source_observation: {
+      provider: projections.source_observation?.provider ?? null,
+      observed_at: projections.source_observation?.observed_at ?? projections.canonical_snapshot?.source_observed_at ?? null,
+      observation_id: projections.source_observation?.observation_id ?? null,
+      content_hash: projections.source_observation?.content_hash ?? null,
+    },
+    snapshot_artifact_id: projections.canonical_snapshot?.artifact_id ?? null,
+    read_path: projections.canonical_snapshot?.read_path ?? null,
+    forecast_model_version: forecasts.model_version,
+    composed_at: composedMs == null ? null : new Date(composedMs).toISOString(),
+  });
+
+  // W1.P4 final pregame capture: league-scoped, rostered players only, best-effort (never blocks or fails a decision context).
+  if (composedMs != null) {
+    try {
+      const recs = allRosteredIds
+        .map((id) => forecasts.by_player.get(id))
+        .filter((f): f is NonNullable<typeof f> => f != null)
+        .map((f) =>
+          buildFinalPregameRecord({
+            forecast: f,
+            league_slug: league.league_slug,
+            provider: league.provider,
+            scoring_fingerprint: forecasts.identity!.scoring_fingerprint,
+            source_observation_id: forecasts.identity!.source_observation.observation_id,
+            recorded_at: new Date(composedMs).toISOString(),
+          }),
+        )
+        .filter((r): r is NonNullable<typeof r> => r != null);
+      if (recs.length > 0) await (options.finalPregameStoreOverride ?? getFinalPregameStore()).upsertMany(recs);
+    } catch {
+      /* calibration capture is best-effort */
+    }
+  }
 
   // Availability — candidate universe is every player projected this week + rostered.
   const candidates: CanonicalPlayer[] = uniq([
@@ -601,7 +667,12 @@ export async function buildWeeklyTeamContext(
     generated_at: new Date().toISOString(),
     lineage: buildRecommendationLineage(
       snapLineage,
-      { weekly_engine: WEEKLY_ENGINE_VERSION, canonical_weekly_forecast: forecasts.model_version },
+      {
+        weekly_engine: WEEKLY_ENGINE_VERSION,
+        canonical_weekly_forecast: forecasts.model_version,
+        freshness_policy: FRESHNESS_POLICY_VERSION,
+        ...(forecasts.identity ? { projection_forecast_identity: forecasts.identity.identity_id } : {}),
+      },
       projectionLineage,
     ),
     league: {

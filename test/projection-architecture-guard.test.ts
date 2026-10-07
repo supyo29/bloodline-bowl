@@ -66,5 +66,7 @@ test("Phase 7: only the registry constructs the concrete weekly projection provi
 
 test("Phase 7: registry always wraps the live weekly provider with the durable canonical layer", () => {
   const src = readFileSync(join(ROOT, "lib", "weekly", "projections", "registry.ts"), "utf8");
-  assert.match(src, /new CanonicalProjectionSnapshotProvider\(new SleeperWeeklyProjectionProvider\(\)\)/);
+  // W1.P4: the live provider now also receives the observation sink, and the wrapper the freshness dependencies; it is STILL always wrapped.
+  assert.match(src, /new CanonicalProjectionSnapshotProvider\(new SleeperWeeklyProjectionProvider\(/);
+  assert.doesNotMatch(src, /return new SleeperWeeklyProjectionProvider\(/);
 });

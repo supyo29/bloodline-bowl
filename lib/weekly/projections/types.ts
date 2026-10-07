@@ -39,6 +39,11 @@ export interface ProjectionRequest {
    * - bypass: force live and do not read/write the canonical snapshot
    */
   projection_snapshot_policy?: "prefer" | "refresh" | "bypass";
+  /**
+   * W1.P4: the maximum acceptable age (ms) of the UPSTREAM source observation for this request, decided by the freshness authority
+   * (`lib/weekly/freshness/policy.ts`). A live provider must not serve a cached payload older than this. Absent = provider default.
+   */
+  max_source_age_ms?: number;
 }
 
 export interface ProjectionProvider {

@@ -84,6 +84,19 @@ export function validateForecastInvariants(f: CanonicalWeeklyPlayerForecast): st
   if (wv.underlying_basis === "UNAVAILABLE" && wv.underlying_points_if_game_played != null) v.push("UNDERLYING_VALUE_WITHOUT_BASIS");
   if (wv.underlying_points_if_game_played != null && !ac.forward_value_available) v.push("FORWARD_VALUE_FLAG_INCONSISTENT");
 
+  // 5c. W1.P4 freshness semantics
+  const fr = f.freshness;
+  if (fr.state === "FROZEN_PREGAME") {
+    if (!fr.kickoff_at) v.push("FROZEN_PREGAME_WITHOUT_KICKOFF");
+    if (fr.policy.required_max_age_ms != null) v.push("FROZEN_PREGAME_HAS_REQUIRED_AGE");
+    if (fr.kickoff_at && fr.source_observed_at && Date.parse(fr.source_observed_at) > Date.parse(fr.kickoff_at)) v.push("FROZEN_PREGAME_FROM_POST_KICKOFF_OBSERVATION");
+  }
+  if (fr.state === "STALE" && fr.invalidation_reasons.length === 0 && fr.policy.reason !== "AGE_EXCEEDS_REQUIRED") v.push("STALE_WITHOUT_REASON");
+  if (fr.stale !== (fr.state === "STALE" ? true : fr.state === "UNKNOWN" ? null : false)) v.push("STALE_FLAG_INCONSISTENT_WITH_STATE");
+  if (fr.source_observed_at == null && fr.age_ms != null) v.push("AGE_WITHOUT_SOURCE_OBSERVATION_TIME");
+  if (fr.state === "FRESH" && (fr.age_ms == null || fr.policy.required_max_age_ms == null || fr.age_ms > fr.policy.required_max_age_ms)) v.push("FRESH_BEYOND_REQUIRED_AGE");
+  if (fr.refresh.attempted && fr.refresh.succeeded === false && fr.state === "FRESH") v.push("FAILED_REFRESH_PRESENTED_AS_FRESH");
+
   // 6. null = unknown: an unknown value state may never carry a number
   const unknownStates = ["SOURCE_MISSING_PLAYER", "SOURCE_FETCH_FAILURE", "PLAYER_NOT_FOUND", "PLAYER_OUT_IN_SOURCE", "UNSUPPORTED_SCORING_DATA", "PROJECTION_UNAVAILABLE", "NO_SCHEDULED_GAME", "UNKNOWN"];
   if (unknownStates.includes(f.value_state) && f.projection.expected_points != null) v.push("UNKNOWN_STATE_CARRIES_NUMBER");

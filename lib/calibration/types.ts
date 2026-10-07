@@ -13,18 +13,8 @@ export type EvidenceStatus =
   | "ACTUAL_SCORING_UNAVAILABLE" | "SCORING_FINGERPRINT_MISMATCH" | "GAME_NOT_PLAYED";
 export type RangeStatus = "BELOW_FLOOR" | "INSIDE_RANGE" | "ABOVE_CEILING" | "RANGE_UNAVAILABLE" | "NOT_EVALUATED";
 
-/** One authoritative NFL game: identity from the Sleeper schedule, kickoff instant from a dated authoritative source. */
-export interface NflGame {
-  nfl_game_id: string;
-  season: number;
-  week: number;
-  home_team: string;
-  away_team: string;
-  kickoff_at: string; // ISO instant
-  kickoff_source: string;
-  status: string; // provider status, lower-cased ("complete", "pre_game", "postponed", ...)
-  provenance: Record<string, unknown>;
-}
+/** One authoritative NFL game (defined in lib/nfl-schedule/games.ts). */
+export type { NflGame } from "@/lib/nfl-schedule/games";
 
 /** A projection that MAY be pre-kickoff evidence for one player under one league scoring fingerprint. */
 export interface ProjectionCandidate {

@@ -33,6 +33,9 @@ import { weeklyBand } from "../uncertainty";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch, WeeklyWarning } from "../schema";
 import type { ProjectionProvider, ProjectionRequest } from "./types";
+import { observationContentHash, type SourceObservationInput, type SourcePlayerObservation } from "../freshness/observation";
+import { contentHash } from "@/lib/bridge/hash";
+import { activeProjectionScope } from "@/lib/canonical/request-scope";
 
 const SLEEPER_WEEKLY_VERSION = "sleeper-weekly-rotowire";
 const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"] as const;
@@ -72,13 +75,65 @@ function injuryToAvailability(status: string | null | undefined): number {
   }
 }
 
+/** Default upstream cache window when the caller states no requirement (kept at the client's long-standing 30 minutes). */
+const DEFAULT_WEEKLY_FEED_MAX_AGE_MS = 30 * 60 * 1000;
+
 async function fetchWeekSegments(
   season: number,
   week: number,
+  maxSourceAgeMs: number | undefined,
 ): Promise<ProjectionFeedSegmentResult[]> {
-  return getWeeklyProjectionSegments(String(season), week, [...POSITIONS], {
-    revalidate: 30 * 60,
-  });
+  // The freshness authority decides how old the SOURCE may be; the client's per-path cache honours it (a tighter requirement forces a refetch,
+  // a looser one never extends the default). Within one request scope the SAME segment fetch is reused by every consumer so that lineup,
+  // matchup, waivers and roster-health all rest on one source observation (and the multi-league cron does not refetch per league).
+  const ttlMs = Math.min(DEFAULT_WEEKLY_FEED_MAX_AGE_MS, Math.max(0, maxSourceAgeMs ?? DEFAULT_WEEKLY_FEED_MAX_AGE_MS));
+  const scope = activeProjectionScope();
+  const key = `segments|${season}|${week}`;
+  const run = () => getWeeklyProjectionSegments(String(season), week, [...POSITIONS], { revalidate: ttlMs / 1000 });
+  if (!scope) return run();
+  const existing = scope.get(key) as Promise<ProjectionFeedSegmentResult[]> | undefined;
+  if (existing) return existing;
+  const p = run();
+  scope.set(key, p);
+  return p;
+}
+
+/** Oldest READY segment fetch instant = the conservative observation time of the whole feed. */
+function sourceObservationFromSegments(segments: ProjectionFeedSegmentResult[]): { observed_at: string | null; by_segment: Record<string, string>; fetch_path: "LIVE_FETCH" | "PROCESS_CACHE" | "MIXED" } {
+  const ready = segments.filter((x) => x.status === "READY" && x.fetched_at);
+  const by_segment = Object.fromEntries(ready.map((x) => [x.segment_id, x.fetched_at as string]));
+  const observed_at = ready.length ? ready.map((x) => x.fetched_at as string).sort()[0] ?? null : null;
+  const hits = ready.filter((x) => x.cache_hit).length;
+  return { observed_at, by_segment, fetch_path: hits === 0 ? "LIVE_FETCH" : hits === ready.length ? "PROCESS_CACHE" : "MIXED" };
+}
+
+/** League-INDEPENDENT facts only (no scoring): what the source said about each player. */
+function toObservationPlayers(raw: RawEntry[]): SourcePlayerObservation[] {
+  const out: SourcePlayerObservation[] = [];
+  for (const e of raw) {
+    if (!e.player_id) continue;
+    const stats: Record<string, number> = {};
+    for (const [k, v] of Object.entries(e.stats ?? {})) if (typeof v === "number" && Number.isFinite(v) && !NON_SCORING_KEY.test(k)) stats[k] = v;
+    const gp = typeof e.stats?.gp === "number" ? e.stats.gp : null;
+    out.push({
+      provider: "sleeper",
+      provider_player_id: e.player_id,
+      position: canonicalPosition(e.player?.position ?? e.player?.fantasy_positions?.[0] ?? null),
+      nfl_team: (e.team ?? e.player?.team ?? null)?.toUpperCase() ?? null,
+      opponent: e.opponent ?? null,
+      injury_status: e.player?.injury_status ?? null,
+      gp,
+      stats,
+    });
+  }
+  return out;
+}
+
+/** Observation sinks must never break projections. Keyed per (season, week, fetch instant) so each upstream fetch is offered once. */
+export type ObservationSink = (o: SourceObservationInput) => Promise<unknown>;
+const offeredObservations = new Set<string>();
+export function __resetOfferedObservationsForTests(): void {
+  offeredObservations.clear();
 }
 
 async function fetchSeasonSegments(
@@ -121,15 +176,19 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
   readonly name = "sleeper_weekly";
   readonly model_version = SLEEPER_WEEKLY_VERSION;
 
+  constructor(private readonly observationSink: ObservationSink | null = null) {}
+
   async getWeeklyProjections(req: ProjectionRequest): Promise<WeeklyProjectionBatch> {
     const { league, week, crosswalk } = req;
     const warnings: WeeklyWarning[] = [];
     await crosswalk.ensureLoaded();
 
-    const weekSegments = await fetchWeekSegments(league.season, week);
+    const weekSegments = await fetchWeekSegments(league.season, week, req.max_source_age_ms);
     pushSegmentWarnings(warnings, "weekly", weekSegments);
     const raw = usableRows(weekSegments);
     const weeklySegmentsReady = weekSegments.filter((segment) => segment.status === "READY").length;
+
+    const obs = sourceObservationFromSegments(weekSegments);
 
     if (weeklySegmentsReady === 0 || raw.length === 0) {
       return {
@@ -143,6 +202,7 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
         model_version: this.model_version,
         missing: [...req.canonical_player_ids],
         teams_with_games: [],
+        source_observation: { provider: "sleeper", observed_at: obs.observed_at, observation_id: null, content_hash: null, fetch_path: obs.fetch_path, by_segment: obs.by_segment },
         warnings: [
           ...warnings,
           {
@@ -323,6 +383,24 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
           ? "PROJECTIONS_PARTIAL"
           : "READY";
 
+    // ---- W1.P4 source observation: league-independent, identified by content, offered to the history sink ONCE per upstream fetch ----
+    let observation_id: string | null = null;
+    let content_hash: string | null = null;
+    if (obs.observed_at) {
+      const players = toObservationPlayers(raw);
+      content_hash = observationContentHash(players);
+      observation_id = `srcobs:${contentHash({ p: "sleeper", s: league.season, w: week, t: obs.observed_at, h: content_hash }).slice(0, 20)}`;
+      const offerKey = `${league.season}|${week}|${obs.observed_at}`;
+      if (this.observationSink && !offeredObservations.has(offerKey)) {
+        offeredObservations.add(offerKey);
+        try {
+          await this.observationSink({ provider: "sleeper", season: league.season, week, observed_at: obs.observed_at, by_segment: obs.by_segment, fetch_path: obs.fetch_path, players });
+        } catch {
+          offeredObservations.delete(offerKey); // history capture is best-effort and must never fail a projection
+        }
+      }
+    }
+
     return {
       league_slug: league.league_slug,
       season: league.season,
@@ -335,6 +413,7 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       missing,
       teams_with_games: [...teamsPlaying],
       warnings,
+      source_observation: { provider: "sleeper", observed_at: obs.observed_at, observation_id, content_hash, fetch_path: obs.fetch_path, by_segment: obs.by_segment },
     };
   }
 

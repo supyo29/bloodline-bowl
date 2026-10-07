@@ -91,7 +91,7 @@ test("W1.P1 ratchet: no NEW file reads legacy weekly projection fields directly 
 test("W1.P1: forecast modules are pure (no I/O, clock, randomness, or provider imports)", () => {
   for (const f of readdirSync(join(ROOT, "lib/weekly/forecast")).filter((n) => n.endsWith(".ts"))) {
     const src = readFileSync(join(ROOT, "lib/weekly/forecast", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    assert.equal(/Date\.now|new Date\(|Math\.random|fetch\(|process\.env|from "node:fs"/.test(src), false, `${f} must stay pure`);
+    assert.equal(/Date\.now|new Date\(\s*\)|Math\.random|fetch\(|process\.env|from "node:fs"/.test(src), false, `${f} must stay pure`);
     assert.equal(/lib\/sleeper|lib\/providers|persistence/.test(src), false, `${f} must stay provider-neutral`);
   }
 });

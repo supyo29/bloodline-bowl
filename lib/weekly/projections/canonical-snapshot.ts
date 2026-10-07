@@ -17,8 +17,8 @@ import type { WeeklyProjection, WeeklyProjectionBatch, WeeklyWarning } from "../
 import type { ProjectionRequest } from "./types";
 
 export const PROJECTION_SNAPSHOT_FORMAT = 1 as const;
-/** 90-minute serving window. A daily cron warms the store; ordinary requests self-refresh stale/missing snapshots. */
-export const PROJECTION_SNAPSHOT_MAX_AGE_MS = 90 * 60 * 1000;
+// W1.P4: the universal 90-minute serving window is gone. How old a source observation may be is decided per request by the freshness
+// authority (lib/weekly/freshness/policy.ts) from kickoff proximity, injury relevance and invalidation events.
 
 export interface ProjectionSnapshotScope {
   league_slug: string;
@@ -59,8 +59,15 @@ export interface ProjectionSnapshotArtifact {
 
 export interface ProjectionSnapshotHit {
   artifact: ProjectionSnapshotArtifact;
+  /** snapshot pointer time (when the snapshot was written/confirmed) — NOT the source observation time */
   observed_at: string;
+  /** age of the SOURCE observation when known, else the (conservative) snapshot age for legacy pointers */
   age_ms: number;
+  /** when Bloodline observed the upstream source state this snapshot was built from; null = legacy pointer without it */
+  source_observed_at?: string | null;
+  source_observation_id?: string | null;
+  /** served past its freshness requirement as a last-known fallback after a failed refresh */
+  stale_fallback?: boolean;
   batch: WeeklyProjectionBatch;
 }
 
@@ -83,7 +90,13 @@ export interface ProjectionSnapshotStore {
   readonly durable: boolean;
   readLatest(
     req: ProjectionRequest,
-    opts?: { maxAgeMs?: number; now?: () => number },
+    opts?: {
+      /** max acceptable SOURCE age (from the freshness authority) */
+      maxAgeMs?: number;
+      now?: () => number;
+      /** return the last known snapshot even if too old (stale fallback after a failed refresh); still capped by the policy's fallback limit */
+      allowStale?: boolean;
+    },
   ): Promise<ProjectionSnapshotHit | null>;
   record(
     req: ProjectionRequest,
@@ -162,6 +175,8 @@ export function hydrateProjectionSnapshotBatch(
     observed_at: string;
     age_ms: number;
     durable: boolean;
+    source_observed_at?: string | null;
+    source_observation_id?: string | null;
   },
 ): WeeklyProjectionBatch {
   const by_player = new Map<string, WeeklyProjection>();
@@ -204,6 +219,14 @@ export function hydrateProjectionSnapshotBatch(
       observed_at: provenance.observed_at,
       age_ms: provenance.age_ms,
       durable: provenance.durable,
+      source_observed_at: provenance.source_observed_at ?? null,
+    },
+    source_observation: {
+      provider: artifact.source,
+      observed_at: provenance.source_observed_at ?? null,
+      observation_id: provenance.source_observation_id ?? null,
+      content_hash: null,
+      fetch_path: "SNAPSHOT",
     },
   };
 }

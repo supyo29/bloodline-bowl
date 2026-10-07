@@ -135,11 +135,47 @@ export interface WeeklyProjectionBatch {
    * values/source/model_version remain the model's own semantics.
    */
   canonical_snapshot?: {
-    read_path: "SUPABASE_HIT" | "LIVE_FALLBACK" | "LIVE_REFRESH" | "LIVE_BYPASS";
+    read_path:
+      | "SUPABASE_HIT"
+      | "LIVE_FALLBACK"
+      | "LIVE_REFRESH"
+      | "LIVE_BYPASS"
+      /** W1.P4: refresh failed; the last known snapshot is served and MUST be treated as stale */
+      | "SUPABASE_STALE_FALLBACK"
+      /** W1.P4: the same logical request already resolved this batch (request-scoped consistency) */
+      | "REQUEST_MEMO";
     artifact_id: string | null;
+    /** when this snapshot's pointer was last advanced (snapshot-creation/confirmation time — NOT source observation time) */
     observed_at: string | null;
     age_ms: number | null;
     durable: boolean;
+    /** W1.P4: when BLOODLINE observed the upstream source state this snapshot was built from. null = unknown (legacy pointer). */
+    source_observed_at?: string | null;
+  };
+
+  /**
+   * W1.P4 source observation identity (league-INDEPENDENT): one upstream fetch, shared by every league that rescored it.
+   * `observed_at` is Bloodline's fetch instant (oldest segment), never a snapshot time.
+   */
+  source_observation?: {
+    provider: string;
+    observed_at: string | null;
+    observation_id: string | null;
+    content_hash: string | null;
+    fetch_path: "LIVE_FETCH" | "PROCESS_CACHE" | "MIXED" | "SNAPSHOT";
+    by_segment?: Record<string, string>;
+  };
+
+  /**
+   * W1.P4 inputs the freshness authority needs, attached by the provider layer that owns the clock and the kickoff source.
+   * Absent (tests, fake providers) => freshness is computed as UNKNOWN rather than guessed.
+   */
+  freshness_context?: {
+    now_ms: number | null;
+    game_clock: { games: Array<{ game_id: string; home_team: string; away_team: string; kickoff_at: string | null; status: string }>; source: string } | null;
+    events: import("./freshness/events").InvalidationEvent[];
+    refresh: import("./freshness/policy").RefreshOutcome | null;
+    batch_policy: { tier: string; required_max_age_ms: number } | null;
   };
 }
 

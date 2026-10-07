@@ -8,8 +8,15 @@
  *
  * The cron forces LIVE projection evaluation and advances the durable Supabase
  * pointer. On Vercel Hobby this route is a once-daily warm baseline; regular
- * requests enforce the 90-minute freshness window themselves and fall back live
- * + persist whenever the pointer is missing/stale/unavailable.
+ * requests enforce the kickoff-aware freshness policy (lib/weekly/freshness/policy.ts —
+ * there is no universal window) themselves and fall back live + persist whenever the
+ * pointer is missing/too old at the SOURCE/superseded by an event/unavailable.
+ *
+ * Multi-league scope (W1.P4): the league-INDEPENDENT source observation is captured once per
+ * upstream fetch and shared by every league, so a Sleeper-league run also records the observation
+ * Yahoo leagues score from. The league-SCORED artifact of a Yahoo league needs that league's
+ * authenticated state, which this cron does not attempt (unvalidated here); those leagues are listed
+ * under `skipped` and warm on first request instead. They are never silently omitted.
  */
 
 import { authorizeSecret } from "@/lib/http-auth";
@@ -33,6 +40,9 @@ export async function GET(request: Request): Promise<Response> {
 
   const startedAt = new Date().toISOString();
   const leagues: Array<Record<string, unknown>> = [];
+  const skipped = listLeagueTargets()
+    .filter((t) => !(t.provider === "sleeper" && leagueConfigStatus(t) === "READY"))
+    .map((t) => ({ league_slug: t.key, provider: t.provider, reason: `${leagueConfigStatus(t)}: league-scored artifact warms on request; shared source observation is captured by the Sleeper leagues' runs` }));
   let failures = 0;
 
   for (const target of listLeagueTargets().filter(
@@ -95,6 +105,7 @@ export async function GET(request: Request): Promise<Response> {
       finished_at: new Date().toISOString(),
       failures,
       leagues,
+      skipped,
     },
     {
       status: failures === 0 ? 200 : 500,

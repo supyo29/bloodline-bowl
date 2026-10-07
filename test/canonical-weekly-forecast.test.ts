@@ -25,7 +25,6 @@ import { shadowCandidate } from "../lib/role-calibration/shadow";
 import {
   buildProjectionSnapshotArtifact,
   hydrateProjectionSnapshotBatch,
-  PROJECTION_SNAPSHOT_MAX_AGE_MS,
 } from "../lib/weekly/projections/canonical-snapshot";
 import type { CanonicalPlayer } from "../lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "../lib/weekly/schema";
@@ -198,17 +197,27 @@ describe("W1.P1 contract semantics", () => {
     clean(f);
   });
 
-  it("staleness is reported from snapshot age, never the wall clock", () => {
-    const fresh = build(row(), { batch: batch({ canonical_snapshot: { read_path: "SUPABASE_HIT", artifact_id: "projsnap:abc", observed_at: "2026-10-04T00:00:00.000Z", age_ms: 1000, durable: true } }) });
-    assert.equal(fresh.freshness.stale, false);
-    assert.equal(fresh.freshness.snapshot_created_at, "2026-10-04T00:00:00.000Z");
-    assert.equal(fresh.provenance.snapshot.artifact_id, "projsnap:abc");
-    assert.equal(fresh.provenance.source_ids.projection_snapshot_artifact_id, "projsnap:abc");
-    const stale = build(row(), { batch: batch({ canonical_snapshot: { read_path: "SUPABASE_HIT", artifact_id: "projsnap:abc", observed_at: "x", age_ms: PROJECTION_SNAPSHOT_MAX_AGE_MS + 1, durable: true } }) });
-    assert.equal(stale.freshness.stale, true);
-    assert.equal(stale.certification.state, "PARTIAL");
-    assert.ok(stale.certification.warnings.includes("SOURCE_SNAPSHOT_STALE"));
-    assert.equal(build(row()).freshness.stale, null, "unknown age is not asserted fresh");
+  it("freshness comes from the SOURCE observation and the injected clock (W1.P4); snapshot time never substitutes for it", () => {
+    const NOW = Date.parse("2026-10-04T12:00:00.000Z");
+    const snapshot = { read_path: "SUPABASE_HIT" as const, artifact_id: "projsnap:abc", observed_at: "2026-10-04T11:59:00.000Z", age_ms: 60_000, durable: true };
+    // snapshot written 1 minute ago from a source fetched 2 hours ago
+    const x = build(row(), {
+      batch: batch({ canonical_snapshot: { ...snapshot, source_observed_at: "2026-10-04T10:00:00.000Z" }, source_observation: { provider: "sleeper", observed_at: "2026-10-04T10:00:00.000Z", observation_id: "srcobs:abc", content_hash: "h", fetch_path: "SNAPSHOT" } }),
+      freshness: { now_ms: NOW, kickoff_at: "2026-10-04T13:00:00.000Z" },
+    });
+    assert.equal(x.freshness.source_observed_at, "2026-10-04T10:00:00.000Z");
+    assert.equal(x.freshness.snapshot_created_at, "2026-10-04T11:59:00.000Z");
+    assert.equal(x.freshness.age_ms, 2 * 60 * 60 * 1000, "age is measured from the source observation, not the snapshot");
+    assert.equal(x.freshness.state, "STALE");
+    assert.equal(x.certification.state, "PARTIAL");
+    assert.ok(x.certification.warnings.includes("FORECAST_STALE:AGE_EXCEEDS_REQUIRED"));
+    assert.equal(x.provenance.snapshot.artifact_id, "projsnap:abc");
+    assert.equal(x.provenance.source_ids.projection_snapshot_artifact_id, "projsnap:abc");
+    // no clock supplied => UNKNOWN, never guessed fresh
+    const nc = build(row(), { batch: batch({ canonical_snapshot: { ...snapshot, source_observed_at: "2026-10-04T10:00:00.000Z" } }) });
+    assert.equal(nc.freshness.state, "UNKNOWN");
+    assert.equal(nc.freshness.stale, null);
+    assert.equal(nc.freshness.forecast_composed_at, null);
   });
 
   it("uncertainty: confidence is never fabricated from points or band width", () => {
@@ -342,15 +351,15 @@ describe("W1.P1 persistence reuse (option C: constructed from the existing snaps
       canonical_player_ids: [...live.by_player.keys()],
     } as unknown as Parameters<typeof buildProjectionSnapshotArtifact>[0];
     const artifact = buildProjectionSnapshotArtifact(req, live);
-    const hit = hydrateProjectionSnapshotBatch(artifact, req.canonical_player_ids, { observed_at: "2026-10-05T00:00:00.000Z", age_ms: 60_000, durable: true });
+    const hit = hydrateProjectionSnapshotBatch(artifact, req.canonical_player_ids, { observed_at: "2026-10-05T00:00:00.000Z", age_ms: 60_000, durable: true, source_observed_at: "2026-10-04T23:59:00.000Z" });
     const fromLive = buildCanonicalForecastBatch({ batch: live, requested_player_ids: req.canonical_player_ids });
-    const fromHit = buildCanonicalForecastBatch({ batch: hit, requested_player_ids: req.canonical_player_ids });
+    const fromHit = buildCanonicalForecastBatch({ batch: hit, requested_player_ids: req.canonical_player_ids, freshness: { now_ms: Date.parse("2026-10-05T00:00:00.000Z") } });
     assert.equal(fromHit.by_player.size, fromLive.by_player.size);
     for (const [id, f] of fromLive.by_player) {
       const h = fromHit.by_player.get(id)!;
       assert.deepEqual(h.projection, f.projection, id);
       assert.equal(h.value_state, f.value_state, id);
-      assert.equal(h.freshness.age_ms, 60_000);
+      assert.equal(h.freshness.age_ms, 60_000, "age measured from the SOURCE observation (23:59) at the injected clock (00:00)");
       assert.equal(h.provenance.snapshot.read_path, "SUPABASE_HIT");
       assert.equal(h.provenance.source_ids.projection_snapshot_artifact_id, artifact.artifact_id);
     }

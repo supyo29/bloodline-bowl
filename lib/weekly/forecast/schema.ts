@@ -21,6 +21,7 @@
 
 import type { PlayerIdentifiers } from "@/lib/canonical/schema";
 import type { InjuryModelResult } from "./injury-model";
+import type { ForecastSetIdentity } from "../freshness/identity";
 
 export const CANONICAL_WEEKLY_FORECAST_VERSION = "canonical-weekly-forecast-2026.1" as const;
 
@@ -209,13 +210,28 @@ export interface CanonicalWeeklyPlayerForecast {
     reasons: string[];
   };
 
+  /**
+   * W1.P4 freshness. The four times are distinct: `source_observed_at` (Bloodline fetched the upstream state), `snapshot_created_at`
+   * (a snapshot pointer was written — NEVER a substitute for the source time), `forecast_composed_at`, and the kickoff/event instants.
+   * All TTL arithmetic lives in `freshness/policy.ts`; consumers read `state`, they do not recompute it.
+   */
   freshness: {
-    /** When the upstream source itself was observed. Not captured by the current provider -> null (W1.P4). */
     source_observed_at: string | null;
     snapshot_created_at: string | null;
+    forecast_composed_at: string | null;
+    /** now − source_observed_at; null when either is unknown */
     age_ms: number | null;
-    /** null = age unknown. */
+    /** back-compat: true iff `state === "STALE"`; null when freshness is UNKNOWN */
     stale: boolean | null;
+    state: "FRESH" | "STALE" | "UNKNOWN" | "FROZEN_PREGAME";
+    policy: { version: string; tier: string; required_max_age_ms: number | null; reason: string };
+    kickoff_at: string | null;
+    ms_to_kickoff: number | null;
+    invalidation_reasons: string[];
+    refresh: { attempted: boolean; succeeded: boolean | null; failed_at: string | null; reason: string | null };
+    /** machine-derived explanation for users; null when nothing needs saying */
+    user_warning: string | null;
+    source_observation_id: string | null;
   };
 
   provenance: {
@@ -253,6 +269,8 @@ export interface ForecastComponent<T> {
 
 export interface CanonicalWeeklyForecastBatch {
   model_version: typeof CANONICAL_WEEKLY_FORECAST_VERSION;
+  /** W1.P4: the evidence set this whole batch rests on (league + scoring + source observation + snapshot). Set by the context builder. */
+  identity?: ForecastSetIdentity;
   league_slug: string;
   season: number;
   week: number;

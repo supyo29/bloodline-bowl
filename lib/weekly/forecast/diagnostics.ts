@@ -42,6 +42,8 @@ export interface ForecastDiagnostic {
     reasons: string[];
     warnings: string[];
   };
+  /** W1.P4: everything needed to answer "how current is this, relative to kickoff, and why?" */
+  freshness: CanonicalWeeklyPlayerForecast["freshness"] & { time_until_kickoff_ms: number | null };
   /** the provider's own fixed heuristic, shown so it can be compared with the model's P(active) */
   source_heuristic_availability: number | null;
   source_age_ms: number | null;
@@ -110,6 +112,7 @@ export function explainForecast(f: CanonicalWeeklyPlayerForecast): ForecastDiagn
       reasons: im.reasons,
       warnings: im.warnings,
     },
+    freshness: { ...f.freshness, time_until_kickoff_ms: f.freshness.ms_to_kickoff },
     source_heuristic_availability: f.availability.source_heuristic_availability,
     source_age_ms: f.freshness.age_ms,
     source_stale: f.freshness.stale,

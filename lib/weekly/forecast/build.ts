@@ -11,7 +11,8 @@
 
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "../schema";
-import { PROJECTION_SNAPSHOT_MAX_AGE_MS } from "../projections/canonical-snapshot";
+import { evaluateForecastFreshness, FRESHNESS_POLICY_VERSION, type RefreshOutcome } from "../freshness/policy";
+import { scopeCovers, type InvalidationEvent } from "../freshness/events";
 import { holdHorizonWeeks } from "./bye";
 import {
   SOURCE_INJURY_SEMANTICS,
@@ -41,7 +42,7 @@ export const FI_PRODUCTION_MARKER = "fi_production_adjustment_applied:";
 
 type BatchMeta = Pick<
   WeeklyProjectionBatch,
-  "status" | "source" | "model_version" | "teams_with_games" | "canonical_snapshot"
+  "status" | "source" | "model_version" | "teams_with_games" | "canonical_snapshot" | "source_observation"
 >;
 
 export interface BuildForecastInput {
@@ -66,6 +67,19 @@ export interface BuildForecastInput {
   injury?: Partial<InjuryEvidence>;
   /** PRODUCTION (default) applies the injury model to expected_points; SHADOW computes it and leaves expected_points alone. */
   injury_mode?: InjuryMode;
+  /**
+   * W1.P4 freshness inputs. The clock is ALWAYS injected (this module reads no wall clock). With no `now_ms` freshness is UNKNOWN,
+   * never guessed. Events are the process/ledger events; this builder narrows them to the ones whose scope covers THIS player.
+   */
+  freshness?: {
+    now_ms: number | null;
+    kickoff_at?: string | null;
+    game_id?: string | null;
+    events?: readonly InvalidationEvent[];
+    refresh?: RefreshOutcome | null;
+    league_slug?: string | null;
+    provider?: string | null;
+  };
   /** Caller-supplied schedule facts, when an authoritative source has them. */
   game_status?: Partial<CanonicalWeeklyPlayerForecast["game_status"]> & { no_scheduled_game?: boolean };
 }
@@ -343,13 +357,42 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
     if (cert === "PRODUCTION" && (injury.normalized_state === "UNKNOWN_STATUS" || (injuryChanged && !knownUnavailable && injury.confidence_components.semantics_certainty < 1))) cert = "PARTIAL";
   }
 
-  // ---- freshness ----------------------------------------------------------------------------------
+  // ---- freshness (single authority: freshness/policy.ts) -----------------------------------------------
   const snap = batch.canonical_snapshot;
-  const age = snap?.age_ms ?? null;
-  if (age != null && age > PROJECTION_SNAPSHOT_MAX_AGE_MS) {
-    warnings.push("SOURCE_SNAPSHOT_STALE");
+  // The SOURCE observation instant — never the snapshot pointer time (a snapshot written at noon from a 10:45 fetch is a 10:45 observation).
+  const sourceObservedAt = batch.source_observation?.observed_at ?? snap?.source_observed_at ?? null;
+  const fin = input.freshness;
+  const injuryUncertain = ["QUESTIONABLE", "DOUBTFUL", "UNKNOWN_STATUS"].includes(injury.normalized_state);
+  const targetEvents = (fin?.events ?? []).filter((e) =>
+    scopeCovers(e.scope, {
+      canonical_player_id: input.canonical_player_id,
+      identifiers: player?.identifiers ?? {},
+      nfl_team: p?.nfl_team ?? player?.nfl_team ?? null,
+      game_id: fin?.game_id ?? null,
+      league_slug: fin?.league_slug ?? null,
+      provider: fin?.provider ?? null,
+      season: input.season,
+      week: input.week,
+    }),
+  );
+  const assessment =
+    fin?.now_ms == null
+      ? null
+      : evaluateForecastFreshness({
+          now_ms: fin.now_ms,
+          kickoff_at: fin.kickoff_at ?? null,
+          source_observed_at: sourceObservedAt,
+          snapshot_created_at: snap?.observed_at ?? null,
+          injury_uncertain: injuryUncertain,
+          events: targetEvents,
+          refresh: fin.refresh ?? null,
+        });
+  const age = assessment?.age_ms ?? null;
+  if (assessment?.state === "STALE") {
+    warnings.push(`FORECAST_STALE:${assessment.reason}`);
     if (cert === "PRODUCTION") cert = "PARTIAL";
   }
+  if (assessment?.state === "UNKNOWN" && assessment.reason === "POST_KICKOFF_OBSERVATION") warnings.push("FORECAST_OBSERVATION_AFTER_KICKOFF");
 
   // ---- uncertainty ----------------------------------------------------------------------------------
   // Source dispersion is for the player if active. With P(active)<1 the unconditional variance is the Bernoulli mixture:
@@ -365,6 +408,7 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
     variance = knownUnavailable ? 0 : pa * (sigma * sigma + mu * mu) - (pa * mu) ** 2;
     if (pa < 1) reasons.push("PARTICIPATION_RISK_INCLUDED_IN_VARIANCE");
   }
+  if (assessment?.state === "STALE") reasons.push("FORECAST_STALE_CONFIDENCE_DEGRADED");
   if (injury.confidence != null && injury.confidence < 0.5 && injury.normalized_state !== "HEALTHY") reasons.push("INJURY_EVIDENCE_STRENGTH_BELOW_0.5");
 
   const identifiers = { ...(player?.identifiers ?? {}) };
@@ -385,8 +429,8 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
     game_status: {
       has_game: input.game_status?.has_game ?? (isBye || state === "NO_SCHEDULED_GAME" ? false : teamHasGame || (p != null && opponent != null) ? true : null),
       is_bye: isBye,
-      game_id: input.game_status?.game_id ?? null,
-      kickoff_at: input.game_status?.kickoff_at ?? null,
+      game_id: input.game_status?.game_id ?? fin?.game_id ?? null,
+      kickoff_at: input.game_status?.kickoff_at ?? fin?.kickoff_at ?? null,
     },
     projection: {
       source_points: sourcePoints,
@@ -426,10 +470,24 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
       reasons,
     },
     freshness: {
-      source_observed_at: null,
+      source_observed_at: sourceObservedAt,
       snapshot_created_at: snap?.observed_at ?? null,
+      forecast_composed_at: fin?.now_ms == null ? null : new Date(fin.now_ms).toISOString(),
       age_ms: age,
-      stale: age == null ? null : age > PROJECTION_SNAPSHOT_MAX_AGE_MS,
+      stale: assessment == null || assessment.state === "UNKNOWN" ? null : assessment.state === "STALE",
+      state: assessment?.state ?? "UNKNOWN",
+      policy: {
+        version: FRESHNESS_POLICY_VERSION,
+        tier: assessment?.tier ?? "KICKOFF_UNKNOWN",
+        required_max_age_ms: assessment?.required_max_age_ms ?? null,
+        reason: assessment?.reason ?? "NO_CLOCK_SUPPLIED",
+      },
+      kickoff_at: fin?.kickoff_at ?? null,
+      ms_to_kickoff: assessment?.ms_to_kickoff ?? null,
+      invalidation_reasons: assessment?.invalidation_reasons ?? [],
+      refresh: assessment?.refresh ?? { attempted: false, succeeded: null, failed_at: null, reason: null },
+      user_warning: assessment?.user_warning ?? null,
+      source_observation_id: batch.source_observation?.observation_id ?? null,
     },
     provenance: {
       projection_provider: batch.source ?? null,
@@ -462,6 +520,15 @@ export function buildCanonicalForecastBatch(input: {
   shadow?: ReadonlyMap<string, ForecastShadowSignals>;
   injury_evidence?: ReadonlyMap<string, Partial<InjuryEvidence>>;
   injury_mode?: InjuryMode;
+  /** W1.P4: per-request freshness inputs; kickoff is resolved per player from the game clock by `kickoffFor`. */
+  freshness?: {
+    now_ms: number | null;
+    events?: readonly InvalidationEvent[];
+    refresh?: RefreshOutcome | null;
+    league_slug?: string | null;
+    provider?: string | null;
+    kickoffFor?: (team: string | null) => { kickoff_at: string | null; game_id: string | null };
+  };
 }): CanonicalWeeklyForecastBatch {
   const { batch } = input;
   const ids = [...new Set([...(input.requested_player_ids ?? []), ...batch.by_player.keys()])].sort();
@@ -485,6 +552,16 @@ export function buildCanonicalForecastBatch(input: {
       shadow: input.shadow?.get(id),
       injury: input.injury_evidence?.get(id),
       injury_mode: input.injury_mode,
+      ...(input.freshness
+        ? {
+            freshness: (() => {
+              const row = batch.by_player.get(id);
+              const team = row?.nfl_team ?? (batch.resolved_players.get(id) ?? input.players?.get(id))?.nfl_team ?? null;
+              const k = input.freshness!.kickoffFor?.(team) ?? { kickoff_at: null, game_id: null };
+              return { now_ms: input.freshness!.now_ms, kickoff_at: k.kickoff_at, game_id: k.game_id, events: input.freshness!.events, refresh: input.freshness!.refresh, league_slug: input.freshness!.league_slug, provider: input.freshness!.provider };
+            })(),
+          }
+        : {}),
     });
     by_player.set(id, f);
     counts.total += 1;
