@@ -6,6 +6,7 @@
  */
 
 import { buildWeeklyTeamContext } from "../../lib/weekly/context";
+import { buildCanonicalLeagueState } from "../../lib/canonical/state";
 import { PlayerCrosswalk, NoCrosswalk } from "../../lib/canonical/players";
 import { setPersistence, memoryPersistence } from "../../lib/persistence";
 import type { CanonicalLeagueStateBundle, FantasyProvider } from "../../lib/providers/types";
@@ -22,6 +23,8 @@ export interface GoldenPlayer {
   row?: { points: number | null; injury?: string | null; availability?: number; status?: WeeklyProjection["projection_status"]; warnings?: string[] };
   ids: CanonicalPlayer["identifiers"];
   note: string;
+  /** canonical-player injury status when it differs from the feed row (e.g. a player with no feed row at all) */
+  playerInjury?: string;
 }
 
 export const GOLDEN: GoldenPlayer[] = [
@@ -37,6 +40,19 @@ export const GOLDEN: GoldenPlayer[] = [
   { id: "g-te-yahoo", pos: "TE", team: "SF", row: { points: 7.7 }, ids: { yahoo_player_key: "nfl.p.40001", yahoo_id: "40001" }, note: "Yahoo-identified player: NO sleeper_id" },
   { id: "g-def", pos: "DEF", team: "SF", row: { points: 6, warnings: ["k_dst_uses_sleeper_standard_points (league-specific weekly K/DST scoring not reconstructable)"] }, ids: { sleeper_id: "SF" }, note: "playing DST, standard-points fallback" },
   { id: "g-rb-out-src", pos: "RB", team: "SF", row: { points: null, status: "out", warnings: [] }, ids: { sleeper_id: "g-rb-out-src" }, note: "source says gp=0 (out)" },
+  // ---- W1.P2 injury cases ----
+  { id: "g-wr-doubtful", pos: "WR", team: "KC", row: { points: 15, injury: "Doubtful", availability: 0.3 }, ids: { sleeper_id: "g-wr-doubtful" }, note: "Doubtful WR" },
+  { id: "g-qb-q-star", pos: "QB", team: "KC", row: { points: 22, injury: "Questionable", availability: 0.78 }, ids: { sleeper_id: "g-qb-q-star" }, note: "questionable star QB (should still out-value a mediocre healthy player)" },
+  { id: "g-rb-q-fringe", pos: "RB", team: "SF", row: { points: 5, injury: "Questionable", availability: 0.78 }, ids: { sleeper_id: "g-rb-q-fringe" }, note: "questionable fringe RB" },
+  { id: "g-te-q-missing", pos: "TE", team: "MIA", ids: { sleeper_id: "g-te-q-missing" }, playerInjury: "Questionable", note: "QUESTIONABLE + no source projection: unknown, never zero" },
+  { id: "g-wr-out-missing", pos: "WR", team: "MIA", ids: { sleeper_id: "g-wr-out-missing" }, playerInjury: "Out", note: "OUT + no source projection: known zero" },
+  { id: "g-k-q", pos: "K", team: "KC", row: { points: 8.2, injury: "Questionable", availability: 0.78, warnings: ["k_dst_uses_sleeper_standard_points (league-specific weekly K/DST scoring not reconstructable)"] }, ids: { sleeper_id: "g-k-q" }, note: "questionable kicker (no calibration sample)" },
+  { id: "g-k-out", pos: "K", team: "SF", row: { points: 7.9, injury: "Out", availability: 0.03, warnings: ["k_dst_uses_sleeper_standard_points (league-specific weekly K/DST scoring not reconstructable)"] }, ids: { sleeper_id: "g-k-out" }, note: "kicker ruled Out" },
+  { id: "g-def-injstr", pos: "DEF", team: "SF", row: { points: 5.5, injury: "Questionable", availability: 0.78, warnings: ["k_dst_uses_sleeper_standard_points (league-specific weekly K/DST scoring not reconstructable)"] }, ids: { sleeper_id: "g-def-injstr" }, note: "DST row carrying a stray injury string: team entity, not an individual" },
+  { id: "g-te-yahoo-q", pos: "TE", team: "SF", row: { points: 9, injury: "Questionable", availability: 0.78 }, ids: { yahoo_player_key: "nfl.p.40002", yahoo_id: "40002" }, note: "Yahoo-identified questionable TE: NO sleeper_id" },
+  { id: "g-rb-bye-q", pos: "RB", team: "BUF", ids: { sleeper_id: "g-rb-bye-q" }, playerInjury: "Questionable", note: "BYE + injury designation: bye stays a bye" },
+  { id: "g-wr-cov", pos: "WR", team: "KC", row: { points: 11, injury: "COV", availability: 1 }, ids: { sleeper_id: "g-wr-cov" }, note: "unrecognised status string: no invented certainty" },
+  { id: "g-rb-ir", pos: "RB", team: "KC", row: { points: 10, injury: "IR", availability: 0.03 }, ids: { sleeper_id: "g-rb-ir" }, note: "IR with a stale source projection" },
 ];
 
 const BY_ID = new Map(GOLDEN.map((g) => [g.id, g]));
@@ -53,13 +69,13 @@ function mkPlayer(g: GoldenPlayer): CanonicalPlayer {
     nfl_team: g.team,
     is_team_defense: g.pos === "DEF",
     status: null,
-    injury_status: g.row?.injury ?? null,
+    injury_status: g.playerInjury ?? g.row?.injury ?? null,
     identifiers: g.ids,
     resolution: { method: "stable_id", confidence: "high", note: null },
   };
 }
 
-function provider(): FantasyProvider {
+export function goldenProvider(): FantasyProvider {
   const slots = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"];
   const starterIds = ["g-qb", "g-rb-q", "g-rb-bye", "g-wr-out", "g-wr-missing", "g-te-zero", "g-rb-totals", "g-k", "g-def-bye"];
   const bench = GOLDEN_IDS.filter((id) => !starterIds.includes(id));
@@ -172,7 +188,7 @@ export function goldenProjectionProvider(canonicalSnapshot?: WeeklyProjectionBat
   };
 }
 
-const schedule = {
+export const goldenSchedule = {
   name: "fake-schedule",
   async getWeekSchedule(season: number, week: number) {
     return {
@@ -189,9 +205,9 @@ export async function buildGoldenContext(canonicalSnapshot?: WeeklyProjectionBat
   setPersistence(memoryPersistence());
   const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", {
     week: 5,
-    providerOverride: provider(),
+    providerOverride: goldenProvider(),
     projectionProviderOverride: goldenProjectionProvider(canonicalSnapshot),
-    scheduleProviderOverride: schedule,
+    scheduleProviderOverride: goldenSchedule,
     riSeasonProviderOverride: null,
     crosswalkOverride: new PlayerCrosswalk(NoCrosswalk),
     skipReturnGameEnrichment: true,
@@ -210,4 +226,18 @@ export function productionNumbers(ctx: Awaited<ReturnType<typeof buildGoldenCont
       : { projected_points: null, projection_status: "NO_ROW", expected_availability: null, is_bye: null };
   }
   return out;
+}
+
+/** The canonical league snapshot the golden context is built from (for seams that accept `snapshotOverride`). */
+export async function buildGoldenSnapshot() {
+  setPersistence(memoryPersistence());
+  const r = await buildCanonicalLeagueState("bloodline-bowl", {
+    providerOverride: goldenProvider(),
+    crosswalkOverride: new PlayerCrosswalk(NoCrosswalk),
+    includeMatchups: false,
+    includeRecentTransactions: false,
+    bypassScope: true,
+  });
+  if (!r.snapshot) throw new Error(`golden snapshot failed: ${r.code}`);
+  return r.snapshot;
 }

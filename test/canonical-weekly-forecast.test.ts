@@ -29,7 +29,7 @@ import {
 } from "../lib/weekly/projections/canonical-snapshot";
 import type { CanonicalPlayer } from "../lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "../lib/weekly/schema";
-import { GOLDEN, GOLDEN_IDS, buildGoldenContext, productionNumbers } from "./fixtures/canonical-forecast-golden";
+import { GOLDEN, GOLDEN_IDS, buildGoldenContext } from "./fixtures/canonical-forecast-golden";
 
 const row = (over: Partial<WeeklyProjection> = {}): WeeklyProjection => ({
   canonical_player_id: "p1", week: 5, season: 2026, position: "WR", nfl_team: "KC", opponent: "LV", is_home: null,
@@ -65,26 +65,29 @@ describe("W1.P1 contract semantics", () => {
     clean(f);
   });
 
-  it("questionable player: availability metadata preserved, expected_points NOT discounted (W1.P2 owns that)", () => {
-    const f = build(row({ injury_status: "Questionable", expected_availability: 0.78 }));
+  it("questionable player: provider status preserved; W1.P2 applies the injury discount via the ledger (SHADOW mode reproduces W1.P1 exactly)", () => {
+    const q = row({ injury_status: "Questionable", expected_availability: 0.78 });
+    const f = build(q);
     assert.equal(f.availability.status, "QUESTIONABLE");
-    assert.equal(f.availability.probability_active, 0.78);
     assert.equal(f.availability.injury_status, "Questionable");
-    assert.equal(f.availability.applied_to_expected_points, false);
-    assert.equal(f.projection.expected_points, 14.6);
-    assert.equal(f.projection.conditional_active_points, 14.6);
-    const a = f.contributions.find((c) => c.component === "AVAILABILITY_METADATA")!;
-    assert.equal(a.mode, "INFORMATIONAL");
-    assert.equal(a.points_delta, 0);
+    assert.equal(f.availability.source_heuristic_availability, 0.78);
+    assert.equal(f.projection.source_points, 14.6);
+    assert.ok(f.projection.expected_points! < 14.6, "W1.P2: injury risk now affects expected_points");
+    assert.equal(f.availability.applied_to_expected_points, true);
+    const shadow = build(q, { injury_mode: "SHADOW" });
+    assert.equal(shadow.projection.expected_points, 14.6, "the W1.P1 behavior, on demand");
+    assert.equal(shadow.availability.applied_to_expected_points, false);
     clean(f);
+    clean(shadow);
   });
 
-  it("injured (Out) player keeps its source value and is distinguishable from a bye and from missing data", () => {
+  it("injured (Out) player: expected is a known zero, source value retained, distinct from a bye and from missing data", () => {
     const f = build(row({ injury_status: "Out", expected_availability: 0.03 }));
     assert.equal(f.availability.status, "OUT");
     assert.equal(f.game_status.is_bye, false);
-    assert.equal(f.projection.expected_points, 14.6);
-    assert.equal(f.value_state, "PROJECTED");
+    assert.equal(f.projection.source_points, 14.6);
+    assert.equal(f.projection.expected_points, 0);
+    assert.equal(f.value_state, "KNOWN_UNAVAILABLE");
     clean(f);
   });
 
@@ -210,7 +213,7 @@ describe("W1.P1 contract semantics", () => {
 
   it("uncertainty: confidence is never fabricated from points or band width", () => {
     const f = build(row());
-    assert.equal(f.uncertainty.confidence, null);
+    assert.equal(f.uncertainty.confidence, 1, "healthy: nothing to doubt; never derived from points or band width");
     assert.equal(f.uncertainty.variance, 25);
     assert.ok(f.uncertainty.reasons.includes("HEURISTIC_POSITION_VOLATILITY_BAND_NOT_FITTED_DISTRIBUTION"));
     assert.equal(f.projection.median, null);
@@ -252,24 +255,23 @@ describe("W1.P1 provider neutrality", () => {
 });
 
 describe("W1.P1 golden production compatibility (real buildWeeklyTeamContext)", () => {
-  it("production-facing numbers are bit-identical to the pre-change capture from origin/main 201256b", async () => {
-    const ctx = await buildGoldenContext();
-    const before = JSON.parse(readFileSync(join(process.cwd(), "test/fixtures/canonical-forecast-golden.production-before.json"), "utf8"));
-    assert.deepEqual(productionNumbers(ctx), before);
-  });
-
-  it("canonical expected_points equals the production value for EVERY player; legacy adapters reproduce legacy fields", async () => {
+  it("canonical expected_points equals the legacy production value for every player the injury model did not change; legacy adapters reproduce legacy fields", async () => {
     const ctx = await buildGoldenContext();
     assert.ok(ctx.forecasts);
+    let unchanged = 0;
     for (const id of GOLDEN_IDS) {
       const wp = ctx.projections.by_player.get(id);
       const f = ctx.forecasts!.by_player.get(id);
       assert.ok(f, `forecast missing for ${id}`);
-      assert.equal(getLegacyProjectedPoints(f), wp?.projected_points ?? null, `expected_points drift for ${id}`);
+      if (!f!.availability.applied_to_expected_points) {
+        assert.equal(getLegacyProjectedPoints(f), wp?.projected_points ?? null, `expected_points drift for ${id}`);
+        unchanged += 1;
+      }
       if (wp) assert.equal(getLegacyExpectedAvailability(f), wp.expected_availability, `availability drift for ${id}`);
       assert.deepEqual(validateForecastInvariants(f!), [], id);
       assert.equal(f!.model_version, CANONICAL_WEEKLY_FORECAST_VERSION);
     }
+    assert.ok(unchanged >= 14, "most of the golden roster is unaffected by the injury model");
   });
 
   it("each golden case lands in its intended semantic state", async () => {
@@ -277,7 +279,7 @@ describe("W1.P1 golden production compatibility (real buildWeeklyTeamContext)", 
     const state = (id: string) => f.get(id)!.value_state;
     assert.equal(state("g-qb"), "PROJECTED");
     assert.equal(state("g-rb-q"), "PROJECTED");
-    assert.equal(state("g-wr-out"), "PROJECTED");
+    assert.equal(state("g-wr-out"), "KNOWN_UNAVAILABLE");
     assert.equal(state("g-te-zero"), "KNOWN_ZERO_PROJECTION");
     assert.equal(state("g-k"), "PROJECTED");
     assert.equal(state("g-def"), "PROJECTED");
@@ -286,17 +288,19 @@ describe("W1.P1 golden production compatibility (real buildWeeklyTeamContext)", 
     assert.equal(state("g-wr-missing"), "SOURCE_MISSING_PLAYER");
     assert.equal(state("g-rb-totals"), "UNSUPPORTED_SCORING_DATA");
     assert.equal(state("g-te-yahoo"), "PROJECTED");
-    // context.ts rewrites a source "out" to "unavailable" (pre-existing behaviour, preserved): it surfaces as unavailable, never zero
-    assert.equal(state("g-rb-out-src"), "PROJECTION_UNAVAILABLE");
+    // F1 fixed in W1.P2: a source "out" now survives context assembly; unknown value, never zero
+    assert.equal(state("g-rb-out-src"), "PLAYER_OUT_IN_SOURCE");
     assert.equal(f.get("g-rb-out-src")!.projection.expected_points, null);
     // bye with a stale feed entry keeps its underlying value visible
     assert.equal(f.get("g-rb-bye")!.projection.source_points, 12);
     assert.equal(f.get("g-rb-bye")!.projection.expected_points, 0);
     assert.equal(f.get("g-def-bye")!.projection.source_points, null);
-    // injured / questionable are NOT discounted in W1.P1
-    assert.equal(f.get("g-wr-out")!.projection.expected_points, 9.1);
+    // injured / questionable are discounted by the W1.P2 injury model; the source value is still visible
+    assert.equal(f.get("g-wr-out")!.projection.expected_points, 0);
+    assert.equal(f.get("g-wr-out")!.projection.source_points, 9.1);
     assert.equal(f.get("g-wr-out")!.availability.status, "OUT");
-    assert.equal(f.get("g-rb-q")!.projection.expected_points, 14.6);
+    assert.equal(f.get("g-rb-q")!.projection.source_points, 14.6);
+    assert.ok(f.get("g-rb-q")!.projection.expected_points! < 14.6);
     // Yahoo identity: forecast works with no sleeper id present
     assert.equal(f.get("g-te-yahoo")!.identifiers.sleeper_id, undefined);
     assert.equal(f.get("g-te-yahoo")!.projection.expected_points, 7.7);
@@ -312,7 +316,7 @@ describe("W1.P1 golden production compatibility (real buildWeeklyTeamContext)", 
       ["g-qb", { role: { mode: "SHADOW", signal: { state: null, adjustment_points: 1.2, confidence: 0.5 } }, environment: { mode: "SHADOW", signal: { adjustment_points: 0.6, confidence: 0.4 } } }],
       ["g-rb-q", { matchup: { mode: "INFORMATIONAL", signal: { adjustment_points: -0.4, confidence: null } } }],
     ]);
-    const withShadow = buildCanonicalForecastBatch({ batch: ctx.projections, requested_player_ids: ctx.roster.all_players, shadow });
+    const withShadow = buildCanonicalForecastBatch({ batch: ctx.projections, requested_player_ids: ctx.roster.all_players, players: new Map(ctx.all_rostered.map((p) => [p.canonical_player_id, p])), shadow });
     for (const id of GOLDEN_IDS) {
       assert.equal(withShadow.by_player.get(id)!.projection.expected_points, ctx.forecasts!.by_player.get(id)!.projection.expected_points, id);
       assert.deepEqual(validateForecastInvariants(withShadow.by_player.get(id)!), [], id);
@@ -358,13 +362,15 @@ describe("W1.P1 persistence reuse (option C: constructed from the existing snaps
 describe("W1.P1 diagnostics", () => {
   it("explainForecast answers the audit questions as machine-readable data", () => {
     const cand = shadowCandidate({ baseline: 14.6, xfp_forecast: 18, xfp_no_pressure: 17, p_absent: 0, confidence: "MEDIUM" });
-    const d = explainForecast(build(row({ injury_status: "Questionable", expected_availability: 0.78 }), { shadow: { role: roleSignalFromShadowCandidate(cand) } }));
+    const f = build(row({ injury_status: "Questionable", expected_availability: 0.78 }), { shadow: { role: roleSignalFromShadowCandidate(cand) } });
+    const d = explainForecast(f);
     assert.equal(d.source_points, 14.6);
-    assert.equal(d.expected_points, 14.6);
-    assert.equal(d.expected_points_reason, "EXPECTED_EQUALS_SOURCE_PROJECTION_NO_ADJUSTMENT_APPLIED");
+    assert.equal(d.expected_points, f.projection.expected_points);
+    assert.equal(d.expected_points_reason, "SOURCE_EMBEDS_PART_OF_INJURY_RISK_REMAINDER_APPLIED");
     assert.equal(d.is_bye, false);
-    assert.equal(d.availability.status, "QUESTIONABLE");
-    assert.equal(d.availability.applied_to_expected_points, false);
+    assert.equal(d.injury.source_status, "Questionable");
+    assert.equal(d.injury.normalized_state, "QUESTIONABLE");
+    assert.equal(d.injury.applied_to_expected_points, true);
     assert.deepEqual([d.role.available, d.role.mode, d.role.applied_to_expected_points], [true, "SHADOW", false]);
     assert.deepEqual([d.matchup.available, d.matchup.mode], [false, "NOT_APPLIED"]);
     assert.equal(d.provider, "sleeper_weekly");
@@ -376,12 +382,12 @@ describe("W1.P1 diagnostics", () => {
     const f = build(row());
     const promoted = structuredClone(f);
     promoted.role.mode = "PRODUCTION";
-    assert.ok(validateForecastInvariants(promoted).includes("ROLE_PROMOTED_IN_W1_P1"));
+    assert.ok(validateForecastInvariants(promoted).includes("ROLE_PROMOTED"));
     const drift = structuredClone(f);
     drift.contributions.push({ component: "X", phenomenon: "ROLE", points_delta: 1, mode: "PRODUCTION" });
     const v = validateForecastInvariants(drift);
     assert.ok(v.some((x) => x.startsWith("LEDGER_SUM_")));
-    assert.ok(v.includes("NON_BASE_PRODUCTION_CONTRIBUTION_IN_W1_P1"));
+    assert.ok(v.includes("NON_BASE_PRODUCTION_CONTRIBUTION"));
     const dup = structuredClone(f);
     dup.contributions.push({ component: "BASE2", phenomenon: "BASE", points_delta: 0, mode: "PRODUCTION" });
     assert.ok(validateForecastInvariants(dup).includes("DUPLICATE_PRODUCTION_PHENOMENON_BASE"));

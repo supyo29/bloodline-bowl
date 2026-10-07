@@ -28,6 +28,8 @@
  * start/sit move and produces no projected gain.
  */
 
+import { decisionProjectionRows } from "./forecast/view";
+import type { CanonicalWeeklyForecastBatch } from "./forecast/schema";
 import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
 import { decisionConfidence } from "./uncertainty";
 import type {
@@ -130,11 +132,18 @@ interface BuildInput {
   constraints: RosterConstraints;
   players: Map<string, CanonicalPlayer>;
   projections: WeeklyProjectionBatch;
+  /**
+   * W1.P2: canonical weekly forecasts. When present the optimizer compares the canonical injury-aware `expected_points`
+   * instead of the raw source projection. Only the VALUE it consumes changes; the optimizer is untouched. Absent = legacy
+   * source values (callers that have not migrated).
+   */
+  forecasts?: CanonicalWeeklyForecastBatch | null;
 }
 
 export function buildOptimalLineup(input: BuildInput): LineupResult {
   const { week, roster, constraints, players, projections } = input;
   const warnings: WeeklyWarning[] = [];
+  const decisionRows = decisionProjectionRows(projections, input.forecasts);
 
   const slots = constraints.starting_slots;
   // Lineup candidates: everything rostered that is NOT on IR/taxi.
@@ -142,7 +151,7 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   const taxiSet = new Set(roster.taxi);
   const candidateIds = roster.all_players.filter((id) => !irSet.has(id) && !taxiSet.has(id));
 
-  const proj = (id: string): WeeklyProjection | null => projections.by_player.get(id) ?? null;
+  const proj = (id: string): WeeklyProjection | null => decisionRows.rows.get(id) ?? null;
   const nameOf = (id: string): string => players.get(id)?.full_name ?? proj(id)?.canonical_player_id ?? id;
 
   /** KNOWN | VERIFIED_ZERO (schedule-proven bye) | UNKNOWN (no projection). */

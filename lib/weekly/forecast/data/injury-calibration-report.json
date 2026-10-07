@@ -1,0 +1,278 @@
+{
+  "prior_version": "injury-priors-2025-w1-18.v1",
+  "data": {
+    "cases_2025": 1750,
+    "cases_2026_w1_4": 294
+  },
+  "shipped_counts": {
+    "version": "injury-priors-2025-w1-18.v1",
+    "questionable": {
+      "pooled": [
+        352,
+        206
+      ],
+      "tier": {
+        "RELEVANT": [
+          121,
+          87
+        ],
+        "FRINGE": [
+          189,
+          101
+        ]
+      },
+      "cell": {
+        "RELEVANT": {
+          "FULL": [
+            17,
+            16
+          ],
+          "LIMITED": [
+            83,
+            57
+          ],
+          "DNP": [
+            16,
+            10
+          ]
+        },
+        "FRINGE": {
+          "FULL": [
+            41,
+            22
+          ],
+          "LIMITED": [
+            121,
+            65
+          ],
+          "DNP": [
+            23,
+            11
+          ]
+        }
+      }
+    },
+    "doubtful": [
+      29,
+      0
+    ],
+    "out": [
+      428,
+      0
+    ]
+  },
+  "split_2025_temporal": {
+    "fit": "2025 W1-9",
+    "test": "2025 W10-18",
+    "probability": {
+      "n": 456,
+      "brier_new": 0.1107,
+      "brier_legacy": 0.1318,
+      "brier_climatology": 0.1949,
+      "observed_active_rate": 0.2654,
+      "mean_p_new": 0.2888,
+      "mean_p_legacy": 0.3792
+    },
+    "probability_excl_out": {
+      "n": 220,
+      "brier_new": 0.2295,
+      "brier_legacy": 0.2721,
+      "brier_climatology": 0.2475,
+      "observed_active_rate": 0.55,
+      "mean_p_new": 0.5987,
+      "mean_p_legacy": 0.7538
+    },
+    "buckets": [
+      {
+        "bucket": "0.0-0.2",
+        "n": 248,
+        "mean_p": 0.0027,
+        "observed_active": 0
+      },
+      {
+        "bucket": "0.2-0.4",
+        "n": 0,
+        "mean_p": null,
+        "observed_active": null
+      },
+      {
+        "bucket": "0.4-0.6",
+        "n": 104,
+        "mean_p": 0.5767,
+        "observed_active": 0.5096
+      },
+      {
+        "bucket": "0.6-0.8",
+        "n": 104,
+        "mean_p": 0.6833,
+        "observed_active": 0.6538
+      },
+      {
+        "bucket": "0.8-1.0",
+        "n": 0,
+        "mean_p": null,
+        "observed_active": null
+      }
+    ],
+    "points_all_designated": {
+      "n": 425,
+      "mae_source_proxy": 5.4399,
+      "mae_adjusted": 1.6862,
+      "mae_legacy_heuristic": 1.9827,
+      "bias_source_proxy": 4.4418,
+      "bias_adjusted": 0.1576,
+      "bias_legacy_heuristic": 0.6805
+    },
+    "points_questionable_doubtful": {
+      "n": 213,
+      "mae_source_proxy": 4.7583,
+      "mae_adjusted": 3.3645,
+      "mae_legacy_heuristic": 3.7733,
+      "bias_source_proxy": 2.7679,
+      "bias_adjusted": 0.3144,
+      "bias_legacy_heuristic": 1.1749
+    },
+    "points_questionable": {
+      "n": 201,
+      "mae_source_proxy": 4.578,
+      "mae_adjusted": 3.5395,
+      "mae_legacy_heuristic": 3.8592,
+      "bias_source_proxy": 2.4686,
+      "bias_adjusted": 0.3074,
+      "bias_legacy_heuristic": 1.1057
+    },
+    "points_doubtful": {
+      "n": 12,
+      "mae_source_proxy": 7.78,
+      "mae_adjusted": 0.4325,
+      "mae_legacy_heuristic": 2.334,
+      "bias_source_proxy": 7.78,
+      "bias_adjusted": 0.4325,
+      "bias_legacy_heuristic": 2.334
+    },
+    "decisions": {
+      "pairs": 179,
+      "unadjusted": {
+        "false_bench": 21,
+        "false_start": 80,
+        "correct": 78,
+        "rate_false_bench": 0.1173,
+        "rate_false_start": 0.4469,
+        "accuracy": 0.4358
+      },
+      "adjusted": {
+        "false_bench": 45,
+        "false_start": 9,
+        "correct": 125,
+        "rate_false_bench": 0.2514,
+        "rate_false_start": 0.0503,
+        "accuracy": 0.6983
+      }
+    }
+  },
+  "out_of_time_2026_w1_4": {
+    "fit": "2025 W1-18",
+    "test": "2026 W1-4",
+    "note": "no 2026 stat file: probability only; role tier proxied by prior snap share >= 0.5",
+    "probability": {
+      "n": 124,
+      "brier_new": 0.1131,
+      "brier_legacy": 0.1462,
+      "brier_climatology": 0.1748,
+      "observed_active_rate": 0.2258,
+      "mean_p_new": 0.2681,
+      "mean_p_legacy": 0.3784
+    },
+    "probability_excl_out": {
+      "n": 64,
+      "brier_new": 0.2191,
+      "brier_legacy": 0.2824,
+      "brier_climatology": 0.2461,
+      "observed_active_rate": 0.4375,
+      "mean_p_new": 0.5195,
+      "mean_p_legacy": 0.705
+    },
+    "buckets": [
+      {
+        "bucket": "0.0-0.2",
+        "n": 70,
+        "mean_p": 0.0054,
+        "observed_active": 0
+      },
+      {
+        "bucket": "0.2-0.4",
+        "n": 0,
+        "mean_p": null,
+        "observed_active": null
+      },
+      {
+        "bucket": "0.4-0.6",
+        "n": 34,
+        "mean_p": 0.5612,
+        "observed_active": 0.5
+      },
+      {
+        "bucket": "0.6-0.8",
+        "n": 19,
+        "mean_p": 0.6806,
+        "observed_active": 0.5263
+      },
+      {
+        "bucket": "0.8-1.0",
+        "n": 1,
+        "mean_p": 0.855,
+        "observed_active": 1
+      }
+    ]
+  },
+  "in_sample_2025_for_reference_only": {
+    "probability": {
+      "n": 809,
+      "brier_new": 0.1012,
+      "brier_legacy": 0.1258,
+      "brier_climatology": 0.1898,
+      "observed_active_rate": 0.2546,
+      "mean_p_new": 0.2621,
+      "mean_p_legacy": 0.366
+    },
+    "points_questionable_doubtful": {
+      "n": 333,
+      "mae_source_proxy": 5.0165,
+      "mae_adjusted": 3.6549,
+      "mae_legacy_heuristic": 4.0476,
+      "bias_source_proxy": 2.7189,
+      "bias_adjusted": 0.1791,
+      "bias_legacy_heuristic": 1.0394
+    }
+  },
+  "workload_when_active": {
+    "NONE": {
+      "n": 765,
+      "mean": 1.0533,
+      "median": 1.0053
+    },
+    "QUESTIONABLE": {
+      "n": 188,
+      "mean": 1.0039,
+      "median": 0.9588
+    }
+  },
+  "by_designation_2025": {
+    "QUESTIONABLE": {
+      "n": 352,
+      "active_rate": 0.5852
+    },
+    "DOUBTFUL": {
+      "n": 29,
+      "active_rate": 0
+    },
+    "OUT": {
+      "n": 428,
+      "active_rate": 0
+    },
+    "NONE": {
+      "n": 941,
+      "active_rate": 0.8672
+    }
+  }
+}

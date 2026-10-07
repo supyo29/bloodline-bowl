@@ -262,6 +262,7 @@ export function buildLineup(ctx: WeeklyTeamContext): LineupResult {
     constraints: ctx.league.roster_constraints,
     players,
     projections: ctx.projections,
+    forecasts: ctx.forecasts,
   });
 }
 

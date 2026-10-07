@@ -20,6 +20,7 @@
  */
 
 import type { PlayerIdentifiers } from "@/lib/canonical/schema";
+import type { InjuryModelResult } from "./injury-model";
 
 export const CANONICAL_WEEKLY_FORECAST_VERSION = "canonical-weekly-forecast-2026.1" as const;
 
@@ -36,6 +37,11 @@ export type ForecastValueState =
   | "BYE_VERIFIED"
   /** Authoritative schedule says the team plays no game and it is not a bye. Reserved: needs caller-supplied schedule facts. */
   | "NO_SCHEDULED_GAME"
+  /**
+   * Known unavailable this week (designation Out / IR / PUP / NFI / SUS / DNR, or an official game-day inactive). `expected_points`
+   * is a KNOWN ZERO; the source projection stays visible in `source_points`. Distinct from a bye and from missing data.
+   */
+  | "KNOWN_UNAVAILABLE"
   /** Source marked the player not playing (gp = 0). Value unknown, never fabricated. */
   | "PLAYER_OUT_IN_SOURCE"
   /** Identity did not resolve; no forecast can be attached to a canonical player. */
@@ -54,6 +60,17 @@ export type ForecastValueState =
 /** How `expected_points` was obtained. */
 export type ExpectedPointsBasis =
   | "SOURCE_PROJECTION"
+  /** W1.P2: source is conditional on playing; expected = source × P(active) (× workload if evidenced). */
+  | "CONDITIONAL_ACTIVE_X_AVAILABILITY"
+  /** W1.P2: source believed to already embed injury risk; NO second discount. */
+  | "SOURCE_ALREADY_INJURY_ADJUSTED"
+  /** W1.P2: source embeds part of the risk (assumed when its semantics are unknown); only the remaining risk is applied. */
+  | "SOURCE_WITH_PARTIAL_INJURY_ADJUSTMENT"
+  | "SOURCE_WITH_LIMITED_WORKLOAD_ADJUSTMENT"
+  /** W1.P2: status unrecognised / unsupported: source value kept, no invented certainty. */
+  | "UNKNOWN_SOURCE_SEMANTICS_NO_ADDITIONAL_DISCOUNT"
+  /** W1.P2: designation or official evidence makes the player unavailable: known zero. */
+  | "OFFICIAL_UNAVAILABLE_KNOWN_ZERO"
   /** 0 substituted for a verified bye so existing lineup/waiver math is unchanged (W1.P3 owns the real fix). */
   | "BYE_COMPAT_ZERO"
   /** A production FI adjustment is baked into the value; the pre-adjustment source value is not recoverable. */
@@ -70,7 +87,10 @@ export type ContributionPhenomenon =
   | "ROLE"
   | "ENVIRONMENT"
   | "MATCHUP"
+  /** metadata only: a designation was recorded but nothing was applied */
   | "AVAILABILITY"
+  | "INJURY_AVAILABILITY"
+  | "INJURY_WORKLOAD"
   | "FOOTBALL_INTELLIGENCE";
 
 export interface ForecastContribution {
@@ -131,15 +151,28 @@ export interface CanonicalWeeklyPlayerForecast {
   };
 
   availability: {
-    /** Heuristic chance of being active from injury designation. null = unknown or bye (a bye is not an injury). */
+    /**
+     * P(active) from the W1.P2 injury model. null = unknown (unrecognised status, or a bye — a bye is not an injury).
+     * Participation only: workload-if-active lives in `injury_model.workload_if_active`.
+     */
     probability_active: number | null;
+    /** Coarse status for display/back-compat. */
     status: AvailabilityStatus;
+    /** What the PROVIDER reported, verbatim (never normalised away — F1). */
     injury_status: string | null;
+    /** How Bloodline interpreted it. */
+    normalized_state: string;
+    availability_state: string;
     workload_state: string | null;
-    /** W1.P1 invariant: availability is metadata only and is NOT applied to `expected_points`. W1.P2 flips this. */
-    applied_to_expected_points: false;
-    basis: "injury_status_heuristic" | "bye_schedule" | "none";
+    /** The provider's own fixed availability heuristic, retained as provenance only (this is what W1.P1 reported as probability_active). */
+    source_heuristic_availability: number | null;
+    /** true only when the injury model changed `expected_points` (PRODUCTION mode and a non-zero delta / known-unavailable). */
+    applied_to_expected_points: boolean;
+    basis: "injury_model" | "bye_schedule" | "none";
   };
+
+  /** W1.P2 injury model output: source vs normalized status, P(active), workload, semantics guard, calibration state, evidence. */
+  injury_model: InjuryModelResult;
 
   role: ForecastComponent<{ state: unknown; adjustment_points: number; confidence: number | null }>;
   environment: ForecastComponent<{ adjustment_points: number; confidence: number | null }>;

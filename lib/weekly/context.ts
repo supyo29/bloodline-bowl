@@ -375,7 +375,9 @@ export async function buildWeeklyTeamContext(
     } else if (!projected || projected.projected_points == null) {
       // No projection AND not a proven bye -> UNKNOWN. Stays null / "unavailable".
       // We do NOT fabricate a 0 just because the team is absent from the feed.
-      if (projected && projected.projection_status !== "unavailable") {
+      // F1 (W1.P2): a source-reported "out" (gp = 0) is source truth and must survive; only a row that claims to be "projected" with no
+      // number is rewritten to "unavailable". Both leave projected_points null (unknown, never 0).
+      if (projected && projected.projection_status !== "unavailable" && projected.projection_status !== "out") {
         projections.by_player.set(p.canonical_player_id, { ...projected, projection_status: "unavailable" });
       }
     }

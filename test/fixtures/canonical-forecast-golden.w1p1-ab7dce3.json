@@ -1,0 +1,290 @@
+{
+ "g-def": {
+  "legacy": {
+   "projected_points": 6,
+   "projection_status": "projected",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 6,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 6
+ },
+ "g-def-bye": {
+  "legacy": {
+   "projected_points": 0,
+   "projection_status": "bye",
+   "expected_availability": 0,
+   "is_bye": true
+  },
+  "w1p1_expected_points": 0,
+  "w1p1_basis": "BYE_COMPAT_ZERO",
+  "w1p1_value_state": "BYE_VERIFIED",
+  "source_points": null
+ },
+ "g-def-injstr": {
+  "legacy": {
+   "projected_points": 5.5,
+   "projection_status": "projected",
+   "expected_availability": 0.78,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 5.5,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 5.5
+ },
+ "g-k": {
+  "legacy": {
+   "projected_points": 8.2,
+   "projection_status": "projected",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 8.2,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 8.2
+ },
+ "g-k-out": {
+  "legacy": {
+   "projected_points": 7.9,
+   "projection_status": "projected",
+   "expected_availability": 0.03,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 7.9,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 7.9
+ },
+ "g-k-q": {
+  "legacy": {
+   "projected_points": 8.2,
+   "projection_status": "projected",
+   "expected_availability": 0.78,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 8.2,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 8.2
+ },
+ "g-qb": {
+  "legacy": {
+   "projected_points": 22.4,
+   "projection_status": "projected",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 22.4,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 22.4
+ },
+ "g-qb-q-star": {
+  "legacy": {
+   "projected_points": 22,
+   "projection_status": "projected",
+   "expected_availability": 0.78,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 22,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 22
+ },
+ "g-rb-bye": {
+  "legacy": {
+   "projected_points": 0,
+   "projection_status": "bye",
+   "expected_availability": 0,
+   "is_bye": true
+  },
+  "w1p1_expected_points": 0,
+  "w1p1_basis": "BYE_COMPAT_ZERO",
+  "w1p1_value_state": "BYE_VERIFIED",
+  "source_points": 12
+ },
+ "g-rb-bye-q": {
+  "legacy": {
+   "projected_points": 0,
+   "projection_status": "bye",
+   "expected_availability": 0,
+   "is_bye": true
+  },
+  "w1p1_expected_points": 0,
+  "w1p1_basis": "BYE_COMPAT_ZERO",
+  "w1p1_value_state": "BYE_VERIFIED",
+  "source_points": null
+ },
+ "g-rb-ir": {
+  "legacy": {
+   "projected_points": 10,
+   "projection_status": "projected",
+   "expected_availability": 0.03,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 10,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 10
+ },
+ "g-rb-out-src": {
+  "legacy": {
+   "projected_points": null,
+   "projection_status": "unavailable",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": null,
+  "w1p1_basis": "UNKNOWN",
+  "w1p1_value_state": "PROJECTION_UNAVAILABLE",
+  "source_points": null
+ },
+ "g-rb-q": {
+  "legacy": {
+   "projected_points": 14.6,
+   "projection_status": "projected",
+   "expected_availability": 0.78,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 14.6,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 14.6
+ },
+ "g-rb-q-fringe": {
+  "legacy": {
+   "projected_points": 5,
+   "projection_status": "projected",
+   "expected_availability": 0.78,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 5,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 5
+ },
+ "g-rb-totals": {
+  "legacy": {
+   "projected_points": null,
+   "projection_status": "unavailable",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": null,
+  "w1p1_basis": "UNKNOWN",
+  "w1p1_value_state": "UNSUPPORTED_SCORING_DATA",
+  "source_points": null
+ },
+ "g-te-q-missing": {
+  "legacy": {
+   "projected_points": null,
+   "projection_status": "NO_ROW",
+   "expected_availability": null,
+   "is_bye": null
+  },
+  "w1p1_expected_points": null,
+  "w1p1_basis": "UNKNOWN",
+  "w1p1_value_state": "SOURCE_MISSING_PLAYER",
+  "source_points": null
+ },
+ "g-te-yahoo": {
+  "legacy": {
+   "projected_points": 7.7,
+   "projection_status": "projected",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 7.7,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 7.7
+ },
+ "g-te-yahoo-q": {
+  "legacy": {
+   "projected_points": 9,
+   "projection_status": "projected",
+   "expected_availability": 0.78,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 9,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 9
+ },
+ "g-te-zero": {
+  "legacy": {
+   "projected_points": 0,
+   "projection_status": "projected",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 0,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "KNOWN_ZERO_PROJECTION",
+  "source_points": 0
+ },
+ "g-wr-cov": {
+  "legacy": {
+   "projected_points": 11,
+   "projection_status": "projected",
+   "expected_availability": 1,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 11,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 11
+ },
+ "g-wr-doubtful": {
+  "legacy": {
+   "projected_points": 15,
+   "projection_status": "projected",
+   "expected_availability": 0.3,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 15,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 15
+ },
+ "g-wr-missing": {
+  "legacy": {
+   "projected_points": null,
+   "projection_status": "NO_ROW",
+   "expected_availability": null,
+   "is_bye": null
+  },
+  "w1p1_expected_points": null,
+  "w1p1_basis": "UNKNOWN",
+  "w1p1_value_state": "SOURCE_MISSING_PLAYER",
+  "source_points": null
+ },
+ "g-wr-out": {
+  "legacy": {
+   "projected_points": 9.1,
+   "projection_status": "projected",
+   "expected_availability": 0.03,
+   "is_bye": false
+  },
+  "w1p1_expected_points": 9.1,
+  "w1p1_basis": "SOURCE_PROJECTION",
+  "w1p1_value_state": "PROJECTED",
+  "source_points": 9.1
+ },
+ "g-wr-out-missing": {
+  "legacy": {
+   "projected_points": null,
+   "projection_status": "NO_ROW",
+   "expected_availability": null,
+   "is_bye": null
+  },
+  "w1p1_expected_points": null,
+  "w1p1_basis": "UNKNOWN",
+  "w1p1_value_state": "SOURCE_MISSING_PLAYER",
+  "source_points": null
+ }
+}

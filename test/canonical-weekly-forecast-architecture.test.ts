@@ -41,7 +41,8 @@ test("W1.P1: the weekly context attaches forecasts through the one batch builder
   assert.match(src, /forecasts,\n/);
 });
 
-/** Legacy direct readers as of W1.P1: each reads `projected_points` / `expected_availability` / `projection_status` / `is_bye` via a projection batch. */
+/** Legacy direct readers. W1.P1: 29 files. W1.P2: 28 (lib/weekly/lineup.ts now reads values only via forecast/view.ts). Must only ever shrink.
+ *  Original description: each reads `projected_points` / `expected_availability` / `projection_status` / `is_bye` via a projection batch. */
 const LEGACY_DIRECT_READERS = [
   "lib/draft/engine.ts",
   "lib/persistence/supabase/matchup2-capture.ts",
@@ -65,7 +66,6 @@ const LEGACY_DIRECT_READERS = [
   "lib/waiver2/context.ts",
   "lib/weekly/context.ts",
   "lib/weekly/intelligence.ts",
-  "lib/weekly/lineup.ts",
   "lib/weekly/matchup-intelligence/build.ts",
   "lib/weekly/matchup.ts",
   "lib/weekly/replacement.ts",
@@ -89,9 +89,38 @@ test("W1.P1 ratchet: no NEW file reads legacy weekly projection fields directly 
 });
 
 test("W1.P1: forecast modules are pure (no I/O, clock, randomness, or provider imports)", () => {
-  for (const f of readdirSync(join(ROOT, "lib/weekly/forecast"))) {
+  for (const f of readdirSync(join(ROOT, "lib/weekly/forecast")).filter((n) => n.endsWith(".ts"))) {
     const src = readFileSync(join(ROOT, "lib/weekly/forecast", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     assert.equal(/Date\.now|new Date\(|Math\.random|fetch\(|process\.env|from "node:fs"/.test(src), false, `${f} must stay pure`);
     assert.equal(/lib\/sleeper|lib\/providers|persistence/.test(src), false, `${f} must stay provider-neutral`);
   }
+});
+
+test("W1.P2 ratchet: the legacy-reader count only goes down (29 at W1.P1 -> 28 at W1.P2)", () => {
+  assert.equal(LEGACY_DIRECT_READERS.length, 28);
+  assert.equal(LEGACY_DIRECT_READERS.includes("lib/weekly/lineup.ts"), false);
+});
+
+test("W1.P2: the lineup optimizer reads per-player values only through the canonical decision view", () => {
+  const src = readFileSync(join(ROOT, "lib/weekly/lineup.ts"), "utf8");
+  assert.equal(/\.by_player/.test(src), false, "lineup.ts must not read projection rows directly");
+  assert.match(src, /decisionProjectionRows\(projections, input\.forecasts\)/);
+});
+
+test("W1.P2: only the injury model computes injury discounts (no other module multiplies a projection by an availability)", () => {
+  const offenders = files
+    .map((f) => ({ f: rel(f), src: readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "") }))
+    .filter(({ f }) => !f.endsWith("lib/weekly/forecast/injury-model.ts"))
+    .filter(({ src }) => /projected_points\s*\*\s*[\w.?]*(expected_availability|probability_active)|\b(expected_availability|probability_active)\s*\*\s*[\w.?]*projected_points/.test(src))
+    .map(({ f }) => f);
+  assert.deepEqual(offenders, []);
+});
+
+test("W1.P2: lineup and matchup (the migrated consumers) are the only production callers passing forecasts to the optimizer", () => {
+  const callers = files
+    .map((f) => ({ f: rel(f), src: readFileSync(f, "utf8") }))
+    .filter(({ f }) => f.startsWith("lib/") && /forecasts:\s*ctx\.forecasts/.test(readFileSync(join(ROOT, f), "utf8")))
+    .map(({ f }) => f)
+    .sort();
+  assert.deepEqual(callers, ["lib/weekly/intelligence.ts", "lib/weekly/matchup.ts"]);
 });
