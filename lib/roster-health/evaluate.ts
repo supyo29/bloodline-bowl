@@ -7,6 +7,7 @@
  * Deterministic and pure given those inputs.
  */
 
+import { isVerifiedBye } from "@/lib/weekly/forecast/bye";
 import { isFlexSlot, slotEligiblePositions } from "@/lib/weekly/slots";
 import { leagueSlotKeys } from "@/lib/team-state/slots";
 import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
@@ -55,7 +56,7 @@ export function evaluateHorizon(
   const benchIds = roster.bench.filter((id) => playerById.has(id));
 
   if (activePlayers.length < roster.all_players.length) reasons.push("UNKNOWN_PLAYER");
-  const missingProj = activeIds.filter((id) => proj(id) == null && projections.by_player.get(id)?.projection_status !== "bye");
+  const missingProj = activeIds.filter((id) => proj(id) == null && !isVerifiedBye(projections.by_player.get(id)));
   if (missingProj.length > 0) reasons.push(horizon === "weekly" ? "MISSING_WEEKLY_PROJECTION" : "MISSING_ROS_PROJECTION");
 
   const baseline: LineupValue = bestLegalLineup(roster, constraints, playerById, projections, week);

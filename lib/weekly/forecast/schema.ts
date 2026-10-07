@@ -150,6 +150,29 @@ export interface CanonicalWeeklyPlayerForecast {
     ceiling: number | null;
   };
 
+  /**
+   * W1.P3: the CURRENT-WEEK utility question, kept apart from the asset question. `current_week_points` always equals
+   * `projection.expected_points`; for a verified bye it is a known 0 while `underlying_points_if_game_played` keeps the
+   * player's football value (never the bye zero).
+   */
+  weekly_value: {
+    current_week_points: number | null;
+    current_week_state: "PLAYABLE" | "BYE" | "OUT" | "UNKNOWN" | "KNOWN_ZERO";
+    /** value if he had a game under comparable role/health; null = unknown (never fabricated as 0) */
+    underlying_points_if_game_played: number | null;
+    underlying_basis: "SOURCE_PROJECTION" | "SOURCE_PROJECTION_PRE_BYE" | "ROS_PER_WEEK_PROXY" | "UNAVAILABLE";
+  };
+
+  /** W1.P3: why current-week value may differ from asset value. Decision layers (drop/keep) read this, never infer it from a zero. */
+  asset_context: {
+    /** BYE wins when both apply (the current week IS a bye); the injury designation stays in `injury_model`. */
+    temporary_unavailability_reason: "BYE" | "INJURY" | null;
+    /** true when current_week_points is 0 only because of the bye */
+    bye_suppressed_current_week: boolean;
+    /** true when an underlying/forward value exists to hold against (not a calibrated asset valuation) */
+    forward_value_available: boolean;
+  };
+
   availability: {
     /**
      * P(active) from the W1.P2 injury model. null = unknown (unrecognised status, or a bye — a bye is not an injury).

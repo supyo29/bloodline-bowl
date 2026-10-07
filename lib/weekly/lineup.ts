@@ -28,6 +28,7 @@
  * start/sit move and produces no projected gain.
  */
 
+import { isVerifiedBye } from "./forecast/bye";
 import { decisionProjectionRows } from "./forecast/view";
 import type { CanonicalWeeklyForecastBatch } from "./forecast/schema";
 import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
@@ -157,7 +158,7 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
   /** KNOWN | VERIFIED_ZERO (schedule-proven bye) | UNKNOWN (no projection). */
   const projState = (id: string): ProjectionState => {
     const p = proj(id);
-    if (p && p.projection_status === "bye") return "VERIFIED_ZERO";
+    if (p && isVerifiedBye(p)) return "VERIFIED_ZERO";
     if (p && p.projected_points != null) return "KNOWN";
     return "UNKNOWN";
   };
@@ -409,7 +410,7 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
     }));
 
   const bye_problems = slotRecs
-    .filter((r) => r.recommended_player_id && proj(r.recommended_player_id!)?.projection_status === "bye")
+    .filter((r) => r.recommended_player_id && isVerifiedBye(proj(r.recommended_player_id!)))
     .map((r) => ({ canonical_player_id: r.recommended_player_id!, slot: r.slot }));
 
   const empty_slots = slotRecs.filter((r) => !r.recommended_player_id).map((r) => r.slot);
@@ -425,7 +426,7 @@ export function buildOptimalLineup(input: BuildInput): LineupResult {
       illegal.push(`current starter ${pl.full_name} is not eligible for slot ${r.slot} (#${i + 1}).`);
     }
     const cp = proj(r.current_player_id);
-    if (cp?.projection_status === "bye") illegal.push(`current starter in slot ${r.slot} is on bye this week.`);
+    if (isVerifiedBye(cp)) illegal.push(`current starter in slot ${r.slot} is on bye this week.`);
   });
   for (const [id, n] of seenCurrent) {
     if (n > 1) illegal.push(`player ${id} is started in ${n} slots simultaneously.`);
@@ -503,7 +504,7 @@ function lineupReason(x: {
     return `unresolved ${x.slot}: a projection is missing — cannot quantify or confidently recommend this change.`;
   }
   const gain = x.diff != null ? `+${x.diff.toFixed(1)}` : "?";
-  const byeNote = x.curP?.projection_status === "bye" ? " current starter is on bye." : "";
+  const byeNote = isVerifiedBye(x.curP) ? " current starter is on bye." : "";
   const injNote =
     x.curP && x.curP.expected_availability < 0.8 ? ` current starter is ${x.curP.injury_status ?? "questionable"}.` : "";
   return `start over current ${x.slot}: ${gain} projected${byeNote}${injNote}`.trim();

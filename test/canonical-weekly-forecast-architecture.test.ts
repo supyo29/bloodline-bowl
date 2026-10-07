@@ -124,3 +124,49 @@ test("W1.P2: lineup and matchup (the migrated consumers) are the only production
     .sort();
   assert.deepEqual(callers, ["lib/weekly/intelligence.ts", "lib/weekly/matchup.ts"]);
 });
+
+/**
+ * W1.P3 bye-semantics ratchet. Before W1.P3, independent bye logic lived in 9 files (8 predicate sites + 3 zero producers). Now there is
+ * ONE canonical module (lib/weekly/forecast/bye.ts) and exactly two sanctioned exceptions, both documented. A new independent bye
+ * predicate or bye-zero producer fails here: ask `isVerifiedBye` / build the row with `verifiedByeRow` instead.
+ */
+const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+const BYE_PREDICATE = /projection_status\s*[!=]==?\s*"bye"/;
+const BYE_ZERO_PRODUCER = /projection_status:\s*"bye"|onBye\s*\?\s*0\s*:/;
+
+test("W1.P3 ratchet: independent bye PREDICATES — only the canonical helper and documented exceptions", () => {
+  const ALLOWED = new Set([
+    "lib/waiver2/roster.ts", // Waiver Intelligence 2.0 is SHADOW_ONLY and deliberately untouched in W1.P3 (same semantics; documented)
+  ]);
+  const found = files
+    .map((f) => ({ f: rel(f), src: stripComments(readFileSync(f, "utf8")) }))
+    .filter(({ f }) => !f.startsWith("lib/weekly/forecast/"))
+    .filter(({ src }) => BYE_PREDICATE.test(src))
+    .map(({ f }) => f)
+    .filter((f) => !ALLOWED.has(f));
+  assert.deepEqual(found, [], `new independent bye predicate(s) — use isVerifiedBye(): ${found.join(", ")}`);
+});
+
+test("W1.P3 ratchet: independent bye-ZERO producers — the verified-bye row is built in one place", () => {
+  const ALLOWED = new Set([
+    // per-FUTURE-WEEK utility basis for schedule planning: a bye is legitimately 0 for THAT week's lineup; it is not an asset value
+    "lib/schedule-planning/evaluate.ts",
+  ]);
+  const found = files
+    .map((f) => ({ f: rel(f), src: stripComments(readFileSync(f, "utf8")) }))
+    .filter(({ f }) => !f.startsWith("lib/weekly/forecast/"))
+    .filter(({ src }) => BYE_ZERO_PRODUCER.test(src))
+    .map(({ f }) => f)
+    .filter((f) => !ALLOWED.has(f));
+  assert.deepEqual(found, [], `new independent bye-zero producer(s) — use verifiedByeRow(): ${found.join(", ")}`);
+});
+
+test("W1.P3: the two production bye-row builders (context, trade ROS) both go through verifiedByeRow", () => {
+  for (const f of ["lib/weekly/context.ts", "lib/trades/ros.ts"]) {
+    assert.match(readFileSync(join(ROOT, f), "utf8"), /verifiedByeRow\(/, f);
+  }
+});
+
+test("W1.P3: legacy direct-reader count did not increase (28 at W1.P2, 28 at W1.P3)", () => {
+  assert.ok(LEGACY_DIRECT_READERS.length <= 28);
+});

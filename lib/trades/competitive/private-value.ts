@@ -14,6 +14,7 @@
  * `lib/weekly/schema.ts` `RosSignal`).
  */
 
+import { holdWeeklyValue, isVerifiedBye } from "@/lib/weekly/forecast/bye";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjectionBatch, WeeklyReplacement } from "@/lib/weekly/schema";
 import { weeklyVOR } from "@/lib/weekly/replacement";
@@ -36,7 +37,7 @@ export interface PlayerPrivateValue {
    * `weekly_vor` — fallback: current-week projected points → VOR, when no RI
    *   season projection exists for the player.
    */
-  basis: "ri_ros_weekly_vor" | "weekly_vor" | "unavailable";
+  basis: "ri_ros_weekly_vor" | "ros_weekly_vor" | "weekly_vor" | "unavailable";
   projected_points: number | null;
   ri_position_rank: number | null;
   ri_season_vor: number | null;
@@ -79,11 +80,24 @@ export function buildPrivateValues(input: {
         basis = "ri_ros_weekly_vor";
       }
     }
-    if (raw == null && pts != null) {
+    // W1.P3: a verified bye zeroes THIS week only. It must not become the player's asset value, so a bye player never falls back to the
+    // current-week VOR; he uses the bye-neutral hold value (existing ROS spread over remaining weeks) or stays unavailable.
+    const onBye = isVerifiedBye(wp);
+    if (raw == null && pts != null && !onBye) {
       const v = weeklyVOR(cid, position, pts, replacement);
       if (v.vor != null) {
         raw = v.vor;
         basis = "weekly_vor";
+      }
+    }
+    if (raw == null && onBye) {
+      const hold = holdWeeklyValue({ row: wp, week: wp?.week ?? 1 });
+      if (hold.points != null) {
+        const v = weeklyVOR(cid, position, hold.points, replacement);
+        if (v.vor != null) {
+          raw = v.vor;
+          basis = "ros_weekly_vor";
+        }
       }
     }
 
@@ -93,6 +107,8 @@ export function buildPrivateValues(input: {
     const riConf = wp?.ros?.ri_confidence ?? null;
     if (riConf && RI_CONF_MAP[riConf]) {
       confidence = RI_CONF_MAP[riConf];
+    } else if (onBye) {
+      confidence = raw != null ? "LOW" : "VERY_LOW"; // hold value is a crude ROS spread, never a calibrated asset value
     } else if (pts != null && projections.status === "READY") {
       confidence = "MEDIUM";
     } else if (pts != null) {

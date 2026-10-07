@@ -29,6 +29,8 @@ export function horizonBatch(
       ceiling_points: pts != null ? pts * 1.3 : null,
       std_dev: pts != null ? pts * 0.3 : null,
       projection_status: pts != null ? "projected" : wp.projection_status,
+      // a non-current-week horizon (ROS) has its own value per player: the CURRENT week's bye state does not apply to it
+      is_bye: pts != null ? false : wp.is_bye,
     });
   }
   return { ...base, by_player };

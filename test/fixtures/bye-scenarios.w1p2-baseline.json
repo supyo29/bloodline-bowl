@@ -1,0 +1,106 @@
+{
+ "A valuable player on bye": {
+  "add": "faWR",
+  "drop": "A",
+  "drop_cost": -6.2,
+  "net": 6,
+  "starter_impact": 2.5,
+  "n": 1
+ },
+ "A-cf same player, bye removed, underlying value kept": {
+  "add": "faWR",
+  "drop": "B",
+  "drop_cost": -4.5,
+  "net": 1,
+  "starter_impact": 1,
+  "n": 1
+ },
+ "B marginal bye player (poor forward value)": {
+  "add": "faWR",
+  "drop": "A",
+  "drop_cost": -11,
+  "net": 6,
+  "starter_impact": 2.5,
+  "n": 1
+ },
+ "C two bye players (elite + fringe)": {
+  "add": "faWR",
+  "drop": "B",
+  "drop_cost": -11,
+  "net": 6,
+  "starter_impact": 2.5,
+  "n": 1
+ },
+ "D entire bench plays, all weak": {
+  "add": "faWR",
+  "drop": "A",
+  "drop_cost": -6.2,
+  "net": 8.5,
+  "starter_impact": 5,
+  "n": 1
+ },
+ "E open roster spot": {
+  "add": "faWR",
+  "drop": null,
+  "drop_cost": 0,
+  "net": 6,
+  "starter_impact": 2.5,
+  "n": 1
+ },
+ "F no useful waiver add": {
+  "add": null,
+  "drop": null,
+  "drop_cost": null,
+  "net": null,
+  "starter_impact": null,
+  "n": 0
+ },
+ "G injured valuable player (Out, source 24)": {
+  "add": "faWR",
+  "drop": "B",
+  "drop_cost": -4.5,
+  "net": 4.5,
+  "starter_impact": 1,
+  "n": 1
+ },
+ "H bye + injury designation": {
+  "add": "faWR",
+  "drop": "A",
+  "drop_cost": -6.2,
+  "net": 6,
+  "starter_impact": 2.5,
+  "n": 1
+ },
+ "I known zero projection, not a bye": {
+  "add": "faWR",
+  "drop": "A",
+  "drop_cost": -11,
+  "net": 2.5,
+  "starter_impact": 2.5,
+  "n": 1
+ },
+ "J missing projection (unknown, not bye)": {
+  "add": null,
+  "drop": null,
+  "drop_cost": null,
+  "net": null,
+  "starter_impact": null,
+  "n": 0
+ },
+ "K streaming kicker on bye": {
+  "add": "faWR",
+  "drop": "k1",
+  "drop_cost": -9,
+  "net": 12.15,
+  "starter_impact": 9,
+  "n": 1
+ },
+ "L valuable DST on bye": {
+  "add": "faWR",
+  "drop": "B",
+  "drop_cost": -4.5,
+  "net": 2.5,
+  "starter_impact": 2.5,
+  "n": 1
+ }
+}

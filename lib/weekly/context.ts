@@ -32,6 +32,7 @@ import { getProvider } from "@/lib/providers/registry";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { getWeeklyProjectionProvider } from "./projections/registry";
 import { buildCanonicalForecastBatch } from "./forecast/build";
+import { isVerifiedBye, verifiedByeRow } from "./forecast/bye";
 import { getScheduleProvider } from "./schedule/registry";
 import type { ScheduleProvider } from "./schedule/types";
 import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
@@ -348,29 +349,23 @@ export async function buildWeeklyTeamContext(
       byeSourcePoints.set(p.canonical_player_id, projected?.projected_points ?? null);
       // A bye is a genuine 0 (the player will not play). Overrides any stale
       // feed entry.
-      projections.by_player.set(p.canonical_player_id, {
-        canonical_player_id: p.canonical_player_id,
-        week,
-        season: league.season,
-        position: p.position,
-        nfl_team: p.nfl_team,
-        opponent: null,
-        is_home: null,
-        projected_points: 0,
-        floor_points: 0,
-        ceiling_points: 0,
-        std_dev: 0,
-        projection_status: "bye",
-        expected_availability: 0,
-        is_bye: true,
-        injury_status: p.injury_status,
-        rest_of_season_points: projected?.rest_of_season_points ?? null,
-        ros: projected?.ros ?? null,
-        source: projections.source,
-        model_version: projections.model_version,
-        uncertainty_source: "none",
-        warnings: ["bye_verified_by_schedule"],
-      });
+      projections.by_player.set(
+        p.canonical_player_id,
+        verifiedByeRow({
+          canonical_player_id: p.canonical_player_id,
+          week,
+          season: league.season,
+          position: p.position,
+          nfl_team: p.nfl_team,
+          injury_status: p.injury_status,
+          rest_of_season_points: projected?.rest_of_season_points ?? null,
+          ros: projected?.ros ?? null,
+          source: projections.source,
+          model_version: projections.model_version,
+          warnings: ["bye_verified_by_schedule"],
+          band: "ZERO",
+        }),
+      );
       if (roster.starters.includes(p.canonical_player_id)) startersOnBye.push(p.canonical_player_id);
     } else if (!projected || projected.projected_points == null) {
       // No projection AND not a proven bye -> UNKNOWN. Stays null / "unavailable".
@@ -395,7 +390,7 @@ export async function buildWeeklyTeamContext(
   // Anything still without a usable projection after bye handling is genuinely
   // unknown — it stays null, never 0.
   const stillMissing = allRosteredIds.filter(
-    (id) => (projections.by_player.get(id)?.projected_points ?? null) == null && projections.by_player.get(id)?.projection_status !== "bye",
+    (id) => (projections.by_player.get(id)?.projected_points ?? null) == null && !isVerifiedBye(projections.by_player.get(id)),
   );
   projections.missing = stillMissing;
 
@@ -525,7 +520,7 @@ export async function buildWeeklyTeamContext(
   };
 
   const rosterProjected = roster.all_players.filter(
-    (id) => projections.by_player.get(id)?.projected_points != null || projections.by_player.get(id)?.projection_status === "bye",
+    (id) => projections.by_player.get(id)?.projected_points != null || isVerifiedBye(projections.by_player.get(id)),
   ).length;
 
   // Phase 4: orthogonal readiness axes. Never derive market availability from

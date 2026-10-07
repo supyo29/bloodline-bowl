@@ -12,6 +12,7 @@
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "../schema";
 import { PROJECTION_SNAPSHOT_MAX_AGE_MS } from "../projections/canonical-snapshot";
+import { holdHorizonWeeks } from "./bye";
 import {
   SOURCE_INJURY_SEMANTICS,
   evaluateInjuryModel,
@@ -292,6 +293,39 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
   addShadow(sh.environment, "GAME_ENVIRONMENT", "ENVIRONMENT");
   addShadow(sh.matchup, "MATCHUP_INTELLIGENCE", "MATCHUP");
 
+  // ---- W1.P3 current-week vs underlying value ----------------------------------------------------------
+  let underlying: number | null;
+  let underlyingBasis: CanonicalWeeklyPlayerForecast["weekly_value"]["underlying_basis"];
+  if (isBye) {
+    if (sourcePoints != null) {
+      underlying = sourcePoints;
+      underlyingBasis = "SOURCE_PROJECTION_PRE_BYE";
+    } else if (p?.rest_of_season_points != null) {
+      underlying = r2(p.rest_of_season_points / holdHorizonWeeks(input.week));
+      underlyingBasis = "ROS_PER_WEEK_PROXY"; // crude, uncalibrated: spreads the existing ROS projection over remaining weeks
+    } else {
+      underlying = null;
+      underlyingBasis = "UNAVAILABLE";
+    }
+  } else {
+    underlying = conditionalActive;
+    underlyingBasis = conditionalActive == null ? "UNAVAILABLE" : "SOURCE_PROJECTION";
+  }
+  const weeklyValue: CanonicalWeeklyPlayerForecast["weekly_value"] = {
+    current_week_points: expected,
+    current_week_state: isBye
+      ? "BYE"
+      : valueState === "KNOWN_UNAVAILABLE"
+        ? "OUT"
+        : expected == null
+          ? "UNKNOWN"
+          : valueState === "KNOWN_ZERO_PROJECTION"
+            ? "KNOWN_ZERO"
+            : "PLAYABLE",
+    underlying_points_if_game_played: underlying,
+    underlying_basis: underlyingBasis,
+  };
+
   const injuryText = p?.injury_status ?? player?.injury_status ?? null;
   const known = Boolean(p) || Boolean(player);
   const status = availabilityStatusOf(injury.normalized_state, isBye, known);
@@ -362,6 +396,12 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
       floor: p && !isBye ? p.floor_points : null,
       median: null, // not modeled by any current source
       ceiling: p && !isBye ? p.ceiling_points : null,
+    },
+    weekly_value: weeklyValue,
+    asset_context: {
+      temporary_unavailability_reason: isBye ? "BYE" : valueState === "KNOWN_UNAVAILABLE" ? "INJURY" : null,
+      bye_suppressed_current_week: isBye,
+      forward_value_available: weeklyValue.underlying_points_if_game_played != null || (p?.rest_of_season_points ?? null) != null,
     },
     availability: {
       probability_active: isBye ? null : injury.probability_active,

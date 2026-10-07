@@ -14,6 +14,7 @@
  * thin to simulate defensibly. It is NOT a spread-to-probability conversion.
  */
 
+import { isVerifiedBye } from "./forecast/bye";
 import { buildOptimalLineup, type LineupResult } from "./lineup";
 import { mulberry32, sampleNormal } from "./uncertainty";
 import { decisionProjectionRows } from "./forecast/view";
@@ -402,7 +403,7 @@ export function drawSpec(
     if (!s.recommended_player_id) continue;
     const wp = rows.get(s.recommended_player_id);
     // null (non-bye) is UNKNOWN, never a known 0. A verified bye / known-unavailable carries an explicit 0 and is a legitimate draw.
-    if (!wp || (wp.projected_points == null && wp.projection_status !== "bye")) {
+    if (!wp || (wp.projected_points == null && !isVerifiedBye(wp))) {
       unknown.push(s.recommended_player_id);
       continue;
     }
@@ -443,7 +444,7 @@ function suspectBaseFamilies(
   for (const p of rostered) {
     if (reserve.has(p.canonical_player_id)) continue;
     const wp = ctx.projections.by_player.get(p.canonical_player_id);
-    const unknown = !wp || (wp.projected_points == null && wp.projection_status !== "bye");
+    const unknown = !wp || (wp.projected_points == null && !isVerifiedBye(wp));
     if (!unknown) continue;
     const positions = [p.position, ...p.eligible_positions];
     for (const pos of positions) s.add(baseOf(pos));
@@ -465,7 +466,7 @@ function benchTop3(ctx: WeeklyTeamContext, bench: string[]): { total: number; un
   const pts = bench
     .map((id) => {
       const wp = rows.get(id);
-      if (!wp || (wp.projected_points == null && wp.projection_status !== "bye")) {
+      if (!wp || (wp.projected_points == null && !isVerifiedBye(wp))) {
         unknown += 1;
         return null;
       }

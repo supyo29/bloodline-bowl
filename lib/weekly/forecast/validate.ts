@@ -68,6 +68,22 @@ export function validateForecastInvariants(f: CanonicalWeeklyPlayerForecast): st
     if (f.projection.conditional_active_points === 0 && f.projection.source_points == null) v.push("BYE_CONDITIONAL_ZERO_FABRICATED");
   }
 
+  // 5b. W1.P3 current-week vs asset semantics
+  const wv = f.weekly_value;
+  const ac = f.asset_context;
+  if (wv.current_week_points !== f.projection.expected_points) v.push("WEEKLY_VALUE_NEQ_EXPECTED_POINTS");
+  if (f.game_status.is_bye) {
+    if (wv.current_week_points !== 0 || wv.current_week_state !== "BYE") v.push("BYE_CURRENT_WEEK_NOT_KNOWN_ZERO");
+    if (!ac.bye_suppressed_current_week || ac.temporary_unavailability_reason !== "BYE") v.push("BYE_ASSET_CONTEXT_MISSING");
+    if (wv.underlying_points_if_game_played === 0 && wv.underlying_basis !== "SOURCE_PROJECTION_PRE_BYE") v.push("BYE_UNDERLYING_FABRICATED_ZERO");
+  } else {
+    if (wv.current_week_state === "BYE" || ac.bye_suppressed_current_week || ac.temporary_unavailability_reason === "BYE") v.push("BYE_STATE_ON_NON_BYE_PLAYER");
+  }
+  if (wv.current_week_state === "UNKNOWN" && wv.current_week_points != null) v.push("UNKNOWN_STATE_CARRIES_CURRENT_WEEK_POINTS");
+  if (wv.current_week_state === "KNOWN_ZERO" && (wv.current_week_points !== 0 || f.game_status.is_bye)) v.push("KNOWN_ZERO_STATE_INVALID");
+  if (wv.underlying_basis === "UNAVAILABLE" && wv.underlying_points_if_game_played != null) v.push("UNDERLYING_VALUE_WITHOUT_BASIS");
+  if (wv.underlying_points_if_game_played != null && !ac.forward_value_available) v.push("FORWARD_VALUE_FLAG_INCONSISTENT");
+
   // 6. null = unknown: an unknown value state may never carry a number
   const unknownStates = ["SOURCE_MISSING_PLAYER", "SOURCE_FETCH_FAILURE", "PLAYER_NOT_FOUND", "PLAYER_OUT_IN_SOURCE", "UNSUPPORTED_SCORING_DATA", "PROJECTION_UNAVAILABLE", "NO_SCHEDULED_GAME", "UNKNOWN"];
   if (unknownStates.includes(f.value_state) && f.projection.expected_points != null) v.push("UNKNOWN_STATE_CARRIES_NUMBER");
