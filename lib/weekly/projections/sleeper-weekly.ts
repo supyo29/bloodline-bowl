@@ -302,7 +302,9 @@ export class SleeperWeeklyProjectionProvider implements ProjectionProvider {
       const hasComponentStats = keys.some((k) => !NON_SCORING_KEY.test(k) && !/^pts_/.test(k));
 
       if (pos === "K" || pos === "DEF") {
-        const std = Number(stats.pts_std);
+        // W1.R2 (L3): a null / missing `pts_std` is UNKNOWN, never a known 0 (`Number(null)` is 0 — a K/DST row carrying `pts_std: null`
+        // used to become a projected, "known" zero)
+        const std = stats.pts_std == null ? Number.NaN : Number(stats.pts_std);
         points = hasAnyStatKey && Number.isFinite(std) ? Math.round(std * 100) / 100 : null;
         if (points != null) {
           kdefApproximated += 1;

@@ -6,7 +6,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { holdWeeklyValue, isVerifiedBye } from "../lib/weekly/forecast/bye";
+import { isVerifiedBye } from "../lib/weekly/forecast/bye";
+import { holdWeeklyValue } from "../lib/weekly/forecast/asset";
 import { rosFromSeasonPoints } from "../lib/weekly/ros";
 import { buildWaiverRecommendations } from "../lib/weekly/waivers";
 import type { WeeklyTeamContext } from "../lib/weekly/schema";

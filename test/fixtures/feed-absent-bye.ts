@@ -35,6 +35,8 @@ export interface FeedAbsentByeOptions {
   subjectPos?: Pos;
   /** weeks (current week for the context) */
   week?: number;
+  /** W1.R2: the subject's provider identity. null = NO sleeper id (a Yahoo-only player): the RI benchmark can then only be found by canonical id. */
+  subjectSleeperId?: string | null;
 }
 
 export function buildPlayers(o: FeedAbsentByeOptions): P[] {
@@ -59,10 +61,15 @@ export function buildPlayers(o: FeedAbsentByeOptions): P[] {
   ];
 }
 
-const mk = (p: P): CanonicalPlayer => ({ ...player(p.id, p.pos, { team: p.team, name: p.id, injury: p.injury ?? null }), identifiers: { sleeper_id: p.id } });
+let subjectSleeperId: string | null = "A";
+const mk = (p: P): CanonicalPlayer => {
+  const sid = p.id === "A" ? subjectSleeperId : p.id;
+  return { ...player(p.id, p.pos, { team: p.team, name: p.id, injury: p.injury ?? null }), identifiers: sid ? { sleeper_id: sid } : { yahoo_player_key: `nfl.p.${p.id}` } };
+};
 
 export async function feedAbsentByeContext(o: FeedAbsentByeOptions = {}): Promise<WeeklyTeamContext> {
   setPersistence(memoryPersistence());
+  subjectSleeperId = o.subjectSleeperId === undefined ? "A" : o.subjectSleeperId;
   const week = o.week ?? 5;
   const ps = buildPlayers(o);
   const fa: P = { id: "faWR", pos: "WR", team: "KC", pts: 11, ros: 130 };
@@ -124,7 +131,7 @@ export async function feedAbsentByeContext(o: FeedAbsentByeOptions = {}): Promis
     name: "fixture_ri",
     async getSeasonSignal() {
       const e: RiSeasonEntry = { sleeper_player_id: "A", canonical_player_id: "A", ri_season_points: o.riSeasonPoints!, ri_vor: null, ri_vor_rank: null, ri_position_rank: null, ri_tier: null, ri_confidence: null, external_season_points: o.riSeasonPoints!, disagreement_pct: null, primary_driver: null };
-      return { status: "READY", model_version: "fixture", by_sleeper_id: new Map([["A", e]]), by_canonical_id: new Map([["A", e]]), warning: null };
+      return { status: "READY", model_version: "fixture", by_sleeper_id: subjectSleeperId ? new Map([[subjectSleeperId, e]]) : new Map(), by_canonical_id: new Map([["A", e]]), warning: null };
     },
   };
   const r = await buildWeeklyTeamContext("bloodline-bowl", "supyo29", {

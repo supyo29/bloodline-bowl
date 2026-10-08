@@ -60,6 +60,11 @@ export class CanonicalProjectionSnapshotProvider implements ProjectionProvider {
     this.#ledger = deps.ledger ?? new InvalidationLedger();
   }
 
+  /** W1.R2: the clock forecasts composed from this provider's evidence are stamped with (read at composition time by the caller). */
+  now(): number {
+    return this.#now();
+  }
+
   get ledger(): InvalidationLedger {
     return this.#ledger;
   }
@@ -80,6 +85,7 @@ export class CanonicalProjectionSnapshotProvider implements ProjectionProvider {
       ...batch,
       freshness_context: {
         now_ms: nowMs,
+        request_started_ms: nowMs,
         game_clock: games ? { games, source: this.#kickoff?.name ?? "unknown" } : null,
         events: this.#events(nowMs),
         refresh,

@@ -51,6 +51,11 @@ export interface ProjectionProvider {
   readonly model_version: string;
   /** Weekly projections for the requested players, in the league's scoring. */
   getWeeklyProjections(req: ProjectionRequest): Promise<WeeklyProjectionBatch>;
+  /**
+   * W1.R2: the provider's clock. A forecast composed from this provider's evidence is stamped by reading it AT COMPOSITION (after every input,
+   * including any live fetch, is in hand) — never the instant a request started. Optional: a provider without a clock yields no composition time.
+   */
+  now?(): number;
 }
 
 export type { WeeklyProjection, WeeklyProjectionBatch };

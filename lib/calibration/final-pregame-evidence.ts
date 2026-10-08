@@ -16,7 +16,7 @@
 import { contentHash } from "@/lib/bridge/hash";
 import { normalizeTeamCode } from "@/lib/canonical/team-codes";
 import { sleeperIdFromCanonicalId } from "@/lib/canonical/team-defense";
-import type { FinalPregameRecord } from "@/lib/weekly/freshness/final-pregame";
+import { decideCandidate, selectFinalRevision, type FinalPregameRecord } from "@/lib/weekly/freshness/final-pregame";
 import type { SupabaseRest } from "@/lib/persistence/supabase/rest";
 import type { PlayerIdentity } from "./case-builder";
 import { scoringExactness } from "./outcome";
@@ -36,6 +36,42 @@ export async function readFinalPregameRevisions(rest: SupabaseRest, league: stri
     if (rows.length < 1000) break;
   }
   return out;
+}
+
+/** W1.R2: the final POINTER per player (`forecast_id` of the revision the store's DB-guarded pointer names). Pre-R1 pointer rows carry none. */
+export async function readFinalPregamePointers(rest: SupabaseRest, league: string, season: number, week: number): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let offset = 0; ; offset += 1000) {
+    const rows = await rest.select<{ canonical_player_id: string; forecast_id: string | null }>("bridge_final_pregame_forecasts", {
+      filter: { league_slug: `eq.${league}`, season: `eq.${season}`, week: `eq.${week}` },
+      select: "canonical_player_id,forecast_id", order: "canonical_player_id.asc", limit: 1000, offset,
+    });
+    for (const r of rows) if (r.forecast_id) out.set(r.canonical_player_id, r.forecast_id);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
+/**
+ * W1.R2: the ONE final revision per player that the ledger grades. Authority: the store's final POINTER — it is advanced only through the
+ * DB-guarded rule (never backwards on observation or composition) and it carries confirmations, so after a race or a stale read the ledger
+ * grades exactly what the store froze (re-audit: re-deriving a "final" from revisions alone could pick a belief a newer confirmation had already
+ * superseded). Only when a player has no pointer (or its revision is missing) does the deterministic `selectFinalRevision` decide.
+ */
+export function finalRevisionPerPlayer(revisions: readonly FinalPregameRecord[], pointers: ReadonlyMap<string, string> = new Map()): FinalPregameRecord[] {
+  const by = new Map<string, FinalPregameRecord[]>();
+  for (const r of revisions) {
+    const k = `${r.league_slug}|${r.season}|${r.week}|${r.canonical_player_id}`;
+    (by.get(k) ?? by.set(k, []).get(k)!).push(r);
+  }
+  return [...by.values()]
+    .map((g) => {
+      const pointed = pointers.get(g[0]!.canonical_player_id);
+      // the pointed revision must itself be valid pregame evidence (defense in depth for rows written by an older writer); else the rule decides
+      const viaPointer = pointed ? g.find((r) => r.forecast_id === pointed && decideCandidate(null, r) === "RECORDED") : undefined;
+      return viaPointer ?? selectFinalRevision(g);
+    })
+    .filter((r): r is FinalPregameRecord => r != null);
 }
 
 export function identityFromFinalPregame(r: FinalPregameRecord): PlayerIdentity {

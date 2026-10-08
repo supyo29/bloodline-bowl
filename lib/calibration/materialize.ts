@@ -18,7 +18,7 @@ import { readCaseHeads, writeCases, writeFootballOutcomes, writeGames, type Writ
 import type { WeatherSnapshotRow } from "./weather";
 import type { NflGame, ProjectionCandidate } from "./types";
 import { sleeperIdFromCanonicalId } from "@/lib/canonical/team-defense";
-import { candidateFromFinalPregame, identityFromFinalPregame, readFinalPregameRevisions } from "./final-pregame-evidence";
+import { candidateFromFinalPregame, finalRevisionPerPlayer, identityFromFinalPregame, readFinalPregamePointers, readFinalPregameRevisions } from "./final-pregame-evidence";
 
 interface SnapshotMeta { artifact_id: string; content_hash: string; league_slug: string; scoring_fingerprint: string; request_fingerprint: string; source: string; model_version: string; recorded_at: string; warnings: string[] }
 interface SnapshotPlayer { canonical_player_id: string; projection: Record<string, unknown>; resolved_player: Record<string, unknown> | null }
@@ -155,7 +155,10 @@ export async function materializeCalibrationWeek(args: MaterializeArgs): Promise
       }
     }
     // W1.R1 (G3): the FINAL canonical forecasts users actually received (immutable revisions), scored under THIS league's scoring
-    for (const rev of await readFinalPregameRevisions(rest, league.league_slug, args.season, args.week).catch(() => [])) {
+    // W1.R2: the ledger grades exactly the revision the store's final POINTER names (DB-guarded, carries confirmations); only a player with no
+    // pointer falls back to the deterministic `selectFinalRevision`. One authority — the ledger and the store cannot disagree.
+    const pointers = await readFinalPregamePointers(rest, league.league_slug, args.season, args.week).catch(() => new Map<string, string>());
+    for (const rev of finalRevisionPerPlayer(await readFinalPregameRevisions(rest, league.league_slug, args.season, args.week).catch(() => []), pointers)) {
       const cand = candidateFromFinalPregame(rev, league.raw_scoring);
       if (!cand) continue;
       if (!snapshotIdentities.has(rev.canonical_player_id)) snapshotIdentities.set(rev.canonical_player_id, identityFromFinalPregame(rev));

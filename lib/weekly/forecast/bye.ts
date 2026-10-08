@@ -36,34 +36,10 @@ export type HoldBasis =
   /** bye and nothing to ground a forward value: UNKNOWN, never zero */
   | "UNAVAILABLE";
 
-export interface HoldWeeklyValue {
-  /** per-week hold value in league points; null = unknown (NOT 0) */
-  points: number | null;
-  basis: HoldBasis;
-}
-
 /**
- * Per-week value to use when the question is "what asset am I giving up?" (drop side).
- * - not on bye: the legacy current-week projection (so every non-bye decision is numerically unchanged)
- * - verified bye: the underlying value with the bye effect removed — pre-bye source projection if present, else ROS ÷ remaining weeks
- *   (no calibration claim), else unknown
- * A bye NEVER yields 0 here merely because he is on bye.
+ * W1.R2: the hold (asset) value lives in ONE place — `canonicalAssetValue` / `holdWeeklyValue` in ./asset.ts — and covers injury as well as
+ * bye. This module keeps only the bye interpretation (`isVerifiedBye`, `verifiedByeRow`, `deriveForwardRow`) and the shared horizon constant.
  */
-export function holdWeeklyValue(args: {
-  row: WeeklyProjection | null | undefined;
-  /** canonical forecast for the player, if the context has one (preferred source of the pre-bye underlying value) */
-  underlying_points?: number | null;
-  week: number;
-}): HoldWeeklyValue {
-  const { row } = args;
-  if (!row) return { points: null, basis: "UNAVAILABLE" };
-  if (!isVerifiedBye(row)) return { points: row.projected_points, basis: "CURRENT_WEEK_NOT_BYE" };
-  if (args.underlying_points != null) return { points: args.underlying_points, basis: "SOURCE_PROJECTION_PRE_BYE" };
-  if (row.rest_of_season_points != null) {
-    return { points: Math.round((row.rest_of_season_points / holdHorizonWeeks(args.week)) * 100) / 100, basis: "ROS_PER_WEEK_PROXY" };
-  }
-  return { points: null, basis: "UNAVAILABLE" };
-}
 
 /**
  * THE single producer of a verified-bye projection row: current-week value is a known 0, bye state is explicit, and the

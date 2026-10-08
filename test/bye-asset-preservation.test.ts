@@ -16,7 +16,8 @@ import { describe, it } from "node:test";
 import { buildWaiverRecommendations, type ByeDropDiagnostic, type WaiverCandidateEval } from "../lib/weekly/waivers";
 import { buildLineup } from "../lib/weekly/intelligence";
 import { buildMatchup, drawSpec } from "../lib/weekly/matchup";
-import { holdWeeklyValue, isVerifiedBye, verifiedByeRow } from "../lib/weekly/forecast/bye";
+import { isVerifiedBye, verifiedByeRow } from "../lib/weekly/forecast/bye";
+import { holdWeeklyValue } from "../lib/weekly/forecast/asset";
 import {
   buildCanonicalForecastBatch,
   buildCanonicalWeeklyPlayerForecast,

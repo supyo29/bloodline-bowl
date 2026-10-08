@@ -36,7 +36,7 @@ import { isVerifiedBye, verifiedByeRow } from "./forecast/bye";
 import { buildForecastSetIdentity } from "./freshness/identity";
 import { FRESHNESS_POLICY_VERSION } from "./freshness/policy";
 import { gameForTeam } from "./freshness/kickoff";
-import { buildFinalPregameRecord, type FinalPregameStore } from "./freshness/final-pregame";
+import { buildFinalPregameRecord, type FinalPregameRecord, type FinalPregameStore } from "./freshness/final-pregame";
 import { getFinalPregameStore } from "@/lib/persistence/supabase/projection-observations";
 import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import { getScheduleProvider } from "./schedule/registry";
@@ -423,7 +423,11 @@ export async function buildWeeklyTeamContext(
   // W1.P4 freshness inputs come from the provider layer that owns the clock, the kickoff source and the invalidation ledger. When absent
   // (fake providers) freshness is UNKNOWN rather than guessed. Kickoff is an absolute NFL instant per game — never league- or timezone-derived.
   const fctx = projections.freshness_context ?? null;
-  const composedMs = options.nowMs ? options.nowMs() : fctx?.now_ms ?? null;
+  // W1.R2 (P1-A): the composition instant is read HERE — after the league state, the projection batch and any live fetch it triggered are all in
+  // hand — from the clock of the provider that supplied the evidence. `fctx.now_ms` is when the provider STARTED resolving; a live observation is
+  // stamped when its response arrives, i.e. after it, so using the request start as the composition time made every live-fetch forecast claim to
+  // pre-date its own evidence (and be rejected). Never clamped or adjusted: the ordering observed <= composed now holds by construction.
+  const composedMs = options.nowMs ? options.nowMs() : projProvider.now ? projProvider.now() : fctx?.now_ms ?? null;
   const gameClock = fctx?.game_clock?.games ?? null;
   const forecasts = buildCanonicalForecastBatch({
     batch: projections,
@@ -460,10 +464,13 @@ export async function buildWeeklyTeamContext(
     composed_at: composedMs == null ? null : new Date(composedMs).toISOString(),
   });
 
-  // W1.P4 final pregame capture: league-scoped, rostered players only, best-effort (never blocks or fails a decision context).
+  // W1.P4 final pregame capture: league-scoped, rostered players only, best-effort — it never blocks or fails a decision context, but (W1.R2) it is
+  // never silent either: the outcome and per-decision counts are reported on the context, and a failure or rejection becomes a warning.
+  let finalPregameCapture: NonNullable<WeeklyTeamContext["final_pregame_capture"]> = { status: "NO_COMPOSITION_CLOCK", candidates: 0, counts: null, error: null };
   if (composedMs != null) {
+    let recs: FinalPregameRecord[] = [];
     try {
-      const recs = allRosteredIds
+      recs = allRosteredIds
         .map((id) => forecasts.by_player.get(id))
         .filter((f): f is NonNullable<typeof f> => f != null)
         .map((f) =>
@@ -477,12 +484,28 @@ export async function buildWeeklyTeamContext(
           }),
         )
         .filter((r): r is NonNullable<typeof r> => r != null)
-        // W1.R1 (G2): a request composed at/after a player's kickoff can read the frozen record but never propose one — it would pair an old
-        // pregame observation with live status that is not pregame evidence. (The store enforces the same rule; this just avoids the round trip.)
-        .filter((r) => composedMs < Date.parse(r.kickoff_at));
-      if (recs.length > 0) await (options.finalPregameStoreOverride ?? getFinalPregameStore()).upsertMany(recs);
-    } catch {
-      /* calibration capture is best-effort */
+        // W1.R1 (G2): a request composed at/after a player's kickoff can read the frozen record but never propose one. W1.R2: nor can evidence
+        // OBSERVED at/after kickoff (a fetch that began before kickoff but completed after it is not pregame evidence). The store enforces both.
+        .filter((r) => composedMs < Date.parse(r.kickoff_at) && Date.parse(r.source_observed_at) < Date.parse(r.kickoff_at));
+      if (recs.length === 0) {
+        finalPregameCapture = { status: "NOTHING_TO_CAPTURE", candidates: 0, counts: null, error: null };
+      } else {
+        const fpStore = options.finalPregameStoreOverride ?? getFinalPregameStore();
+        const counts = await fpStore.upsertMany(recs);
+        const nonZero = Object.fromEntries(Object.entries(counts).filter(([, v]) => v > 0)) as Partial<typeof counts>;
+        // a store that persists nothing (Supabase not configured) is not a capture (re-audit A-2)
+        finalPregameCapture = { status: fpStore.kind === "none" ? "STORE_NOT_CONFIGURED" : "CAPTURED", candidates: recs.length, counts: nonZero, error: null };
+        const rejected = Object.entries(nonZero).filter(([k]) => k.startsWith("REJECTED_")).reduce((n, [, v]) => n + (v ?? 0), 0);
+        if (rejected > 0) {
+          warnings.push({ code: "final_pregame_capture_rejected", message: `Final-pregame capture rejected ${rejected} of ${recs.length} candidate forecast(s): ${JSON.stringify(nonZero)}.`, severity: "info" });
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      finalPregameCapture = { status: "FAILED", candidates: recs.length, counts: null, error: message };
+      // the store's own errors carry method/table/status/code only (never the request body or credentials)
+      warnings.push({ code: "final_pregame_capture_failed", message: `Final-pregame capture failed (calibration evidence not persisted): ${message}`, severity: "warning" });
+      console.warn(JSON.stringify({ event: "final_pregame_capture_failed", league_slug: league.league_slug, week, candidates: recs.length, error: message }));
     }
   }
 
@@ -723,6 +746,7 @@ export async function buildWeeklyTeamContext(
       : null,
     projections,
     forecasts,
+    final_pregame_capture: finalPregameCapture,
     replacement,
     availability,
     // Authoritative capability gate for every downstream waiver / pickup surface.

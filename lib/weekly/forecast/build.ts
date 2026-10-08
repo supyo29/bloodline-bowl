@@ -14,6 +14,7 @@ import type { WeeklyProjection, WeeklyProjectionBatch } from "../schema";
 import { evaluateForecastFreshness, FRESHNESS_POLICY_VERSION, type RefreshOutcome } from "../freshness/policy";
 import { scopeCovers, type InvalidationEvent } from "../freshness/events";
 import { holdHorizonWeeks } from "./bye";
+import { canonicalAssetValue } from "./asset";
 import {
   SOURCE_INJURY_SEMANTICS,
   evaluateInjuryModel,
@@ -311,7 +312,9 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
   let underlying: number | null;
   let underlyingBasis: CanonicalWeeklyPlayerForecast["weekly_value"]["underlying_basis"];
   if (isBye) {
-    if (sourcePoints != null) {
+    // W1.R2 (P1-C): only a POSITIVE pre-bye number is evidence of underlying value. A literal 0 on a verified bye is the schedule speaking (or a
+    // zeroed feed row for a team with no game) — treating it as the player's football value turned a bye star into a zero-value drop.
+    if (sourcePoints != null && sourcePoints > 0) {
       underlying = sourcePoints;
       underlyingBasis = "SOURCE_PROJECTION_PRE_BYE";
     } else if (p?.rest_of_season_points != null) {
@@ -388,6 +391,7 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
           refresh: fin.refresh ?? null,
         });
   const age = assessment?.age_ms ?? null;
+  const certBeforeFreshness = cert;
   if (assessment?.state === "STALE") {
     warnings.push(`FORECAST_STALE:${assessment.reason}`);
     if (cert === "PRODUCTION") cert = "PARTIAL";
@@ -447,6 +451,14 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
       bye_suppressed_current_week: isBye,
       forward_value_available: weeklyValue.underlying_points_if_game_played != null || (p?.rest_of_season_points ?? null) != null,
     },
+    // W1.R2: the canonical asset / forward views (the ONE substrate waiver drops and the trade horizon read). Not part of the scoring forecast:
+    // final-pregame calibration grades current-week expected points, never this.
+    asset_value: canonicalAssetValue({
+      row: p,
+      week: input.week,
+      pre_bye_source_points: underlyingBasis === "SOURCE_PROJECTION_PRE_BYE" ? underlying : null,
+      current_week_expected_points: expected,
+    }),
     availability: {
       probability_active: isBye ? null : injury.probability_active,
       status,
@@ -504,7 +516,7 @@ export function buildCanonicalWeeklyPlayerForecast(input: BuildForecastInput): C
       source_warnings: p ? [...p.warnings] : [],
     },
     contributions,
-    certification: { state: cert, warnings },
+    certification: { state: cert, state_before_freshness: certBeforeFreshness, warnings },
   };
 }
 

@@ -14,7 +14,8 @@
  * `lib/weekly/schema.ts` `RosSignal`).
  */
 
-import { holdWeeklyValue, isVerifiedBye } from "@/lib/weekly/forecast/bye";
+import { isVerifiedBye } from "@/lib/weekly/forecast/bye";
+import { canonicalAssetValue } from "@/lib/weekly/forecast/asset";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { WeeklyProjectionBatch, WeeklyReplacement } from "@/lib/weekly/schema";
 import { weeklyVOR } from "@/lib/weekly/replacement";
@@ -80,23 +81,20 @@ export function buildPrivateValues(input: {
         basis = "ri_ros_weekly_vor";
       }
     }
-    // W1.P3: a verified bye zeroes THIS week only. It must not become the player's asset value, so a bye player never falls back to the
-    // current-week VOR; he uses the bye-neutral hold value (existing ROS spread over remaining weeks) or stays unavailable.
+    // W1.P3 / W1.R2: a temporary current-week state (verified bye, short-term injury) says nothing about the asset. The value basis is the ONE
+    // canonical asset substrate: a player with no temporary condition keeps his current-week VOR (unchanged); a bye / injured player uses his
+    // forward-evidence hold value, or stays unavailable — never this week's depressed number.
     const onBye = isVerifiedBye(wp);
-    if (raw == null && pts != null && !onBye) {
-      const v = weeklyVOR(cid, position, pts, replacement);
-      if (v.vor != null) {
-        raw = v.vor;
-        basis = "weekly_vor";
-      }
-    }
-    if (raw == null && onBye) {
-      const hold = holdWeeklyValue({ row: wp, week: wp?.week ?? 1 });
-      if (hold.points != null) {
-        const v = weeklyVOR(cid, position, hold.points, replacement);
+    let temporary = false;
+    if (raw == null && wp) {
+      const av = canonicalAssetValue({ row: wp, week: wp.week ?? 1 });
+      const hold = av.asset_value;
+      temporary = av.current_week.condition !== "NONE";
+      if (hold.hold_points_per_week != null) {
+        const v = weeklyVOR(cid, position, hold.hold_points_per_week, replacement);
         if (v.vor != null) {
           raw = v.vor;
-          basis = "ros_weekly_vor";
+          basis = hold.basis === "CURRENT_WEEK_NOT_BYE" || hold.basis === "QUESTIONABLE_SOURCE" ? "weekly_vor" : "ros_weekly_vor";
         }
       }
     }
@@ -107,7 +105,7 @@ export function buildPrivateValues(input: {
     const riConf = wp?.ros?.ri_confidence ?? null;
     if (riConf && RI_CONF_MAP[riConf]) {
       confidence = RI_CONF_MAP[riConf];
-    } else if (onBye) {
+    } else if (onBye || temporary) {
       confidence = raw != null ? "LOW" : "VERY_LOW"; // hold value is a crude ROS spread, never a calibrated asset value
     } else if (pts != null && projections.status === "READY") {
       confidence = "MEDIUM";

@@ -20,6 +20,8 @@
  */
 
 import type { TradeAnalysisContext } from "../context";
+import { isVerifiedBye } from "@/lib/weekly/forecast/bye";
+import { forwardWeeksOut } from "@/lib/weekly/forecast/asset";
 import type { TradeEvaluationOutput } from "../evaluate";
 import type { HorizonConfig } from "./config";
 import { resolveHorizonConfig, type PartialHorizonConfig } from "./config";
@@ -88,7 +90,7 @@ export function evaluateTradeHorizons(input: HorizonEvalInput): TradeHorizonEval
   const playoffWindow = p2?.components.playoff_window ?? null;
   const byeCoverage = p2?.components.bye_coverage ?? 0;
 
-  // ---- availability adjustment (§9) — injury-discount the traded players' ROS rate ----
+  // ---- availability adjustment (§9) — the weeks the traded players are expected to MISS (W1.R2: this week only, unless long-term) ----
   const availDelta = availabilityAdjustment(ctx, input.incoming_ids, input.outgoing_ids, remainingWeeks);
   if (Math.abs(availDelta) > 0.1) {
     reasons.push(
@@ -170,9 +172,11 @@ function availabilityAdjustment(
   outgoing: string[],
   remainingWeeks: number,
 ): number {
-  // per-player: (expected_availability − 1) · ros_weekly_rate.  A player at 0.78
-  // availability loses ~22% of their ROS rate not captured by the bye-only
-  // proration in ros.ts.
+  // W1.R2 (P1-D): availability is a per-WEEK quantity. This week's availability (Questionable / Doubtful / Out) describes THIS week only, so it
+  // reaches 1 of the `remainingWeeks` horizon weeks — it is never multiplied into the whole ROS rate. A verified bye adds no drag at all: the
+  // bye-only proration in ros.ts already removes that week. Only a long-term condition (IR / PUP / NFI / suspension) removes FORWARD weeks, by
+  // the shared canonical rule (`forwardWeeksOut`, NFL minimum stint); a season-ending absence shows up in the ROS evidence itself.
+  //   per-week drag = -rate × (current-week missing fraction + forward weeks out beyond this one) / remainingWeeks
   const rate = (id: string): number => {
     const wp = ctx.projections.by_player.get(id);
     const rosPts = wp?.ros?.points ?? wp?.rest_of_season_points ?? null;
@@ -180,8 +184,14 @@ function availabilityAdjustment(
     return rosPts / remainingWeeks;
   };
   const drag = (id: string): number => {
-    const avail = ctx.projections.by_player.get(id)?.expected_availability ?? 1;
-    return (Math.min(1, Math.max(0, avail)) - 1) * rate(id); // ≤ 0
+    const wp = ctx.projections.by_player.get(id);
+    if (!wp) return 0;
+    const weeksOut = forwardWeeksOut(wp, remainingWeeks);
+    // a verified bye's own week is already prorated by ros.ts: only a long-term condition's weeks BEYOND this one add drag (re-audit B-3: an
+    // IR player whose team happens to be on bye this week used to carry no drag at all)
+    const currentMissing = isVerifiedBye(wp) ? 0 : 1 - Math.min(1, Math.max(0, wp.expected_availability ?? 1));
+    const missingWeeks = weeksOut > 0 ? (isVerifiedBye(wp) ? 0 : Math.max(currentMissing, 1)) + (weeksOut - 1) : currentMissing;
+    return (-rate(id) * missingWeeks) / remainingWeeks; // ≤ 0
   };
   const inDrag = incoming.reduce((s, id) => s + drag(id), 0);
   const outDrag = outgoing.reduce((s, id) => s + drag(id), 0);

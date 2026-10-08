@@ -21,6 +21,7 @@
 
 import type { PlayerIdentifiers } from "@/lib/canonical/schema";
 import type { InjuryModelResult } from "./injury-model";
+import type { CanonicalAssetView } from "./asset";
 import type { ForecastSetIdentity } from "../freshness/identity";
 
 export const CANONICAL_WEEKLY_FORECAST_VERSION = "canonical-weekly-forecast-2026.1" as const;
@@ -174,6 +175,12 @@ export interface CanonicalWeeklyPlayerForecast {
     forward_value_available: boolean;
   };
 
+  /**
+   * W1.R2: current-week / forward / asset views from the ONE canonical asset substrate (./asset.ts). Waiver drop cost and the trade horizon read
+   * this — never `projection.expected_points` — as the value of keeping the player. Not graded by forecast calibration.
+   */
+  asset_value: CanonicalAssetView;
+
   availability: {
     /**
      * P(active) from the W1.P2 injury model. null = unknown (unrecognised status, or a bye — a bye is not an injury).
@@ -257,6 +264,11 @@ export interface CanonicalWeeklyPlayerForecast {
 
   certification: {
     state: CertificationState;
+    /**
+     * W1.R2: the state BEFORE the freshness assessment (a STALE source downgrades PRODUCTION -> PARTIAL). The final-pregame content signature uses
+     * this, so the same belief observed at a different age is not minted as a different revision.
+     */
+    state_before_freshness?: CertificationState;
     warnings: string[];
   };
 }

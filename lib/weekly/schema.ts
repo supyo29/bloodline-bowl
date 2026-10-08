@@ -171,7 +171,14 @@ export interface WeeklyProjectionBatch {
    * Absent (tests, fake providers) => freshness is computed as UNKNOWN rather than guessed.
    */
   freshness_context?: {
+    /**
+     * The instant the provider STARTED resolving this batch (batch freshness policy, kickoff tier, events in horizon). It is NOT the forecast's
+     * composition time: a live fetch completes — and its source observation is stamped — after it (W1.R2 / P1-A). Composition reads the
+     * provider clock when the forecast is actually composed.
+     */
     now_ms: number | null;
+    /** W1.R2: explicit alias of `now_ms` (request start), so request time and composition time are never confused again. */
+    request_started_ms?: number | null;
     game_clock: { games: Array<{ game_id: string; home_team: string; away_team: string; kickoff_at: string | null; status: string }>; source: string } | null;
     events: import("./freshness/events").InvalidationEvent[];
     refresh: import("./freshness/policy").RefreshOutcome | null;
@@ -397,6 +404,16 @@ export interface WeeklyTeamContext {
    * should read this; reading `projections` directly is the legacy path (see the architecture ratchet test).
    */
   forecasts?: import("./forecast/schema").CanonicalWeeklyForecastBatch;
+  /**
+   * W1.R2: the outcome of the final-pregame capture for this context — never silent. A store failure does not fail the analysis, but it is
+   * reported here (and as a context warning), with the per-decision counts (RECORDED / CONFIRMED / REJECTED_*).
+   */
+  final_pregame_capture?: {
+    status: "CAPTURED" | "NOTHING_TO_CAPTURE" | "NO_COMPOSITION_CLOCK" | "STORE_NOT_CONFIGURED" | "FAILED";
+    candidates: number;
+    counts: Partial<Record<import("./freshness/final-pregame").FinalPregameWrite, number>> | null;
+    error: string | null;
+  };
   replacement: WeeklyReplacement;
   availability: LeagueAvailability;
 

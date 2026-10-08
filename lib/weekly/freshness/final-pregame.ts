@@ -121,6 +121,8 @@ export function forecastContent(f: CanonicalWeeklyPlayerForecast): unknown {
   return {
     model_version: f.model_version,
     value_state: f.value_state,
+    // W1.R2: the game the belief is ABOUT (opponent, team) is part of it — the same numbers against a different opponent are a different belief
+    game: { team: f.team, opponent: f.opponent, position: f.position },
     game_status: f.game_status,
     projection: f.projection,
     weekly_value: f.weekly_value,
@@ -132,7 +134,9 @@ export function forecastContent(f: CanonicalWeeklyPlayerForecast): unknown {
     matchup: f.matchup,
     uncertainty: { ...f.uncertainty, reasons: f.uncertainty.reasons.filter((r) => !TIME_VARYING_NOTE.test(r)) },
     contributions: f.contributions,
-    certification: { ...f.certification, warnings: f.certification.warnings.filter((w) => !TIME_VARYING_NOTE.test(w)) },
+    // W1.R2: the certification state is signed as it was BEFORE the freshness assessment — a STALE-age downgrade (PRODUCTION -> PARTIAL) is the
+    // clock speaking, not a different belief, and used to mint a second revision of identical content
+    certification: { state: f.certification.state_before_freshness ?? f.certification.state, warnings: f.certification.warnings.filter((w) => !TIME_VARYING_NOTE.test(w)) },
     source: { provider: f.provenance.projection_provider, version: f.provenance.source_version, ids: f.provenance.source_ids },
   };
 }
@@ -233,7 +237,8 @@ export function decideCandidate(existing: FinalPregameRecord | null, rec: FinalP
   if (!Number.isFinite(o) || !Number.isFinite(c)) return "REJECTED_INCONSISTENT_TIMES";
   // W1.R1 (G2): the COMPOSITION instant is what bounds the evidence the forecast could contain. A request made at/after kickoff may pair an
   // old pregame observation with newer live status; it must never reach the frozen record, whatever the observation's own timestamp says.
-  if (c >= k || o > k) return "REJECTED_POST_KICKOFF";
+  // W1.R2: pregame truth is EVIDENCE availability: an observation made at/after kickoff is never pregame evidence, whenever the request started.
+  if (c >= k || o >= k) return "REJECTED_POST_KICKOFF";
   if (o > c) return "REJECTED_INCONSISTENT_TIMES";
   if (!existing) return "RECORDED";
   const eo = Date.parse(existing.confirmed_through);
