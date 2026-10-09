@@ -95,6 +95,25 @@ describe("W2.P1 point-in-time and hindsight audit", () => {
     assert.ok(oracle > honest + 0.3, `oracle ${oracle} vs honest ${honest}`);
   });
 
+  it("Role features are exactly the as-of forecast's quantities (never the target game's own opportunity)", () => {
+    const r = world.rows.filter((x) => x.position === "WR" && x.played).slice(0, 200);
+    assert.ok(r.length > 50);
+    let differs = 0;
+    for (const row of r) {
+      assert.equal(row.x.exp_targets, row.forecast.opportunity.targets);
+      assert.equal(row.x.snap_share, row.forecast.metrics.snap_share?.value ?? null);
+      if (row.actual_opp.targets != null && row.x.exp_targets !== row.actual_opp.targets) differs++;
+    }
+    assert.ok(differs / r.length > 0.9, "forecast opportunity is not the realized opportunity");
+  });
+
+  it("a team on BYE has no outcome to forecast: no eligible row belongs to a team without a game that week (the schedule is known pre-game)", () => {
+    const observed = parseObservedCsv(readFileSync(join(ROOT, D, "observed_role_game_2025.csv"), "utf8")).filter((o) => o.season === 2025);
+    const plays = new Set(observed.map((o) => `${o.week}|${o.team}`));
+    assert.ok(world.rows.every((r) => plays.has(`${r.week}|${r.team}`)));
+    assert.ok(world.counts.bye_week! > 0, "byes exist in the profiled population and were excluded");
+  });
+
   it("the harness uses no Sleeper/provider identifier anywhere (NFL gsis identity only)", () => {
     const src = readFileSync(join(ROOT, "scripts/lib/role-qualification.ts"), "utf8");
     assert.ok(!/sleeper_id|yahoo_id|provider_player_id/.test(src.replace(/^\s*(\/\/|\*|\/\*).*$/gm, "")));

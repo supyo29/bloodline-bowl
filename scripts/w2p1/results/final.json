@@ -1,0 +1,458 @@
+{
+ "stage": "final",
+ "pit_violations": 0,
+ "counts": {
+  "profiles": 2847,
+  "bye_week": 73,
+  "no_b0": 509,
+  "below_floor": 1119,
+  "eligible": 1146
+ },
+ "G1_opportunity": [
+  {
+   "position": "RB",
+   "metric": "carries",
+   "n": 235,
+   "role_mae": 3.844,
+   "last_game_mae": 4.843,
+   "last3_mae": 4.088,
+   "season_mae": 3.908,
+   "pass": true
+  },
+  {
+   "position": "RB",
+   "metric": "targets",
+   "n": 235,
+   "role_mae": 1.443,
+   "last_game_mae": 1.719,
+   "last3_mae": 1.502,
+   "season_mae": 1.462,
+   "pass": true
+  },
+  {
+   "position": "WR",
+   "metric": "targets",
+   "n": 357,
+   "role_mae": 2.159,
+   "last_game_mae": 2.692,
+   "last3_mae": 2.225,
+   "season_mae": 2.304,
+   "pass": true
+  },
+  {
+   "position": "TE",
+   "metric": "targets",
+   "n": 160,
+   "role_mae": 1.968,
+   "last_game_mae": 2.494,
+   "last3_mae": 2.123,
+   "season_mae": 1.923,
+   "pass": false
+  },
+  {
+   "position": "QB",
+   "metric": "dropbacks",
+   "n": 130,
+   "role_mae": 8.471,
+   "last_game_mae": 9.6,
+   "last3_mae": 9.032,
+   "season_mae": 8.586,
+   "pass": true
+  }
+ ],
+ "G2_positions": {
+  "QB": {
+   "n_eligible": 182,
+   "n_covered": 182,
+   "coverage": 1,
+   "champion": {
+    "n": 182,
+    "mae": 8.361208791208796,
+    "rmse": 10.266681199742342,
+    "bias": -2.5806593406593406
+   },
+   "challenger": {
+    "n": 182,
+    "mae": 8.471813186813185,
+    "rmse": 10.286666580611007,
+    "bias": -3.0514835164835157
+   },
+   "dMAE": -0.111,
+   "dMAE_ci95": [
+    -0.355,
+    0.156
+   ],
+   "C0_role_free_vs_B1p_dMAE": -0.282,
+   "role_increment_C2_vs_C0": {
+    "dMAE": 0.171,
+    "ci95": [
+     0.06,
+     0.294
+    ],
+    "dRMSE": 0.183
+   },
+   "dRMSE": -0.02,
+   "by_week_dMAE": {
+    "14": 0.044,
+    "15": 0.253,
+    "16": -0.364,
+    "17": -0.31
+   },
+   "decisions": {
+    "pairs": 70,
+    "disagreements": 6,
+    "decided": 6,
+    "challenger_wins": 5,
+    "champion_wins": 1,
+    "ambiguous": 0,
+    "p_one_sided": 0.10937500000000008
+   },
+   "tiers": {
+    "STARTER": {
+     "n": 121,
+     "dMAE": 0.014
+    },
+    "FLEX": {
+     "n": 44,
+     "dMAE": -0.33
+    },
+    "FRINGE": {
+     "n": 17,
+     "dMAE": -0.426
+    }
+   },
+   "questionable_doubtful_dMAE": -0.378,
+   "out_rows": 10,
+   "out_nonzero_delta": 0,
+   "cap_hit_rate": 0.335,
+   "robustness_dMAE_STD_vsB1p_STD_vsC0_PPR_vsB1p_PPR_vsC0": [
+    -0.111,
+    0.17,
+    -0.11,
+    0.172
+   ],
+   "controls": {
+    "oracle_dMAE": 0.483,
+    "permutation_dMAE": -0.575
+   },
+   "C1_existing_shadow_vs_B1p": {
+    "n": 182,
+    "dMAE": 0.07,
+    "dRMSE": 0.143,
+    "dMAE_ci95": [
+     -0.05,
+     0.193
+    ]
+   },
+   "thresholds": {
+    "T1": true,
+    "T2": false,
+    "T2b": true,
+    "T3": true,
+    "T4": false,
+    "T5": false,
+    "T6": false,
+    "T7": true,
+    "T8": false,
+    "T9": true,
+    "T10": false
+   },
+   "promotion_candidate": false
+  },
+  "RB": {
+   "n_eligible": 295,
+   "n_covered": 295,
+   "coverage": 1,
+   "champion": {
+    "n": 295,
+    "mae": 5.8709830508474585,
+    "rmse": 7.36044213852512,
+    "bias": -1.4910508474576278
+   },
+   "challenger": {
+    "n": 295,
+    "mae": 5.601491525423729,
+    "rmse": 7.121003880857418,
+    "bias": -1.0713898305084737
+   },
+   "dMAE": 0.269,
+   "dMAE_ci95": [
+    0.08,
+    0.481
+   ],
+   "C0_role_free_vs_B1p_dMAE": -0.016,
+   "role_increment_C2_vs_C0": {
+    "dMAE": 0.285,
+    "ci95": [
+     0.128,
+     0.459
+    ],
+    "dRMSE": 0.215
+   },
+   "dRMSE": 0.239,
+   "by_week_dMAE": {
+    "14": 0.086,
+    "15": 0.263,
+    "16": 0.455,
+    "17": 0.241
+   },
+   "decisions": {
+    "pairs": 246,
+    "disagreements": 17,
+    "decided": 13,
+    "challenger_wins": 9,
+    "champion_wins": 4,
+    "ambiguous": 4,
+    "p_one_sided": 0.13342285156250014
+   },
+   "tiers": {
+    "STARTER": {
+     "n": 84,
+     "dMAE": 0.673
+    },
+    "FLEX": {
+     "n": 123,
+     "dMAE": 0.234
+    },
+    "FRINGE": {
+     "n": 88,
+     "dMAE": -0.066
+    }
+   },
+   "questionable_doubtful_dMAE": 0.336,
+   "out_rows": 10,
+   "out_nonzero_delta": 0,
+   "cap_hit_rate": 0.339,
+   "robustness_dMAE_STD_vsB1p_STD_vsC0_PPR_vsB1p_PPR_vsC0": [
+    0.298,
+    0.3,
+    0.246,
+    0.258
+   ],
+   "controls": {
+    "oracle_dMAE": 0.66,
+    "permutation_dMAE": -0.073
+   },
+   "C1_existing_shadow_vs_B1p": {
+    "n": 295,
+    "dMAE": 0.148,
+    "dRMSE": 0.179,
+    "dMAE_ci95": [
+     0.072,
+     0.238
+    ]
+   },
+   "thresholds": {
+    "T1": false,
+    "T2": true,
+    "T2b": true,
+    "T3": true,
+    "T4": false,
+    "T5": true,
+    "T6": false,
+    "T7": true,
+    "T8": false,
+    "T9": true,
+    "T10": true
+   },
+   "promotion_candidate": false
+  },
+  "WR": {
+   "n_eligible": 433,
+   "n_covered": 433,
+   "coverage": 1,
+   "champion": {
+    "n": 433,
+    "mae": 5.103533487297922,
+    "rmse": 6.356377005607315,
+    "bias": -1.415681293302539
+   },
+   "challenger": {
+    "n": 433,
+    "mae": 4.739468822170904,
+    "rmse": 6.082830055004008,
+    "bias": -0.7884295612009232
+   },
+   "dMAE": 0.364,
+   "dMAE_ci95": [
+    0.244,
+    0.483
+   ],
+   "C0_role_free_vs_B1p_dMAE": 0.217,
+   "role_increment_C2_vs_C0": {
+    "dMAE": 0.147,
+    "ci95": [
+     0.061,
+     0.231
+    ],
+    "dRMSE": 0.123
+   },
+   "dRMSE": 0.274,
+   "by_week_dMAE": {
+    "14": 0.239,
+    "15": 0.324,
+    "16": 0.346,
+    "17": 0.524
+   },
+   "decisions": {
+    "pairs": 629,
+    "disagreements": 47,
+    "decided": 42,
+    "challenger_wins": 28,
+    "champion_wins": 14,
+    "ambiguous": 5,
+    "p_one_sided": 0.021779260961920743
+   },
+   "tiers": {
+    "STARTER": {
+     "n": 72,
+     "dMAE": 0.884
+    },
+    "FLEX": {
+     "n": 171,
+     "dMAE": 0.26
+    },
+    "FRINGE": {
+     "n": 190,
+     "dMAE": 0.26
+    }
+   },
+   "questionable_doubtful_dMAE": 0.239,
+   "out_rows": 19,
+   "out_nonzero_delta": 0,
+   "cap_hit_rate": 0.296,
+   "robustness_dMAE_STD_vsB1p_STD_vsC0_PPR_vsB1p_PPR_vsC0": [
+    0.364,
+    0.14,
+    0.353,
+    0.13
+   ],
+   "controls": {
+    "oracle_dMAE": 0.697,
+    "permutation_dMAE": 0.023
+   },
+   "C1_existing_shadow_vs_B1p": {
+    "n": 433,
+    "dMAE": 0.235,
+    "dRMSE": 0.214,
+    "dMAE_ci95": [
+     0.177,
+     0.295
+    ]
+   },
+   "thresholds": {
+    "T1": true,
+    "T2": true,
+    "T2b": true,
+    "T3": true,
+    "T4": false,
+    "T5": true,
+    "T6": false,
+    "T7": true,
+    "T8": false,
+    "T9": false,
+    "T10": true
+   },
+   "promotion_candidate": false
+  },
+  "TE": {
+   "n_eligible": 185,
+   "n_covered": 185,
+   "coverage": 1,
+   "champion": {
+    "n": 185,
+    "mae": 5.062162162162166,
+    "rmse": 6.887273104125523,
+    "bias": -0.9889729729729734
+   },
+   "challenger": {
+    "n": 185,
+    "mae": 4.782270270270271,
+    "rmse": 6.451792208580707,
+    "bias": -0.6816216216216214
+   },
+   "dMAE": 0.28,
+   "dMAE_ci95": [
+    0.095,
+    0.471
+   ],
+   "C0_role_free_vs_B1p_dMAE": 0.22,
+   "role_increment_C2_vs_C0": {
+    "dMAE": 0.06,
+    "ci95": [
+     -0.102,
+     0.229
+    ],
+    "dRMSE": 0.036
+   },
+   "dRMSE": 0.435,
+   "by_week_dMAE": {
+    "14": 0.242,
+    "15": 0.319,
+    "16": 0.262,
+    "17": 0.291
+   },
+   "decisions": {
+    "pairs": 83,
+    "disagreements": 11,
+    "decided": 7,
+    "challenger_wins": 7,
+    "champion_wins": 0,
+    "ambiguous": 4,
+    "p_one_sided": 0.007812500000000002
+   },
+   "tiers": {
+    "STARTER": {
+     "n": 19,
+     "dMAE": 1.443
+    },
+    "FLEX": {
+     "n": 75,
+     "dMAE": 0.16
+    },
+    "FRINGE": {
+     "n": 91,
+     "dMAE": 0.136
+    }
+   },
+   "questionable_doubtful_dMAE": 0.212,
+   "out_rows": 12,
+   "out_nonzero_delta": 0,
+   "cap_hit_rate": 0.438,
+   "robustness_dMAE_STD_vsB1p_STD_vsC0_PPR_vsB1p_PPR_vsC0": [
+    0.246,
+    0.072,
+    0.295,
+    0.076
+   ],
+   "controls": {
+    "oracle_dMAE": 0.597,
+    "permutation_dMAE": -0.139
+   },
+   "C1_existing_shadow_vs_B1p": {
+    "n": 185,
+    "dMAE": 0.189,
+    "dRMSE": 0.283,
+    "dMAE_ci95": [
+     0.1,
+     0.277
+    ]
+   },
+   "thresholds": {
+    "T1": false,
+    "T2": true,
+    "T2b": false,
+    "T3": true,
+    "T4": false,
+    "T5": true,
+    "T6": false,
+    "T7": true,
+    "T8": false,
+    "T9": true,
+    "T10": true
+   },
+   "promotion_candidate": false
+  }
+ },
+ "verdict": "SHADOW_ONLY"
+}
