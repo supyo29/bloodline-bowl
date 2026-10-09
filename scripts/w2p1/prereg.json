@@ -194,6 +194,11 @@
       "when": "after the first VAL run, before any FINAL evaluation (VAL may be inspected repeatedly by design)",
       "change": "population excludes players whose team has no game that week (BYE); harness bug fixed: VAL summary looked up the wrong model keys",
       "why": "the first VAL run showed champion bias of -2 to -4.5 points: bye-week players (known zero by Wave 1 bye semantics, schedule known pre-game) were scored against a 4-game-mean baseline. Exclusion is based on the pre-game schedule, never on the outcome. No threshold changed."
+    },
+    {
+      "when": "before any FINAL evaluation",
+      "change": "T9 oracle control is now REFIT on the target game's actual opportunity (fitted on DEV exactly like C2) instead of feeding raw actual counts into the C2 coefficients; harness normalizes -0 to 0",
+      "why": "raw actual counts are mis-scaled inputs for coefficients shrunk on expected counts, so the first oracle understated the leak (WR VAL: oracle +0.47 vs honest +0.29, margin 0.18 < 0.30). A refit oracle is the faithful 'what would a leak look like' control. The T9 margin (0.3) is unchanged."
     }
   ],
   "role_free_note": "If C0 beats B1p but C2 does not beat C0, the finding is: the proxy baseline needs shrinkage (a source-projection calibration matter), Role adds nothing measurable."

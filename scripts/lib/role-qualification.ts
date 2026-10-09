@@ -169,11 +169,11 @@ function solve(A: number[][], b: number[]): number[] {
 
 /** Fit on the supplied rows ONLY (the caller passes DEV rows). Target: played points - B0p (conditional-on-active). */
 export const ROLE_FREE: readonly string[] = ["b0"];
-export function fitRidge(rows: readonly Row[], pos: RolePosition, scoring: Scoring, lambda: number, list: readonly string[] = FEATURES[pos]): RidgeModel | null {
+export function fitRidge(rows: readonly Row[], pos: RolePosition, scoring: Scoring, lambda: number, list: readonly string[] = FEATURES[pos], src: "x" | "oracle" = "x"): RidgeModel | null {
   const X: number[][] = []; const y: number[] = [];
   for (const r of rows) {
     if (r.position !== pos || !isFit(r)) continue;
-    const f = featOf(r, list, scoring); if (!f) continue;
+    const f = featOf(r, list, scoring, src); if (!f) continue;
     X.push(f); y.push(r.actual[scoring] - r.b0[scoring]);
   }
   if (X.length < 40) return null;
@@ -197,7 +197,7 @@ export function c2Of(r: Row, model: RidgeModel | null, scoring: Scoring, src: "x
   const raw = rawPredict(model, f);
   const cap = Math.max(1, 0.25 * Math.abs(b0));
   const clamped = Math.max(-cap, Math.min(cap, raw));
-  const delta = ROLE_SHADOW_CONF_WEIGHT[r.conf] * clamped;
+  const delta = ROLE_SHADOW_CONF_WEIGHT[r.conf] * clamped + 0; // + 0 normalizes -0
   return { delta, raw, capped: Math.abs(raw) > cap, applicable: true, expected: injuryExpected(r, b0 + delta) };
 }
 

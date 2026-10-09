@@ -20,6 +20,7 @@ const headline = (rows: readonly Row[]) => rows.filter((r) => r.designation !== 
 
 const fitAll = (dev: readonly Row[], lambdas: Record<string, number>): Record<string, RidgeModel | null> => {
   const m: Record<string, RidgeModel | null> = {};
+  for (const pos of POSITIONS) m[`ORACLE|${pos}|HALF`] = fitRidge(dev, pos, "HALF", 100, FEATURES[pos], "oracle"); // CONTROL: a deliberate leak, fitted exactly like C2 but on the target game's actual opportunity
   for (const pos of POSITIONS) for (const s of SCORINGS) { m[`C2|${pos}|${s}`] = fitRidge(dev, pos, s, lambdas[`C2|${pos}`] ?? 100); m[`C0|${pos}|${s}`] = fitRidge(dev, pos, s, lambdas[`C0|${pos}`] ?? 100, ROLE_FREE); }
   return m;
 };
@@ -100,7 +101,8 @@ function stageFinal(): void {
     const c0vsB1 = paired(eligible, (r) => b1Of(r, "HALF"), c0("HALF"), "HALF", 500);
     // controls (T9): oracle features (target-game actual opportunity) and a within-week permutation of the real features
     const mH = m("HALF");
-    const oracle = paired(eligible, (r) => b1Of(r, "HALF"), (r) => c2Of(r, mH, "HALF", "oracle").expected, "HALF", 50).dMAE;
+    const mO = fz.models[`ORACLE|${pos}|HALF`] ?? null;
+    const oracle = paired(eligible, (r) => b1Of(r, "HALF"), (r) => c2Of(r, mO, "HALF", "oracle").expected, "HALF", 50).dMAE;
     const byWeek = new Map<number, Row[]>(); for (const r of eligible) (byWeek.get(r.week) ?? byWeek.set(r.week, []).get(r.week)!).push(r);
     const perm = new Map<Row, number[]>(); let seed = 7;
     for (const rs of byWeek.values()) { const feats = rs.map((r) => featuresOf(r, FEATURES[pos], "HALF")); const idx = rs.map((_, i) => i); for (let i = idx.length - 1; i > 0; i--) { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; const j = seed % (i + 1); [idx[i], idx[j]] = [idx[j]!, idx[i]!]; } rs.forEach((r, i) => { const f = feats[idx[i]!]; if (f) perm.set(r, f); }); }
