@@ -1,0 +1,195 @@
+{
+  "prereg_version": "w2p1-role-prereg-1",
+  "declared_before": "any evaluation of the FINAL split; no candidate was scored on weeks 10-17 when this file was committed",
+  "data": {
+    "season": 2025,
+    "as_of_profiles": "lib/game-distribution/data/role_profile_asof_2025.csv (target weeks 3-17)",
+    "observed_usage": "lib/game-distribution/data/observed_role_game_2025.csv (OUTCOME side only for any target game)",
+    "actual_stats": "lib/game-distribution/data/historical_player_game_stats_2025.csv",
+    "injury_designations": "lib/role-calibration/data/injury_reports.csv (nflverse FINAL team-week designation; no publication timestamp exists)",
+    "depth_chart": "UNAVAILABLE for 2025 (snapshots begin 2026-08-25): depth features are not used"
+  },
+  "splits": {
+    "DEV": {
+      "weeks": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "use": "fit coefficients, explore freely"
+    },
+    "VAL": {
+      "weeks": [
+        10,
+        11,
+        12,
+        13
+      ],
+      "use": "choose among the declared ridge grid; may be inspected repeatedly"
+    },
+    "FINAL": {
+      "weeks": [
+        14,
+        15,
+        16,
+        17
+      ],
+      "use": "evaluated exactly once after the candidate is frozen (FROZEN.json); never used to choose anything"
+    },
+    "EXCLUDED": "weeks 1-2 (no as-of profile), week 18 and playoffs (no as-of profile), all 2026 weeks (no stat lines and no as-of profile with an outcome in the repo)"
+  },
+  "scorings": {
+    "PRIMARY": "HALF (identical to the W1.P2 proxy scoring: 0.5 PPR, 4pt pass TD, -2 INT/fumble lost, 2pt = 2)",
+    "ROBUSTNESS": [
+      "STD",
+      "PPR"
+    ]
+  },
+  "baselines": {
+    "B0p": "PROXY source projection: mean fantasy points over the player's previous up to 4 games (strictly earlier, same season). There is NO stored history of the real Sleeper/RotoWire source projection, so this is NOT the real source. Same proxy as W1.P2.",
+    "B1p": "Wave 1 canonical-like champion = production evaluateInjuryModel (production priors, source_semantics CONDITIONAL_ON_ACTIVE) applied to B0p with the historical designation and practice status",
+    "caveat": "A proxy baseline knows less about role than a real source projection. Any Role gain over B1p is an UPPER BOUND on gain over the real Wave 1 canonical forecast."
+  },
+  "population": {
+    "positions": [
+      "QB",
+      "RB",
+      "WR",
+      "TE"
+    ],
+    "not_applicable": [
+      "K",
+      "DST"
+    ],
+    "requires": "as-of profile row, B0p present, B0p(HALF) >= 3.0 (relevance floor)",
+    "actual": "stat-line points; a player with no stat line scores 0 (DNP is an outcome, not an exclusion)",
+    "headline_designations": [
+      "NONE",
+      "QUESTIONABLE",
+      "DOUBTFUL"
+    ],
+    "out_designation": "evaluated only to prove the Role contribution is exactly 0 for OUT players",
+    "tiers_by_B0p": {
+      "STARTER": ">= 12",
+      "FLEX": "6 to < 12",
+      "FRINGE": "3 to < 6"
+    }
+  },
+  "candidates": {
+    "C1": "the existing Role shadow EXACTLY as it exists (lib/role-calibration/shadow.ts, kappa 0.3, confidence weights, cap max(1, 25%)) on baseline B1p, xFP from the committed 2025 yield table (same-season table: mild leakage that FAVORS C1)",
+    "C2": {
+      "name": "Role residual challenger",
+      "target": "actual points - B0p, on rows where the player played (snaps > 0) and designation in {NONE, QUESTIONABLE, DOUBTFUL}: availability is the injury layer's job and is NOT learned here",
+      "features": {
+        "RB": [
+          "exp_carries",
+          "exp_targets",
+          "exp_rz_carries",
+          "exp_rz_targets",
+          "snap_share",
+          "b0"
+        ],
+        "WR": [
+          "exp_targets",
+          "exp_rz_targets",
+          "snap_share",
+          "air_yards_share",
+          "b0"
+        ],
+        "TE": [
+          "exp_targets",
+          "exp_rz_targets",
+          "snap_share",
+          "air_yards_share",
+          "b0"
+        ],
+        "QB": [
+          "exp_dropbacks",
+          "exp_designed_rushes",
+          "exp_scrambles",
+          "snap_share",
+          "b0"
+        ]
+      },
+      "model": "per-position, per-scoring ridge regression on standardized features, intercept unpenalized, fit on DEV only",
+      "ridge_grid": [
+        1,
+        10,
+        100,
+        1000
+      ],
+      "ridge_choice": "lowest VAL MAE of C2 vs actual, per position; ties -> larger lambda",
+      "shrinkage": "delta = confidence_weight * clamp(prediction, -cap, +cap), confidence_weight = existing ROLE_SHADOW_CONF_WEIGHT (MEDIUM 1, LOW 0.6, INSUFFICIENT_SAMPLE 0); cap = max(1.0, 0.25*|B0p|) (the existing shadow convention, not re-tuned)",
+      "application": "C2 expected = production evaluateInjuryModel(source_points = B0p + delta): the Role delta is a CONDITIONAL-ON-ACTIVE correction and the Wave 1 injury model supplies availability exactly once",
+      "missing_data": "Role not applicable (primary feature null or confidence INSUFFICIENT_SAMPLE) => delta = 0, neutral",
+      "OUT": "delta forced to 0"
+    },
+    "C0": {
+      "name": "Role-free control",
+      "model": "identical ridge procedure, features = [b0] only; identical cap, confidence weight, injury application",
+      "purpose": "isolates the part of any C2 gain that does not need Role information"
+    }
+  },
+  "role_opportunity_gate_G1": {
+    "metrics": {
+      "RB": [
+        "carries",
+        "targets"
+      ],
+      "WR": [
+        "targets"
+      ],
+      "TE": [
+        "targets"
+      ],
+      "QB": [
+        "dropbacks"
+      ]
+    },
+    "population": "players who played (snaps > 0) with a covered forecast",
+    "naive_baselines": [
+      "last game",
+      "mean of last 3 games",
+      "season-to-date mean"
+    ],
+    "pass": "Role forecast MAE < last-game MAE by >= 3% AND <= season-to-date mean MAE * 1.02 AND <= last-3 mean MAE * 1.02, on FINAL, per position-metric with N >= 200 (QB N >= 60)"
+  },
+  "promotion_thresholds_G2": {
+    "applies_to": "each of RB, WR, TE, QB separately, on FINAL, headline designations, primary scoring HALF, vs champion B1p",
+    "T1_coverage_and_n": "covered rows >= 70% of eligible rows AND covered FINAL rows >= 300 (RB/WR/TE) or >= 120 (QB)",
+    "T2_mae": "delta_MAE = MAE(B1p) - MAE(C2) >= 0.05 points AND the 95% cluster-bootstrap lower bound > 0 (clusters = team-week)",
+    "T3_rmse": "RMSE(C2) <= RMSE(B1p) + 0.02",
+    "T4_bias": "|bias(C2)| <= 0.5 AND |bias(C2)| <= |bias(B1p)| + 0.15",
+    "T5_consistency": "delta_MAE > 0 in at least 3 of the 4 FINAL weeks AND delta_MAE(VAL) > 0",
+    "T6_decisions": "among decided disagreement pairs (|actual difference| >= 1 point), N >= 100 AND challenger wins >= champion wins AND one-sided binomial p < 0.10; fewer than 100 decided pairs => NOT promotable",
+    "T7_tiers": "no tier (STARTER/FLEX/FRINGE) with N >= 100 has delta_MAE < -0.10",
+    "T8_injury_and_cap": "delta_MAE on QUESTIONABLE+DOUBTFUL rows >= -0.05; contribution on OUT rows == 0 exactly; cap-hit rate <= 10%",
+    "T9_leakage": "structural point-in-time assertions pass on every row; the ORACLE control (target-game actual opportunity as features) beats C2 by a wide margin (harness is sensitive); the PERMUTATION control (features shuffled within week) shows delta_MAE <= 0.02",
+    "T10_robustness": "delta_MAE(B1p - C2) > 0 AND delta_MAE(C0 - C2) > 0 under BOTH robustness scorings (STD, PPR)",
+    "T11_sentinel": "informational, never sufficient: the only REAL-source evidence in the repo (docs/PROJECTION_CALIBRATION_PHASE2_CERTIFICATION.md, 2026 week 3, n=769, real source baseline) showed delta MAE -0.006 for C1 and no kappa helping",
+    "T2b_role_specific_increment": "delta_MAE(C0 - C2) >= 0.03 points AND the 95% cluster-bootstrap lower bound > 0 on FINAL: the Role features must beat the Role-free shrinkage control, not only the proxy champion"
+  },
+  "verdict_mapping": {
+    "all_of T1-T10_pass_for_a_position": "all of T1, T2, T2b, T3-T10 pass for that position => that position is a PROMOTION CANDIDATE",
+    "any_position_candidate": "OFFLINE CERTIFIED \u2014 PROMOTION CANDIDATE, LIVE/STAGING GATE PENDING (strongest allowed offline verdict; never PROMOTED)",
+    "none": "SHADOW_ONLY (architecture and prospective capture may still ship)"
+  },
+  "pending_live_gates": [
+    "Wave 1 staging certification",
+    "prospective final-pregame Role challenger capture over completed real weeks",
+    "G3: incremental value over the REAL Wave 1 canonical forecast (real source projections) on prospective weeks",
+    "five-league live validation"
+  ],
+  "amendments": [
+    {
+      "when": "after inspecting DEV-only fits, before any VAL or FINAL evaluation",
+      "change": "added control candidate C0 (Role-free regression-to-the-mean) and threshold T2b/T10b",
+      "why": "DEV coefficients showed the baseline feature b0 carries a large NEGATIVE coefficient: the 4-game-mean proxy baseline over-predicts and a plain shrinkage correction needs no Role information at all. Gain of C2 over B1p would therefore be dominated by a defect of the PROXY baseline, not by Role. The Role-specific increment is C2 vs C0."
+    }
+  ],
+  "role_free_note": "If C0 beats B1p but C2 does not beat C0, the finding is: the proxy baseline needs shrinkage (a source-projection calibration matter), Role adds nothing measurable."
+}
