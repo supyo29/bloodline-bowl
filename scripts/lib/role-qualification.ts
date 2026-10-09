@@ -89,6 +89,8 @@ export function buildWorld(splits: readonly Split[]): World {
   const practiceByKey = new Map<string, string>();
   for (const i of injuries) if (i.season === 2025) practiceByKey.set(`${i.week}|${i.gsis_id}`, i.practice_status ?? "");
 
+  // the schedule is known pre-game: a team with no game that week (BYE) has no outcome to forecast; Wave 1's bye semantics owns that case
+  const teamPlays = new Set(observed.map((o) => `${o.week}|${o.team}`));
   const wantProfiles = profiles.filter((p) => weeks.has(p.target_week) && (POSITIONS as readonly string[]).includes(p.position));
   const wk = [...weeks].sort((a, b) => a - b);
   const forecasts = buildHistoricalForecasts({ season: 2025, profiles: wantProfiles, observed, injuries, weeks: wk });
@@ -96,8 +98,9 @@ export function buildWorld(splits: readonly Split[]): World {
 
   const rows: Row[] = [];
   const violations: string[] = [];
-  const counts = { profiles: wantProfiles.length, no_b0: 0, below_floor: 0, eligible: 0 };
+  const counts = { profiles: wantProfiles.length, bye_week: 0, no_b0: 0, below_floor: 0, eligible: 0 };
   for (const p of wantProfiles) {
+    if (!teamPlays.has(`${p.target_week}|${p.team}`)) { counts.bye_week++; continue; }
     const f = fKey.get(`${p.target_week}|${p.gsis_id}`); if (!f) continue;
     const prior = (history.get(p.gsis_id) ?? []).filter((x) => x.week < p.target_week).sort((a, b) => a.week - b.week).slice(-4);
     if (!prior.length) { counts.no_b0++; continue; }

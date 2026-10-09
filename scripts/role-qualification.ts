@@ -58,7 +58,7 @@ function stageVal(): void {
   const models = fitAll(dev, chosen);
   const valResults: Record<string, unknown> = {};
   for (const pos of POSITIONS) {
-    const rows = headline(val).filter((r) => r.position === pos); const m = models[`C2|${pos}`]; const m0 = models[`C0|${pos}`];
+    const rows = headline(val).filter((r) => r.position === pos); const m = models[`C2|${pos}|HALF`]; const m0 = models[`C0|${pos}|HALF`];
     const p = paired(rows, (r) => b1Of(r, "HALF"), (r) => c2Of(r, m!, "HALF").expected, "HALF", 1000);
     const p0 = paired(rows, (r) => b1Of(r, "HALF"), (r) => c2Of(r, m0!, "HALF").expected, "HALF", 1000);
     const pi = paired(rows, (r) => c2Of(r, m0!, "HALF").expected, (r) => c2Of(r, m!, "HALF").expected, "HALF", 1000);

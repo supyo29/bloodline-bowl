@@ -189,6 +189,11 @@
       "when": "after inspecting DEV-only fits, before any VAL or FINAL evaluation",
       "change": "added control candidate C0 (Role-free regression-to-the-mean) and threshold T2b/T10b",
       "why": "DEV coefficients showed the baseline feature b0 carries a large NEGATIVE coefficient: the 4-game-mean proxy baseline over-predicts and a plain shrinkage correction needs no Role information at all. Gain of C2 over B1p would therefore be dominated by a defect of the PROXY baseline, not by Role. The Role-specific increment is C2 vs C0."
+    },
+    {
+      "when": "after the first VAL run, before any FINAL evaluation (VAL may be inspected repeatedly by design)",
+      "change": "population excludes players whose team has no game that week (BYE); harness bug fixed: VAL summary looked up the wrong model keys",
+      "why": "the first VAL run showed champion bias of -2 to -4.5 points: bye-week players (known zero by Wave 1 bye semantics, schedule known pre-game) were scored against a 4-game-mean baseline. Exclusion is based on the pre-game schedule, never on the outcome. No threshold changed."
     }
   ],
   "role_free_note": "If C0 beats B1p but C2 does not beat C0, the finding is: the proxy baseline needs shrinkage (a source-projection calibration matter), Role adds nothing measurable."
