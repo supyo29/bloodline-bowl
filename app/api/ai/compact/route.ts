@@ -29,18 +29,21 @@ export const runtime = "nodejs";
 
 const WEEK_LOOKUP_TIMEOUT_MS = 2_500;
 
-async function currentNflWeek(): Promise<{ week: number | null; detail: string }> {
+// Same source and revalidation (300 s) the weekly engine uses for its current-week gate
+// (lib/providers/sleeper/provider.ts), so advertised weekly URLs match what the engine serves.
+async function currentNflWeek(): Promise<{ status: "RESOLVED" | "UNAVAILABLE"; week: number | null; detail: string }> {
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), WEEK_LOOKUP_TIMEOUT_MS));
   const state = await Promise.race([getNflState().catch(() => null), timeout]);
   const week = Number(state?.week);
   if (!state || !Number.isInteger(week) || week < 1) {
-    return { week: null, detail: "Current NFL week could not be resolved; weekly URLs omitted. Read state.current_week from a league state_url." };
+    return { status: "UNAVAILABLE", week: null, detail: "Current NFL week could not be resolved; weekly URLs omitted. Read state.current_week from a league state_url." };
   }
-  return { week, detail: `Sleeper NFL state week ${week}.` };
+  return { status: "RESOLVED", week, detail: `Sleeper NFL state week ${week}.` };
 }
 
 export async function GET(): Promise<Response> {
-  const { week, detail: weekDetail } = await currentNflWeek();
+  const { status: weekStatus, week, detail: weekDetail } = await currentNflWeek();
+  const generatedAt = new Date().toISOString();
   const leagues = discoveryLeagues();
 
   const body = {
@@ -60,7 +63,7 @@ export async function GET(): Promise<Response> {
       leagues: absoluteUrl("/api/leagues"),
       providers: absoluteUrl("/api/providers"),
     },
-    current_week: { week, source: "sleeper_nfl_state", detail: weekDetail },
+    current_week: { status: weekStatus, week, source: "sleeper_nfl_state", resolved_at: generatedAt, detail: weekDetail },
     leagues: leagues.map((l) => ({
       league_slug: l.league_slug,
       league_name: l.league_name,
@@ -95,14 +98,17 @@ export async function GET(): Promise<Response> {
       };
     }),
     meta: {
-      generated_at: new Date().toISOString(),
+      generated_at: generatedAt,
+      note: "This index carries links only, never analysis. Each linked response states its own freshness and status.",
       production_base_url: PRODUCTION_BASE_URL,
     },
   };
 
   return jsonResponse(body, {
     headers: {
-      "Cache-Control": cacheHeader(300, 900),
+      // Short edge cache: at a week rollover the weekly links refresh within ~2 min. A stale link
+      // fails explicitly (NON_CURRENT_WEEK_UNSUPPORTED); it never serves another week's data.
+      "Cache-Control": cacheHeader(60, 60),
       "X-Bridge-Context": "ai-discovery-compact",
     },
   });

@@ -40,6 +40,10 @@ describe("/api/ai/compact", () => {
     assert.deepEqual(body.leagues.map((l: { league_slug: string }) => l.league_slug), discoveryLeagues().map((l) => l.league_slug));
     assert.equal(body.managers.length, discoveryManagers().length);
 
+    assert.ok(["RESOLVED", "UNAVAILABLE"].includes(body.current_week.status));
+    assert.equal(body.current_week.status === "RESOLVED", body.current_week.week != null);
+    assert.match(res.headers.get("cache-control") ?? "", /s-maxage=60\b/);
+    for (const k of ["SUPABASE", "SECRET", "TOKEN", "PASSWORD", "api_key"]) assert.ok(!raw.includes(k), `secret hint ${k} in body`);
     if (body.current_week.week == null) {
       for (const m of body.managers) assert.equal(m.weekly_intelligence_url, undefined);
     } else {

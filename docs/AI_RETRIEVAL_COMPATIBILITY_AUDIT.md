@@ -62,7 +62,7 @@ Additional checks:
 
 | Change | Purpose |
 |---|---|
-| **New** `GET /api/ai/compact` (`app/api/ai/compact/route.ts`) | About 6 KB link index. Every URL is absolute and concrete: health, the full contract, llms.txt, per-league state/transactions/overview/managers/snapshot, and per-manager home/snapshot/context. Current-week intelligence, lineup, matchup and waiver URLs are filled from Sleeper NFL state, with a 2.5 s bounded lookup. If the week cannot be resolved, the weekly URLs are omitted and the reason is stated; no placeholder is ever emitted. Public-read, CORS `*`, 5 min CDN cache. |
+| **New** `GET /api/ai/compact` (`app/api/ai/compact/route.ts`) | About 6 KB link index. Every URL is absolute and concrete: health, the full contract, llms.txt, per-league state/transactions/overview/managers/snapshot, and per-manager home/snapshot/context. Current-week intelligence, lineup, matchup and waiver URLs are filled from Sleeper NFL state, with a 2.5 s bounded lookup. If the week cannot be resolved, the weekly URLs are omitted and the reason is stated; no placeholder is ever emitted. Public-read, CORS `*`, 60 s CDN cache; `current_week.status` RESOLVED|UNAVAILABLE. |
 | `/api/ai` | Adds `start_here.compact_index` (absolute URL). No existing field changed. |
 | `/api/health` (bare) | Adds `discovery.contract` and `discovery.compact_index` absolute links. Still makes no upstream calls. |
 | `/llms.txt`, `/ai`, `/sitemap.xml` | Advertise the compact index with absolute URLs. |
@@ -92,5 +92,5 @@ Not changed: the existing routes and their shapes, the rate limits, CORS, robots
 
 - The `*.vercel.app` shared-hostname reputation hypothesis is untested. A custom domain is the only way to test it, and it requires approval.
 - `/api/league/{slug}/state` (235 KB) may be truncated by browsing tools. The compact index steers agents to the smaller manager snapshot instead.
-- Rollover lag: the compact index's current week is CDN-cached for up to 5 min plus 15 min stale-while-revalidate. Right at the week rollover, the weekly URLs can briefly point at the previous week; those routes then answer `NON_CURRENT_WEEK_UNSUPPORTED` explicitly.
+- Rollover lag: the compact index's current week is CDN-cached for 60 s plus 60 s stale-while-revalidate (Sleeper state itself revalidates every 300 s, the same source the engine gates on). Right at the week rollover, the weekly URLs can briefly point at the previous week; those routes then answer `NON_CURRENT_WEEK_UNSUPPORTED` explicitly.
 - The current week comes from Sleeper NFL state. All registered managers are in Sleeper leagues today. Yahoo-league weekly URLs are not emitted.
