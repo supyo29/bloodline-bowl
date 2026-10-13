@@ -29,6 +29,7 @@ const UNADVERTISED: Record<string, string> = {
   "/api/trades/discover": "legacy trade-engine POST analytics (see /api/trades/analyze)",
   "/api/trades/negotiate": "legacy trade-engine POST analytics (see /api/trades/analyze)",
   "/api/health": "operational probe, not a data capability",
+  "/api/mcp": "MCP transport endpoint (JSON-RPC tools over Streamable HTTP), advertised in /api/ai under mcp, not a REST capability",
   "/api/auth/yahoo/callback": "OAuth plumbing", "/api/auth/yahoo/connect": "OAuth plumbing", "/api/auth/yahoo/status": "OAuth plumbing",
   "/api/yahoo/auth/start": "OAuth plumbing", "/api/yahoo/oauth/callback": "OAuth plumbing", "/api/yahoo/status": "provider auth status",
   "/api/yahoo/diagnostics": "provider diagnostics", "/api/yahoo/leagues": "Yahoo provider (not yet a registered league source)", "/api/yahoo/leagues/*": "Yahoo provider",
