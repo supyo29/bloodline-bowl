@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   // Phase 3.5C: the analytical evidence route reads the immutable history store, the surface registry and the
   // served intelligence artifacts by dynamic path; make sure the deployment bundle carries them.
   outputFileTracingIncludes: {
+    // W2.P2: the Role Shadow capture job reads the committed Role inputs (and the propagation model) by dynamic path.
+    "/api/cron/role-shadow-capture": ["./lib/role-calibration/data/**/*", "./lib/opportunity-propagation-intelligence/data/**/*"],
     "/api/evidence": [
       "./data/intelligence-history/**/*",
       "./docs/intelligence-surface-registry.json",
