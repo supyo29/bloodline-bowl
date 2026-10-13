@@ -870,6 +870,74 @@
    ]
   },
   {
+   "snapshot_id": "football-intelligence@fi:2026:w05:dd31f16150f1#0f91c9eecadc",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w05:dd31f16150f1",
+   "content_id": "0f91c9eecadc4cc7234935270117db3e417e80f401161ade0f93950145288ab9",
+   "season": 2026,
+   "through_week": 5,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-10-13T19:43:22+0000",
+   "source_cutoff": {
+    "ftn_charting": 5,
+    "ngs_passing": 5,
+    "ngs_receiving": 5,
+    "ngs_rushing": 5,
+    "pbp": 5,
+    "pfr_def": 5,
+    "pfr_pass": 5,
+    "snap_counts": 5
+   },
+   "provenance": {
+    "kind": "LIVE_SNAPSHOT"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "cdd5f6e3b478500a14c2f77f946b0166aef793310157411d975a00ccbe008efc",
+     "bytes": 2480,
+     "gz_bytes": 1232
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "5adb79a2a437b7037a3b85c50b906a8eaa9a228166c0f7d2d861709678786a50",
+     "bytes": 216786,
+     "gz_bytes": 61451
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "4683373869e6a5d6693ffdc05b4f69c5205a733d5273068a1809ed2e634dafee",
+     "bytes": 2171599,
+     "gz_bytes": 214388
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "7c65277665354a28bd319f6af6b08a3627a913c127a6ca832bd34052db569b2b",
+     "bytes": 16775,
+     "gz_bytes": 4413
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "5c290efa191c54bb64664bb8cc1a6cb0e07cf8d060f576fd435cefe82cbd2c81",
+     "bytes": 846499,
+     "gz_bytes": 79220
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "d2bfa1eea6bfa1983204008c554404dcd88e282498f831866ba12e1079a333b6",
+     "bytes": 20376,
+     "gz_bytes": 1323
+    },
+    {
+     "name": "receiver_progression.csv",
+     "sha256": "c517672bb9f8fa834ff01402fc14c616fbb9c0902b9b3732460ad7030a48dc62",
+     "bytes": 689654,
+     "gz_bytes": 87811
+    }
+   ]
+  },
+  {
    "snapshot_id": "opportunity-propagation@opi:2026:w01:bef17990fe91#421e3ef9b460",
    "surface": "opportunity-propagation",
    "version": "opi:2026:w01:bef17990fe91",
