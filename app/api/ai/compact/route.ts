@@ -15,6 +15,7 @@
  */
 
 import {
+  MCP_SERVER,
   PRODUCTION_BASE_URL,
   SERVICE_DESCRIPTION,
   absoluteUrl,
@@ -62,6 +63,7 @@ export async function GET(): Promise<Response> {
       health: absoluteUrl("/api/health"),
       leagues: absoluteUrl("/api/leagues"),
       providers: absoluteUrl("/api/providers"),
+      mcp_server: MCP_SERVER.url,
     },
     current_week: { status: weekStatus, week, source: "sleeper_nfl_state", resolved_at: generatedAt, detail: weekDetail },
     leagues: leagues.map((l) => ({

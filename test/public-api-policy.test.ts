@@ -229,7 +229,16 @@ describe("proxy: CORS, preflight, rate limiting", () => {
     assert.ok(RATE_LIMITS.standard.limit >= 300);
   });
 
-  it("proxy only runs on /api", () => {
-    assert.deepEqual(config.matcher, ["/api/:path*"]);
+  it("proxy only runs on /api (plus the /mcp alias of /api/mcp)", () => {
+    assert.deepEqual(config.matcher, ["/api/:path*", "/mcp"]);
+  });
+
+  it("/mcp is policed exactly like /api/mcp: POST public with MCP CORS headers, GET 405", () => {
+    for (const path of ["/mcp", "/api/mcp"]) {
+      const post = proxy(req("POST", path, { "x-forwarded-for": "203.0.113.77" }));
+      assert.equal(post.status, 200, path);
+      assert.match(post.headers.get("access-control-allow-headers") ?? "", /Mcp-Protocol-Version/);
+      assert.equal(proxy(req("GET", path)).status, 405, path);
+    }
   });
 });
