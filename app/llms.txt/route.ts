@@ -35,6 +35,9 @@ export async function GET(): Promise<Response> {
   lines.push("## Start here");
   lines.push("");
   lines.push(`Canonical discovery contract (machine-readable): ${PRODUCTION_BASE_URL}/api/ai`);
+  lines.push(
+    `Compact link index (every URL absolute and concrete, current week filled in — for browsing tools that cannot resolve relative paths or templates): ${PRODUCTION_BASE_URL}/api/ai/compact`,
+  );
   lines.push(`Human-readable overview: ${PRODUCTION_BASE_URL}/ai`);
   lines.push(
     "Fetch /api/ai first. It returns the full service map: leagues, known managers, every capability, and concrete route templates. Follow the links it returns — do not guess or normalize URLs. Routes span several namespaces (/api/leagues/..., /api/league/..., /api/context/..., /api/intelligence/..., ...); 'canonical' means 'the advertised route', not 'one prefix'.",

@@ -19,6 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/",
     "/ai",
     "/api/ai",
+    "/api/ai/compact",
     "/api/leagues",
     "/api/providers",
     "/llms.txt",

@@ -24,6 +24,7 @@ function routes(dir = "app/api", acc: string[] = []): string[] {
 /** Routes intentionally NOT advertised to AI clients, with the reason. */
 const UNADVERTISED: Record<string, string> = {
   "/api/ai": "the discovery entry point itself",
+  "/api/ai/compact": "compact absolute-URL index of the discovery contract (linked from /api/ai start_here.compact_index)",
   "/api/trades/analyze": "legacy trade-engine POST analytics with a request body; discovery advertises only /api/trades/competitive (body schema + modes documented). Advertising these needs documented request schemas (Phase 3.5C prerequisite)",
   "/api/trades/discover": "legacy trade-engine POST analytics (see /api/trades/analyze)",
   "/api/trades/negotiate": "legacy trade-engine POST analytics (see /api/trades/analyze)",

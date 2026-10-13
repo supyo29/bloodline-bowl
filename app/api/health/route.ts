@@ -29,6 +29,7 @@ import { getPersistence } from "@/lib/persistence";
 import { CANONICAL_SCHEMA_VERSION } from "@/lib/canonical/schema";
 import { emitBridgeEvent } from "@/lib/observability/events";
 import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
+import { absoluteUrl } from "@/lib/discovery";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -54,6 +55,10 @@ export async function GET(request: Request): Promise<Response> {
   const base = {
     ok: true,
     service: "bloodline-bowl-sleeper-bridge",
+    discovery: {
+      contract: absoluteUrl("/api/ai"),
+      compact_index: absoluteUrl("/api/ai/compact"),
+    },
     league_id: leagueId,
     timestamp: new Date().toISOString(),
     player_cache: getPlayerCacheStatus(),

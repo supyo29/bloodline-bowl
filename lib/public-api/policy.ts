@@ -33,6 +33,7 @@ export interface PolicyEntry {
 
 export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/ai", access: "public-read", cost: "standard" },
+  { template: "/api/ai/compact", access: "public-read", cost: "standard" },
   { template: "/api/auth/yahoo/callback", access: "self-guarded", cost: "standard" },
   { template: "/api/auth/yahoo/connect", access: "self-guarded", cost: "standard" },
   { template: "/api/auth/yahoo/status", access: "self-guarded", cost: "standard" },

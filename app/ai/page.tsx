@@ -76,6 +76,9 @@ export default function AiLandingPage() {
       </p>
       <p style={muted}>
         Also:{" "}
+        <a href={`${PRODUCTION_BASE_URL}/api/ai/compact`} style={link}>
+          compact link index with absolute URLs ({PRODUCTION_BASE_URL}/api/ai/compact)
+        </a>,{" "}
         <a href="/llms.txt" style={link}>plain-text guide for LLMs (/llms.txt)</a>,{" "}
         <a href="/api/leagues" style={link}>league discovery (/api/leagues)</a>,{" "}
         <a href="/" style={link}>service homepage</a>.
