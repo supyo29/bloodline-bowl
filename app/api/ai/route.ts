@@ -63,6 +63,8 @@ export async function GET(): Promise<Response> {
     },
     start_here: {
       ai_discovery: "/api/ai",
+      // Absolute, fully concrete URLs for browsing agents that cannot resolve relative paths or templates.
+      compact_index: absoluteUrl("/api/ai/compact"),
       league_discovery: "/api/leagues",
       manager_discovery_template: "/api/leagues/{leagueSlug}/managers",
       league_overview_template: "/api/leagues/{leagueSlug}",
