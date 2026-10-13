@@ -8,6 +8,7 @@ import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { buildWeeklyTeamContext } from "@/lib/weekly/context";
 import { listLeagueTargets, leagueConfigStatus } from "@/lib/leagues/registry";
 import { buildWeekForecasts } from "@/lib/role-calibration/forecast-week";
+import type { CanonicalWeeklyPlayerForecast } from "@/lib/weekly/forecast/schema";
 import { runRoleShadowCapture, type LeagueLoadFailure, type LeagueWeekInput, type RoleForecastLike, type RunSummary } from "@/lib/role-shadow/capture";
 import type { RoleShadowStore } from "@/lib/role-shadow/store";
 import { loadSupabaseConfig, SupabaseRest } from "./rest";
@@ -16,6 +17,16 @@ import { SupabaseRoleShadowStore } from "./role-shadow-store";
 export function resolveRoleShadowStore(env: NodeJS.ProcessEnv = process.env): RoleShadowStore | null {
   const cfg = loadSupabaseConfig(env);
   return cfg.configured && cfg.config ? new SupabaseRoleShadowStore(new SupabaseRest(cfg.config)) : null;
+}
+
+/** Every player rostered on ANY team of the league (the weekly context's `all_rostered` is only the requesting manager's roster). */
+export function leagueRosteredIds(snapshot: { rosters: ReadonlyArray<{ all_players: readonly string[] }> }): Set<string> {
+  return new Set(snapshot.rosters.flatMap((r) => r.all_players));
+}
+
+/** The league-level canonical forecasts of the rostered players only (final-pregame capture is rostered-only, league-scoped). */
+export function rosteredForecasts(batch: { by_player: ReadonlyMap<string, CanonicalWeeklyPlayerForecast> }, rostered: ReadonlySet<string>): CanonicalWeeklyPlayerForecast[] {
+  return [...batch.by_player.values()].filter((f) => rostered.has(f.canonical_player_id));
 }
 
 export async function loadProductionLeagueWeeks(): Promise<Array<LeagueWeekInput | LeagueLoadFailure>> {
@@ -28,12 +39,12 @@ export async function loadProductionLeagueWeeks(): Promise<Array<LeagueWeekInput
       const res = await buildWeeklyTeamContext(t.key, mgr.manager_slug, { snapshotOverride: st.snapshot });
       const ctx = res.context;
       if (!ctx || !ctx.forecasts) { out.push({ league_slug: t.key, failure: res.code ?? "weekly context unavailable" }); continue; }
-      const rostered = new Set(ctx.all_rostered.map((p) => p.canonical_player_id));
+      const rostered = leagueRosteredIds(st.snapshot);
       out.push({
         league_slug: t.key, provider: ctx.league.provider, season: ctx.league.season, week: ctx.league.week,
         raw_scoring: ctx.league.raw_scoring, scoring_fingerprint: ctx.forecasts.identity?.scoring_fingerprint ?? st.snapshot.league.scoring_fingerprint ?? null,
         league_snapshot_id: ctx.lineage.snapshot.league_snapshot_id ?? null, forecast_identity_id: ctx.forecasts.identity?.identity_id ?? null,
-        forecasts: [...ctx.forecasts.by_player.values()].filter((f) => rostered.has(f.canonical_player_id)),
+        forecasts: rosteredForecasts(ctx.forecasts, rostered),
       });
     } catch (e) {
       out.push({ league_slug: t.key, failure: e instanceof Error ? e.message : "league build failed" });

@@ -6,6 +6,7 @@ import hashlib, subprocess, sys, json
 TESTS = [f"test/role-shadow-{n}.test.ts" for n in ("frozen", "arms", "record", "store", "capture", "isolation", "g3", "cli")]
 REC, ARM, SPEC, SCO, STO, CAP, G3, CLI = ("lib/role-shadow/" + f for f in ("record.ts", "arms.ts", "spec.ts", "scoring.ts", "store.ts", "capture.ts", "g3.ts", "g3-cli.ts"))
 OUT = "lib/persistence/supabase/role-shadow-outcomes.ts"
+RUN = "lib/persistence/supabase/role-shadow-runtime.ts"
 SUP = "lib/persistence/supabase/role-shadow-store.ts"
 ROUTE = "app/api/cron/role-shadow-capture/route.ts"
 MUT = [
@@ -43,6 +44,8 @@ MUT = [
  ("M33", "a second DECISION look at the same model is no longer refused", CLI, [('if (repeated && !args.acknowledgeRepeatLook) {', 'if (false as boolean) {')]),
  ("M34", "the outcomes loader relabels every ledger row as CERTIFIED (approximate scoring laundered into the evaluation)", OUT, [('participation_state: r.participation_state, evidence_status: r.evidence_status,', 'participation_state: r.participation_state, evidence_status: "CERTIFIED",')]),
  ("M35", "the DECISION look is not written to the run log", CLI, [('if (report.look === "DECISION" && !args.noLog) {', 'if (false as boolean) {')]),
+ ("M36", "the capture clock is read BEFORE the league contexts are built (the defect the real-source dry run found: every record 'composed after capture')", CAP, [('    const weeks = await deps.loadLeagueWeeks();', '    const nowMs = (deps.now ?? Date.now)();\n    const weeks = await deps.loadLeagueWeeks();'), ('    const nowMs = (deps.now ?? Date.now)();\n    const roleCache', '    const roleCache')]),
+ ("M37", "the rostered set is the requesting MANAGER's roster instead of the league's (the second dry-run defect: ~8% of the population)", RUN, [('const rostered = leagueRosteredIds(st.snapshot);', 'const rostered = new Set(ctx.all_rostered.map((p) => p.canonical_player_id));')]),
  ("M32", "the capture no longer verifies the frozen-model integrity before running", CAP, [('const integ = (deps.integrity ?? verifyFrozenIntegrity)();', 'const integ = { ok: true, mismatches: [] as string[] };')]),
 ]
 # Mutants proven EQUIVALENT by reasoning (the mutated guard is implied by another guard), reported separately rather than as a test gap.

@@ -176,8 +176,10 @@ export async function runRoleShadowCapture(deps: RunDeps): Promise<RunSummary> {
     if (!integ.ok || !out.integrity.g3_prereg_ok) { out.status = "INTEGRITY_FAILURE"; out.failures = 1; return out; }
     if (!deps.store && !deps.dryRun) { out.status = "NOT_CONFIGURED"; out.store = null; return out; }
     out.store = deps.store ? { kind: deps.store.kind, durable: deps.store.durable } : null;
-    const nowMs = (deps.now ?? Date.now)();
     const weeks = await deps.loadLeagueWeeks();
+    // The capture clock is read AFTER the league contexts are composed: a forecast composed at T0 can only be captured at T >= T0. (Reading it first
+    // made every record "composed after capture time" and rejected the whole run — found by the real-source dry run, pinned by a regression test.)
+    const nowMs = (deps.now ?? Date.now)();
     const roleCache = new Map<string, RoleForecastLike[]>();
     for (const lw of weeks) {
       if (isFailure(lw)) { out.leagues.push({ league_slug: lw.league_slug, ok: false, code: lw.failure.slice(0, 160) }); out.failures++; continue; }

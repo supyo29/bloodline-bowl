@@ -100,6 +100,43 @@ describe("enabled: honest, idempotent capture", () => {
   });
 });
 
+describe("REGRESSION (real-source dry run): the capture clock is read AFTER the contexts are composed", () => {
+  it("a context that takes real time to compose is still captured: composed_at <= captured_at holds because the clock is read after loading", async () => {
+    const t = { now: NOW };
+    const lw = (): LeagueWeekInput => { t.now += 90_000; /* the build takes 90 s */ return leagueWeek([champion({ composed_ms: t.now, observed_ms: t.now - 2_000 })]); };
+    const store = new MemoryRoleShadowStore(() => t.now + 10_000);
+    const s = await runRoleShadowCapture({ env: ON, now: () => t.now + 5_000, store, loadLeagueWeeks: async () => [lw()], loadRoleForecasts: async (_s, _w, nowMs) => [roleForecast({ as_of_ms: nowMs })] });
+    assert.equal(s.totals.counters.rejected_incoherent, 0, JSON.stringify(s.totals.counters));
+    assert.equal(s.totals.counters.built, 1);
+    assert.equal((await store.list()).length, 1);
+  });
+
+  it("the Role forecasts are frozen at the SAME captured instant the records carry (as-of <= captured, never after)", async () => {
+    const seen: number[] = [];
+    const { d, store } = deps({ loadRoleForecasts: async (_s, _w, nowMs) => { seen.push(nowMs); return [roleForecast({ as_of_ms: nowMs })]; } });
+    await runRoleShadowCapture(d);
+    assert.deepEqual(seen, [NOW]);
+    assert.equal((await store.list())[0]!.timing.captured_at, new Date(NOW).toISOString());
+  });
+});
+
+describe("REGRESSION (real-source dry run): the league's rostered set is the league's, not the requesting manager's", () => {
+  it("rosteredForecasts() keeps every player rostered on ANY team and drops free agents; leagueRosteredIds() unions all rosters", async () => {
+    const { leagueRosteredIds, rosteredForecasts } = await import("../lib/persistence/supabase/role-shadow-runtime");
+    const ids = leagueRosteredIds({ rosters: [{ all_players: ["a", "b"] }, { all_players: ["b", "c"] }, { all_players: [] }] });
+    assert.deepEqual([...ids].sort(), ["a", "b", "c"]);
+    const mk = (id: string) => champion({ id, sleeper_id: `s${id}`, gsis_id: `00-${id}` });
+    const batch = { by_player: new Map(["a", "b", "c", "freeagent"].map((id) => [id, mk(id)])) };
+    assert.deepEqual(rosteredForecasts(batch, ids).map((f) => f.canonical_player_id).sort(), ["a", "b", "c"]);
+  });
+
+  it("the production loader derives the set from the league SNAPSHOT's rosters and never from the manager-scoped `ctx.all_rostered`", async () => {
+    const src = (await import("node:fs")).readFileSync("lib/persistence/supabase/role-shadow-runtime.ts", "utf8");
+    assert.match(src, /leagueRosteredIds\(st\.snapshot\)/);
+    assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ""), /ctx\.all_rostered/);
+  });
+});
+
 describe("fail-safe: no failure here can throw into a caller or block anything", () => {
   it("a league that cannot build is reported and the remaining leagues still capture", async () => {
     const { d, store } = deps({}, [{ league_slug: "broken", failure: "no canonical snapshot / manager" }, leagueWeek([champion()])]);
