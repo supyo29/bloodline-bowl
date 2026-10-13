@@ -9,19 +9,19 @@
  *   - only LIVE_CAPTURED, population-eligible records count; HISTORICALLY_RECONSTRUCTED never does;
  *   - models are never pooled across versions: the evaluation is for ONE challenger config hash;
  *   - one decision per (player, season, week, scoring fingerprint): the latest valid pre-kickoff capture (outcome-blind rule, see g3-prereg.json);
- *   - thresholds come from `scripts/w2p2/g3-prereg.json` (content-pinned); a sample below sufficiency yields G3_INSUFFICIENT_PROSPECTIVE_EVIDENCE and
+ *   - thresholds come from `./frozen/g3-prereg.json` (content-pinned); a sample below sufficiency yields G3_INSUFFICIENT_PROSPECTIVE_EVIDENCE and
  *     evaluates NO gate — a valid scientific outcome, never manufactured into a pass or a fail.
  */
 
 import { contentHash } from "@/lib/bridge/hash";
-import prereg from "../../scripts/w2p2/g3-prereg.json";
+import prereg from "./frozen/g3-prereg.json";
 import { computeArms } from "./arms";
 import { armsInputOf, validateRecord, type RoleShadowRecord } from "./record";
 import { PINNED, SHADOW_POSITIONS, type ShadowPosition } from "./spec";
 import { binomUpper, decisions, errStats, lcg, paired, type Paired } from "./stats";
 
 export const G3_REPORT_VERSION = "role-shadow-g3-report-2026.1" as const;
-/** Canonical-JSON hash (32 hex) of `scripts/w2p2/g3-prereg.json`; a silent threshold edit makes the evaluator refuse to run. */
+/** Canonical-JSON hash (32 hex) of `./frozen/g3-prereg.json`; a silent threshold edit makes the evaluator refuse to run. */
 export const G3_PREREG_CONTENT_HASH = "b083470af606e521878bb366affce9d5";
 
 export type G3Verdict = "G3_INSUFFICIENT_PROSPECTIVE_EVIDENCE" | "G3_FAIL" | "G3_QUALIFIED_FOR_HUMAN_REVIEW";

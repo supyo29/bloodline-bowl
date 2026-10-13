@@ -23,7 +23,7 @@ const strip = (r: RoleShadowRecord) => { const { capture_id: _a, content_hash: _
 const G = (b: G3Bundle, o = {}) => evaluateG3(b, o);
 
 describe("g3-prereg.json: every VERIFIED threshold equals the frozen W2.P1 pre-registration; the file is content-pinned", () => {
-  const T = read("scripts/w2p2/g3-prereg.json");
+  const T = read("lib/role-shadow/frozen/g3-prereg.json");
   const P = read("scripts/w2p1/prereg.json").promotion_thresholds_G2;
   const nums = (s: string): number[] => [...s.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
 

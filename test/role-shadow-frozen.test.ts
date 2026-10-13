@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
@@ -35,6 +35,34 @@ describe("frozen W2.P1 artifacts are unchanged in the working tree", () => {
     assert.equal(fz.harness_sha256, PINNED.harness_sha256);
     assert.equal(fz.driver_sha256, PINNED.driver_sha256);
     assert.equal(read("scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json").prereg_sha256, PINNED.prereg_sha256);
+  });
+});
+
+describe("the shipped copies in lib/role-shadow/frozen are EXACTLY the W2.P1 originals (W2.P1 section 15: reviewed, versioned configs — never imports of scripts/w2p1)", () => {
+  it("the challenger spec copy is BYTE-IDENTICAL to the frozen candidate file", () => {
+    const copy = readFileSync(join(ROOT, "lib/role-shadow/frozen/role-opportunity-challenger-2026.0.json"));
+    const orig = readFileSync(join(ROOT, "scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json"));
+    assert.ok(copy.equals(orig), "bytes differ");
+    assert.equal(createHash("sha256").update(copy).digest("hex"), PINNED.candidate_file_sha256);
+  });
+
+  it("the models copy holds exactly the 8 HALF models (C0 and C2 x QB/RB/WR/TE), each entry deep-equal to FROZEN.json, and pins the source file hash", () => {
+    const copy = read("lib/role-shadow/frozen/w2p1-frozen-models-half.json");
+    const orig = read("scripts/w2p1/FROZEN.json");
+    assert.equal(copy.source_file_sha256, PINNED.frozen_file_sha256);
+    assert.equal(copy.source_file_sha256, sha("scripts/w2p1/FROZEN.json"));
+    assert.deepEqual(Object.keys(copy.models).sort(), ["C0", "C2"].flatMap((c) => SHADOW_POSITIONS.map((p) => `${c}|${p}|HALF`)).sort());
+    for (const [k, v] of Object.entries(copy.models)) assert.deepEqual(v, orig.models[k], k);
+    for (const k of ["prereg_sha256", "harness_sha256", "driver_sha256"]) assert.equal(copy[k], orig[k], k);
+  });
+
+  it("the frozen directory contains only the three reviewed files (nothing stray can be loaded)", () => {
+    assert.deepEqual(readdirSync(join(ROOT, "lib/role-shadow/frozen")).sort(), ["g3-prereg.json", "role-opportunity-challenger-2026.0.json", "w2p1-frozen-models-half.json"]);
+  });
+
+  it("production-side code references no W2.P1 research path in executable code (the existing W2.P1 boundary test also pins this)", () => {
+    const strip = (x: string) => x.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+    for (const f of ["spec.ts", "g3.ts", "arms.ts", "record.ts", "capture.ts"]) assert.ok(!/role-qualification|scripts\/w2p1|w2p1\/FROZEN/.test(strip(readFileSync(join(ROOT, "lib/role-shadow", f), "utf8"))), f);
   });
 });
 

@@ -6,7 +6,7 @@
  *   (3) ACCESS: the only route is a CRON_SECRET-guarded, flag-gated, non-public-read cron route; the new table has no public path.
  */
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, it } from "node:test";
 
@@ -49,13 +49,13 @@ describe("(0) the import scanner sees every import form (a blind scanner would m
   it("static, side-effect, re-export, dynamic and require() imports are all detected", () => {
     const tmp = "test/.tmp-import-forms.ts";
     // written under test/ (not scanned by the isolation walk) and removed immediately
-    require("node:fs").writeFileSync(join(ROOT, tmp), [
+    writeFileSync(join(ROOT, tmp), [
       'import a from "x-static";', 'import type { T } from "x-type";', 'import "x-side-effect";', 'export * from "x-reexport";',
       'export { b } from "x-named-reexport";', 'const c = await import("x-dynamic");', 'const d = require("x-require");', "",
     ].join("\n"));
     try {
       assert.deepEqual(importsOf(tmp).sort(), ["x-dynamic", "x-named-reexport", "x-reexport", "x-require", "x-side-effect", "x-static", "x-type"]);
-    } finally { require("node:fs").rmSync(join(ROOT, tmp)); }
+    } finally { rmSync(join(ROOT, tmp)); }
   });
 });
 
@@ -86,8 +86,8 @@ describe("(1) structural isolation", () => {
     assert.deepEqual(users, []);
   });
 
-  it("lib/role-shadow imports ONLY an allowlist: itself, the frozen artifacts, hashing, team codes, and pure read-only injury-model / forecast-schema helpers", () => {
-    const ALLOWED = [/^\.\//, /^@\/lib\/bridge\/hash$/, /^@\/lib\/canonical\/team-codes$/, /^@\/lib\/weekly\/forecast\/(schema|injury-model|injury-priors)$/, /^\.\.\/\.\.\/scripts\/w2p[12]\/.*\.json$/, /^node:/];
+  it("lib/role-shadow imports ONLY an allowlist: itself (incl. ./frozen/*.json), hashing, team codes, and pure read-only injury-model / forecast-schema helpers", () => {
+    const ALLOWED = [/^\.\//, /^@\/lib\/bridge\/hash$/, /^@\/lib\/canonical\/team-codes$/, /^@\/lib\/weekly\/forecast\/(schema|injury-model|injury-priors)$/, /^node:/];
     const bad: Array<[string, string]> = [];
     for (const f of walk("lib/role-shadow")) for (const s of importsOf(f)) if (!ALLOWED.some((re) => re.test(s))) bad.push([f, s]);
     assert.deepEqual(bad, []);
@@ -96,6 +96,11 @@ describe("(1) structural isolation", () => {
   it("the forbidden decision surfaces are provably unreachable from lib/role-shadow: lineup, start/sit, matchup, waivers, trades, scoring, providers, sleeper client, persistence stores", () => {
     const FORBIDDEN = /(lib\/(trades|waiver2|waivers|matchup2|scoring|providers|sleeper|leagues|canonical\/state|persistence)|weekly\/(lineup|start-sit|matchup|waivers|context|intelligence|ros|replacement))/;
     for (const f of walk("lib/role-shadow")) for (const s of importsOf(f)) assert.ok(!FORBIDDEN.test(s), `${f} imports ${s}`);
+  });
+
+  it("the ONLY file that bridges the capture to Role Calibration is role-shadow-runtime.ts (the filename pinned in test/role-calibration.test.ts' boundary allowlist); lib/role-shadow itself never imports it", () => {
+    const importers = [...walk("app"), ...walk("lib")].filter((f) => importsOf(f).some((x) => /role-calibration/.test(x)) && /role-shadow/.test(f));
+    assert.deepEqual(importers, ["lib/persistence/supabase/role-shadow-runtime.ts"]);
   });
 
   it("the production forecast core does not import the research layers (Role Calibration / Role Shadow) — the existing boundary still holds", () => {

@@ -4,17 +4,19 @@
  * RESEARCH-ONLY. Production forecast code must never import this module (pinned by `test/role-shadow-isolation.test.ts`). Nothing here
  * changes a production number: the module only describes how a SHADOW challenger / control delta is computed from frozen coefficients.
  *
- * Frozen artifacts (W2.P1, branch intelligence-convergence-w2-p1-role-opportunity):
- *   scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json   the SHADOW challenger spec (centered, Role-only coefficients)
- *   scripts/w2p1/FROZEN.json                                         every fitted offline model, incl. the Role-free control C0 and full C2
+ * Frozen artifacts (W2.P1, branch intelligence-convergence-w2-p1-role-opportunity), shipped here as REVIEWED, VERSIONED COPIES in ./frozen/
+ * (W2.P1 section 15: production-side code never imports the research harness or its artifacts; a future artifact must be a reviewed, versioned
+ * config). `test/role-shadow-frozen.test.ts` proves each copy equals its W2.P1 original:
+ *   frozen/role-opportunity-challenger-2026.0.json   byte-identical to the W2.P1 SHADOW challenger spec (centered, Role-only coefficients)
+ *   frozen/w2p1-frozen-models-half.json              the 8 HALF models (Role-free control C0 and full C2 x QB/RB/WR/TE), entry-for-entry equal to FROZEN.json
  *
  * Nothing is refit, re-tuned or rewritten here. A proposed model change must ship as a NEW, separately identified model id; the integrity
  * check below makes a silent edit of a frozen coefficient fail closed (capture refuses to run, records never validate).
  */
 
 import { contentHash } from "@/lib/bridge/hash";
-import challengerJson from "../../scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json";
-import frozenJson from "../../scripts/w2p1/FROZEN.json";
+import challengerJson from "./frozen/role-opportunity-challenger-2026.0.json";
+import frozenJson from "./frozen/w2p1-frozen-models-half.json";
 
 export const ROLE_SHADOW_MODULE_VERSION = "role-shadow-2026.1" as const;
 export const ROLE_SHADOW_RECORD_SCHEMA_VERSION = 1 as const;
