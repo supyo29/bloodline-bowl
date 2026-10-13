@@ -1,0 +1,244 @@
+{
+ "_about": "W2.P2 REAL-SOURCE DRY RUN, 2026-10-13 ~21:51Z, merged tree (W2.P2 + current main). Live Sleeper projections + committed Role inputs for the unplayed week 6. Nothing was written to any database (no credentials in the environment; store absent / in-memory). Aggregate counts only; the 4 sample rows carry no player identifiers.",
+ "now": "2026-10-13T21:51:16.932Z",
+ "context_load_ms": 2782,
+ "leagues": [
+  {
+   "league": "bloodline-bowl",
+   "week": 6,
+   "forecasts": 190,
+   "role_forecasts": 599,
+   "counters": {
+    "candidates": 190,
+    "not_applicable_position": 26,
+    "no_role_forecast": 20,
+    "ambiguous_identity": 0,
+    "identity_conflict": 0,
+    "rejected_late": 0,
+    "rejected_no_kickoff": 0,
+    "rejected_incoherent": 0,
+    "built": 144
+   }
+  },
+  {
+   "league": "devoted-to-the-game",
+   "week": 6,
+   "forecasts": 202,
+   "role_forecasts": 599,
+   "counters": {
+    "candidates": 202,
+    "not_applicable_position": 26,
+    "no_role_forecast": 18,
+    "ambiguous_identity": 0,
+    "identity_conflict": 0,
+    "rejected_late": 0,
+    "rejected_no_kickoff": 0,
+    "rejected_incoherent": 0,
+    "built": 158
+   }
+  },
+  {
+   "league": "sportys-alumni",
+   "week": 6,
+   "forecasts": 226,
+   "role_forecasts": 599,
+   "counters": {
+    "candidates": 226,
+    "not_applicable_position": 33,
+    "no_role_forecast": 26,
+    "ambiguous_identity": 0,
+    "identity_conflict": 0,
+    "rejected_late": 0,
+    "rejected_no_kickoff": 0,
+    "rejected_incoherent": 0,
+    "built": 167
+   }
+  }
+ ],
+ "records": {
+  "built": 469,
+  "valid": 469,
+  "all_valid": true,
+  "by_class": {
+   "LIVE_CAPTURED": 469
+  },
+  "by_scoring": {
+   "bloodline-bowl:TEMPLATE_HALF_ON_MODELED_KEYS": 144,
+   "devoted-to-the-game:NO_FROZEN_FIT": 158,
+   "sportys-alumni:NO_FROZEN_FIT": 167
+  },
+  "by_arm_state": {
+   "APPLIED": 371,
+   "NEUTRAL_NO_BASELINE": 6,
+   "NEUTRAL_UNAVAILABLE": 92
+  },
+  "by_join": {
+   "SLEEPER_ID_VIA_PROFILE": 469
+  },
+  "by_role_conf": {
+   "LOW": 163,
+   "MEDIUM": 306
+  },
+  "kickoff_basis": {
+   "MIN_OF_CHAMPION_AND_ROLE": 469
+  },
+  "bloodline_bowl": {
+   "built": 144,
+   "eligible": 127,
+   "covered": 115,
+   "eligible_by_position": {
+    "QB": 19,
+    "RB": 44,
+    "WR": 47,
+    "TE": 17
+   },
+   "covered_by_position": {
+    "QB": 17,
+    "RB": 40,
+    "WR": 42,
+    "TE": 16
+   },
+   "rejected_reasons": {
+    "BELOW_RELEVANCE_FLOOR": 5,
+    "ELIGIBLE": 127,
+    "NO_CHAMPION_BASELINE": 12,
+    "SCORING_NO_FROZEN_FIT+BELOW_RELEVANCE_FLOOR": 12,
+    "SCORING_NO_FROZEN_FIT+NO_CHAMPION_BASELINE": 36,
+    "SCORING_NO_FROZEN_FIT": 277
+   }
+  },
+  "all_leagues_eligible": 127,
+  "challenger_delta": {
+   "QB": {
+    "n": 17,
+    "mean_abs": 0.998,
+    "max_abs": 3.429
+   },
+   "RB": {
+    "n": 40,
+    "mean_abs": 1.864,
+    "max_abs": 5.839
+   },
+   "WR": {
+    "n": 42,
+    "mean_abs": 1.012,
+    "max_abs": 2.288
+   },
+   "TE": {
+    "n": 16,
+    "mean_abs": 1.551,
+    "max_abs": 3.303
+   }
+  },
+  "control_delta": {
+   "QB": {
+    "n": 17,
+    "mean_abs": 1.698,
+    "max_abs": 2.976
+   },
+   "RB": {
+    "n": 40,
+    "mean_abs": 0.316,
+    "max_abs": 1.216
+   },
+   "WR": {
+    "n": 42,
+    "mean_abs": 1.027,
+    "max_abs": 2.499
+   },
+   "TE": {
+    "n": 16,
+    "mean_abs": 1.347,
+    "max_abs": 2.926
+   }
+  },
+  "cap_hit": {
+   "QB": 0,
+   "RB": 0.475,
+   "WR": 0,
+   "TE": 0.5
+  },
+  "p_active_changed_by_delta": 0,
+  "identity_mismatch": 0,
+  "kickoffs": [
+   "2026-10-16T00:15:00.000Z",
+   "2026-10-20T00:15:00.000Z"
+  ],
+  "sample": [
+   {
+    "pos": "WR",
+    "cond": 8.27,
+    "champ": 8.27,
+    "challenger": 8.72,
+    "control": 7.48,
+    "d_ch": 0.4511,
+    "d_ctl": -0.7911,
+    "status": "HEALTHY",
+    "kickoff": "2026-10-18T20:25:00.000Z",
+    "captured": "2026-10-13T21:51:16.932Z",
+    "conf": "MEDIUM"
+   },
+   {
+    "pos": "RB",
+    "cond": 4.78,
+    "champ": 4.78,
+    "challenger": 4.06,
+    "control": 5.03,
+    "d_ch": -0.717,
+    "d_ctl": 0.2508,
+    "status": "HEALTHY",
+    "kickoff": "2026-10-18T13:30:00.000Z",
+    "captured": "2026-10-13T21:51:16.932Z",
+    "conf": "LOW"
+   },
+   {
+    "pos": "WR",
+    "cond": 13.97,
+    "champ": 9.91,
+    "challenger": 9.43,
+    "control": 8.84,
+    "d_ch": -0.676,
+    "d_ctl": -1.509,
+    "status": "QUESTIONABLE",
+    "kickoff": "2026-10-18T20:25:00.000Z",
+    "captured": "2026-10-13T21:51:16.932Z",
+    "conf": "MEDIUM"
+   },
+   {
+    "pos": "WR",
+    "cond": 11.56,
+    "champ": 11.56,
+    "challenger": 13.85,
+    "control": 10.35,
+    "d_ch": 2.2883,
+    "d_ctl": -1.2055,
+    "status": "HEALTHY",
+    "kickoff": "2026-10-18T20:05:00.000Z",
+    "captured": "2026-10-13T21:51:16.932Z",
+    "conf": "MEDIUM"
+   }
+  ]
+ },
+ "runner_full_run": {
+  "status": "OK",
+  "failures": 0,
+  "by_status": {
+   "INSERTED": 469
+  },
+  "totals": {
+   "candidates": 618,
+   "not_applicable_position": 85,
+   "no_role_forecast": 64,
+   "ambiguous_identity": 0,
+   "identity_conflict": 0,
+   "rejected_late": 0,
+   "rejected_no_kickoff": 0,
+   "rejected_incoherent": 0,
+   "built": 469
+  },
+  "second_run_by_status": {
+   "DUPLICATE_IDENTICAL": 469
+  },
+  "stored": 469
+ }
+}
