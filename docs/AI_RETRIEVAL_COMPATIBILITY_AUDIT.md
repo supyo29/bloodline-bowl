@@ -1,6 +1,6 @@
 # Ordinary ChatGPT web-retrieval compatibility audit — 2026-10-13
 
-**ChatGPT certification: `PENDING_EXTERNAL_VALIDATION`.** ChatGPT's ordinary web-retrieval tool cannot be called from Claude Code. Nothing in this document certifies ChatGPT access.
+**ChatGPT certification: `FAIL` — external limitation, not a bridge defect** (live test 2026-10-13, §9). Ordinary ChatGPT browsing in the tested session only returns URLs already in its own cache. It does not live-fetch unseen URLs on *any* host, so the bridge's requests never reached Vercel.
 
 ## 1. Report that started this audit
 
@@ -94,3 +94,35 @@ Not changed: the existing routes and their shapes, the rate limits, CORS, robots
 - `/api/league/{slug}/state` (235 KB) may be truncated by browsing tools. The compact index steers agents to the smaller manager snapshot instead.
 - Rollover lag: the compact index's current week is CDN-cached for 60 s plus 60 s stale-while-revalidate (Sleeper state itself revalidates every 300 s, the same source the engine gates on). Right at the week rollover, the weekly URLs can briefly point at the previous week; those routes then answer `NON_CURRENT_WEEK_UNSUPPORTED` explicitly.
 - The current week comes from Sleeper NFL state. All registered managers are in Sleeper leagues today. Yahoo-league weekly URLs are not emitted.
+
+## 9. Live ChatGPT results (2026-10-13, after deploying `df7276d`)
+
+Run by the owner in fresh, ordinary ChatGPT conversations with no connectors.
+
+| Test | ChatGPT result | Reached Vercel? |
+|---|---|---|
+| `/api/ai/compact` (new) | Failed — "Cache miss" | **No** |
+| `/api/ai` | Returned a ~2-week-old cached copy | **No** (no live request) |
+| `/llms.txt`, `/api/leagues/bloodline-bowl/managers/supyo29`, `/api/intelligence/bloodline-bowl/supyo29/week/6` | Not accessible | **No** |
+| `https://httpbin.org/anything/bb-probe-7f3k9q2` (unseen, third-party) | Failed — "Cache miss" | n/a |
+| `https://httpbin.org/get` (well-known, third-party) | Succeeded; the body shows `ChatGPT-User/1.0` from an earlier fetch | n/a |
+
+**Log evidence.** The Vercel request log (`vercel logs --environment production --json`) was checked during the test window:
+- **Freshness:** a marked probe sent at 19:57:32 UTC appeared within seconds.
+- **Coverage:** the log records CDN cache hits as well as function invocations.
+- **Result:** a per-path search of the 60-minute retention window found no requests to any tested path apart from the auditor's own traffic.
+- **Limit:** the log has no user-agent or IP fields, so attribution is by timing.
+
+**Finding: CONFIRMED for the tested ChatGPT mode.** Retrieval depends on ChatGPT's own cache. It failed on an unseen URL at an unrelated domain in exactly the same way, so the cause is not this hostname, `*.vercel.app`, or the bridge. The working `/get` control shows the cache is filled by fetches made at some other time, through a path outside this session's control. That fits `/api/ai` having been cached about two weeks ago.
+
+**Not concluded.** This does not show how every ChatGPT mode behaves (for example agent or deep-research modes), or when or how the cache gets populated.
+
+**Decisions.**
+- No further bridge changes.
+- No custom domain: hostname reputation is ruled out as the cause of this failure.
+- AI access continues through the working Vercel connection.
+- `/api/ai/compact` stays deployed. It is harmless, it makes every link followable once a client does fetch, and it is listed in `sitemap.xml` for crawlers.
+
+**Optional future checks** (no code needed):
+1. Re-run the ChatGPT prompt for `/api/ai/compact` after some days, to see whether it appears in ChatGPT's cache.
+2. Try ChatGPT agent or deep-research mode, which may live-fetch.
