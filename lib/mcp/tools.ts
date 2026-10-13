@@ -10,6 +10,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
+import { absoluteUrl } from "@/lib/discovery";
 import { MCP_ACCESS_MODE, MCP_CONTRACT_VERSION, MCP_SERVER_VERSION } from "./contract";
 import {
   compactEvidence,
@@ -52,6 +53,7 @@ import {
 } from "./identity";
 import { callRoute, ROUTES, type RouteResult } from "./invoke";
 import { obj, objs, str, strs, type J } from "./json";
+import { DOC_KINDS, parseDocId, searchDocuments } from "./search";
 
 /* --------------------------------- inputs --------------------------------- */
 
@@ -554,7 +556,56 @@ export async function runTool(spec: ToolSpec, args: Record<string, unknown>) {
   return result;
 }
 
+/** ChatGPT deep-research retrieval pair. Shapes follow OpenAI's search/fetch contract. */
+function registerRetrievalTools(server: McpServer): void {
+  server.registerTool(
+    "search",
+    {
+      title: "Search Bloodline Bowl",
+      description: "Find Bloodline Bowl analyses (league standings, a manager's weekly analysis, lineup, matchup, waivers, roster outlook, trades, scoring) for a question that names a league, manager or team. Returns document ids for fetch.",
+      inputSchema: z.object({ query: z.string().trim().min(1).max(300).describe("A natural-language question, e.g. \"DarthMarker waivers in Devoted to the Game\".") }),
+      annotations: { title: "Search Bloodline Bowl", ...READ_ONLY_ANNOTATIONS },
+    },
+    async (args: { query: string }) => {
+      const started = Date.now();
+      const results = await searchDocuments(args.query);
+      logCall({ tool: "search", status: "OK", ms: Date.now() - started, results: results.length });
+      const payload = { results };
+      return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], structuredContent: payload };
+    },
+  );
+  server.registerTool(
+    "fetch",
+    {
+      title: "Fetch a Bloodline Bowl analysis",
+      description: "Fetch one document returned by search. The text is the full JSON result of the matching Bloodline Bowl tool, including status, limitations and deployment labels.",
+      inputSchema: z.object({ id: z.string().trim().min(4).max(200).describe('A document id from search, e.g. "bb:weekly:devoted-to-the-game:darthmarker".') }),
+      annotations: { title: "Fetch a Bloodline Bowl analysis", ...READ_ONLY_ANNOTATIONS },
+    },
+    async (args: { id: string }) => {
+      const parsed = parseDocId(args.id);
+      if (!parsed) {
+        const err = { id: args.id, title: "Unknown document", text: JSON.stringify({ status: "INVALID_INPUT", detail: "Unknown document id; call search first." }), url: null, metadata: { status: "INVALID_INPUT" } };
+        return { content: [{ type: "text" as const, text: JSON.stringify(err) }], structuredContent: err, isError: true };
+      }
+      const kind = DOC_KINDS[parsed.kind];
+      const spec = TOOLS.find((t) => t.name === kind.tool)!;
+      const result = await runTool(spec, { league: parsed.league, ...(parsed.manager ? { manager: parsed.manager } : {}) });
+      const env = result.structuredContent as unknown as Envelope;
+      const doc = {
+        id: args.id,
+        title: `${kind.title} — ${parsed.manager ? `${parsed.manager}, ` : ""}${parsed.league}`,
+        text: result.content[0]!.text,
+        url: absoluteUrl(kind.route(parsed.league, parsed.manager)),
+        metadata: { tool: kind.tool, status: env.status, actionability: env.actionability, league_snapshot_id: env.provenance.league_snapshot_id },
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(doc) }], structuredContent: doc, ...(result.isError ? { isError: true } : {}) };
+    },
+  );
+}
+
 export function registerTools(server: McpServer): void {
+  registerRetrievalTools(server);
   for (const spec of TOOLS) {
     server.registerTool(
       spec.name,

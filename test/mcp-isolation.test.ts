@@ -30,6 +30,7 @@ const ALLOWED_IMPORTS = [
   /^\.\//, // lib/mcp siblings
   /^@\/app\/api\//, // route handlers, invoked in-process
   /^@\/lib\/leagues\/registry$/, // league slugs/names (identity)
+  /^@\/lib\/discovery$/, // absolute public URLs for citations (metadata only)
   /^@\/lib\/sleeper\/client$/, // player directory + NFL week (identity), never projections
   /^@\/lib\/mcp\//,
   /^zod$/,

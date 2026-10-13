@@ -16,6 +16,7 @@ import { buildDirectory, normalizeName, resolveLeagueInput, resolveManagerInput 
 import { bridgeStatus, deriveActionability, MAX_RESULT_BYTES, newEnvelope, routeFailure, toToolResult } from "../lib/mcp/envelope";
 import { compactLineup, compactWaivers, compactWeekly, readinessSummary } from "../lib/mcp/compact";
 import type { RouteResult } from "../lib/mcp/invoke";
+import { docId, parseDocId } from "../lib/mcp/search";
 
 /* --------------------------- fixture: a tiny league --------------------------- */
 
@@ -215,5 +216,16 @@ describe("MCP compactors", () => {
     const r = readinessSummary({ market: { status: "READY", actionable: true, limitations: ["PENDING_CLAIMS_NOT_EXPOSED"] }, weekly_projections: { status: "PARTIAL", usable: true } });
     assert.deepEqual(r.summary.market, { status: "READY", actionable: true, limitations: ["PENDING_CLAIMS_NOT_EXPOSED"] });
     assert.equal(r.limited, true);
+  });
+});
+
+describe("MCP search/fetch document ids", () => {
+  it("round-trip and enforce manager presence per kind", () => {
+    assert.deepEqual(parseDocId(docId("weekly", "devoted-to-the-game", "darthmarker")), { kind: "weekly", league: "devoted-to-the-game", manager: "darthmarker" });
+    assert.deepEqual(parseDocId(docId("league", "bloodline-bowl")), { kind: "league", league: "bloodline-bowl" });
+    assert.equal(parseDocId("bb:weekly:devoted-to-the-game"), null, "manager kind without manager");
+    assert.equal(parseDocId("bb:league:bloodline-bowl:supyo29"), null, "league kind with manager");
+    assert.equal(parseDocId("bb:submit:bloodline-bowl"), null, "unknown kind");
+    assert.equal(parseDocId("https://example.com"), null);
   });
 });

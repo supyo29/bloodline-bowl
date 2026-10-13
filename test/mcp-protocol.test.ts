@@ -48,10 +48,10 @@ describe("MCP protocol — 2025-era Streamable HTTP", () => {
   it("tools/list returns the full catalog, every tool read-only with an object input schema", async () => {
     const { message } = await rpc("tools/list");
     const tools = message.result.tools as Array<{ name: string; description: string; inputSchema: { type: string }; annotations: Record<string, unknown> }>;
-    assert.deepEqual(tools.map((t) => t.name).sort(), TOOLS.map((t) => t.name).sort());
-    assert.equal(tools.length, 16);
+    assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS.map((t) => t.name), "search", "fetch"].sort());
+    assert.equal(tools.length, 18);
     for (const t of tools) {
-      assert.match(t.name, /^bloodline_[a-z_]+$/);
+      assert.match(t.name, /^(bloodline_[a-z_]+|search|fetch)$/);
       assert.equal(t.inputSchema.type, "object");
       assert.equal(t.annotations.readOnlyHint, true, t.name);
       assert.equal(t.annotations.destructiveHint, false, t.name);
@@ -73,6 +73,12 @@ describe("MCP protocol — 2025-era Streamable HTTP", () => {
     const { message } = await rpc("tools/call", { name: "bloodline_start_sit", arguments: { league: "bloodline-bowl", manager: "supyo29", week: 99 } });
     const failed = message.error !== undefined || message.result?.isError === true;
     assert.ok(failed, JSON.stringify(message).slice(0, 300));
+  });
+
+  it("fetch rejects an id search never issued", async () => {
+    const { message } = await rpc("tools/call", { name: "fetch", arguments: { id: "bb:weekly:devoted-to-the-game" } });
+    assert.equal(message.result.isError, true);
+    assert.equal(message.result.structuredContent.metadata.status, "INVALID_INPUT");
   });
 
   it("an unknown tool is an error", async () => {
@@ -106,7 +112,7 @@ describe("MCP protocol — 2026-07-28 stateless requests", () => {
 
   it("tools/list and tools/call work per-request with no session", async () => {
     const list = await rpc("tools/list", {}, { modern: true });
-    assert.equal(list.message.result.tools.length, 16);
+    assert.equal(list.message.result.tools.length, 18);
     const call = await rpc("tools/call", { name: "bloodline_capabilities", arguments: {} }, { modern: true });
     assert.equal(call.message.result.structuredContent.tool, "bloodline_capabilities");
   });
@@ -115,7 +121,7 @@ describe("MCP protocol — 2026-07-28 stateless requests", () => {
     const results = await Promise.all(Array.from({ length: 8 }, (_, i) => rpc("tools/list", {}, { modern: i % 2 === 0, id: i + 1 })));
     for (const [i, r] of results.entries()) {
       assert.equal(r.message.id, i + 1);
-      assert.equal(r.message.result.tools.length, 16);
+      assert.equal(r.message.result.tools.length, 18);
     }
   });
 });
