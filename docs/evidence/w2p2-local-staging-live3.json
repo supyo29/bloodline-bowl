@@ -1,0 +1,230 @@
+{
+ "generated_at": "2026-10-13T22:51:43.402Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "T.1",
+   "area": "T",
+   "name": "the next real kickoff in the stored data / the real clock",
+   "status": "INFO",
+   "detail": {
+    "first_kickoff": "2026-10-16T00:15:00Z",
+    "hours_from_now": 49.39
+   }
+  },
+  {
+   "id": "T.2",
+   "area": "T",
+   "name": "records built at each injected capture clock (real kickoff schedule)",
+   "status": "INFO",
+   "detail": {
+    "now": 456,
+    "after_TNF_kickoff": 420,
+    "after_Sunday_early_window": 164,
+    "after_every_game": 0,
+    "no_role_forecast_at": [
+     74,
+     110,
+     366,
+     533
+    ]
+   }
+  },
+  {
+   "id": "T.3",
+   "area": "T",
+   "name": "PER-PLAYER KICKOFF EXCLUSION on the real schedule: the number of capturable decisions falls monotonically as kickoffs pass, and reaches ZERO after the last game",
+   "status": "PASS",
+   "detail": [
+    456,
+    420,
+    164,
+    0
+   ]
+  },
+  {
+   "id": "T.4",
+   "area": "T",
+   "name": "after the TNF kickoff the TNF players are not capturable but the rest of the slate still is (real mixed-kickoff week)",
+   "status": "PASS",
+   "detail": {
+    "dropped_tnf_decisions": 36,
+    "remaining": 420
+   }
+  },
+  {
+   "id": "T.5",
+   "area": "T",
+   "name": "no capture is ever built with a kickoff at/before its capture clock (checked on every record built at the TNF-passed clock)",
+   "status": "PASS",
+   "detail": {
+    "role_forecasts_frozen": 412,
+    "at_or_after_kickoff": 0
+   }
+  },
+  {
+   "id": "W.1",
+   "area": "W",
+   "name": "bloodline-bowl: final-pregame capture candidates at the real clock vs after the TNF kickoff",
+   "status": "INFO",
+   "detail": {
+    "normal": [
+     "CAPTURED",
+     165,
+     {
+      "UNCHANGED": 165
+     }
+    ],
+    "post_kickoff": [
+     "CAPTURED",
+     151,
+     {
+      "UNCHANGED": 151
+     }
+    ]
+   }
+  },
+  {
+   "id": "W.2",
+   "area": "W",
+   "name": "devoted-to-the-game: final-pregame capture candidates at the real clock vs after the TNF kickoff",
+   "status": "INFO",
+   "detail": {
+    "normal": [
+     "CAPTURED",
+     181,
+     {
+      "UNCHANGED": 181
+     }
+    ],
+    "post_kickoff": [
+     "CAPTURED",
+     164,
+     {
+      "UNCHANGED": 164
+     }
+    ]
+   }
+  },
+  {
+   "id": "W.3",
+   "area": "W",
+   "name": "sportys-alumni: final-pregame capture candidates at the real clock vs after the TNF kickoff",
+   "status": "INFO",
+   "detail": {
+    "normal": [
+     "CAPTURED",
+     195,
+     {
+      "UNCHANGED": 195
+     }
+    ],
+    "post_kickoff": [
+     "CAPTURED",
+     178,
+     {
+      "UNCHANGED": 178
+     }
+    ]
+   }
+  },
+  {
+   "id": "W.4",
+   "area": "W",
+   "name": "WAVE 1 STAGING GATE: a request composed AFTER the TNF kickoff does not even SUBMIT those players (the context filters composed >= kickoff upstream of the store): candidates drop; the store's own REJECTED_POST_KICKOFF path is proven separately in stage 1",
+   "status": "PASS",
+   "detail": {
+    "candidates_normal": 541,
+    "candidates_after_tnf_kickoff": 493,
+    "dropped": 48,
+    "store_outcomes_post_kickoff": {
+     "UNCHANGED": 493
+    }
+   }
+  },
+  {
+   "id": "W.5",
+   "area": "W",
+   "name": "… and the frozen revisions and pointers of those players are BYTE-IDENTICAL afterwards (revisions + pointers checksum), on real data over real PostgREST",
+   "status": "PASS",
+   "detail": {
+    "tnf_revisions": 48,
+    "revisions_unchanged": true,
+    "pointers_unchanged": true
+   }
+  },
+  {
+   "id": "W.6",
+   "area": "W",
+   "name": "the same post-kickoff request still serves players whose games have NOT started (their records stay valid; none were corrupted)",
+   "status": "PASS",
+   "detail": {
+    "hindsight_rows": 0
+   }
+  },
+  {
+   "id": "B.1",
+   "area": "B",
+   "name": "real week-6 rostered players in Bloodline Bowl",
+   "status": "INFO",
+   "detail": {
+    "rostered_with_forecast": 190,
+    "bye": 25,
+    "questionable_or_doubtful_relevant": 4,
+    "known_unavailable": 30
+   }
+  },
+  {
+   "id": "B.2",
+   "area": "B",
+   "name": "BYE STARS: a real bye player scores exactly 0 for the week (BYE_VERIFIED) but keeps a positive underlying/asset value — a bye zero is not evidence to drop him",
+   "status": "PASS",
+   "detail": {
+    "bye_players": 25,
+    "with_underlying_value": 22,
+    "example": {
+     "cur": 0,
+     "underlying": 9.31,
+     "basis": "ROS_PER_WEEK_PROXY"
+    }
+   }
+  },
+  {
+   "id": "B.3",
+   "area": "B",
+   "name": "INJURED STARS: a real Questionable/Doubtful relevant player is discounted exactly once (expected = conditional x P(active)), with P(active) strictly between 0 and 1 and the provider status preserved verbatim",
+   "status": "PASS",
+   "detail": {
+    "injured": 4,
+    "violations": 0,
+    "example": {
+     "status": "Questionable",
+     "source": 11.94,
+     "cond": 13.97,
+     "expected": 9.91,
+     "p": 0.709
+    }
+   }
+  },
+  {
+   "id": "B.4",
+   "area": "B",
+   "name": "OUT players are a KNOWN ZERO distinct from a bye: expected 0, availability UNAVAILABLE, value_state KNOWN_UNAVAILABLE",
+   "status": "PASS",
+   "detail": {
+    "out_not_on_bye": 28,
+    "violations": 0
+   }
+  },
+  {
+   "id": "B.5",
+   "area": "B",
+   "name": "BYE WINS WHEN BOTH APPLY: a player who is Out AND on a bye is BYE_VERIFIED with reason BYE, while his Out designation stays visible (schema rule, verified on real data)",
+   "status": "PASS",
+   "detail": {
+    "out_and_bye": 2,
+    "violations": 0
+   }
+  }
+ ]
+}

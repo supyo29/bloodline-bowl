@@ -9,7 +9,7 @@ import { buildWeeklyTeamContext } from "@/lib/weekly/context";
 import { listLeagueTargets, leagueConfigStatus } from "@/lib/leagues/registry";
 import { buildWeekForecasts } from "@/lib/role-calibration/forecast-week";
 import type { CanonicalWeeklyPlayerForecast } from "@/lib/weekly/forecast/schema";
-import { runRoleShadowCapture, type LeagueLoadFailure, type LeagueWeekInput, type RoleForecastLike, type RunSummary } from "@/lib/role-shadow/capture";
+import { runRoleShadowCapture, type LeagueLoad, type RoleForecastLike, type RunSummary } from "@/lib/role-shadow/capture";
 import type { RoleShadowStore } from "@/lib/role-shadow/store";
 import { loadSupabaseConfig, SupabaseRest } from "./rest";
 import { SupabaseRoleShadowStore } from "./role-shadow-store";
@@ -29,9 +29,13 @@ export function rosteredForecasts(batch: { by_player: ReadonlyMap<string, Canoni
   return [...batch.by_player.values()].filter((f) => rostered.has(f.canonical_player_id));
 }
 
-export async function loadProductionLeagueWeeks(): Promise<Array<LeagueWeekInput | LeagueLoadFailure>> {
-  const out: Array<LeagueWeekInput | LeagueLoadFailure> = [];
-  for (const t of listLeagueTargets().filter((x) => x.provider === "sleeper" && leagueConfigStatus(x) === "READY")) {
+export async function loadProductionLeagueWeeks(): Promise<LeagueLoad[]> {
+  const out: LeagueLoad[] = [];
+  for (const t of listLeagueTargets()) {
+    // every registered league is accounted for: captured, failed, or explicitly skipped with a reason (never silently dropped)
+    if (t.provider !== "sleeper") { out.push({ league_slug: t.key, provider: t.provider, skipped: `provider ${t.provider}: weekly forecasts for this provider are not part of the Role Shadow evidence (frozen HALF fit is evaluated on Sleeper leagues only)` }); continue; }
+    const status = leagueConfigStatus(t);
+    if (status !== "READY") { out.push({ league_slug: t.key, provider: t.provider, skipped: `league config status ${status}` }); continue; }
     try {
       const st = await buildCanonicalLeagueState(t.key, { reportPersistence: false });
       const mgr = st.snapshot?.managers[0];

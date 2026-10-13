@@ -1,0 +1,283 @@
+{
+ "generated_at": "2026-10-13T22:49:29.861Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "A.1",
+   "area": "A",
+   "name": "migration chain created 33 tables + 3 views; every one exists in Postgres",
+   "status": "PASS",
+   "detail": {
+    "missing": [],
+    "tables": 33,
+    "views": 3
+   }
+  },
+  {
+   "id": "A.2",
+   "area": "A",
+   "name": "Postgres has NO unexpected public tables (nothing outside the migration chain)",
+   "status": "PASS",
+   "detail": {
+    "extra": []
+   }
+  },
+  {
+   "id": "A.3",
+   "area": "A",
+   "name": "RLS is enabled on every table",
+   "status": "PASS",
+   "detail": {
+    "rls_off": []
+   }
+  },
+  {
+   "id": "A.4",
+   "area": "A",
+   "name": "[P2] DEFENSE-IN-DEPTH: anon and authenticated should hold NO table privileges, but older migrations never revoke Supabase's default grants (they rely on RLS-without-policies alone; see the catalog-proof and behavior checks)",
+   "status": "FINDING",
+   "detail": {
+    "tables_with_anon_or_authenticated_grants": [
+     "bridge_league_snapshots",
+     "bridge_transaction_ledger",
+     "bridge_capture_runs",
+     "bridge_published_snapshot",
+     "bridge_publication_audit",
+     "bridge_yahoo_connections",
+     "bridge_startsit_shadow_captures",
+     "bridge_startsit_shadow_outcomes"
+    ],
+    "count": 8,
+    "note": "Supabase default privileges grant new public tables to anon/authenticated; the pre-W2.P2 migrations never REVOKE them"
+   }
+  },
+  {
+   "id": "A.5",
+   "area": "A",
+   "name": "CATALOG PROOF of the protection: zero RLS policies exist, anon/authenticated lack BYPASSRLS, and RLS is not bypassed by table ownership (default-deny for those roles)",
+   "status": "PASS",
+   "detail": {
+    "policies": 0,
+    "bypass": [],
+    "owned_by_anon_or_authenticated": []
+   }
+  },
+  {
+   "id": "A.6",
+   "area": "A",
+   "name": "BEHAVIOR: despite those grants, RLS (enabled, no policies) means anon can neither READ rows nor WRITE rows on any table",
+   "status": "PASS",
+   "detail": {
+    "tables_checked": 8,
+    "exposed": []
+   }
+  },
+  {
+   "id": "A.7",
+   "area": "A",
+   "name": "PostgREST (via Kong) exposes all 36 relations to the service key (HTTP 200)",
+   "status": "PASS",
+   "detail": {
+    "bad": []
+   }
+  },
+  {
+   "id": "A.8",
+   "area": "A",
+   "name": "PostgREST status for the anon key on grant-bearing tables is 200 with an EMPTY array (RLS filters every row), 401 where grants were revoked",
+   "status": "INFO",
+   "detail": "see A.5/A.6 behavior check"
+  },
+  {
+   "id": "A.9",
+   "area": "A",
+   "name": "the Role-shadow table does NOT exist yet (stage 1); PostgREST says so with the documented PGRST205 / 404",
+   "status": "PASS",
+   "detail": {
+    "status": 404,
+    "code": "PGRST205"
+   }
+  },
+  {
+   "id": "A.10",
+   "area": "A",
+   "name": "code-vs-schema drift: every bridge_* table the application code names exists in the chain's schema",
+   "status": "PASS",
+   "detail": {
+    "tables_referenced_in_code": 40,
+    "unknown": [],
+    "not_tables": [
+     "bridge_ranking_pack_v1",
+     "bridge_calculated_from_raw_stats",
+     "bridge_error"
+    ],
+    "next_migration": [
+     "bridge_role_shadow_captures"
+    ]
+   }
+  },
+  {
+   "id": "B.1",
+   "area": "B",
+   "name": "differential: every write outcome through real PostgREST equals the in-memory oracle's",
+   "status": "PASS",
+   "detail": [
+    {
+     "label": "first valid pregame observation",
+     "oracle": "RECORDED",
+     "real": "RECORDED"
+    },
+    {
+     "label": "same belief re-observed later (confirm)",
+     "oracle": "CONFIRMED",
+     "real": "CONFIRMED"
+    },
+    {
+     "label": "belief changes (Questionable) later",
+     "oracle": "RECORDED",
+     "real": "RECORDED"
+    },
+    {
+     "label": "OLDER observation proposing different content",
+     "oracle": "REJECTED_OLDER_OBSERVATION",
+     "real": "REJECTED_OLDER_OBSERVATION"
+    },
+    {
+     "label": "composition AT kickoff",
+     "oracle": "REJECTED_POST_KICKOFF",
+     "real": "REJECTED_POST_KICKOFF"
+    },
+    {
+     "label": "composition after kickoff",
+     "oracle": "REJECTED_POST_KICKOFF",
+     "real": "REJECTED_POST_KICKOFF"
+    },
+    {
+     "label": "observation AFTER composition (incoherent)",
+     "oracle": "REJECTED_INCONSISTENT_TIMES",
+     "real": "REJECTED_INCONSISTENT_TIMES"
+    },
+    {
+     "label": "identical belief re-recorded (idempotent)",
+     "oracle": "UNCHANGED",
+     "real": "UNCHANGED"
+    }
+   ]
+  },
+  {
+   "id": "B.2",
+   "area": "B",
+   "name": "differential: the final pointer and the full revision history are identical (ids, order, confirmed_through)",
+   "status": "PASS",
+   "detail": {
+    "oracle": [
+     "fpf:81cfc4183a776af20ee1548b",
+     "2026-10-20T16:30:00.000Z",
+     "2026-10-20T16:35:00.000Z"
+    ],
+    "real": [
+     "fpf:81cfc4183a776af20ee1548b",
+     "2026-10-20T16:30:00+00:00",
+     "2026-10-20T16:35:00+00:00"
+    ],
+    "revisions": [
+     2,
+     2
+    ],
+    "note": "timestamps compared as INSTANTS: PostgREST renders timestamptz as +00:00, the oracle as Z"
+   }
+  },
+  {
+   "id": "B.3",
+   "area": "B",
+   "name": "no hindsight is stored: the database holds exactly the 2 valid revisions; every rejected candidate left no row",
+   "status": "PASS",
+   "detail": {
+    "revisions": 2,
+    "pointers": 1
+   }
+  },
+  {
+   "id": "B.4",
+   "area": "B",
+   "name": "bulk upsertMany of 120 players round-trips in one league-week; reading each back returns the same record",
+   "status": "PASS",
+   "detail": {
+    "RECORDED": 120,
+    "CONFIRMED": 0,
+    "UNCHANGED": 0,
+    "REJECTED_POST_KICKOFF": 0,
+    "REJECTED_OLDER_OBSERVATION": 0,
+    "REJECTED_NO_KICKOFF": 0,
+    "REJECTED_INCONSISTENT_TIMES": 0
+   }
+  },
+  {
+   "id": "B.5",
+   "area": "B",
+   "name": "20 CONCURRENT identical writers (separate store instances over HTTP): exactly one revision, one pointer, no error",
+   "status": "PASS",
+   "detail": {
+    "revisions": 1,
+    "pointers": 1
+   }
+  },
+  {
+   "id": "C.1",
+   "area": "C",
+   "name": "source observation append/latestState/headers/stateAsOf match the in-memory oracle through real PostgREST",
+   "status": "PASS",
+   "detail": {
+    "headers": 1,
+    "players": 1
+   }
+  },
+  {
+   "id": "C.2",
+   "area": "C",
+   "name": "re-appending the SAME observation id is idempotent (no duplicate header or rows) — and `touch` only advances the confirmation pointer",
+   "status": "PASS",
+   "detail": {
+    "headers": 1,
+    "rows": 1
+   }
+  },
+  {
+   "id": "D.1",
+   "area": "D",
+   "name": "PATCH of a stored revision through PostgREST is REFUSED (insert-only trigger) and the row is unchanged",
+   "status": "PASS",
+   "detail": {
+    "status": 400,
+    "code": "P0001"
+   }
+  },
+  {
+   "id": "D.2",
+   "area": "D",
+   "name": "DELETE of stored revisions through PostgREST is REFUSED and no row disappears",
+   "status": "PASS",
+   "detail": {
+    "status": 400,
+    "code": "P0001"
+   }
+  },
+  {
+   "id": "D.3",
+   "area": "D",
+   "name": "a HINDSIGHT row POSTed straight over HTTP (composed after kickoff) is refused by the database CHECK (23514), not by application code",
+   "status": "PASS",
+   "detail": {
+    "status": 400,
+    "code": "23514"
+   }
+  },
+  {
+   "id": "D.4",
+   "area": "D",
+   "name": "Postgres server version (local container)",
+   "status": "INFO",
+   "detail": "17.11"
+  }
+ ]
+}
