@@ -43,13 +43,63 @@ test("docs read at runtime are exceptions", () => {
   assert.equal(classifyFile("docs/TEAM_MANAGEMENT_PHASE_8_ORCHESTRATOR.md").skip, false);
 });
 
-test("changedFiles falls back and returns null when git fails", () => {
-  const boom = () => { throw new Error("no git"); };
-  assert.equal(changedFiles({}, boom), null);
+// Simulated git: `commits` maps sha -> files changed between that sha and HEAD(=head).
+function fakeGit(known: Record<string, string[]>) {
+  return (a: string[]): string => {
+    if (a[0] === "cat-file") { const sha = a[2].replace("^{commit}", ""); if (!(sha in known)) throw new Error("bad object"); return ""; }
+    if (a[0] === "diff") { const [sha] = a[2].split(".."); if (!(sha in known)) throw new Error("bad revision"); return known[sha].join("\n") + "\n"; }
+    throw new Error("unexpected git " + a.join(" "));
+  };
+}
+const decide = (env: Record<string, string>, known: Record<string, string[]>) => classifyChange(changedFiles(env, fakeGit(known)) ?? []);
+const PREV = "a".repeat(40), HEAD = "b".repeat(40);
+
+test("first deployment (no previous SHA) always builds, even if the newest commit is docs-only", () => {
+  const known = { [HEAD + "^"]: ["docs/x.md"] };
+  assert.equal(changedFiles({ VERCEL_GIT_COMMIT_SHA: HEAD }, fakeGit(known)), null);
+  assert.equal(changedFiles({ VERCEL_GIT_PREVIOUS_SHA: "", VERCEL_GIT_COMMIT_SHA: HEAD }, fakeGit(known)), null);
+  assert.equal(decide({ VERCEL_GIT_COMMIT_SHA: HEAD }, known).build, true);
+});
+
+test("no HEAD^ fallback: git is never asked for HEAD^ / <sha>^", () => {
   const calls: string[][] = [];
-  const files = changedFiles({ VERCEL_GIT_PREVIOUS_SHA: "aaa", VERCEL_GIT_COMMIT_SHA: "bbb" }, (a: string[]) => { calls.push(a); if (a[2] === "aaa") throw new Error("shallow"); return "docs/a.md\n"; });
-  assert.deepEqual(files, ["docs/a.md"]);
-  assert.deepEqual(calls.map((c) => c[2]), ["aaa", "bbb^"]);
+  changedFiles({ VERCEL_GIT_COMMIT_SHA: HEAD }, (a: string[]) => { calls.push(a); return ""; });
+  assert.equal(calls.length, 0);
+});
+
+test("first branch push containing several commits builds (previous SHA absent, runtime change earlier in the range)", () => {
+  assert.equal(decide({ VERCEL_GIT_COMMIT_SHA: HEAD }, { [PREV]: ["app/api/x/route.ts", "docs/x.md"] }).build, true);
+});
+
+test("subsequent docs-only change after a successful deployment skips", () => {
+  const r = decide({ VERCEL_GIT_PREVIOUS_SHA: PREV, VERCEL_GIT_COMMIT_SHA: HEAD }, { [PREV]: ["docs/x.md", "test/a.test.ts", "analysis/foo/a.R"] });
+  assert.equal(r.build, false);
+});
+
+test("subsequent runtime code change builds", () => {
+  assert.equal(decide({ VERCEL_GIT_PREVIOUS_SHA: PREV, VERCEL_GIT_COMMIT_SHA: HEAD }, { [PREV]: ["lib/discovery.ts"] }).build, true);
+});
+
+test("subsequent runtime data change builds", () => {
+  for (const f of ["lib/football-intel/data/team_profile.csv", "data/intelligence-history/manifest.json", "lib/role-calibration/data/observed_role_game.csv"])
+    assert.equal(decide({ VERCEL_GIT_PREVIOUS_SHA: PREV, VERCEL_GIT_COMMIT_SHA: HEAD }, { [PREV]: [f] }).build, true, f);
+});
+
+test("mixed docs + runtime change builds", () => {
+  assert.equal(decide({ VERCEL_GIT_PREVIOUS_SHA: PREV, VERCEL_GIT_COMMIT_SHA: HEAD }, { [PREV]: ["docs/x.md", "app/page.tsx"] }).build, true);
+});
+
+test("invalid, malformed or unknown previous commit builds", () => {
+  const known = { [PREV]: ["docs/x.md"] };
+  assert.equal(changedFiles({ VERCEL_GIT_PREVIOUS_SHA: "c".repeat(40), VERCEL_GIT_COMMIT_SHA: HEAD }, fakeGit(known)), null); // not in clone (shallow)
+  assert.equal(changedFiles({ VERCEL_GIT_PREVIOUS_SHA: "not-a-sha; rm -rf /", VERCEL_GIT_COMMIT_SHA: HEAD }, fakeGit(known)), null);
+  assert.equal(decide({ VERCEL_GIT_PREVIOUS_SHA: "c".repeat(40), VERCEL_GIT_COMMIT_SHA: HEAD }, known).build, true);
+});
+
+test("empty diff and git failures build", () => {
+  assert.equal(changedFiles({ VERCEL_GIT_PREVIOUS_SHA: PREV, VERCEL_GIT_COMMIT_SHA: HEAD }, fakeGit({ [PREV]: [] })), null);
+  assert.equal(decide({ VERCEL_GIT_PREVIOUS_SHA: PREV, VERCEL_GIT_COMMIT_SHA: HEAD }, { [PREV]: [] }).build, true);
+  assert.equal(changedFiles({ VERCEL_GIT_PREVIOUS_SHA: PREV }, () => { throw new Error("no git"); }), null);
 });
 
 test("bundle safety helper flags skippable files that ship", () => {

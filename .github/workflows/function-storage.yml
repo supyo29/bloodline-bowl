@@ -3,7 +3,8 @@ name: Function Storage Audit
 # Builds the app exactly as Vercel does and fails if the deployed function payload regresses
 # (physical lambdas > 6, total uncompressed > 600 MB, near the 250 MB per-function limit, research caches shipped,
 # a required runtime file missing, or the ignoreCommand allowlist covering a file that ships).
-# Requires repository secrets VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID; without them the job reports and skips.
+# Requires repository secrets VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID. Without them the `storage-audit` job is SKIPPED
+# (shown as skipped, with a warning on the gate job) -- an unexecuted audit must never look like a passing gate.
 on:
   pull_request:
     branches: [main]
@@ -24,7 +25,30 @@ permissions:
   contents: read
 
 jobs:
+  # Secrets cannot be tested in a job-level `if`, so a tiny gate job reports availability and the audit job is SKIPPED
+  # (visibly "skipped", not "success") when the Vercel credentials are absent. A skipped audit is NOT a verified storage gate.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - id: gate
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Function storage audit NOT run::VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID repository secrets are not configured; the build-based storage gate was skipped and has NOT verified this change."
+          fi
+
   storage-audit:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -37,21 +61,11 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - name: Check secrets
-        id: gate
-        run: |
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "Vercel secrets not configured; skipping build-based storage audit."; echo "run=false" >> "$GITHUB_OUTPUT"
-          else echo "run=true" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.gate.outputs.run == 'true'
-        run: npm ci
-      - if: steps.gate.outputs.run == 'true'
-        run: npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-      - if: steps.gate.outputs.run == 'true'
-        run: npx vercel build --prod --token="$VERCEL_TOKEN"
-      - if: steps.gate.outputs.run == 'true'
-        run: node scripts/function-storage-audit.mjs --json function-storage-report.json
-      - if: steps.gate.outputs.run == 'true' && always()
+      - run: npm ci
+      - run: npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - run: npx vercel build --prod --token="$VERCEL_TOKEN"
+      - run: node scripts/function-storage-audit.mjs --json function-storage-report.json
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: function-storage-report

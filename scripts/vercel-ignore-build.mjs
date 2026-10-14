@@ -2,7 +2,8 @@
 /**
  * Vercel `ignoreCommand` — exit 0 SKIPS the build, exit 1 BUILDS.
  *
- * Conservative by construction: a deployment is skipped ONLY when every changed file matches SKIP_PATTERNS (documentation,
+ * Conservative by construction: a deployment is skipped ONLY when a known previous successful deployment exists AND every file
+ * changed since it matches SKIP_PATTERNS (documentation,
  * tests, offline R/analysis sources, CI workflow files, local tooling config). Anything else — including every data
  * file read from the deployed filesystem (lib/**\/data, data/intelligence-history, ...) — requests a build. Unknown state
  * (no git history, diff failure, empty diff) also builds.
@@ -58,16 +59,23 @@ export function skippableFilesInBundles(bundleFiles) {
   return bundleFiles.filter((f) => classifyFile(f).skip);
 }
 
+/**
+ * Files changed since the last SUCCESSFULLY DEPLOYED commit on this branch (`VERCEL_GIT_PREVIOUS_SHA`), or null when that
+ * cannot be established. There is deliberately NO fallback to `HEAD^`: on a branch's first deployment Vercel leaves
+ * VERCEL_GIT_PREVIOUS_SHA empty, and `HEAD^` would see only the newest commit and miss earlier runtime changes on the branch.
+ * null (=> BUILD) for: no previous SHA, previous commit not present/valid in this clone, diff failure, or an empty diff.
+ */
 export function changedFiles(env = process.env, git = (args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })) {
-  const head = env.VERCEL_GIT_COMMIT_SHA || "HEAD";
-  const bases = [env.VERCEL_GIT_PREVIOUS_SHA, `${head}^`].filter(Boolean);
-  for (const base of bases) {
-    try {
-      const out = git(["diff", "--name-only", base, head]).split("\n").map((s) => s.trim()).filter(Boolean);
-      if (out.length) return out;
-    } catch { /* try next base */ }
+  const prev = (env.VERCEL_GIT_PREVIOUS_SHA || "").trim();
+  if (!/^[0-9a-f]{7,64}$/i.test(prev)) return null;
+  const head = (env.VERCEL_GIT_COMMIT_SHA || "HEAD").trim();
+  try {
+    git(["cat-file", "-e", `${prev}^{commit}`]);
+    const out = git(["diff", "--name-only", `${prev}..${head}`]).split("\n").map((x) => x.trim()).filter(Boolean);
+    return out.length ? out : null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
