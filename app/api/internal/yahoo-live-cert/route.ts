@@ -37,7 +37,7 @@ export async function GET(request: Request): Promise<Response> {
       return json({ step, out });
     }
     if (step === "keepalive") { const n = mark(); const res = await runYahooHealthJob(); return json({ step, res, enforcement: since(n) }); }
-    if (step === "rotate" || step === "concurrent") {
+    if (step === "rotate" || step === "concurrent" || step === "instances") {
       const conn = q.get("connection") ?? ""; if (!listYahooConnectionBindings().some((b) => b.connection_id === conn)) return json({ error: "unknown connection" }, 400);
       const cfg = loadYahooConfig(); const r = resolveYahooTokenStore(process.env, { connectionId: conn }); if (!cfg.configured || !cfg.config || !r.ok) return json({ error: "config/store unavailable", configured: cfg.configured, store_ok: r.ok }, 503);
       const other = listYahooConnectionBindings().map((b) => b.connection_id).filter((c) => c !== conn); const otherStores = other.map((c) => { const rr = resolveYahooTokenStore(process.env, { connectionId: c }); return rr.ok ? rr.store : null; });
@@ -45,8 +45,8 @@ export async function GET(request: Request): Promise<Response> {
       const marker = async (s: typeof r.store) => { const v = await s.getVersioned?.(); return v ? `${v.token.access_token.slice(-0)}${v.seq}` : null; };
       const beforeOther = await Promise.all(otherStores.map(async (s) => (s ? JSON.stringify(await s.getVersioned?.().then((v) => v && { seq: v.seq, exp: v.token.expires_at, a: v.token.access_token.length })) : null)));
       const before = await snap(r.store); const beforeTok = (await r.store.getVersioned!())!.token; const n = mark();
-      const calls = step === "concurrent" ? 6 : 1;
-      const results = await Promise.all(Array.from({ length: calls }, () => getValidAccessToken(cfg.config!, r.store, { forceRefresh: true })));
+      const calls = step === "concurrent" || step === "instances" ? (step === "instances" ? 4 : 6) : 1;
+      const results = await Promise.all(Array.from({ length: calls }, () => getValidAccessToken(cfg.config!, r.store, step === "instances" ? { forceRefresh: true, inflightMap: new Map() } : { forceRefresh: true })));
       const after = await snap(r.store); const afterTok = (await r.store.getVersioned!())!.token; void marker;
       const afterOther = await Promise.all(otherStores.map(async (s) => (s ? JSON.stringify(await s.getVersioned?.().then((v) => v && { seq: v.seq, exp: v.token.expires_at, a: v.token.access_token.length })) : null)));
       return json({ step, connection: conn, calls, statuses: results.map((x) => x.status), failure_kinds: results.map((x) => x.failure_kind ?? null), reauth: results.map((x) => x.reauthorization_required ?? false), all_same_access_token: new Set(results.map((x) => x.access_token)).size === 1, before, after, seq_delta: before && after ? after.seq - before.seq : null, access_token_rotated: beforeTok.access_token !== afterTok.access_token, refresh_token_rotated: beforeTok.refresh_token !== afterTok.refresh_token, persisted_equals_served: results.every((x) => x.access_token === afterTok.access_token), other_connections_untouched: JSON.stringify(beforeOther) === JSON.stringify(afterOther), lifecycle: getYahooLifecycleRecord(conn), enforcement: since(n) });
