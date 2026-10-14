@@ -8,15 +8,15 @@ g <- g[season <= 2025]; fgA <- fgA[season <= 2025]          # FINAL guard: 2026 
 setorder(g, team, season, week); g[, gi := seq_len(.N), by = team]
 BL <- c("b0_19","b20_29","b30_39","b40_49","b50_59","b60p"); K0 <- 4; WIN <- 10
 FITm <- g$season <= 2024
-cnt <- c("sacks","sack_yd","ints","int_ret_yd","fumrec_def","fumrec_st","fum_ret_yd","ff_def","ff_st","def_td","st_td","safeties","blk","stops4","forced_punts","kr_yd","pr_yd","def2pt","pts_scored_off","sacks_suffered","dropbacks","ints_thrown","fumlost_off","xp_att","xp_made", paste0("att_", BL), paste0("made_", BL))
+cnt <- c("sacks","sack_yd","ints","int_ret_yd","fumrec_def","fumrec_st","fum_ret_yd","ff_def","ff_st","def_td","st_td","blk_td","safeties","blk","stops4","forced_punts","kr_yd","pr_yd","def2pt","pts_scored_off","sacks_suffered","dropbacks","ints_thrown","fumlost_off","xp_att","xp_made", paste0("att_", BL), paste0("made_", BL))
 lgm <- sapply(cnt, function(c) mean(g[FITm][[c]]))               # FIT league mean per team-game (artifact)
 g[, fg_att := rowSums(.SD), .SDcols = paste0("att_", BL)]; lgm["fg_att"] <- mean(g[FITm]$fg_att)
 # ---- as-of EB rates: previous <=10 games (crossing seasons), shrunk to league mean with k0 = 4 ----
 asof <- function(x, lg) { n <- length(x); out <- numeric(n); for (i in seq_len(n)) { lo <- max(1, i - WIN); prior <- if (i > 1) x[lo:(i - 1)] else numeric(0); out[i] <- (sum(prior) + K0 * lg) / (length(prior) + K0) }; out }
-rates <- c("sacks","ints","fumrec_def","def_td","st_td","safeties","blk","stops4","forced_punts","ff_def","ff_st","fumrec_st","kr_yd","pr_yd","def2pt","sack_yd","int_ret_yd","fum_ret_yd","pts_scored_off","sacks_suffered","dropbacks","ints_thrown","fumlost_off","fg_att","xp_att")
+rates <- c("sacks","ints","fumrec_def","def_td","st_td","blk_td","safeties","blk","stops4","forced_punts","ff_def","ff_st","fumrec_st","kr_yd","pr_yd","def2pt","sack_yd","int_ret_yd","fum_ret_yd","pts_scored_off","sacks_suffered","dropbacks","ints_thrown","fumlost_off","fg_att","xp_att")
 for (r in rates) g[, (paste0("r_", r)) := asof(get(r), lgm[[r]]), by = team]
 # points allowed by this team's defense = opponent's offense points in the same game
-opp <- g[, .(game_id, team, pa_actual = pts_scored_off + 6 * st_td)]  # S7-adjudication: points allowed = opponent offense points + 6 x opponent special-teams TDs (verified vs Sleeper 99.2% / Yahoo 99.8% exact)
+opp <- g[, .(game_id, team, pa_actual = pts_scored_off + 6 * (st_td + blk_td))]  # S7-adjudication: points allowed = opponent offense points + 6 x opponent special-teams TDs (verified vs Sleeper 99.2% / Yahoo 99.8% exact)
 g <- merge(g, opp, by.x = c("game_id", "opp"), by.y = c("game_id", "team"), all.x = TRUE); setorder(g, team, season, week)
 lgm["pa_actual"] <- mean(g[season <= 2024]$pa_actual)
 g[, r_def_pa := asof(pa_actual, lgm[["pa_actual"]]), by = team]
@@ -55,23 +55,7 @@ g[, kratio := mapply(function(k, s, w) if (is.na(k) || k == "0" || k == "") 1 el
 sh_asof <- function(team_rows) { out <- matrix(0, nrow(team_rows), 6); for (i in seq_len(nrow(team_rows))) { lo <- max(1, i - WIN); idx <- if (i > 1) lo:(i - 1) else integer(0); a <- sapply(BL, function(b) sum(team_rows[[paste0("att_", b)]][idx])); out[i, ] <- (a + 20 * shares_lg) / (sum(a) + 20) }; out }
 sh <- g[, { m <- sh_asof(.SD); as.data.table(m) }, by = team, .SDcols = paste0("att_", BL)]; setnames(sh, c("team", paste0("sh_", BL))); stopifnot(nrow(sh) == nrow(g)); g <- cbind(g, sh[, -1])
 # ---- exact-scoring weights per regime ----
-W <- function(rg, k, d = 0) { v <- rg$scoring[[k]]; if (is.null(v)) d else v }
-wK <- function(rg) { fm <- W(rg, "fgm"); fx <- W(rg, "fgmiss"); list(
-  make = c(W(rg,"fgm_0_19")+fm, W(rg,"fgm_20_29")+fm, W(rg,"fgm_30_39")+fm, W(rg,"fgm_40_49")+fm, (if (!is.null(rg$scoring$fgm_50_59)) W(rg,"fgm_50_59") else W(rg,"fgm_50p"))+fm, (if (!is.null(rg$scoring$fgm_60p)) W(rg,"fgm_60p") else W(rg,"fgm_50p"))+fm),
-  miss = c(W(rg,"fgmiss_0_19")+fx, W(rg,"fgmiss_20_29")+fx, W(rg,"fgmiss_30_39")+fx, W(rg,"fgmiss_40_49")+fx, (if (!is.null(rg$scoring$fgmiss_50_59)) W(rg,"fgmiss_50_59") else W(rg,"fgmiss_50p"))+fx, (if (!is.null(rg$scoring$fgmiss_60p)) W(rg,"fgmiss_60p") else W(rg,"fgmiss_50p"))+fx),
-  xpm = W(rg, "xpm"), xpmiss = W(rg, "xpmiss")) }
-wD <- function(rg) { sl <- identical(rg$provider, "sleeper"); dk <- function(a, b) if (!is.null(rg$scoring[[a]])) W(rg, a) else W(rg, b)
-  # PROVIDER-SPECIFIC semantics (S7 adjudication, verified against live 2025 provider stat lines):
-  #  Sleeper: fum_rec = defensive recoveries, def_st_fum_rec = special-teams recoveries by the D/ST unit; ff = defensive forced fumbles, def_st_ff = ST forced fumbles; def_td = defensive TD, def_st_td = ST TD (KR/PR TDs). st_*/fum_rec_td are individual-player keys (not D/ST).
-  #  Yahoo: Fumble Recovery covers defense AND special teams; "Touchdown" = defensive TD; KR/PR TD = st_td; no forced-fumble stat; fum_rec_td is an OFFENSIVE player key (not D/ST).
-  list(sacks = W(rg,"sack"), sack_yd = W(rg,"sack_yd"), ints = W(rg,"int"), int_ret_yd = W(rg,"int_ret_yd"), fumrec_def = W(rg,"fum_rec"), fumrec_st = if (sl) W(rg,"def_st_fum_rec") else W(rg,"fum_rec"), fum_ret_yd = W(rg,"fum_ret_yd"),
-  ff_def = if (sl) W(rg,"ff") else 0, ff_st = if (sl) W(rg,"def_st_ff") else 0, def_td = W(rg,"def_td"), st_td = if (sl) W(rg,"def_st_td") else W(rg,"st_td"), safeties = W(rg,"safe"), blk = W(rg,"blk_kick"), stops4 = W(rg,"def_4_and_stop"), forced_punts = W(rg,"def_forced_punts"),
-  kr_yd = dk("def_kr_yd", "kr_yd"), pr_yd = dk("def_pr_yd", "pr_yd"), def2pt = W(rg,"def_2pt"), pa_cont = W(rg,"pts_allow"),
-  pa_bins = c(W(rg,"pts_allow_0"), W(rg,"pts_allow_1_6"), W(rg,"pts_allow_7_13"), W(rg,"pts_allow_14_20"), W(rg,"pts_allow_21_27"), W(rg,"pts_allow_28_34"), W(rg,"pts_allow_35p"))) }
-pa_score <- function(pa, w) { b <- ifelse(pa == 0, w$pa_bins[1], ifelse(pa <= 6, w$pa_bins[2], ifelse(pa <= 13, w$pa_bins[3], ifelse(pa <= 20, w$pa_bins[4], ifelse(pa <= 27, w$pa_bins[5], ifelse(pa <= 34, w$pa_bins[6], w$pa_bins[7]))))))
-  b + w$pa_cont * pa }
-actualK <- function(d, w) { s <- 0; for (i in 1:6) { a <- d[[paste0("att_", BL[i])]]; m <- d[[paste0("made_", BL[i])]]; s <- s + m * w$make[i] + (a - m) * w$miss[i] }; s + d$xp_made * w$xpm + (d$xp_att - d$xp_made) * w$xpmiss }
-actualD <- function(d, w) { s <- 0; for (c in c("sacks","sack_yd","ints","int_ret_yd","fumrec_def","fumrec_st","fum_ret_yd","ff_def","ff_st","def_td","st_td","safeties","blk","stops4","forced_punts","kr_yd","pr_yd","def2pt")) s <- s + d[[c]] * w[[c]]; s + pa_score(d$pa_actual, w) }
+source("scripts/w2r1/s4_weights.R")
 # ---- expected components (model) ----
 pred <- function(m, d) pmax(predict(m$m, d, type = "response"), 1e-4)
 g[, `:=`(e_fg = pred(M$fg_att, g), e_xp = pred(M$xp_att, g), e_sacks = pred(M$sacks, g), e_ints = pred(M$ints, g), e_fr = pred(M$fumrec_def, g), e_pa = predict(pam, g))]
@@ -81,7 +65,7 @@ expK <- function(w) { n <- nrow(g); out <- numeric(n); pbin <- matrix(0, n, 6); 
 yrt <- function(c) if (c == "sack_yd") mean_yds[["sack_yd"]] else if (c == "int_ret_yd") mean_yds[["int_ret_yd"]] else mean_yds[["fum_ret_yd"]]
 expD <- function(w) { pmf <- function(mu) { k <- 0:70; sapply(mu, function(m) dnbinom(k, size = size, mu = max(0.5, m))) }; P <- pmf(g$e_pa); k <- 0:70; ps <- pa_score(k, w); epa <- colSums(P * ps) / pmax(colSums(P), 1e-9)
   g$e_sacks * (w$sacks + w$sack_yd * yrt("sack_yd")) + g$e_ints * (w$ints + w$int_ret_yd * yrt("int_ret_yd")) + g$e_fr * (w$fumrec_def + w$fum_ret_yd * yrt("fum_ret_yd")) + g$r_fumrec_st * w$fumrec_st +
-  g$r_ff_def * w$ff_def + g$r_ff_st * w$ff_st + g$r_def_td * w$def_td + g$r_st_td * w$st_td + g$r_safeties * w$safeties + g$r_blk * w$blk + g$r_stops4 * w$stops4 + g$r_forced_punts * w$forced_punts + g$r_kr_yd * w$kr_yd + g$r_pr_yd * w$pr_yd + g$r_def2pt * w$def2pt + epa }
+  g$r_ff_def * w$ff_def + g$r_ff_st * w$ff_st + g$r_def_td * w$def_td + g$r_st_td * w$st_td + g$r_blk_td * w$blk_td + g$r_safeties * w$safeties + g$r_blk * w$blk + g$r_stops4 * w$stops4 + g$r_forced_punts * w$forced_punts + g$r_kr_yd * w$kr_yd + g$r_pr_yd * w$pr_yd + g$r_def2pt * w$def2pt + epa }
 ctl <- function(x) { y <- shift(x, 1); n <- 4; out <- frollmean(y, n, na.rm = FALSE); ifelse(is.na(out), mean(x[1:min(length(x), 8)], na.rm = TRUE), out) }
 metrics <- function(a, m, c, cl) { e1 <- a - m; e0 <- a - c; set.seed(20261014); B <- 2000; u <- unique(cl); idx <- split(seq_along(a), cl); d <- sapply(seq_len(B), function(i) { s <- unlist(idx[sample(length(idx), length(idx), TRUE)]); mean(abs(e0[s])) - mean(abs(e1[s])) })
   list(n = length(a), MAE_model = mean(abs(e1)), MAE_control = mean(abs(e0)), dMAE = mean(abs(e0)) - mean(abs(e1)), dMAE_lo95 = unname(quantile(d, .025)), RMSE_model = sqrt(mean(e1^2)), RMSE_control = sqrt(mean(e0^2)), bias_model = mean(e1), bias_control = mean(e0)) }
@@ -94,7 +78,7 @@ simK <- function(i, w) { fa <- rpois(NSIM, g$e_fg[i]); pts <- numeric(NSIM); sh 
   for (n in seq_len(NSIM)) { if (fa[n] > 0) { bins <- rmultinom(1, fa[n], sh)[, 1]; mk <- rbinom(6, bins, pb); pts[n] <- sum(mk * w$make + (bins - mk) * w$miss) }; xa <- rpois(1, g$e_xp[i]); xm <- rbinom(1, xa, xp_rate); pts[n] <- pts[n] + xm * w$xpm + (xa - xm) * w$xpmiss }; pts }
 simD <- function(i, w) { n <- NSIM; pa <- rnbinom(n, size = size, mu = max(0.5, g$e_pa[i])); sk <- rpois(n, g$e_sacks[i]); it <- rpois(n, g$e_ints[i]); fr <- rpois(n, g$e_fr[i])
   pts <- sk * (w$sacks + w$sack_yd * yrt("sack_yd")) + it * (w$ints + w$int_ret_yd * yrt("int_ret_yd")) + fr * (w$fumrec_def + w$fum_ret_yd * yrt("fum_ret_yd")) + pa_score(pa, w)
-  for (c in c("fumrec_st","ff_def","ff_st","def_td","st_td","safeties","blk","stops4","forced_punts","kr_yd","pr_yd","def2pt")) pts <- pts + rpois(n, g[[paste0("r_", c)]][i]) * w[[c]]; pts }
+  for (c in c("fumrec_st","ff_def","ff_st","def_td","st_td","blk_td","safeties","blk","stops4","forced_punts","kr_yd","pr_yd","def2pt")) pts <- pts + rpois(n, g[[paste0("r_", c)]][i]) * w[[c]]; pts }
 spike_eval <- function(pos, a, e, rows, wk, sim, cutfit) { 
   # label = weekly top-6 of the actual scores at the position among ALL team slots that week
   g[, `:=`(.a = a)]; g[, lab := as.integer(.a >= sort(.a, decreasing = TRUE)[6]), by = .(season, week)]
@@ -115,7 +99,7 @@ for (rn in names(regs)) { rg <- regs[[rn]]
     g[, `:=`(c_ctl = c_k, e_ctl = e_k)]; set.seed(20261014); out$spike[[paste0(rn, "|K")]] <- spike_eval("K", g$a_k, g$e_k, pop, NULL, function(i) simK(i, w), NULL) }
   w <- wD(rg); g[, `:=`(a_d = actualD(g, w), e_d = expD(w))]; g[, c_d := ctl(a_d), by = team]
   d <- g[VALrow]; out$results[[paste0(rn, "|DST")]] <- metrics(d$a_d, d$e_d, d$c_d, d$game_id)
-  ix <- which(VALrow)[c(5, 200, 400)]; out$golden[[paste0(rn, "|DST")]] <- lapply(ix, function(i) { pm_ <- dnbinom(0:70, size = size, mu = max(0.5, g$e_pa[i])); list(scoring = rg$scoring, provider = rg$provider, comp = list(e_sacks = g$e_sacks[i], e_ints = g$e_ints[i], e_fr = g$e_fr[i], r_fumrec_st = g$r_fumrec_st[i], r_ff_def = g$r_ff_def[i], r_ff_st = g$r_ff_st[i], r_def_td = g$r_def_td[i], r_st_td = g$r_st_td[i], r_safeties = g$r_safeties[i], r_blk = g$r_blk[i], r_stops4 = g$r_stops4[i], r_forced_punts = g$r_forced_punts[i], r_kr_yd = g$r_kr_yd[i], r_pr_yd = g$r_pr_yd[i], r_def2pt = g$r_def2pt[i], mean_yds = as.list(mean_yds), pa_pmf = pm_ / sum(pm_)), expected = g$e_d[i]) })
+  ix <- which(VALrow)[c(5, 200, 400)]; out$golden[[paste0(rn, "|DST")]] <- lapply(ix, function(i) { pm_ <- dnbinom(0:70, size = size, mu = max(0.5, g$e_pa[i])); list(scoring = rg$scoring, provider = rg$provider, comp = list(e_sacks = g$e_sacks[i], e_ints = g$e_ints[i], e_fr = g$e_fr[i], r_fumrec_st = g$r_fumrec_st[i], r_ff_def = g$r_ff_def[i], r_ff_st = g$r_ff_st[i], r_def_td = g$r_def_td[i], r_st_td = g$r_st_td[i], r_blk_td = g$r_blk_td[i], r_safeties = g$r_safeties[i], r_blk = g$r_blk[i], r_stops4 = g$r_stops4[i], r_forced_punts = g$r_forced_punts[i], r_kr_yd = g$r_kr_yd[i], r_pr_yd = g$r_pr_yd[i], r_def2pt = g$r_def2pt[i], mean_yds = as.list(mean_yds), pa_pmf = pm_ / sum(pm_)), expected = g$e_d[i]) })
   g[, `:=`(c_ctl = c_d, e_ctl = e_d)]; set.seed(20261014); out$spike[[paste0(rn, "|DST")]] <- spike_eval("DST", g$a_d, g$e_d, VALrow, NULL, function(i) simD(i, w), NULL) }
 dir.create("scripts/w2r1/results", showWarnings = FALSE); for (k in names(out$spike)) { r <- out$spike[[k]]; cat(sprintf("SPIKE %-28s n=%d base %.3f cut %.1f | M0 brier %.4f | sim brier %.4f ll %.3f slope %.2f ece %.3f lift %.2f (events in top decile %d) | skill vs M0 %+.3f\n", k, r$n, r$base_rate, r$cut, r$M0$brier, r$M_sim$brier, r$M_sim$logloss, r$M_sim$slope, r$M_sim$ece, r$M_sim$top_decile_lift, r$M_sim$top_decile_events, r$brier_skill_vs_M0)) }
 write_json(out[setdiff(names(out), "golden")], "scripts/w2r1/results/s4_val.json", auto_unbox = TRUE, pretty = TRUE, digits = 5)
@@ -126,7 +110,7 @@ for (i in chk) { tm <- g$team[i]; idx <- which(g$team == tm); pos <- match(i, id
   kk <- g$prev_kicker[i]; if (!is.na(kk) && kk != "0") { keep <- fgA; pz <- fgA[(season > g$season[i]) | (season == g$season[i] & week >= g$week[i]), which = TRUE]; saved <- fgA$made[pz]; fgA$made[pz] <- 1L; fgA$pl[pz] <- 0.01; r2 <- kick_ratio(kk, g$season[i], g$week[i]); fgA$made[pz] <- saved; fgA[, pl := plogis(predict(pm, fgA))]; if (abs(r2 - g$kratio[i]) < 1e-9) ok_poison_k <- ok_poison_k + 1L } else ok_poison_k <- ok_poison_k + 1L }
 out$leakage <- list(poison_feature_checks_passed = ok_poison, poison_feature_checks_total = length(chk) * 6, poison_kicker_ratio_passed = ok_poison_k, poison_kicker_ratio_total = length(chk))
 # ORACLE: the target game's ACTUAL component counts as the expectations (harness must be able to see a large gain)
-for (rn in c("maclin-on-chicks-xvi", "rogers-park")) { rg <- regs[[rn]]; w <- wD(rg); gd <- copy(g); gd[, `:=`(e_sacks = sacks, e_ints = ints, e_fr = fumrec_def, r_fumrec_st = fumrec_st, r_ff_def = ff_def, r_ff_st = ff_st, r_def_td = def_td, r_st_td = st_td, r_safeties = safeties, r_blk = blk, r_stops4 = stops4, r_forced_punts = forced_punts, r_kr_yd = kr_yd, r_pr_yd = pr_yd, r_def2pt = def2pt)]
+for (rn in c("maclin-on-chicks-xvi", "rogers-park")) { rg <- regs[[rn]]; w <- wD(rg); gd <- copy(g); gd[, `:=`(e_sacks = sacks, e_ints = ints, e_fr = fumrec_def, r_fumrec_st = fumrec_st, r_ff_def = ff_def, r_ff_st = ff_st, r_def_td = def_td, r_st_td = st_td, r_blk_td = blk_td, r_safeties = safeties, r_blk = blk, r_stops4 = stops4, r_forced_punts = forced_punts, r_kr_yd = kr_yd, r_pr_yd = pr_yd, r_def2pt = def2pt)]
   gm <- g; g <- gd; eo <- expD(w); g <- gm; a <- actualD(g, w); m <- VALrow; out$oracle[[paste0(rn, "|DST")]] <- list(MAE_oracle_components_only = mean(abs(a[m] - eo[m])), MAE_model = out$results[[paste0(rn, "|DST")]]$MAE_model) }
 rg <- regs[["maclin-on-chicks-xvi"]]; w <- wK(rg); gd <- copy(g); gd[, `:=`(e_fg = fg_att, e_xp = xp_att)]; for (b in BL) gd[[paste0("sh_", b)]] <- ifelse(gd$fg_att > 0, gd[[paste0("att_", b)]] / pmax(gd$fg_att, 1), g[[paste0("sh_", b)]]); gm <- g; g <- gd; eo <- expK(w); g <- gm; a <- actualK(g, w); m <- VALrow & !is.na(frollsum(shift(g$fg_att, 1), 3)); out$oracle[["maclin-on-chicks-xvi|K"]] <- list(MAE_oracle_counts = mean(abs(a[m] - eo[m])), MAE_model = out$results[["maclin-on-chicks-xvi|K"]]$MAE_model)
 cat("LEAKAGE poison feature checks:", ok_poison, "/", length(chk) * 6, " kicker ratio:", ok_poison_k, "/", length(chk), "\n"); for (k in names(out$oracle)) cat("ORACLE", k, json <- toJSON(out$oracle[[k]], auto_unbox = TRUE), "\n")

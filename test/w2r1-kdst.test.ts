@@ -51,6 +51,7 @@ describe("W2.R1 S4 exact-scoring K / D-ST expected points (golden-tested against
   it("PROVIDER SEMANTICS: Sleeper keeps defensive and special-teams recoveries / forced fumbles / TDs separate; Yahoo pays one Fumble Recovery for both and has no forced-fumble or fum_rec_td D/ST stat", () => {
     const sc = { fum_rec: 1, def_st_fum_rec: 2, ff: 3, def_st_ff: 4, def_td: 6, def_st_td: 7, st_td: 8, fum_rec_td: 9 };
     const s = dWeights(sc, "sleeper"), y = dWeights(sc, "yahoo");
+    assert.deepEqual([s.blk_td, y.blk_td], [7, 6]); // blocked-kick TD: Sleeper def_st_td, Yahoo defensive Touchdown
     assert.deepEqual([s.fumrec_def, s.fumrec_st, s.ff_def, s.ff_st, s.def_td, s.st_td], [1, 2, 3, 4, 6, 7]);
     assert.deepEqual([y.fumrec_def, y.fumrec_st, y.ff_def, y.ff_st, y.def_td, y.st_td], [1, 1, 0, 0, 6, 8]);
   });

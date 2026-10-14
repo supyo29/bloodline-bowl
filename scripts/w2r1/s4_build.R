@@ -7,7 +7,7 @@ sch <- as.data.table(load_schedules(seasons))[game_type == "REG"]
 pbp <- pbp[!is.na(posteam) | play_type %in% c("kickoff")]
 BINS <- c(0, 20, 30, 40, 50, 60, 100); BL <- c("b0_19","b20_29","b30_39","b40_49","b50_59","b60p")
 one <- function(x) as.integer(!is.na(x) & x == 1)
-pbp[, `:=`(sk = one(sack), ic = one(interception), fl = one(fumble_lost), ff1 = one(fumble_forced), st = one(special_teams_play), td = one(touchdown))]
+pbp[, `:=`(sk = one(sack), ic = one(interception), fl = one(fumble_lost), ff1 = one(fumble_forced), st = one(special_teams_play), td = one(touchdown), blkk = as.integer((!is.na(punt_blocked) & punt_blocked == 1) | (!is.na(field_goal_result) & field_goal_result == "blocked")))]
 
 # ---- defense / ST components, credited to a team ----
 mk <- function(dt, team, ...) { d <- dt[!is.na(team)]; d[, tm := team[!is.na(team)]]; d }
@@ -31,8 +31,9 @@ parts <- list(
   agg(pbp, quote(return_team), quote(ifelse((one(punt_blocked) == 1 | (!is.na(field_goal_result) & field_goal_result == "blocked") | (!is.na(extra_point_result) & extra_point_result == "blocked")) & !is.na(return_yards), return_yards, 0)), "blk_ret_yd"),
   agg(pbp, quote(return_team), quote(ifelse(!is.na(field_goal_result) & field_goal_result %in% c("missed", "blocked") & !is.na(return_yards), return_yards, 0)), "fg_ret_yd"),
   agg(pbp, quote(defteam), quote(ifelse(td == 1 & !is.na(td_team) & td_team == defteam & st == 0 & (ic == 1 | fl == 1), 1, 0)), "def_td"),
-  agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team), 1, 0)), "st_td"),
-  agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team) & !is.na(play_type) & play_type %in% c("kickoff", "punt"), 1, 0)), "st_td_kp"),
+  # kick/punt-RETURN TDs (unblocked); blocked punt / blocked FG TDs are a SEPARATE component (blk_td): Sleeper pays both as def_st_td, Yahoo pays blocked-kick TDs as defensive "Touchdown" and only returns as KR/PR TD (verified 2025)
+  agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team) & blkk == 0, 1, 0)), "st_td"),
+  agg(pbp, quote(td_team), quote(ifelse(td == 1 & !is.na(td_team) & td_team == defteam & blkk == 1, 1, 0)), "blk_td"),
   agg(pbp, quote(defteam), quote(one(safety)), "safeties"),
   agg(pbp, quote(defteam), quote(ifelse(one(punt_blocked) == 1 | (!is.na(field_goal_result) & field_goal_result == "blocked") | (!is.na(extra_point_result) & extra_point_result == "blocked"), 1, 0)), "blk"),
   agg(pbp, quote(defteam), quote(one(fourth_down_failed)), "stops4"),
