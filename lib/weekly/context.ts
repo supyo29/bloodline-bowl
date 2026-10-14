@@ -67,6 +67,7 @@ import type {
 
 import { BASE_STARTING, FLEX_ELIGIBILITY, isFlexSlot, maxSlotMatching, slotEligiblePositions } from "./slots";
 import { buildOptimalLineup } from "./lineup";
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 
 export interface WeeklyContextResult {
   ok: boolean;
@@ -143,9 +144,9 @@ export async function buildWeeklyTeamContext(
   }
   const league = resolution.league;
 
-  const crosswalk =
-    options.crosswalkOverride ??
-    (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
+  const crosswalk = await resolveLeagueCrosswalk(league.provider, options.crosswalkOverride, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
 
   const state = options.snapshotOverride
     ? { ok: true, status: 200, code: undefined as string | undefined, detail: undefined as string | undefined, snapshot: options.snapshotOverride }

@@ -15,6 +15,7 @@
  * evaluation layers that consume it are pure and synchronous.
  */
 
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { readLeagueState } from "@/lib/canonical/read";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
@@ -183,9 +184,9 @@ export async function buildTradeAnalysisContext(
     return { ok: false, status: resolution.status, code: resolution.code, detail: resolution.detail, context: null };
   }
 
-  const crosswalk =
-    options.crosswalkOverride ??
-    (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
+  const crosswalk = await resolveLeagueCrosswalk(resolution.league.provider, options.crosswalkOverride, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
 
   // ---- THE single league-state read ------------------------------------------
   const state = await readLeagueState(leagueSlug, {

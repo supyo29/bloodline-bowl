@@ -28,6 +28,8 @@ test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-ide
   //   lineup.ts      (c0b1a5e)  <- 68fc482 W1.P2 injury-aware expected value; 89e22ad W1.P3 bye-aware preservation
   //   intelligence.ts (726da33) <- b893c6d orthogonal readiness axes; 68fc482 W1.P2; abe494f W1.R1
   //   context.ts     (0771277)  <- 12 commits: readiness composer (ad860a9..a86e4d9, 31fdd0a), W1.P1/P2/P3/P4/R1/R2 (ab7dce3, 68fc482, 89e22ad, 65a04f4, abe494f, 57a6606), af72022 Yahoo Market State
+  //   context.ts (W2.R1 early shadow, 2026-10-14) <- ONE line: the default crosswalk now goes through resolveLeagueCrosswalk so a YAHOO league's roster is bridged to the Sleeper identity.
+  //                     LIVE P1 DEFECT (3/17 and 5/15 Yahoo roster players projected; roster and pool in different identity spaces). Sleeper leagues are byte-identical in behaviour; ranking/scoring files untouched.
   // Every one is a reviewed, separately-tested, certified change (see docs/DECISION_MODEL_CONVERGENCE_W1_*.md). A NEW change to any of these files still fails here until it is added to this ledger.
   const pins: Record<string, string> = {
     "lib/weekly/waivers.ts": "c8be1cbf0ff9545bec7e21fb365a29b3b796a019c4d603aa3d64f8639c341bae", "lib/weekly/decision-score.ts": "519999456302880802fee93374b8b93962fc5b296c71b0f454313c08db09b114",
@@ -40,7 +42,7 @@ test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-ide
   // it now optionally certifies `free_agent_pool_readiness` / `availability.free_agents` against Market State
   // instead of the always-null canonical `waiver_state`. Pinned to the new content so any FURTHER change is
   // still caught; the ranking/scoring files above remain untouched, proving no scoring-model change occurred.
-  assert.equal(sha("lib/weekly/context.ts"), "2f557b6b5bdc6d64733d7538c5a4f6aca817d10994712a33b7f540060d9f48ce", "lib/weekly/context.ts changed beyond the waiver-readiness-contract fix");
+  assert.equal(sha("lib/weekly/context.ts"), "d0fbf5a2179b18564677d7d3ae888da3e266a0d083974032ab495d6b36488898", "lib/weekly/context.ts changed beyond the waiver-readiness-contract fix");
 });
 test("ISOLATION: only Book-Ready (family + query layer) reaches lib/waiver2; no production, orchestrator, weekly, trade or route module imports it", () => {
   const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/waiver2/")).filter((f) => /waiver2|waiver-intelligence-2/.test(readFileSync(f, "utf8")));
