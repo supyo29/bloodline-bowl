@@ -36,6 +36,8 @@ MUT = [
  ("W31", "an unfinished layer is advertised as qualified", L, [('S4_k_dst_component_model: "NOT YET QUALIFIED",', 'S4_k_dst_component_model: "QUALIFIED",')]),
  ("W32", "the production-influence statement is dropped from responses", L, [("production_influence: PRODUCTION_STATEMENT,", "")]),
  ("W33", "a Yahoo league default crosswalk is not bridged (live roster-identity defect returns)", "lib/canonical/yahoo-bridge-source.ts", [('if (provider === "yahoo") cw.useYahooSleeperBridge(await yahooBridgeLoader.load());', "")]),
+ ("W34", "an acquisition may enter a full active roster (no open spot)", R, [("const adds = wanted.slice(0, room);", "const adds = wanted;")]),
+ ("W35", "an IR-slot player with unknown designation is assumed activatable now", A, [('returns = status === "IR" && out > 0 ? week + out : null;', 'returns = status === "IR" ? week + out : null;')]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),

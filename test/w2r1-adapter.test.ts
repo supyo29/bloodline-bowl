@@ -66,6 +66,11 @@ describe("W2.R1 live adapter (provider neutral)", () => {
     assert.equal(ir.weeks[7]!.state, "OUT"); assert.equal(ir.weeks[10]!.state, "ACTIVE");
     assert.ok(ir.missing_evidence.includes("IR_RETURN_WEEK_ASSUMED_FROM_MINIMUM_STINT"));
   });
+  it("an IR-slot player with NO known designation is NOT assumed activatable (unknown availability is not availability)", () => {
+    const ir = buildEarlyInputs(ctxOf({ forecasts: { ir1: { exp: 5, out: 0 } } })).roster.find((a) => a.player_id === "ir1")!;
+    assert.equal(ir.status, "IR"); assert.equal(ir.returns_in_week, null);
+    assert.ok(ir.missing_evidence.includes("IR_SLOT_WITH_NO_LONG_TERM_DESIGNATION_RETURN_UNKNOWN"));
+  });
   it("unknown ROS => future weeks UNKNOWN with a reason (never zero-filled)", () => {
     const ctx = ctxOf({ forecasts: { wr2: { ros: null } } });
     const wr2 = buildEarlyInputs(ctx).roster.find((a) => a.player_id === "wr2")!;
@@ -80,6 +85,15 @@ describe("W2.R1 live adapter (provider neutral)", () => {
     const sleeper = buildEarlyInputs(ctxOf({ provider: "sleeper", pool: [{ id: "fa2", pos: "RB" }] }));
     assert.equal(sleeper.market.provider, "sleeper"); assert.equal(sleeper.market.candidates[0]!.acquisition.success_probability, null);
     assert.ok(sleeper.notes.some((n) => /SLEEPER_ACQUISITION_METHOD_AND_PROBABILITY_INFERRED/.test(n)));
+  });
+  it("Sleeper market: observed time is the league snapshot time; the freshness STATE is not asserted without a policy verdict", () => {
+    const base = ctxOf({ provider: "sleeper" }) as unknown as { market_pool?: unknown; lineage?: unknown };
+    base.market_pool = undefined; const t = new Date().toISOString();
+    base.lineage = { snapshot: { generated_at: t } };
+    const m = buildEarlyInputs(base as unknown as WeeklyTeamContext).market;
+    assert.equal(m.observed_at, t); assert.equal(m.freshness, "UNKNOWN");
+    base.lineage = undefined;
+    assert.equal(buildEarlyInputs(base as unknown as WeeklyTeamContext).market.observed_at, null);
   });
   it("an uncertified pool is flagged and never supplies replacements", () => {
     const inp = buildEarlyInputs(ctxOf({ actionable: false, pool: [{ id: "fa1", pos: "RB", acq: "FREE_AGENT_ADD", f: { exp: 30 } }] }));

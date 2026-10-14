@@ -38,7 +38,7 @@ export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string,
     scoring_fingerprint: inp.rules.scoring_fingerprint,
     confidence: { current_week: "from Wave 1 forecast", future_weeks: "LOW (ROS per-game proxy; no schedule/matchup/game-plan adjustment)", overall: "LOW-MEDIUM" },
     evidence: { context_generated_at: ctx.generated_at, projection_source: ctx.projections.source, projection_status: ctx.projections.status, context_status: ctx.status },
-    market: { provider: inp.market.provider, basis: mp?.basis ?? null, verified: inp.market.verified, freshness: inp.market.freshness, observed_at: inp.market.observed_at, age_ms: mp?.age_ms ?? null, market_content_id: mp?.market_content_id ?? null, candidates: inp.market.candidates.length, readiness_axes: mp?.axes ?? null, pool_actionable: ctx.free_agent_pool_readiness.actionable },
+    market: { provider: inp.market.provider, basis: mp?.basis ?? null, verified: inp.market.verified, freshness: inp.market.freshness, observed_at: inp.market.observed_at, age_ms: mp?.age_ms ?? (inp.market.observed_at ? Math.max(0, Date.now() - Date.parse(inp.market.observed_at)) : null), market_content_id: mp?.market_content_id ?? null, candidates: inp.market.candidates.length, readiness_axes: mp?.axes ?? null, pool_actionable: ctx.free_agent_pool_readiness.actionable },
     notes: inp.notes,
     data,
   };

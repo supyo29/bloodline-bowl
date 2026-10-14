@@ -76,9 +76,12 @@ export interface ScenarioInput {
 export function scenarioLineup(s: ScenarioInput): LineupValue & { activated_from_reserve: string[]; dropped_for_capacity: string[] } {
   const kept = s.roster.filter((a) => a.player_id !== s.removeId);
   const active = kept.filter((a) => a.status === "STARTER" || a.status === "BENCH");
-  const adds = (s.adds ?? []).filter((c) => !kept.some((a) => a.player_id === c.player_id));
+  const wanted = (s.adds ?? []).filter((c) => !kept.some((a) => a.player_id === c.player_id));
+  // an acquisition needs an open ACTIVE spot (a drop is a different scenario): removing an IR/reserve player frees no active spot, so no add can enter
+  const room = Math.max(0, activeLimit(s.rules) - active.length);
+  const adds = wanted.slice(0, room);
   const reservists = kept.filter((a) => a.status !== "STARTER" && a.status !== "BENCH" && a.returns_in_week != null && a.returns_in_week <= s.week);
-  let space = activeLimit(s.rules) - active.length - adds.length;
+  let space = room - adds.length;
   const activated: string[] = [];
   const pool: Array<{ id: string; position: Pos; eligible_positions: Pos[]; value: number | null }> = [];
   const val = (a: AssetEvidence) => weekValue(a, s.week, s.valueOverride && s.valueOverride.id === a.player_id ? s.valueOverride.kind : s.kind);
@@ -91,7 +94,7 @@ export function scenarioLineup(s: ScenarioInput): LineupValue & { activated_from
     pool.push({ id: r.player_id, position: r.position, eligible_positions: r.eligible_positions, value: val(r) });
   }
   const lv = optimizeLineup({ slots: s.rules.slots, players: pool });
-  return { ...lv, activated_from_reserve: activated, dropped_for_capacity: [] };
+  return { ...lv, activated_from_reserve: activated, dropped_for_capacity: wanted.slice(room).map((c) => c.player_id) };
 }
 
 export interface ChainStep { slot: string; before: string | null; after: string | null }

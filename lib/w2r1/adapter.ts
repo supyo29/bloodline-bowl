@@ -89,8 +89,10 @@ export function buildEarlyInputs(ctx: WeeklyTeamContext, opts: { lastWeek?: numb
       let returns: number | null = null;
       if (status === "IR" || status === "RESERVE") {
         const out = fOf(p.canonical_player_id)?.asset_value.forward_value.forward_weeks_out ?? 0;
-        returns = status === "IR" ? week + out : null; // ASSUMPTION (Wave 1): a long-term designation misses at least the NFL minimum stint
-        if (status === "IR") a.missing_evidence.push(out > 0 ? "IR_RETURN_WEEK_ASSUMED_FROM_MINIMUM_STINT" : "IR_SLOT_WITH_NO_LONG_TERM_DESIGNATION");
+        // ASSUMPTION (Wave 1): a long-term designation misses at least the NFL minimum stint. An IR-slot player with NO known designation is NOT assumed
+        // activatable: unknown availability is never treated as available (live defect: a benched-IR player was silently activated into every lineup).
+        returns = status === "IR" && out > 0 ? week + out : null;
+        if (status === "IR") a.missing_evidence.push(out > 0 ? "IR_RETURN_WEEK_ASSUMED_FROM_MINIMUM_STINT" : "IR_SLOT_WITH_NO_LONG_TERM_DESIGNATION_RETURN_UNKNOWN");
       }
       roster.push({ ...a, status, returns_in_week: returns });
     }
@@ -111,9 +113,13 @@ export function buildEarlyInputs(ctx: WeeklyTeamContext, opts: { lastWeek?: numb
     candidates.push({ ...a, acquisition: { method, success_probability: providerVerifiedFa ? 1 : null, faab_cost: null, waiver_priority: null, available_from_week: week } });
   }
   const mp = ctx.market_pool;
-  if (!mp) notes.push("MARKET_POOL_SUMMARY_UNAVAILABLE");
   if (mp?.basis === "INFERRED") notes.push("SLEEPER_ACQUISITION_METHOD_AND_PROBABILITY_INFERRED: availability is inferred from rosters+transactions, so acquisition success is UNKNOWN (never assumed). Free-agent adds appear in the optimistic bound, not in the expected value.");
-  const market: MarketPool = { provider: ctx.league.provider === "yahoo" ? "yahoo" : "sleeper", verified, observed_at: mp?.observed_at ?? null, freshness: mp?.freshness ?? "UNKNOWN", candidates };
+  // Sleeper has no market-state summary: its pool is INFERRED from the league snapshot read in THIS request. We report that snapshot's TIME and leave the freshness
+  // STATE unknown (a TTL verdict belongs to lib/weekly/freshness/policy.ts, not to a private threshold here): never assumed FRESH.
+  const observedAt = mp?.observed_at ?? ctx.lineage?.snapshot?.generated_at ?? null;
+  const freshness: MarketPool["freshness"] = mp?.freshness ?? "UNKNOWN";
+  if (!mp && observedAt) notes.push("MARKET_OBSERVED_AT_IS_THE_LEAGUE_SNAPSHOT_TIME (no market-state summary for this provider; freshness state not asserted)");
+  const market: MarketPool = { provider: ctx.league.provider === "yahoo" ? "yahoo" : "sleeper", verified, observed_at: observedAt, freshness, candidates };
   if (!verified) notes.push("REPLACEMENT_MARKET_NOT_CERTIFIED: the free-agent pool is not an actionable certified pool; replacements come from the roster only.");
   if (ctx.byes.bye_status !== "VERIFIED") notes.push("BYE_SCHEDULE_UNVERIFIED: future byes unknown; ROS/Hold do not reflect future byes.");
   notes.push("FUTURE_WEEKS_ARE_A_PROXY: weeks after the current week use the ROS per-game rate (verified byes, long-term injury horizon). Confidence capped LOW; no schedule/matchup/game-plan adjustment yet (S5).");

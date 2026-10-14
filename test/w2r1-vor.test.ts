@@ -68,6 +68,22 @@ describe("W2.R1 roster cascade (weekly roster VOR)", () => {
   });
 });
 
+describe("W2.R1 acquisition needs an open ACTIVE spot (live defect)", () => {
+  it("removing an IR player frees no active spot: a verified FA cannot enter a full active roster", () => {
+    const full = [...standardRoster(), onRoster(asset("p1", "WR", 1), "BENCH"), onRoster(asset("p2", "WR", 1), "BENCH"), onRoster(asset("irX", "RB", 14), "IR", null)]; // active = 15 = limit
+    const m = market([fa(asset("faK", "K", 30))]);
+    const r = computeDynamicVor({ rules: RULES, roster: full, playerId: "irX", week: 6, market: m });
+    assert.equal(r.weekly_detail!.chosen_add, null, "no active spot opened");
+    close(r.weekly_roster_vor.value, 0);
+  });
+  it("removing a bench player DOES free a spot, so the FA enters (negative VOR = a better use of the spot)", () => {
+    const full = [...standardRoster(), onRoster(asset("p1", "WR", 1), "BENCH"), onRoster(asset("p2", "WR", 1), "BENCH")]; // active = 15
+    const r = computeDynamicVor({ rules: RULES, roster: full, playerId: "p1", week: 6, market: market([fa(asset("faK", "K", 30))]) });
+    assert.equal(r.weekly_detail!.chosen_add!.player_id, "faK");
+    assert.ok(r.weekly_roster_vor.value! < 0);
+  });
+});
+
 describe("W2.R1 FLEX cascade and league-level bye behaviour", () => {
   it("FLEX cascade is numeric: removing RB1 lets the RB3 take RB2 and the WR3 take the FLEX the RB3 vacated", () => {
     const roster = [onRoster(asset("rbA", "RB", 16), "STARTER"), onRoster(asset("rbB", "RB", 12), "STARTER"), onRoster(asset("rbC", "RB", 11), "BENCH"), onRoster(asset("wr3", "WR", 10), "STARTER")];
