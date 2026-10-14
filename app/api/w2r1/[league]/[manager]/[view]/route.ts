@@ -8,13 +8,17 @@ import { runWithWeeklyContext } from "@/lib/weekly/intelligence";
 import { jsonResponse, errorResponse, handleOptions } from "@/lib/http";
 import { w2r1Enabled } from "@/lib/w2r1/guard";
 import { buildEarlyInputs } from "@/lib/w2r1/adapter";
-import { addReport, compareReport, dropReport, envelope, findPlayer, kdstReport, playerReport, rosterReport } from "@/lib/w2r1/live";
+import { addReport, compareReport, dropReport, envelope, findPlayer, kdstReport, playerReport, rosterReport, upsideReport, withQualifiedDst } from "@/lib/w2r1/live";
+import { KDST_LOADERS, UPSIDE_LOADERS } from "@/lib/w2r1/data/prospective";
+import type { KdstCapture } from "@/lib/w2r1/dst-live";
+import type { UpsideCapture } from "@/lib/w2r1/upside-live";
+import { qualificationSummary } from "@/lib/w2r1/qualification";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const VIEWS = new Set(["roster", "player", "drop", "add", "kdst", "compare"]);
+const VIEWS = new Set(["roster", "player", "drop", "add", "kdst", "compare", "dst", "upside", "qualification"]);
 
 export async function GET(request: Request, { params }: { params: Promise<{ league: string; manager: string; view: string }> }): Promise<Response> {
   if (!w2r1Enabled()) return new Response("Not Found", { status: 404 });
@@ -27,11 +31,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ leag
   if ((view === "player" || view === "drop") && !player) return errorResponse(400, "player_required", "pass ?player=<canonical id or name>");
 
   const t0 = Date.now();
+  const kdstCaps = new Map<number, KdstCapture>(); const upCaps = new Map<number, UpsideCapture>();
+  await Promise.all([...Object.entries(KDST_LOADERS)].map(async ([w, l]) => { kdstCaps.set(Number(w), await l()); }));
+  await Promise.all([...Object.entries(UPSIDE_LOADERS)].map(async ([w, l]) => { upCaps.set(Number(w), await l()); }));
   const result = await runWithWeeklyContext(league, manager, { week, enableMarketStatePool: true }, (ctx) => {
-    const t1 = Date.now(); const inp = buildEarlyInputs(ctx); const adapterMs = Date.now() - t1;
+    const t1 = Date.now(); const cap = kdstCaps.get(ctx.league.week) ?? null; const inp0 = buildEarlyInputs(ctx); const { inp, replaced } = withQualifiedDst(inp0, cap, ctx.league.slug, ctx.league.week); const adapterMs = Date.now() - t1;
     let data: unknown;
     if (view === "roster") data = rosterReport(ctx, inp);
-    else if (view === "kdst") data = kdstReport(ctx, inp);
+    else if (view === "kdst" || view === "dst") data = { ...kdstReport(ctx, inp, cap), qualified_dst_values_applied: replaced };
+    else if (view === "upside") data = upsideReport(ctx, inp, upCaps.get(ctx.league.week) ?? null, q.get("pos"), limit);
+    else if (view === "qualification") data = qualificationSummary(ctx.league.slug);
     else if (view === "add") data = addReport(ctx, inp, limit);
     else if (view === "compare") data = compareReport(ctx, inp);
     else {

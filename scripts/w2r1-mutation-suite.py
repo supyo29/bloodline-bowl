@@ -33,7 +33,7 @@ MUT = [
  ("W28", "an uncertified pool is treated as verified", A, [("const verified = ctx.free_agent_pool_readiness.actionable === true;", "const verified = true;")]),
  ("W29", "a verified current-week bye is not represented as a bye", A, [('else if (cw === "BYE" || f.game_status.is_bye) weeks[week]', 'else if (false as boolean) weeks[week]')]),
  ("W30", "the shadow routes are served from production", G, [('return env.VERCEL_ENV !== "production" || env.W2R1_SHADOW_ENABLED === "1";', "return true;")]),
- ("W31", "an unfinished layer is advertised as qualified", L, [('S4_k_dst_component_model: "NOT YET QUALIFIED",', 'S4_k_dst_component_model: "QUALIFIED",')]),
+ ("W31", "an unfinished layer is advertised as qualified", L, [('S4_k_dst_component_model: "D/ST: QUALIFIED_SHADOW (Devoted to the Game, Sporty\'s Alumni, Maclin on Chick\'s XVI); EXPLORATORY_POST_DEFECT (Rogers Park); DIAGNOSTIC_ONLY (Bloodline Bowl D/ST, all K)",', 'S4_k_dst_component_model: "QUALIFIED",')]),
  ("W32", "the production-influence statement is dropped from responses", L, [("production_influence: PRODUCTION_STATEMENT,", "")]),
  ("W34", "an acquisition may enter a full active roster (no open spot)", R, [("const adds = wanted.slice(0, room);", "const adds = wanted;")]),
  ("W35", "an IR-slot player with unknown designation is assumed activatable now", A, [('returns = status === "IR" && out > 0 ? week + out : null;', 'returns = status === "IR" ? week + out : null;')]),

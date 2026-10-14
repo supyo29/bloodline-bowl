@@ -10,28 +10,33 @@ import type { LeagueRules, MarketCandidate, Pos, RosterAsset } from "./evidence"
 import { scenarioLineup, topCandidates, weekValue } from "./roster";
 import { computeDynamicVor, type DynamicVor } from "./vor";
 import { W2R1_MODE, W2R1_MODEL_VERSION } from "./version";
+import { qualificationSummary, TACTICAL, W2R1_RESEARCH_VERDICT, UPSIDE_LABEL } from "./qualification";
+import { applyQualifiedDst, dstForTeam, kForTeam, REGIMES, type KdstCapture } from "./dst-live";
+import { upsideForPlayer, upsideListing, type UpsideCapture } from "./upside-live";
 
 export const EARLY_LABEL = "W2.R1 EARLY SHADOW — DIAGNOSTIC" as const;
 export const LAYER_STATUS = {
   S1_evidence_contract: "AVAILABLE",
   S2_roster_replacement_simulation: "AVAILABLE",
   S3_dynamic_vor_mechanics: "AVAILABLE",
-  S4_k_dst_component_model: "NOT YET QUALIFIED",
-  S5_game_plan_intelligence: "NOT YET QUALIFIED",
-  S6_empirical_breakout_model: "NOT YET QUALIFIED",
-  S7_final_retrospective_qualification: "NOT YET RUN",
+  S4_k_dst_component_model: "D/ST: QUALIFIED_SHADOW (Devoted to the Game, Sporty's Alumni, Maclin on Chick's XVI); EXPLORATORY_POST_DEFECT (Rogers Park); DIAGNOSTIC_ONLY (Bloodline Bowl D/ST, all K)",
+  S5_game_plan_intelligence: "NO_RELIABLE_INCREMENTAL_SIGNAL — not applied to any live forecast",
+  S6_empirical_upside_model: "TE INSUFFICIENT_FINAL_SAMPLE (prospective evaluation only); QB/RB DIAGNOSTIC_ONLY; WR NO_RELIABLE_SIGNAL; no K/DST spike probability",
+  S7_final_retrospective_qualification: "COMPLETE — final set spent",
 } as const;
-export const K_DST_NOTICE = "K/DST Dynamic VOR mechanics are live; K/DST forecast quality is not yet W2.R1-qualified (inherited generic forecasts are used).";
-export const BREAKOUT_NOTICE = "No W2.R1 upside likelihood (top-N finish probability) is shown: the empirical model (S6) has not produced a calibrated result.";
+export const K_DST_NOTICE = "D/ST expected points are W2.R1-qualified for shadow use only in Devoted to the Game, Sporty's Alumni and Maclin on Chick's XVI; Rogers Park is EXPLORATORY (post-open defect PO-1); Bloodline Bowl D/ST is unqualified. Kicker forecasts are DIAGNOSTIC_ONLY. Anything else uses an inherited generic forecast and is labelled as such.";
+export const BREAKOUT_NOTICE = `${UPSIDE_LABEL}: TE is INSUFFICIENT_FINAL_SAMPLE (prospective evaluation only); QB/RB DIAGNOSTIC_ONLY; WR NO_RELIABLE_SIGNAL; no K/DST spike probability is displayed. This is not a breakout probability.`;
+export const TACTICAL_NOTICE = `TACTICAL_SIGNAL: ${TACTICAL.tactical_signal} — no tactical or matchup adjustment is applied to any forecast.`;
 export const PRODUCTION_STATEMENT = "NONE — this response is a shadow diagnostic. It changes no production start/sit, waiver, drop, trade, VOR or fantasy transaction.";
 
 export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string, data: unknown) {
   const mp = ctx.market_pool;
   return {
     label: EARLY_LABEL, mode: W2R1_MODE, model_version: W2R1_MODEL_VERSION, view: kind,
-    qualification: "DIAGNOSTIC" as const,
+    research_verdict: W2R1_RESEARCH_VERDICT, qualification: "PER_COMPONENT" as const, qualification_states: qualificationSummary(ctx.league.slug),
+    tactical_signal: TACTICAL.tactical_signal,
     layers: LAYER_STATUS,
-    notices: { k_dst: K_DST_NOTICE, breakout: BREAKOUT_NOTICE },
+    notices: { k_dst: K_DST_NOTICE, upside: BREAKOUT_NOTICE, tactical: TACTICAL_NOTICE },
     production_influence: PRODUCTION_STATEMENT,
     league: { slug: ctx.league.slug, provider: ctx.league.provider, week: ctx.league.week, season: ctx.league.season },
     manager: ctx.manager.manager_slug,
@@ -153,7 +158,7 @@ export function addReport(ctx: WeeklyTeamContext, inp: EarlyInputs, limit = 10) 
   return { candidates_evaluated: tops.length, top: out.slice(0, limit) };
 }
 
-export function kdstReport(ctx: WeeklyTeamContext, inp: EarlyInputs) {
+export function kdstReport(ctx: WeeklyTeamContext, inp: EarlyInputs, cap: KdstCapture | null = null) {
   const week = ctx.league.week;
   const mine = inp.roster.filter((a) => a.position === "K" || a.position === "DEF");
   const pool = (pos: Pos) => inp.market.candidates.filter((c) => c.position === pos).map((c) => ({ c, v: weekValue(c, week, "lineup") })).filter((x) => x.v != null).sort((a, b) => (b.v as number) - (a.v as number)).slice(0, 6);
@@ -162,7 +167,8 @@ export function kdstReport(ctx: WeeklyTeamContext, inp: EarlyInputs) {
     notice: K_DST_NOTICE,
     mine: rows,
     best_verified_available: { K: pool("K").map((x) => ({ player_id: x.c.player_id, name: x.c.name, this_week_value: round(x.v), method: x.c.acquisition.method, success_probability: x.c.acquisition.success_probability })), DEF: pool("DEF").map((x) => ({ player_id: x.c.player_id, name: x.c.name, this_week_value: round(x.v), method: x.c.acquisition.method, success_probability: x.c.acquisition.success_probability })) },
-    forecast_quality: "INHERITED_GENERIC_FORECAST — not W2.R1-qualified",
+    forecast_quality: "see dst_live / k_live: only labelled W2.R1 values come from the frozen component models; everything else is INHERITED_GENERIC_FORECAST and not W2.R1-qualified",
+    ...kdstLive(ctx, inp, cap),
   };
 }
 
@@ -188,3 +194,32 @@ export function compareReport(ctx: WeeklyTeamContext, inp: EarlyInputs) {
 
 export async function buildInputsFromContext(ctx: WeeklyTeamContext): Promise<EarlyInputs> { return buildEarlyInputs(ctx); }
 export type { LeagueRules, MarketCandidate };
+
+/** D/ST + K live outputs from the frozen pregame capture for this league / week. Never substitutes a generic forecast under a W2.R1 label. */
+export function kdstLive(ctx: WeeklyTeamContext, inp: EarlyInputs, cap: KdstCapture | null) {
+  const league = ctx.league.slug; const week = ctx.league.week; const q = qualificationSummary(league);
+  if (!cap || cap.meta.target_week !== week) return { dst_live: { state: "UNAVAILABLE", reason: `no frozen pregame capture for week ${week}`, qualification: q.dst_expected_points }, k_live: { state: "UNAVAILABLE", reason: `no frozen pregame capture for week ${week}`, qualification: q.k_forecast } };
+  const teamsOf = (xs: Array<{ position: string; team: string | null; name: string }>) => xs.filter((a) => a.position === "DEF" && a.team);
+  const mineDst = teamsOf(inp.roster).map((a) => ({ asset: a.name, ...(dstForTeam(cap, league, a.team as string)) }));
+  const poolDst = teamsOf(inp.market.candidates).map((a) => ({ asset: a.name, ...(dstForTeam(cap, league, a.team as string)) })).filter((x) => !("unavailable" in x)).sort((x, y) => ((y as { expected_points: number }).expected_points) - ((x as { expected_points: number }).expected_points)).slice(0, 8);
+  const kk = (xs: Array<{ position: string; team: string | null; name: string }>) => xs.filter((a) => a.position === "K" && a.team).map((a) => ({ asset: a.name, ...(kForTeam(cap, league, a.team as string)) }));
+  return {
+    dst_live: { qualification: q.dst_expected_points, regime: REGIMES[league] ? { provider: REGIMES[league]!.provider } : null, evidence_timestamp: cap.meta.generated_at, data_through_week: cap.meta.data_through_week, mine: mineDst, best_verified_available: poolDst,
+      vor_integration: q.dst_expected_points.state === "QUALIFIED_SHADOW" ? "current-week D/ST values in Dynamic VOR come from this component model (future weeks inherited generic, labelled)" : "NOT integrated into Dynamic VOR: this league's D/ST state is not QUALIFIED_SHADOW (inherited generic values remain, labelled)" },
+    k_live: { qualification: q.k_forecast, mine: kk(inp.roster), best_verified_available: kk(inp.market.candidates).filter((x) => !("unavailable" in x)).sort((x, y) => ((y as { expected_points: number }).expected_points) - ((x as { expected_points: number }).expected_points)).slice(0, 6) },
+  };
+}
+
+/** Apply the qualified D/ST component values (current week only) to roster + market. Non-qualified leagues are returned unchanged. */
+export function withQualifiedDst(inp: EarlyInputs, cap: KdstCapture | null, league: string, week: number): { inp: EarlyInputs; replaced: Array<{ player_id: string; team: string; value: number }> } {
+  if (!cap) return { inp, replaced: [] };
+  const r = applyQualifiedDst(inp.roster, cap, league, week); const m = applyQualifiedDst(inp.market.candidates, cap, league, week);
+  if (!r.replaced.length && !m.replaced.length) return { inp, replaced: [] };
+  return { inp: { ...inp, roster: r.assets, market: { ...inp.market, candidates: m.assets }, notes: [...inp.notes, `W2.R1 qualified D/ST component values applied to ${r.replaced.length + m.replaced.length} D/ST assets (current week only)`] }, replaced: [...r.replaced, ...m.replaced] };
+}
+
+export function upsideReport(ctx: WeeklyTeamContext, inp: EarlyInputs, cap: UpsideCapture | null, pos: string | null, limit: number) {
+  if (!cap || cap.meta.target_week !== ctx.league.week) return { label: UPSIDE_LABEL, state: "UNAVAILABLE", reason: `no frozen pregame capture for week ${ctx.league.week}` };
+  const mine = inp.roster.filter((a) => ["QB", "RB", "WR", "TE"].includes(a.position)).map((a) => ({ player: a.name, ...upsideForPlayer(cap, a.position, a.name, a.team) }));
+  return { label: UPSIDE_LABEL, not_breakout_probability: true, mine, ...(pos ? { listing: upsideListing(cap, pos, limit) } : {}) };
+}

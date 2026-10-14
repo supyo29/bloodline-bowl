@@ -117,10 +117,10 @@ describe("W2.R1 live adapter (provider neutral)", () => {
   });
   it("every envelope is labelled EARLY SHADOW, lists layer availability, carries the K/DST notice and states no production influence", () => {
     const ctx = ctxOf(); const inp = buildEarlyInputs(ctx); const e = envelope(ctx, inp, "roster", {});
-    assert.equal(e.label, EARLY_LABEL); assert.equal(e.mode, "SHADOW_ONLY"); assert.equal(e.qualification, "DIAGNOSTIC");
-    assert.equal(e.layers.S4_k_dst_component_model, "NOT YET QUALIFIED"); assert.equal(e.layers.S5_game_plan_intelligence, "NOT YET QUALIFIED");
-    assert.equal(e.layers.S6_empirical_breakout_model, "NOT YET QUALIFIED"); assert.equal(e.layers.S7_final_retrospective_qualification, "NOT YET RUN");
-    assert.equal(e.notices.k_dst, K_DST_NOTICE); assert.match(e.production_influence, /^NONE/); assert.equal(JSON.stringify(LAYER_STATUS).includes("QUALIFIED\""), true);
+    assert.equal(e.label, EARLY_LABEL); assert.equal(e.mode, "SHADOW_ONLY"); assert.equal(e.qualification, "PER_COMPONENT");
+    assert.match(e.layers.S4_k_dst_component_model, /^D\/ST: QUALIFIED_SHADOW \(Devoted to the Game, Sporty's Alumni, Maclin on Chick's XVI\); EXPLORATORY_POST_DEFECT \(Rogers Park\); DIAGNOSTIC_ONLY \(Bloodline Bowl D\/ST, all K\)$/); assert.match(e.layers.S5_game_plan_intelligence, /^NO_RELIABLE_INCREMENTAL_SIGNAL/);
+    assert.match(e.layers.S6_empirical_upside_model, /^TE INSUFFICIENT_FINAL_SAMPLE/); assert.match(e.layers.S7_final_retrospective_qualification, /^COMPLETE/); assert.equal(e.qualification, "PER_COMPONENT");
+    assert.equal(e.notices.k_dst, K_DST_NOTICE); assert.match(e.production_influence, /^NONE/); assert.equal(e.tactical_signal, "NO_RELIABLE_INCREMENTAL_SIGNAL"); assert.ok(!/breakout probability(?! )/i.test(e.notices.upside.replace("not a breakout probability", "")), "never advertise a breakout probability")
     assert.ok(!/breakout_probability|upside_probability/.test(JSON.stringify(e)), "no breakout probability is exposed before S6 produces a calibrated model");
   });
   it("K/DST report names the inherited-generic status; add report never claims an unknown acquisition as certain; player lookup is unambiguous", () => {

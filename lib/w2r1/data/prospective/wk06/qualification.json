@@ -1,0 +1,488 @@
+{
+ "schema": "w2r1-s8-qualification-snapshot-1",
+ "season": 2026,
+ "week": 6,
+ "research_verdict": "W2.R1 CERTIFIED WITH DOCUMENTED LIMITATIONS — SHADOW ONLY",
+ "captured_at": "2026-10-14T20:05:52.597Z",
+ "by_league": {
+  "bloodline-bowl": {
+   "research_verdict": "W2.R1 CERTIFIED WITH DOCUMENTED LIMITATIONS — SHADOW ONLY",
+   "dst_expected_points": {
+    "state": "DIAGNOSTIC_ONLY",
+    "label": "D/ST expected points — unqualified",
+    "reason": "failed the S7 bias gate (bias +0.73 > 0.5)",
+    "caveats": [
+     "scoring-residual caveat: blk_kick_ret_yd and fg_ret_yd (0.04/yd) cannot be reconstructed (bounded 0.0157 pts/team-game); never scored as zero",
+     "end-to-end reconstruction error 0.103 pts/team-game"
+    ],
+    "evidence": "scripts/w2r1/results/final/s4_final.json#S4.bloodline-bowl.DST"
+   },
+   "k_forecast": {
+    "state": "DIAGNOSTIC_ONLY",
+    "label": "K forecast quality — DIAGNOSTIC_ONLY (not W2.R1-qualified)",
+    "evidence": "scripts/w2r1/results/final/s4_final.json#*.K",
+    "reason": "failed S7 gates T2/T5/T6 (CIs span zero)",
+    "caveats": [
+     "K Dynamic VOR mechanics remain available",
+     "prospective K component predictions continue to be collected"
+    ]
+   },
+   "tactical_game_plan": {
+    "state": "NO_RELIABLE_SIGNAL",
+    "tactical_signal": "NO_RELIABLE_INCREMENTAL_SIGNAL",
+    "applied_to_forecast": false,
+    "reason": "S7: G2 never beats G1/Role-lite (TE significantly worse); S5 evidence machinery is retained for research/provenance only",
+    "evidence": "scripts/w2r1/results/final/s5_final.json"
+   },
+   "upside_likelihood": {
+    "TE": {
+     "state": "INSUFFICIENT_FINAL_SAMPLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "frozen TE M1b: only 21 final-set events (< 40; structurally ≤ 30 in five weeks) — evaluated prospectively only, never refit on Weeks 1-5",
+     "caveats": [
+      "shown only as a prospective-evaluation output, not as a calibrated probability"
+     ],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#TE"
+    },
+    "QB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "RB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "WR": {
+     "state": "NO_RELIABLE_SIGNAL",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no signal over the tier base rate on validation or final",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#WR"
+    },
+    "K": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    },
+    "DEF": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    }
+   },
+   "post_open_defects": {
+    "PO-1": {
+     "summary": "Rogers Park D/ST confirmatory result invalid: the new K/DST gate code clustered the T2 bootstrap by season-week instead of by game / team-week. Any new Rogers qualification must come from Week 6+ prospective evidence.",
+     "affects": [
+      "S4.rogers-park.DST"
+     ],
+     "status": "CONFIRMATORY_RESULT_INVALIDATED"
+    },
+    "PO-2": {
+     "summary": "Final-harness defect: the T9 oracle control was missing for 6 of 9 K/DST slots and a not-computed string was accepted as a pass. Computing it for every slot changed no final outcome.",
+     "affects": [
+      "S4.* T9"
+     ],
+     "status": "NO_OUTCOME_CHANGE_RETAINED_AS_HARNESS_DEFECT"
+    }
+   }
+  },
+  "devoted-to-the-game": {
+   "research_verdict": "W2.R1 CERTIFIED WITH DOCUMENTED LIMITATIONS — SHADOW ONLY",
+   "dst_expected_points": {
+    "state": "QUALIFIED_SHADOW",
+    "label": "D/ST expected points — qualified for shadow use",
+    "reason": "passed every preregistered S7 gate on the final set (n=158 team-games, dMAE +0.73 [+0.26, +1.21] vs the prior-4-game control)",
+    "caveats": [
+     "Devoted to the Game and Sporty's Alumni use the same D/ST scoring formulation: one formulation observed in two leagues, i.e. one independent piece of S7 evidence, not two."
+    ],
+    "evidence": "scripts/w2r1/results/final/s4_final.json#S4.devoted-to-the-game.DST"
+   },
+   "k_forecast": {
+    "state": "DIAGNOSTIC_ONLY",
+    "label": "K forecast quality — DIAGNOSTIC_ONLY (not W2.R1-qualified)",
+    "evidence": "scripts/w2r1/results/final/s4_final.json#*.K",
+    "reason": "failed S7 gates T2/T5/T6 (CIs span zero)",
+    "caveats": [
+     "K Dynamic VOR mechanics remain available",
+     "prospective K component predictions continue to be collected"
+    ]
+   },
+   "tactical_game_plan": {
+    "state": "NO_RELIABLE_SIGNAL",
+    "tactical_signal": "NO_RELIABLE_INCREMENTAL_SIGNAL",
+    "applied_to_forecast": false,
+    "reason": "S7: G2 never beats G1/Role-lite (TE significantly worse); S5 evidence machinery is retained for research/provenance only",
+    "evidence": "scripts/w2r1/results/final/s5_final.json"
+   },
+   "upside_likelihood": {
+    "TE": {
+     "state": "INSUFFICIENT_FINAL_SAMPLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "frozen TE M1b: only 21 final-set events (< 40; structurally ≤ 30 in five weeks) — evaluated prospectively only, never refit on Weeks 1-5",
+     "caveats": [
+      "shown only as a prospective-evaluation output, not as a calibrated probability"
+     ],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#TE"
+    },
+    "QB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "RB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "WR": {
+     "state": "NO_RELIABLE_SIGNAL",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no signal over the tier base rate on validation or final",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#WR"
+    },
+    "K": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    },
+    "DEF": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    }
+   },
+   "post_open_defects": {
+    "PO-1": {
+     "summary": "Rogers Park D/ST confirmatory result invalid: the new K/DST gate code clustered the T2 bootstrap by season-week instead of by game / team-week. Any new Rogers qualification must come from Week 6+ prospective evidence.",
+     "affects": [
+      "S4.rogers-park.DST"
+     ],
+     "status": "CONFIRMATORY_RESULT_INVALIDATED"
+    },
+    "PO-2": {
+     "summary": "Final-harness defect: the T9 oracle control was missing for 6 of 9 K/DST slots and a not-computed string was accepted as a pass. Computing it for every slot changed no final outcome.",
+     "affects": [
+      "S4.* T9"
+     ],
+     "status": "NO_OUTCOME_CHANGE_RETAINED_AS_HARNESS_DEFECT"
+    }
+   }
+  },
+  "sportys-alumni": {
+   "research_verdict": "W2.R1 CERTIFIED WITH DOCUMENTED LIMITATIONS — SHADOW ONLY",
+   "dst_expected_points": {
+    "state": "QUALIFIED_SHADOW",
+    "label": "D/ST expected points — qualified for shadow use",
+    "reason": "identical scoring formulation to Devoted to the Game; passed every preregistered S7 gate",
+    "caveats": [
+     "Devoted to the Game and Sporty's Alumni use the same D/ST scoring formulation: one formulation observed in two leagues, i.e. one independent piece of S7 evidence, not two."
+    ],
+    "evidence": "scripts/w2r1/results/final/s4_final.json#S4.sportys-alumni.DST"
+   },
+   "k_forecast": {
+    "state": "DIAGNOSTIC_ONLY",
+    "label": "K forecast quality — DIAGNOSTIC_ONLY (not W2.R1-qualified)",
+    "evidence": "scripts/w2r1/results/final/s4_final.json#*.K",
+    "reason": "failed S7 gates T2/T5/T6 (CIs span zero)",
+    "caveats": [
+     "K Dynamic VOR mechanics remain available",
+     "prospective K component predictions continue to be collected"
+    ]
+   },
+   "tactical_game_plan": {
+    "state": "NO_RELIABLE_SIGNAL",
+    "tactical_signal": "NO_RELIABLE_INCREMENTAL_SIGNAL",
+    "applied_to_forecast": false,
+    "reason": "S7: G2 never beats G1/Role-lite (TE significantly worse); S5 evidence machinery is retained for research/provenance only",
+    "evidence": "scripts/w2r1/results/final/s5_final.json"
+   },
+   "upside_likelihood": {
+    "TE": {
+     "state": "INSUFFICIENT_FINAL_SAMPLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "frozen TE M1b: only 21 final-set events (< 40; structurally ≤ 30 in five weeks) — evaluated prospectively only, never refit on Weeks 1-5",
+     "caveats": [
+      "shown only as a prospective-evaluation output, not as a calibrated probability"
+     ],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#TE"
+    },
+    "QB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "RB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "WR": {
+     "state": "NO_RELIABLE_SIGNAL",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no signal over the tier base rate on validation or final",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#WR"
+    },
+    "K": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    },
+    "DEF": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    }
+   },
+   "post_open_defects": {
+    "PO-1": {
+     "summary": "Rogers Park D/ST confirmatory result invalid: the new K/DST gate code clustered the T2 bootstrap by season-week instead of by game / team-week. Any new Rogers qualification must come from Week 6+ prospective evidence.",
+     "affects": [
+      "S4.rogers-park.DST"
+     ],
+     "status": "CONFIRMATORY_RESULT_INVALIDATED"
+    },
+    "PO-2": {
+     "summary": "Final-harness defect: the T9 oracle control was missing for 6 of 9 K/DST slots and a not-computed string was accepted as a pass. Computing it for every slot changed no final outcome.",
+     "affects": [
+      "S4.* T9"
+     ],
+     "status": "NO_OUTCOME_CHANGE_RETAINED_AS_HARNESS_DEFECT"
+    }
+   }
+  },
+  "maclin-on-chicks-xvi": {
+   "research_verdict": "W2.R1 CERTIFIED WITH DOCUMENTED LIMITATIONS — SHADOW ONLY",
+   "dst_expected_points": {
+    "state": "QUALIFIED_SHADOW",
+    "label": "D/ST expected points — qualified for shadow use",
+    "reason": "passed every preregistered S7 gate (dMAE +0.68 [+0.17, +1.19], bias +0.02)",
+    "caveats": [
+     "Yahoo scoring semantics (one Fumble Recovery for defense+special teams, 'Touchdown' includes blocked-kick TDs)"
+    ],
+    "evidence": "scripts/w2r1/results/final/s4_final.json#S4.maclin-on-chicks-xvi.DST"
+   },
+   "k_forecast": {
+    "state": "DIAGNOSTIC_ONLY",
+    "label": "K forecast quality — DIAGNOSTIC_ONLY (not W2.R1-qualified)",
+    "evidence": "scripts/w2r1/results/final/s4_final.json#*.K",
+    "reason": "failed the S7 gates; Yahoo kicker stat-line parity is unverified",
+    "caveats": [
+     "Verify Yahoo kicker stat-line parity before any future Maclin promotion attempt",
+     "K Dynamic VOR mechanics remain available"
+    ]
+   },
+   "tactical_game_plan": {
+    "state": "NO_RELIABLE_SIGNAL",
+    "tactical_signal": "NO_RELIABLE_INCREMENTAL_SIGNAL",
+    "applied_to_forecast": false,
+    "reason": "S7: G2 never beats G1/Role-lite (TE significantly worse); S5 evidence machinery is retained for research/provenance only",
+    "evidence": "scripts/w2r1/results/final/s5_final.json"
+   },
+   "upside_likelihood": {
+    "TE": {
+     "state": "INSUFFICIENT_FINAL_SAMPLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "frozen TE M1b: only 21 final-set events (< 40; structurally ≤ 30 in five weeks) — evaluated prospectively only, never refit on Weeks 1-5",
+     "caveats": [
+      "shown only as a prospective-evaluation output, not as a calibrated probability"
+     ],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#TE"
+    },
+    "QB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "RB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "WR": {
+     "state": "NO_RELIABLE_SIGNAL",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no signal over the tier base rate on validation or final",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#WR"
+    },
+    "K": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    },
+    "DEF": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    }
+   },
+   "post_open_defects": {
+    "PO-1": {
+     "summary": "Rogers Park D/ST confirmatory result invalid: the new K/DST gate code clustered the T2 bootstrap by season-week instead of by game / team-week. Any new Rogers qualification must come from Week 6+ prospective evidence.",
+     "affects": [
+      "S4.rogers-park.DST"
+     ],
+     "status": "CONFIRMATORY_RESULT_INVALIDATED"
+    },
+    "PO-2": {
+     "summary": "Final-harness defect: the T9 oracle control was missing for 6 of 9 K/DST slots and a not-computed string was accepted as a pass. Computing it for every slot changed no final outcome.",
+     "affects": [
+      "S4.* T9"
+     ],
+     "status": "NO_OUTCOME_CHANGE_RETAINED_AS_HARNESS_DEFECT"
+    }
+   }
+  },
+  "rogers-park": {
+   "research_verdict": "W2.R1 CERTIFIED WITH DOCUMENTED LIMITATIONS — SHADOW ONLY",
+   "dst_expected_points": {
+    "state": "EXPLORATORY_POST_DEFECT",
+    "label": "D/ST expected points — EXPLORATORY (not S7-qualified)",
+    "reason": "post-open defect PO-1 invalidated the confirmatory T2 result; the model continues prospectively but must not be described as S7-qualified",
+    "caveats": [
+     "Rogers Park D/ST confirmatory result invalid: the new K/DST gate code clustered the T2 bootstrap by season-week instead of by game / team-week. Any new Rogers qualification must come from Week 6+ prospective evidence.",
+     "May only be re-evaluated on Week 6+ prospective evidence"
+    ],
+    "evidence": "scripts/w2r1/results/final/post_open_defects.json#PO-1"
+   },
+   "k_forecast": {
+    "state": "UNAVAILABLE",
+    "label": "no kicker slot in this league",
+    "reason": "league has no K slot",
+    "caveats": [],
+    "evidence": "scripts/w2r1/s4_regimes.json"
+   },
+   "tactical_game_plan": {
+    "state": "NO_RELIABLE_SIGNAL",
+    "tactical_signal": "NO_RELIABLE_INCREMENTAL_SIGNAL",
+    "applied_to_forecast": false,
+    "reason": "S7: G2 never beats G1/Role-lite (TE significantly worse); S5 evidence machinery is retained for research/provenance only",
+    "evidence": "scripts/w2r1/results/final/s5_final.json"
+   },
+   "upside_likelihood": {
+    "TE": {
+     "state": "INSUFFICIENT_FINAL_SAMPLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "frozen TE M1b: only 21 final-set events (< 40; structurally ≤ 30 in five weeks) — evaluated prospectively only, never refit on Weeks 1-5",
+     "caveats": [
+      "shown only as a prospective-evaluation output, not as a calibrated probability"
+     ],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#TE"
+    },
+    "QB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "RB": {
+     "state": "DIAGNOSTIC_ONLY",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "S7: no reliable signal at the final gates; research output only",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json"
+    },
+    "WR": {
+     "state": "NO_RELIABLE_SIGNAL",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no signal over the tier base rate on validation or final",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s6_final_raw.json#WR"
+    },
+    "K": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    },
+    "DEF": {
+     "state": "UNAVAILABLE",
+     "label": "Upside likelihood — probability of a top-N positional finish",
+     "reason": "no K/DST spike probability is displayed (no candidate was eligible)",
+     "caveats": [],
+     "evidence": "scripts/w2r1/results/final/s4_final.json"
+    }
+   },
+   "post_open_defects": {
+    "PO-1": {
+     "summary": "Rogers Park D/ST confirmatory result invalid: the new K/DST gate code clustered the T2 bootstrap by season-week instead of by game / team-week. Any new Rogers qualification must come from Week 6+ prospective evidence.",
+     "affects": [
+      "S4.rogers-park.DST"
+     ],
+     "status": "CONFIRMATORY_RESULT_INVALIDATED"
+    },
+    "PO-2": {
+     "summary": "Final-harness defect: the T9 oracle control was missing for 6 of 9 K/DST slots and a not-computed string was accepted as a pass. Computing it for every slot changed no final outcome.",
+     "affects": [
+      "S4.* T9"
+     ],
+     "status": "NO_OUTCOME_CHANGE_RETAINED_AS_HARNESS_DEFECT"
+    }
+   }
+  }
+ },
+ "tactical_evidence_state": {
+  "tactical_signal": "NO_RELIABLE_INCREMENTAL_SIGNAL",
+  "applied_to_forecast": false,
+  "note": "non-predictive; recorded for provenance only"
+ },
+ "role_state": "W2.P1 Role candidate C2 (frozen, scripts/w2p1/FROZEN.json) — SHADOW; not applied to live forecasts here",
+ "confidence": {
+  "dst": "MEDIUM for QUALIFIED_SHADOW leagues; LOW elsewhere",
+  "k": "LOW (diagnostic)",
+  "upside_te": "LOW (insufficient final sample)"
+ },
+ "model_artifact_hashes": {
+  "frozen_json_sha256": "3685aa7f19596a6022f8790cd3fd9ef4fdf6154c2f32121d453567c663490ceb",
+  "frozen_sha256_file": "3685aa7f19596a6022f8790cd3fd9ef4fdf6154c2f32121d453567c663490ceb",
+  "qualification_ts_sha256": "53051816b772028f2ad1dc34662759c7db6a477e3492fae7e4540ba428473852",
+  "dst_live_ts_sha256": "a00b9acf33995232f1b874eb529e2f3f3d06c80dc82c749d8917ed9bd44a0d4d",
+  "kdst_ts_sha256": "0169104682b7e7e2a136bdc85ecc7d248a23c6e52660d30b7b7e95194210adbe",
+  "s4_regimes_sha256": "e4a1c305d5e4772e24803d5abb35b72f29e82cf322634c9574b1732ad4766414",
+  "git_head": "3c6809646358fba4a31b9e05a7995443b779cc4f"
+ },
+ "scoring_fingerprints": "league scoring regimes are the exact keys in scripts/w2r1/s4_regimes.json (sha above); live league fingerprints are captured by the live LEAGUE_MANAGER_STATE capture, not here",
+ "coverage_notes": {
+  "LEAGUE_MANAGER_STATE": "NOT CAPTURED for this week: the W1 canonical forecast, availability, roster, verified market and Dynamic VOR need a credentialed protected deployment (Yahoo/Supabase); not authorized in S8. See the durable staging proposal.",
+  "designations": "official designations are not yet published at freeze time; unknown designations are treated as NONE (flagged) and OUT is excluded from the upside population"
+ }
+}
