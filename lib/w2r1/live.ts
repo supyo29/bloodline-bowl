@@ -36,6 +36,7 @@ export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string,
     league: { slug: ctx.league.slug, provider: ctx.league.provider, week: ctx.league.week, season: ctx.league.season },
     manager: ctx.manager.manager_slug,
     scoring_fingerprint: inp.rules.scoring_fingerprint,
+    league_rules: { slots: inp.rules.slots, bench_size: inp.rules.bench_size, ir_slots: inp.rules.ir_slots, last_week_considered: inp.rules.last_week },
     confidence: { current_week: "from Wave 1 forecast", future_weeks: "LOW (ROS per-game proxy; no schedule/matchup/game-plan adjustment)", overall: "LOW-MEDIUM" },
     evidence: { context_generated_at: ctx.generated_at, projection_source: ctx.projections.source, projection_status: ctx.projections.status, context_status: ctx.status },
     market: { provider: inp.market.provider, basis: mp?.basis ?? null, verified: inp.market.verified, freshness: inp.market.freshness, observed_at: inp.market.observed_at, age_ms: mp?.age_ms ?? (inp.market.observed_at ? Math.max(0, Date.now() - Date.parse(inp.market.observed_at)) : null), market_content_id: mp?.market_content_id ?? null, candidates: inp.market.candidates.length, readiness_axes: mp?.axes ?? null, pool_actionable: ctx.free_agent_pool_readiness.actionable },
@@ -171,10 +172,15 @@ export function compareReport(ctx: WeeklyTeamContext, inp: EarlyInputs) {
   return {
     "CURRENT PRODUCTION DECISION": {
       lineup: roster.lineup_comparison["CURRENT PRODUCTION DECISION"],
-      waiver_recommendations: (prodWaivers.recommendations ?? []).slice(0, 8).map((r) => ({ add: nm((r as unknown as { add?: { canonical_player_id?: string } }).add?.canonical_player_id ?? ""), summary: (r as unknown as { reason?: string }).reason ?? null })),
+      waiver_recommendations: (prodWaivers.recommendations ?? []).slice(0, 8).map((r) => ({ add: r.add_name, position: r.position, drop: r.drop_name, net_roster_gain: round(r.net_roster_gain), starter_impact: round(r.starter_impact), priority: r.priority })),
       waiver_availability_status: prodWaivers.availability_status,
     },
     "W2.R1 SHADOW DECISION": { lineup: roster.lineup_comparison["W2.R1 SHADOW DECISION"], best_add_drop_pairs_by_ros_lineup_delta: add.top, starter_set_differences: roster.lineup_comparison.starter_set_differences },
+    agreement: (() => {
+      const prodAdds = new Set((prodWaivers.recommendations ?? []).map((r) => r.add_name));
+      const r1Adds = new Set(add.top.map((t) => (t.add as { name: string }).name));
+      return { production_adds_also_in_w2r1_top: [...prodAdds].filter((n) => r1Adds.has(n)), only_production: [...prodAdds].filter((n) => !r1Adds.has(n)), only_w2r1: [...r1Adds].filter((n) => !prodAdds.has(n)) };
+    })(),
     interpretation: "Diagnostic comparison only. Differences are expected to be small at this stage: W2.R1 shares the Wave 1 forecasts; what differs is the roster-cascade value (bench, IR, FLEX, market) not the player forecasts.",
   };
 }
