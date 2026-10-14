@@ -1,0 +1,34 @@
+{
+  "spec_version": "w2r1-s4-spec-1",
+  "extends": "scripts/w2r1/prereg.json (unchanged; sha256 at the time of this file is recorded in FROZEN.json at S7)",
+  "declared_before": "any K/D-ST model fit, any VAL scoring, any look at 2026 weeks 1-5 outcomes. This file only FIXES design constants that prereg.json left to the implementation; it loosens no threshold, changes no label and no split.",
+  "regimes": "scripts/w2r1/s4_regimes.json (exact K/D-ST scoring of the five registered leagues). A model is evaluated and labelled PER REGIME; regimes are never pooled. A regime whose non-zero scoring keys include a component this spec cannot reconstruct is labelled DIAGNOSTIC_UNQUALIFIED for that component (reported, not qualified).",
+  "unit": {"K": "team-game: the team's kicker slot (identity as of the previous game; kicker-change rows are flagged and kept)", "DST": "team-game defense/special teams"},
+  "population": {"K": "team has >= 1 FG attempt in its prior 3 games (prereg relevance floor)", "DST": "all 32 teams", "weeks": "regular season weeks >= 3 for FIT/VAL targets (weeks 1-2 use prior-season evidence only and are reported separately)"},
+  "components": {
+    "K": ["fg_att by distance bin [0-19,20-29,30-39,40-49,50-59,60+]", "fg_made by bin", "fg_missed_or_blocked by bin", "xp_att", "xp_made"],
+    "DST": ["sacks", "sack_yards", "interceptions", "int_return_yards", "fumble_recoveries", "fumble_return_yards", "forced_fumbles", "defensive_tds", "special_teams_tds", "safeties", "blocked_kicks", "fourth_down_stops", "forced_punts", "kick_return_yards", "punt_return_yards", "defensive_2pt", "points_allowed_by_offense"],
+    "points_allowed_reconstruction": "points scored by the opponent while ON OFFENSE (TD 6, FG 3, XP 1, 2pt 2 on opponent-offense plays). Non-offensive points (defensive / special-teams TDs, safeties) are NOT points allowed by the defense. Approximation: a provider may differ on rare plays; documented limitation."
+  },
+  "as_of_rates": {
+    "team_rate_per_game": "(sum of the team's component over its previous up to 10 games, crossing the season boundary with the same weight, + k0 * league_mean_per_game) / (n_games + k0), k0 = 4. League mean is the FIT mean (fixed artifact).",
+    "kicker_make_probability": "league logistic p_L(distance bin, wind>=15, dome, temp<40) fitted on FIT FG attempts; kicker multiplier ratio = (makes_k + m_k) / (sum of p_L over his prior attempts + m_k), m_k = 15, odds-scaled and clipped to [0.5, 1.5]; kicker identity = the team's last kicker; a new kicker uses ratio 1.",
+    "distance_shares": "(team_att_b + m_s * league_share_b) / (team_att + m_s), m_s = 20 attempts over the team's previous up to 10 games"
+  },
+  "models": {
+    "count_models": "Poisson GLM (log link), fit on FIT only, one per count component, with the fixed feature lists below; no hyper-parameter search (nothing to choose on VAL except the pre-declared feature lists A/B listed here).",
+    "K_fg_attempts_features": {"A": ["log(team_fg_att_rate)", "log(opp_fg_att_allowed_rate)", "implied_team_total"], "B": ["A", "dome", "wind>=15", "temp<40", "spread"]},
+    "K_xp_attempts_features": ["implied_team_total", "log(team_xp_rate)"],
+    "DST_sack_features": {"A": ["log(def_sack_rate)", "log(opp_sacks_allowed_rate)", "opp_dropbacks_rate"], "B": ["A", "spread", "home"]},
+    "DST_int_features": {"A": ["log(def_int_rate)", "log(opp_int_thrown_rate)"], "B": ["A", "opp_dropbacks_rate", "spread"]},
+    "DST_fumble_rec_features": {"A": ["log(def_fumrec_rate)", "log(opp_fumlost_rate)"], "B": ["A"]},
+    "DST_rare_components": "defensive_tds, special_teams_tds, safeties, blocked_kicks, defensive_2pt, forced_fumbles, fourth_down_stops, forced_punts: team rate shrunk to league (k0 = 4) with NO regression (too sparse to regress); yard components = expected count x FIT mean yards per event.",
+    "points_allowed": "negative-binomial distribution of opponent-offense points with mean = linear function of [implied_opp_total, opp_ppg_rate, def_pa_rate] fitted on FIT, dispersion fitted on FIT; expected score under any regime computed from the distribution (continuous per-point keys use the mean).",
+    "feature_set_choice": "A vs B chosen per component on VAL log-likelihood (the only VAL-selected choice); ties -> A",
+    "expected_points": "exact: sum over components of E[count] x regime weight, with bin-wise FG make/miss weights and the full points-allowed distribution; spike: Monte-Carlo (n = 4000, seed 20261014) of the component joint (independent Poisson counts, binomial makes) against the regime's FIT cut"
+  },
+  "controls": {"K_control": "prior-4-game mean of the team's K points under the regime (prereg K_control)", "DST_control": "prior-4-game mean of the team's D/ST points under the regime (prereg DST_control)", "note": "the provider's generic 'standard points' fallback has no stored history, so it cannot be a historical control; it is the control in the LIVE preview only."},
+  "metrics": ["MAE", "RMSE", "bias", "paired cluster bootstrap by game (B=2000, seed 20261014)", "tier results by control forecast tercile"],
+  "spike": {"label": "weekly top-6 finish among the 32 team slots at the position under the regime (prereg PRIMARY)", "cut": "FIT median of the weekly 6th-best score per regime (used only to turn a simulated score distribution into P(score >= cut))", "M0": "tercile-of-control empirical base rate (FIT)", "M1": "logistic regression on [model expected points, model SD], C chosen from [0.01, 0.1, 1, 10] on VAL log loss"},
+  "final_guard": "no script in this stage may read or score 2026 weeks 1-5 outcomes; the harness refuses unless FROZEN.json exists (S7)."
+}
