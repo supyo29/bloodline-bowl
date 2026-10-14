@@ -464,6 +464,8 @@ export interface WeeklyTeamContext {
    * W1.R2: the outcome of the final-pregame capture for this context — never silent. A store failure does not fail the analysis, but it is
    * reported here (and as a context warning), with the per-decision counts (RECORDED / CONFIRMED / REJECTED_*).
    */
+  /** W2.R1 current-intelligence metadata for this context (qualified D/ST application; per-component qualification lives in lib/w2r1/qualification.ts). */
+  w2r1?: { dst: { state: string; applied: number; capture_week: number | null; reason: string | null; replaced: Array<{ canonical_player_id: string; team: string; provider_value: number | null; w2r1_value: number }> } };
   final_pregame_capture?: {
     status: "CAPTURED" | "NOTHING_TO_CAPTURE" | "NO_COMPOSITION_CLOCK" | "STORE_NOT_CONFIGURED" | "FAILED";
     candidates: number;

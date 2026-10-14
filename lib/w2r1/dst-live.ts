@@ -13,6 +13,9 @@ export const REGIMES = (regimesJson as { regimes: Record<string, RegimeDef> }).r
 export interface TeamCapture { team: string; opp: string; game_id: string; gameday: string; available: boolean; inputs: Record<string, number | boolean | null>; dst: DComponents & { pa_mean: number }; k: KComponents & { kicker_ratio: number; prev_kicker: string | null } }
 export interface KdstCapture { meta: { schema: string; target_week: number; season: number; generated_at: string; data_through_week: number; frozen_models: Record<string, unknown>; weather_note: string; git_head: string }; teams: Record<string, TeamCapture> }
 
+/** provider NFL team abbreviations -> the nflverse abbreviations used by the capture */
+const TEAM_ALIAS: Record<string, string> = { LAR: "LA", STL: "LA", WSH: "WAS", JAC: "JAX", ARZ: "ARI", SD: "LAC", OAK: "LV" };
+export const normTeam = (t: string): string => { const u = t.toUpperCase(); return TEAM_ALIAS[u] ?? u; };
 const r2 = (v: number): number => Math.round(v * 100) / 100;
 const r4 = (v: number): number => Math.round(v * 1e4) / 1e4;
 
@@ -56,7 +59,7 @@ export const DST_MODEL_VERSION = "w2r1-s4-dst-components-frozen-2026.0";
 export function dstForTeam(cap: KdstCapture, league: string, team: string, source: "W2R1_COMPONENT_MODEL" | "INHERITED_GENERIC" = "W2R1_COMPONENT_MODEL"): DstLive | { unavailable: true; reason: string; qualification: Qualification } {
   const q = dstQualification(league); const reg = REGIMES[league];
   if (!reg) return { unavailable: true, reason: "no registered W2.R1 scoring regime for this league", qualification: q };
-  const t = cap.teams[team];
+  const t = cap.teams[normTeam(team)];
   if (!t) return { unavailable: true, reason: `team ${team} has no game in week ${cap.meta.target_week} capture (bye or unknown)`, qualification: q };
   if (!t.available) return { unavailable: true, reason: "pregame inputs missing (e.g. schedule line not posted); never defaulted", qualification: { ...q, state: "UNAVAILABLE" } };
   const c = t.dst; const bd = dstBreakdown(c, reg.scoring, reg.provider); const total = expectedDstPoints(c, reg.scoring, reg.provider);
@@ -72,7 +75,7 @@ export function dstForTeam(cap: KdstCapture, league: string, team: string, sourc
 }
 
 export function kForTeam(cap: KdstCapture, league: string, team: string) {
-  const q = kQualification(league); const reg = REGIMES[league]; const t = cap.teams[team];
+  const q = kQualification(league); const reg = REGIMES[league]; const t = cap.teams[normTeam(team)];
   if (!reg || !reg.has_K) return { unavailable: true as const, reason: "no kicker slot / regime for this league", qualification: q };
   if (!t || !t.available) return { unavailable: true as const, reason: t ? "pregame inputs missing" : "no game this week", qualification: { ...q, state: "UNAVAILABLE" as const } };
   return { league, team, week: cap.meta.target_week, qualification: q, forecast_label: labelForecast("W2R1_COMPONENT_MODEL", q), expected_points: r2(expectedKPoints(t.k, reg.scoring)), expected_fg_attempts: r2(t.k.e_fg), expected_xp_attempts: r2(t.k.e_xp), evidence_timestamp: cap.meta.generated_at, model_version: "w2r1-s4-k-components-frozen-2026.0", note: "DIAGNOSTIC_ONLY — not W2.R1-qualified; prospective component predictions are being collected" };

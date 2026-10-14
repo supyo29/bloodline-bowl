@@ -3,8 +3,8 @@
 --
 -- bridge_w2r1_prospective_captures : one row per (season, week, kind, league, manager, payload hash). INSERT-only: UPDATE/DELETE rejected by trigger.
 --   The DATABASE refuses late evidence on its own clock: a row whose first_kickoff_at is at/before now() is refused, and CHECK captured_at < first_kickoff_at.
---   The record must be SHADOW_ONLY and may not influence production. RLS on with NO policies (service-role only); privileges revoked from anon/authenticated.
---   Nothing reads this table on a ranking or decision path.
+--   The record must be a read-only CURRENT_INTELLIGENCE record (writes_to_providers = false). RLS on with NO policies (service-role only); privileges revoked from anon/authenticated.
+--   Nothing reads this table on a ranking or decision path; the runtime works WITHOUT it (persistence is optional and fails soft).
 -- ROLLBACK (research telemetry only):
 --   drop table if exists public.bridge_w2r1_prospective_captures;
 --   drop function if exists public.bridge_w2r1_capture_immutable();
@@ -39,8 +39,8 @@ create table if not exists public.bridge_w2r1_prospective_captures (
   qualification     jsonb       not null check (jsonb_typeof(qualification) = 'object'),
   record            jsonb       not null check (
     jsonb_typeof(record) = 'object'
-    and (record->>'may_influence_production') = 'false'
-    and (record->>'mode') = 'SHADOW_ONLY'
+    and (record->>'writes_to_providers') = 'false'
+    and (record->>'mode') = 'CURRENT_INTELLIGENCE'
   ),
   recorded_at       timestamptz not null default now(),
   constraint bridge_w2r1_capture_is_pregame check (captured_at < first_kickoff_at),

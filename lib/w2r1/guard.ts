@@ -1,5 +1,7 @@
-/** W2.R1 early-shadow routes are never served from a Vercel PRODUCTION deployment (belt and braces on top of the branch not being merged). */
+/**
+ * W2.R1 is the current Bloodline intelligence stack and is served on every deployment, production included. Scientific qualification is per-component METADATA
+ * (lib/w2r1/qualification.ts), not a deployment gate. `W2R1_DISABLED=1` is an operational emergency stop only (default: enabled).
+ */
 export function w2r1Enabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.W2R1_SHADOW_DISABLED === "1") return false;
-  return env.VERCEL_ENV !== "production" || env.W2R1_SHADOW_ENABLED === "1";
+  return env.W2R1_DISABLED !== "1";
 }

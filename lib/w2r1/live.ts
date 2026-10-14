@@ -1,6 +1,6 @@
 /**
- * W2.R1 EARLY SHADOW live reports (S1-S3 mechanics on real canonical league state). DIAGNOSTIC ONLY.
- * Nothing here is read by any production decision path; every report carries the label, layer availability and the production-influence statement.
+ * W2.R1 current-intelligence live reports (Dynamic VOR, roster/replacement simulation, D/ST + K components, upside likelihood) on real canonical league state.
+ * READ-ONLY decision support: no lineup, waiver, drop, trade or provider write is ever performed. Every report carries per-component qualification/confidence metadata.
  */
 import { buildLineup } from "@/lib/weekly/intelligence";
 import { buildWaiverRecommendations } from "@/lib/weekly/waivers";
@@ -15,7 +15,7 @@ import { qualificationSummary, TACTICAL, W2R1_RESEARCH_VERDICT, UPSIDE_LABEL } f
 import { applyQualifiedDst, dstForTeam, kForTeam, REGIMES, type KdstCapture } from "./dst-live";
 import { upsideForPlayer, upsideListing, type UpsideCapture } from "./upside-live";
 
-export const EARLY_LABEL = "W2.R1 EARLY SHADOW — DIAGNOSTIC" as const;
+export const STACK_LABEL = "W2.R1 — Current Bloodline Intelligence Stack" as const;
 export const LAYER_STATUS = {
   S1_evidence_contract: "AVAILABLE",
   S2_roster_replacement_simulation: "AVAILABLE",
@@ -28,17 +28,17 @@ export const LAYER_STATUS = {
 export const K_DST_NOTICE = "D/ST expected points are W2.R1-qualified for shadow use only in Devoted to the Game, Sporty's Alumni and Maclin on Chick's XVI; Rogers Park is EXPLORATORY (post-open defect PO-1); Bloodline Bowl D/ST is unqualified. Kicker forecasts are DIAGNOSTIC_ONLY. Anything else uses an inherited generic forecast and is labelled as such.";
 export const BREAKOUT_NOTICE = `${UPSIDE_LABEL}: TE is INSUFFICIENT_FINAL_SAMPLE (prospective evaluation only); QB/RB DIAGNOSTIC_ONLY; WR NO_RELIABLE_SIGNAL; no K/DST spike probability is displayed. This is not a breakout probability.`;
 export const TACTICAL_NOTICE = `TACTICAL_SIGNAL: ${TACTICAL.tactical_signal} — no tactical or matchup adjustment is applied to any forecast.`;
-export const PRODUCTION_STATEMENT = "NONE — this response is a shadow diagnostic. It changes no production start/sit, waiver, drop, trade, VOR or fantasy transaction.";
+export const DECISION_SUPPORT_STATEMENT = "READ-ONLY decision support: informs analysis with per-component qualification and confidence; performs no lineup submission, waiver claim, drop, trade or provider write — the user keeps final judgment.";
 
 export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string, data: unknown) {
   const mp = ctx.market_pool;
   return {
-    label: EARLY_LABEL, mode: W2R1_MODE, model_version: W2R1_MODEL_VERSION, view: kind,
+    label: STACK_LABEL, mode: W2R1_MODE, model_version: W2R1_MODEL_VERSION, view: kind,
     research_verdict: W2R1_RESEARCH_VERDICT, qualification: "PER_COMPONENT" as const, qualification_states: qualificationSummary(ctx.league.slug),
     tactical_signal: TACTICAL.tactical_signal,
     layers: LAYER_STATUS,
     notices: { k_dst: K_DST_NOTICE, upside: BREAKOUT_NOTICE, tactical: TACTICAL_NOTICE },
-    production_influence: PRODUCTION_STATEMENT,
+    decision_support: DECISION_SUPPORT_STATEMENT, writes_to_providers: false as const,
     league: { slug: ctx.league.slug, provider: ctx.league.provider, week: ctx.league.week, season: ctx.league.season },
     manager: ctx.manager.manager_slug,
     scoring_fingerprint: inp.rules.scoring_fingerprint,

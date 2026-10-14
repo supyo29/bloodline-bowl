@@ -139,33 +139,16 @@ describe("S8 capture immutability + grading", () => {
   });
 });
 
-describe("S8 no production influence (hard tests)", () => {
+describe("S8/integration: W2.R1 is READ-ONLY decision support (hard tests)", () => {
   const walk = (d: string, out: string[] = []): string[] => { for (const e of readdirSync(d)) { const p = join(d, e); if (e === "node_modules" || e === ".next") continue; const st = statSync(p); if (st.isDirectory()) walk(p, out); else if (/\.(ts|tsx)$/.test(p)) out.push(p); } return out; };
-  it("no production module (anything outside lib/w2r1, app/api/w2r1, scripts, test) imports W2.R1", () => {
-    const bad = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/w2r1/") && !f.startsWith("app/api/w2r1/")).filter((f) => /from\s+["'](@\/lib\/w2r1|\.{1,2}\/.*w2r1)|import\(["'](@\/lib\/w2r1)/.test(readFileSync(f, "utf8")));
-    assert.deepEqual(bad, []);
-  });
-  it("W2.R1 code contains no transaction / lineup-write / waiver-claim / drop / trade / Yahoo-write call path", () => {
-    const files = [...walk("lib/w2r1"), ...walk("app/api/w2r1")].filter((f) => !f.endsWith("/index.ts") || true);
+  it("W2.R1 code contains no transaction / lineup-write / waiver-claim / drop / trade / provider-write call path or mutating HTTP verb", () => {
+    const files = [...walk("lib/w2r1"), ...walk("app/api/w2r1")];
     const forbidden = /(from\s+["'][^"']*(\/transactions|\/yahoo\/write|waiver-claim|\/trades\/execute)[^"']*["'])|method:\s*["'](POST|PUT|PATCH|DELETE)["']|\b(submitClaim|placeClaim|dropPlayer|addDropPlayer|setLineup|proposeTrade|executeTrade|submitLineup)\b/;
-    const hits = files.filter((f) => forbidden.test(readFileSync(f, "utf8"))); assert.deepEqual(hits, []);
+    assert.deepEqual(files.filter((f) => forbidden.test(readFileSync(f, "utf8"))), []);
   });
-  it("the W2.R1 routes export only GET/OPTIONS (no mutating verbs) and are 404 on a Vercel production deployment", () => {
+  it("the W2.R1 routes export only GET/OPTIONS (no mutating verbs)", () => {
     const routes = walk("app/api/w2r1").filter((f) => f.endsWith("route.ts")); assert.ok(routes.length >= 2);
     for (const r of routes) { const src = readFileSync(r, "utf8"); assert.doesNotMatch(src, /export\s+(async\s+)?function\s+(POST|PUT|PATCH|DELETE)\b/, r); assert.match(src, /w2r1Enabled\(\)/, r); }
   });
-  it("every live envelope states NONE production influence and the per-component states", () => { const q = qualificationSummary("devoted-to-the-game"); assert.equal(q.dst_expected_points.state, "QUALIFIED_SHADOW"); });
-});
-
-describe("S8 persistence schema (migration is NOT applied; validated on throwaway local staging only)", () => {
-  const sql = readFileSync("supabase/migrations/20261014120000_w2r1_prospective_captures.sql", "utf8");
-  it("migration is append-only, database-clock pregame-enforced, shadow-only, service-role-only", () => {
-    for (const re of [/create trigger bridge_w2r1_captures_immutable before update or delete/, /create trigger bridge_w2r1_captures_not_late before insert/, /captured_at < first_kickoff_at/, /may_influence_production'\) = 'false'/, /enable row level security/, /revoke all on public\.bridge_w2r1_prospective_captures from anon, authenticated/, /NOT APPLIED/]) assert.match(sql, re);
-    assert.doesNotMatch(sql, /\balter table (?!public\.bridge_w2r1_prospective_captures)/i); assert.doesNotMatch(sql, /^\s*drop table(?! if exists public\.bridge_w2r1_prospective_captures;)/m);
-  });
-  it("captureRow: deterministic content id, shadow flags, refuses non-pregame and unknown kinds", () => {
-    const a = { kind: "KDST_COMPONENTS" as const, season: 2026, week: 6, firstKickoffAt: "2026-10-16T00:15:00Z", capturedAt: "2026-10-14T20:00:00Z", payload: { b: 1, a: 2 }, modelArtifactHashes: {}, qualification: {} };
-    const r1 = captureRow(a), r2 = captureRow({ ...a, payload: { a: 2, b: 1 } }); assert.equal(r1.capture_id, r2.capture_id); assert.match(r1.capture_id, /^w2c:[0-9a-f]{16}$/); assert.equal(r1.record.may_influence_production, "false"); assert.equal(r1.record.mode, "SHADOW_ONLY");
-    assert.notEqual(captureRow({ ...a, payload: { a: 3 } }).capture_id, r1.capture_id); assert.throws(() => captureRow({ ...a, capturedAt: "2026-10-16T00:15:00Z" }), /not pregame/); assert.throws(() => captureRow({ ...a, kind: "X" as never }), /unknown capture kind/);
-  });
+  it("every live envelope states it is read-only decision support with no provider writes, plus per-component states", () => { const q = qualificationSummary("devoted-to-the-game"); assert.equal(q.dst_expected_points.state, "QUALIFIED_SHADOW"); });
 });

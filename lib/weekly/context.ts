@@ -14,6 +14,7 @@
  * analytics run entirely from canonical current-state.
  */
 
+import { planQualifiedDst } from "@/lib/w2r1/context-hook";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import {
   assessCapabilities,
@@ -87,6 +88,8 @@ export interface BuildWeeklyContextOptions {
   nowMs?: () => number;
   /** W1.P4: where final-pregame candidates are recorded (default: Supabase when configured, otherwise nothing is persisted). */
   finalPregameStoreOverride?: FinalPregameStore;
+  /** test seam: inject the W2.R1 qualified D/ST plan instead of loading the frozen capture */
+  w2r1DstPlanOverride?: import("@/lib/w2r1/context-hook").DstPlan;
   /** Phase 5 canonical projection persistence policy (default "prefer"). */
   projectionSnapshotPolicy?: "prefer" | "refresh" | "bypass";
   scheduleProviderOverride?: ScheduleProvider;
@@ -431,6 +434,7 @@ export async function buildWeeklyTeamContext(
   // pre-date its own evidence (and be rejected). Never clamped or adjusted: the ordering observed <= composed now holds by construction.
   const composedMs = options.nowMs ? options.nowMs() : projProvider.now ? projProvider.now() : fctx?.now_ms ?? null;
   const gameClock = fctx?.game_clock?.games ?? null;
+  const composeForecasts = () => {
   const forecasts = buildCanonicalForecastBatch({
     batch: projections,
     requested_player_ids: allRosteredIds,
@@ -465,6 +469,11 @@ export async function buildWeeklyTeamContext(
     forecast_model_version: forecasts.model_version,
     composed_at: composedMs == null ? null : new Date(composedMs).toISOString(),
   });
+  return forecasts;
+  };
+  // The provider forecasts are what the W1 final-pregame calibration capture records (pure provider evidence); W2.R1 qualified values are applied AFTER it.
+  const providerForecasts = composeForecasts();
+  let forecasts = providerForecasts;
 
   // W1.P4 final pregame capture: league-scoped, rostered players only, best-effort — it never blocks or fails a decision context, but (W1.R2) it is
   // never silent either: the outcome and per-decision counts are reported on the context, and a failure or rejection becomes a warning.
@@ -473,15 +482,15 @@ export async function buildWeeklyTeamContext(
     let recs: FinalPregameRecord[] = [];
     try {
       recs = allRosteredIds
-        .map((id) => forecasts.by_player.get(id))
+        .map((id) => providerForecasts.by_player.get(id))
         .filter((f): f is NonNullable<typeof f> => f != null)
         .map((f) =>
           buildFinalPregameRecord({
             forecast: f,
             league_slug: league.league_slug,
             provider: league.provider,
-            scoring_fingerprint: forecasts.identity!.scoring_fingerprint,
-            source_observation_id: forecasts.identity!.source_observation.observation_id,
+            scoring_fingerprint: providerForecasts.identity!.scoring_fingerprint,
+            source_observation_id: providerForecasts.identity!.source_observation.observation_id,
             recorded_at: new Date(composedMs).toISOString(),
           }),
         )
@@ -510,6 +519,23 @@ export async function buildWeeklyTeamContext(
       console.warn(JSON.stringify({ event: "final_pregame_capture_failed", league_slug: league.league_slug, week, candidates: recs.length, error: message }));
     }
   }
+
+  // W2.R1 current-intelligence hook: qualified D/ST component values (exact league scoring, frozen pregame capture) replace the generic D/ST projection for the
+  // CURRENT week only; every other component keeps its inherited value. Unqualified leagues / missing capture / byes leave the batch untouched (reported, never silent).
+  const dstPlan = options.w2r1DstPlanOverride ?? (await planQualifiedDst({ leagueSlug: league.league_slug, week }));
+  const dstReplaced: NonNullable<WeeklyTeamContext["w2r1"]>["dst"]["replaced"] = [];
+  if (dstPlan.capture_week != null) {
+    for (const [id, row] of projections.by_player) {
+      const p = projections.resolved_players.get(id) ?? playerById.get(id);
+      if (!p || p.position !== "DEF" || !p.nfl_team || row.is_bye) continue;
+      const v = dstPlan.forTeam(p.nfl_team); if (!v) continue;
+      projections.by_player.set(id, { ...row, projected_points: v.points, floor_points: v.floor, ceiling_points: v.ceiling, std_dev: v.sd, projection_status: "projected", expected_availability: 1, uncertainty_source: "source_distribution", source: "w2r1_dst_component_model", model_version: dstPlan.model_version,
+        warnings: [...row.warnings, "w2r1_dst_component_model_qualified", `w2r1_dst_replaced_provider_value:${row.projected_points ?? "null"}`] });
+      dstReplaced.push({ canonical_player_id: id, team: p.nfl_team, provider_value: row.projected_points, w2r1_value: v.points });
+    }
+    if (dstReplaced.length > 0) forecasts = composeForecasts();
+  } else if (dstPlan.state === "QUALIFIED_SHADOW" && dstPlan.reason) warnings.push({ code: "w2r1_dst_capture_missing", message: `W2.R1 D/ST component capture unavailable: ${dstPlan.reason}`, severity: "info" });
+  const w2r1Meta: NonNullable<WeeklyTeamContext["w2r1"]> = { dst: { state: dstPlan.state, applied: dstReplaced.length, capture_week: dstPlan.capture_week, reason: dstPlan.reason, replaced: dstReplaced } };
 
   // Availability — candidate universe is every player projected this week + rostered.
   const candidates: CanonicalPlayer[] = uniq([
@@ -752,6 +778,7 @@ export async function buildWeeklyTeamContext(
     projections,
     forecasts,
     final_pregame_capture: finalPregameCapture,
+    w2r1: w2r1Meta,
     ...(marketPoolSummary ? { market_pool: marketPoolSummary } : {}),
     replacement,
     availability,

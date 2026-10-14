@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildEarlyInputs } from "@/lib/w2r1/adapter";
 import { validateAsset, validateMarket } from "@/lib/w2r1/evidence";
 import { computeDynamicVor } from "@/lib/w2r1/vor";
-import { addReport, dropReport, envelope, findPlayer, kdstReport, LAYER_STATUS, K_DST_NOTICE, EARLY_LABEL } from "@/lib/w2r1/live";
+import { addReport, dropReport, envelope, findPlayer, kdstReport, LAYER_STATUS, K_DST_NOTICE, STACK_LABEL } from "@/lib/w2r1/live";
 import { w2r1Enabled } from "@/lib/w2r1/guard";
 import type { WeeklyTeamContext } from "@/lib/weekly/schema";
 
@@ -115,12 +115,12 @@ describe("W2.R1 live adapter (provider neutral)", () => {
     const drop = dropReport(ctxOf(), inp, "rb1") as { replacement: { best_market_candidate_with_UNKNOWN_probability: { name: string } | null } };
     assert.equal(drop.replacement.best_market_candidate_with_UNKNOWN_probability?.name, "WV1");
   });
-  it("every envelope is labelled EARLY SHADOW, lists layer availability, carries the K/DST notice and states no production influence", () => {
+  it("every envelope is labelled as the current intelligence stack, lists per-component qualification, carries the K/DST notice and states it is read-only (no provider writes)", () => {
     const ctx = ctxOf(); const inp = buildEarlyInputs(ctx); const e = envelope(ctx, inp, "roster", {});
-    assert.equal(e.label, EARLY_LABEL); assert.equal(e.mode, "SHADOW_ONLY"); assert.equal(e.qualification, "PER_COMPONENT");
+    assert.equal(e.label, STACK_LABEL); assert.equal(e.mode, "CURRENT_INTELLIGENCE"); assert.equal(e.qualification, "PER_COMPONENT");
     assert.match(e.layers.S4_k_dst_component_model, /^D\/ST: QUALIFIED_SHADOW \(Devoted to the Game, Sporty's Alumni, Maclin on Chick's XVI\); EXPLORATORY_POST_DEFECT \(Rogers Park\); DIAGNOSTIC_ONLY \(Bloodline Bowl D\/ST, all K\)$/); assert.match(e.layers.S5_game_plan_intelligence, /^NO_RELIABLE_INCREMENTAL_SIGNAL/);
     assert.match(e.layers.S6_empirical_upside_model, /^TE INSUFFICIENT_FINAL_SAMPLE/); assert.match(e.layers.S7_final_retrospective_qualification, /^COMPLETE/); assert.equal(e.qualification, "PER_COMPONENT");
-    assert.equal(e.notices.k_dst, K_DST_NOTICE); assert.match(e.production_influence, /^NONE/); assert.equal(e.tactical_signal, "NO_RELIABLE_INCREMENTAL_SIGNAL"); assert.ok(!/breakout probability(?! )/i.test(e.notices.upside.replace("not a breakout probability", "")), "never advertise a breakout probability")
+    assert.equal(e.notices.k_dst, K_DST_NOTICE); assert.match(e.decision_support, /^READ-ONLY decision support/); assert.equal(e.writes_to_providers, false); assert.equal(e.tactical_signal, "NO_RELIABLE_INCREMENTAL_SIGNAL"); assert.ok(!/breakout probability(?! )/i.test(e.notices.upside.replace("not a breakout probability", "")), "never advertise a breakout probability")
     assert.ok(!/breakout_probability|upside_probability/.test(JSON.stringify(e)), "no breakout probability is exposed before S6 produces a calibrated model");
   });
   it("K/DST report names the inherited-generic status; add report never claims an unknown acquisition as certain; player lookup is unambiguous", () => {
@@ -131,9 +131,10 @@ describe("W2.R1 live adapter (provider neutral)", () => {
     assert.equal(top.find((t) => t.add.player_id === "rbx")!.acquisition_probability_known, false);
     assert.equal(findPlayer(inp, "rb1").ok, true); assert.equal(findPlayer(inp, "nobody").ok, false);
   });
-  it("routes are never served from a Vercel production deployment", () => {
-    assert.equal(w2r1Enabled({ VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv), false);
+  it("routes are served on production deployments too; only the operational emergency stop disables them", () => {
+    assert.equal(w2r1Enabled({ VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv), true);
     assert.equal(w2r1Enabled({ VERCEL_ENV: "preview" } as unknown as NodeJS.ProcessEnv), true);
-    assert.equal(w2r1Enabled({ VERCEL_ENV: "preview", W2R1_SHADOW_DISABLED: "1" } as unknown as NodeJS.ProcessEnv), false);
+    assert.equal(w2r1Enabled({ VERCEL_ENV: "production", W2R1_DISABLED: "1" } as unknown as NodeJS.ProcessEnv), false);
   });
+
 });

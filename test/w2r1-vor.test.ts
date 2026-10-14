@@ -235,7 +235,7 @@ describe("W2.R1 scoring isolation, validation and determinism", () => {
   });
   it("every output is labelled SHADOW with a model version and the scoring fingerprint", () => {
     const r = vor();
-    assert.equal(r.label, "W2.R1 SHADOW"); assert.equal(r.mode, "SHADOW_ONLY"); assert.ok(r.model_version); assert.equal(r.scoring_fingerprint, FP);
+    assert.equal(r.label, "W2.R1 CURRENT INTELLIGENCE"); assert.equal(r.mode, "CURRENT_INTELLIGENCE"); assert.ok(r.model_version); assert.equal(r.scoring_fingerprint, FP);
   });
   it("deterministic: identical inputs give a byte-identical result", () => {
     const m = market([fa(asset("faRB", "RB", 11)), waiver(asset("w", "WR", 12), 0.4)]);

@@ -312,6 +312,21 @@ function opponentLineup(directory: LeagueDirectory | null, lineup: unknown): J[]
   return objs(obj(lineup).slots).map((s) => ({ slot: str(s.slot), ...P(directory, s.recommended_player_id ?? s.current_player_id), projected: num(s.recommended_projected ?? s.current_projected) }));
 }
 
+/** W2.R1 current-intelligence view (Dynamic VOR / D/ST / K / upside / qualification). Copies the route body; adds nothing. */
+export function compactW2r1(body: unknown): Compacted {
+  const out = blank(); const b = obj(body);
+  out.data = {
+    view: str(b.view), research_verdict: str(b.research_verdict), qualification: str(b.qualification), qualification_states: b.qualification_states ?? null, tactical_signal: str(b.tactical_signal),
+    league: b.league ?? null, manager: str(b.manager), scoring_fingerprint: str(b.scoring_fingerprint), league_rules: b.league_rules ?? null, confidence: b.confidence ?? null, evidence: b.evidence ?? null,
+    market: b.market ?? null, notices: b.notices ?? null, notes: arr(b.notes), layers: b.layers ?? null, decision_support: str(b.decision_support), data: b.data ?? null, timing: b.timing ?? null,
+  };
+  out.deployment = { w2r1: "CURRENT_INTELLIGENCE" };
+  out.scoring_fingerprint = str(b.scoring_fingerprint); out.generated_at = str(obj(b.evidence).context_generated_at);
+  const m = obj(b.market); if (m.verified === false) { out.limitations.push("market not verified: replacement values are roster-only / unverified (see market.freshness)"); out.limited = true; }
+  out.limitations.push("Component qualification differs by component: read qualification_states before relying on a number; K and unqualified D/ST values are DIAGNOSTIC_ONLY.");
+  return out;
+}
+
 /** The SHADOW_ONLY simulated matchup (ri-matchup-2026.1), labelled; never merged into the production block. */
 export function shadowMatchup(intelligence: unknown): J | null {
   const mi = obj(obj(intelligence).matchup_intelligence);
@@ -354,8 +369,9 @@ export function compactWeekly(body: unknown, orchestrate: unknown | null, direct
     positional_needs: arr(i.positional_needs),
     waivers_top: objs(obj(i.waivers).recommendations).slice(0, 5).map((r) => waiverRec(r, false)),
     projection_lineage: projectionLineage(i.lineage),
+    w2r1: i.w2r1_intelligence ?? null,
   };
-  out.deployment = { summary: "PRODUCTION", top_actions: "PRODUCTION", lineup: "PRODUCTION", start_sit: "PRODUCTION", matchup: "PRODUCTION", matchup_leverage: "PRODUCTION", positional_needs: "PRODUCTION", waivers_top: "PRODUCTION" };
+  out.deployment = { w2r1: "CURRENT_INTELLIGENCE", summary: "PRODUCTION", top_actions: "PRODUCTION", lineup: "PRODUCTION", start_sit: "PRODUCTION", matchup: "PRODUCTION", matchup_leverage: "PRODUCTION", positional_needs: "PRODUCTION", waivers_top: "PRODUCTION" };
   if (orchestrate) {
     const o = obj(orchestrate);
     out.data.action_plan = {

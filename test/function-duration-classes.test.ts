@@ -16,6 +16,8 @@ const LONG_RUNNING_300: Record<string, string> = {
   "api/cron/projection-snapshot": "projection snapshot build (cron)",
   "api/cron/publish": "published snapshot build (cron)",
   "api/cron/role-calibration": "role-calibration forecast materialization (cron)",
+  "api/cron/role-shadow-capture": "W2.P2 Role Shadow prospective capture job (cron-style; already 300)",
+  "api/cron/yahoo-health": "Yahoo OAuth token lifecycle health / keep-alive (cron; provider round trips)",
   "api/cron/waiver2-capture": "Waiver 2.0 capture (cron)",
   "api/cron/weekly-audit": "weekly model audit (cron)",
   "api/game-distribution/evaluate": "offline-style evaluation harness",

@@ -25,6 +25,7 @@ import {
   compactScoringFromState,
   compactTeam,
   compactTrade,
+  compactW2r1,
   compactWaivers,
   compactWeekly,
   type Compacted,
@@ -165,6 +166,7 @@ export const TOOLS: ToolSpec[] = [
           competitive_trade_intelligence: { deployment: "PRODUCTION", note: "read-only analytics; NO_ACTION and REVIEW_REQUIRED are valid results" },
           matchup_simulation_ri_matchup: { deployment: "SHADOW_ONLY" },
           football_intelligence_start_sit: { deployment: "SHADOW_ONLY" },
+          w2r1_current_intelligence: { deployment: "CURRENT_INTELLIGENCE", covers: "Dynamic VOR (weekly roster / league / ROS / hold / streaming / scarcity), roster+replacement simulation, D/ST + K components, upside likelihood", note: "per-component qualification: D/ST QUALIFIED_SHADOW in Devoted, Sporty's, Maclin; Rogers Park EXPLORATORY_POST_DEFECT; Bloodline D/ST and all K DIAGNOSTIC_ONLY; TE upside INSUFFICIENT_FINAL_SAMPLE; QB/RB upside DIAGNOSTIC_ONLY; WR upside and the S5 tactical layer NO_RELIABLE_SIGNAL" },
           playoff_probability: { deployment: "NOT_IMPLEMENTED", note: "no playoff-odds model exists; standings bands only" },
         },
         // Research surfaces the evidence registry reports with a lifecycle state (read generically, so a new surface needs no connector change).
@@ -177,7 +179,7 @@ export const TOOLS: ToolSpec[] = [
         evidence_topics: Object.keys(obj(body.topics)),
         limitations: [
           "Weekly tools serve the league's current week only.",
-          "Kicker/defense weekly projections use provider standard points, not league-specific K/DST scoring.",
+          "Kicker weekly projections are provider standard points (K component forecasts are DIAGNOSTIC_ONLY); defense weekly projections use W2.R1 exact-scoring component forecasts only in QUALIFIED leagues (Devoted, Sporty's, Maclin) when a frozen pregame capture exists for the week.",
           "No write actions: nothing can be submitted to Sleeper/Yahoo or sent to another manager.",
         ],
       };
@@ -498,6 +500,32 @@ export const TOOLS: ToolSpec[] = [
       env.data = data;
       env.status = "OK";
       env.actionability = "INFORMATIONAL";
+    },
+  },
+  {
+    name: "bloodline_dynamic_vor",
+    title: "Dynamic VOR and current W2.R1 intelligence",
+    description:
+      "Current W2.R1 intelligence on the manager's real roster: Dynamic VOR (weekly roster, league, ROS, hold, streaming, scarcity) with replacement chain, acquisition uncertainty and FAAB context; D/ST and K components under exact league scoring; upside likelihood; per-component qualification. views: roster, player/drop (need player), add, kdst|dst, upside, qualification, compare. Read-only; unknown is never 0.",
+    inputSchema: z.object({
+      league, manager,
+      view: z.enum(["roster", "player", "drop", "add", "kdst", "dst", "upside", "qualification", "compare"]).optional().describe('Which view. Default "roster".'),
+      player: z.string().trim().min(1).max(100).optional().describe('Canonical player id or name — required for views "player" and "drop".'),
+      pos: z.enum(["QB", "RB", "WR", "TE"]).optional().describe('upside view: also list the top frozen upside rows for this position.'),
+      week, detail,
+    }),
+    run: async (args, env) => {
+      const ctx = await requireManager(env, args.league, args.manager);
+      if (!ctx) return;
+      const wk = await resolveWeek(args.week as number | undefined, ctx.directory);
+      env.request = { ...env.request, resolved_week: wk.week, week_source: wk.source };
+      if (wk.week == null) return void failEnvelope(env, "WEEK_UNRESOLVED", "The current NFL week could not be resolved; pass week explicitly.");
+      const view = String(args.view ?? "roster");
+      if ((view === "player" || view === "drop") && !args.player) return void failEnvelope(env, "INVALID_INPUT", `view "${view}" requires the player argument.`);
+      const res = await callRoute({ route: "w2r1", params: { league: ctx.league.league_slug, manager: ctx.managerSlug, view }, query: { week: String(wk.week), ...(args.player ? { player: String(args.player) } : {}), ...(args.pos ? { pos: String(args.pos) } : {}) } });
+      if (!isRouteSuccess(res)) return void routeFailure(env, res, bridgeStatus(res) === "NON_CURRENT_WEEK_UNSUPPORTED" ? WEEK_HINT : undefined);
+      env.provenance.routes.push(provenanceOf(res));
+      applyCompacted(env, res, compactW2r1(res.body), { fullBody: args.detail === "full" });
     },
   },
   {

@@ -30,11 +30,14 @@ test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-ide
   //   context.ts     (0771277)  <- 12 commits: readiness composer (ad860a9..a86e4d9, 31fdd0a), W1.P1/P2/P3/P4/R1/R2 (ab7dce3, 68fc482, 89e22ad, 65a04f4, abe494f, 57a6606), af72022 Yahoo Market State
   //   context.ts (W2.R1 early shadow, 2026-10-14) <- ONE line: the default crosswalk now goes through resolveLeagueCrosswalk so a YAHOO league's roster is bridged to the Sleeper identity.
   //                     LIVE P1 DEFECT (3/17 and 5/15 Yahoo roster players projected; roster and pool in different identity spaces). Sleeper leagues are byte-identical in behaviour; ranking/scoring files untouched.
+  //   intelligence.ts + context.ts (W2.R1 current-intelligence integration, 2026-10-14) <- ADDITIVE ONLY: (a) context.ts recomposes the canonical forecasts after replacing QUALIFIED-league D/ST rows (Devoted, Sporty's, Maclin; current week;
+  //                     frozen pregame component capture; never byes; provider evidence for the W1 final-pregame capture is recorded BEFORE the replacement) and attaches optional `w2r1` metadata; (b) intelligence.ts adds the optional `w2r1_intelligence`
+  //                     metadata block (qualification states + detail routes). decision-score.ts / replacement.ts / lineup.ts / waivers.ts ranking and scoring code are unchanged by this integration.
   // Every one is a reviewed, separately-tested, certified change (see docs/DECISION_MODEL_CONVERGENCE_W1_*.md). A NEW change to any of these files still fails here until it is added to this ledger.
   const pins: Record<string, string> = {
     "lib/weekly/waivers.ts": "c8be1cbf0ff9545bec7e21fb365a29b3b796a019c4d603aa3d64f8639c341bae", "lib/weekly/decision-score.ts": "519999456302880802fee93374b8b93962fc5b296c71b0f454313c08db09b114",
     "lib/weekly/replacement.ts": "feab998c610735b3c3a6baa6893dd806988f2faa5a1b07b3eb371425a1b56846", "lib/weekly/lineup.ts": "64741d969faada6051b325ac8d580911a3fd87d7cfee8ab0d027a18ba904d574",
-    "lib/weekly/intelligence.ts": "5728d64e8421ae926b7e335f195e590bfecdce6b9f60999c2ca52133d685fe56",
+    "lib/weekly/intelligence.ts": "2c2bac7c7e9c4ae1d9fba716bf4682a042704f87e96e31718c2d72ad0ea2a0ad",
   };
   for (const [f, h] of Object.entries(pins)) assert.equal(sha(f), h, `${f} changed`);
   assert.equal(sha("lib/weekly/data/start_sit_model.json"), "85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293");
@@ -42,7 +45,7 @@ test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-ide
   // it now optionally certifies `free_agent_pool_readiness` / `availability.free_agents` against Market State
   // instead of the always-null canonical `waiver_state`. Pinned to the new content so any FURTHER change is
   // still caught; the ranking/scoring files above remain untouched, proving no scoring-model change occurred.
-  assert.equal(sha("lib/weekly/context.ts"), "d0fbf5a2179b18564677d7d3ae888da3e266a0d083974032ab495d6b36488898", "lib/weekly/context.ts changed beyond the waiver-readiness-contract fix");
+  assert.equal(sha("lib/weekly/context.ts"), "1c0e1c2c5274193f005d4ae15b60dc2d2798cb29a10ca3aefcdb01c3b0c20861", "lib/weekly/context.ts changed beyond the waiver-readiness-contract fix");
 });
 test("ISOLATION: only Book-Ready (family + query layer) reaches lib/waiver2; no production, orchestrator, weekly, trade or route module imports it", () => {
   const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/waiver2/")).filter((f) => /waiver2|waiver-intelligence-2/.test(readFileSync(f, "utf8")));

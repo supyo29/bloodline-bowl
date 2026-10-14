@@ -6,5 +6,5 @@ export function captureRow(a: { kind: CaptureKind; season: number; week: number;
   if (Date.parse(a.capturedAt) >= Date.parse(a.firstKickoffAt)) throw new Error("capture is not pregame");
   const league = a.league ?? "*", manager = a.manager ?? "*", ph = payloadHash(a.payload);
   const id = `w2c:${sha256(`${a.season}|${a.week}|${a.kind}|${league}|${manager}|${ph}`).slice(0, 16)}`;
-  return { capture_id: id, kind: a.kind, season: a.season, week: a.week, league_slug: league, manager_slug: manager, first_kickoff_at: a.firstKickoffAt, captured_at: a.capturedAt, payload_sha256: ph, model_artifact_hashes: a.modelArtifactHashes, qualification: a.qualification, record: { mode: "SHADOW_ONLY", may_influence_production: "false", payload: a.payload } };
+  return { capture_id: id, kind: a.kind, season: a.season, week: a.week, league_slug: league, manager_slug: manager, first_kickoff_at: a.firstKickoffAt, captured_at: a.capturedAt, payload_sha256: ph, model_artifact_hashes: a.modelArtifactHashes, qualification: a.qualification, record: { mode: "CURRENT_INTELLIGENCE", writes_to_providers: "false", payload: a.payload } };
 }

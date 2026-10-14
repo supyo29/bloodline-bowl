@@ -8,6 +8,7 @@
  * matter this week — and a manager-facing `summary`.
  */
 
+import { qualificationSummary } from "@/lib/w2r1/qualification";
 import { buildWeeklyTeamContext, type BuildWeeklyContextOptions } from "./context";
 import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { buildOptimalLineup } from "./lineup";
@@ -46,6 +47,8 @@ export interface WeeklyIntelligence {
   data_quality: WeeklyTeamContext["data_quality"];
   readiness: WeeklyTeamContext["readiness"];
   persistence_status: string;
+  /** W2.R1 current-intelligence metadata: qualified D/ST application for this context + per-component qualification states + where the Dynamic VOR / D/ST / upside detail lives. */
+  w2r1_intelligence?: { dst_integration: NonNullable<WeeklyTeamContext["w2r1"]>["dst"] | null; qualification: ReturnType<typeof qualificationSummary>; detail_routes: Record<string, string> };
   /** Traceable lineage: the canonical snapshot + projection models behind this result. */
   lineage: RecommendationLineage;
 
@@ -238,6 +241,7 @@ async function buildWeeklyIntelligenceInner(
       data_quality: ctx.data_quality,
       readiness: ctx.readiness,
       persistence_status: ctx.persistence_status,
+      w2r1_intelligence: { dst_integration: ctx.w2r1?.dst ?? null, qualification: qualificationSummary(ctx.league.slug), detail_routes: { dynamic_vor_and_components: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/roster`, dst_k_components: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/dst`, upside_likelihood: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/upside`, qualification: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/qualification` } },
       lineage: ctx.lineage,
       top_actions,
       summary,

@@ -1,8 +1,8 @@
 /**
  * GET /api/w2r1/{league}/{manager}/{view}?week=&player=&limit=
  *
- * W2.R1 EARLY SHADOW — DIAGNOSTIC. Read-only; builds the SAME canonical weekly context production uses, then runs the S1-S3 mechanics over it.
- * views: roster | player | drop | add | kdst | compare.  Never served from a Vercel production deployment. No production decision is read or changed.
+ * W2.R1 current-intelligence stack. Read-only; builds the SAME canonical weekly context the main analysis uses, then runs Dynamic VOR / replacement simulation / D/ST + K / upside over it.
+ * views: roster | player | drop | add | kdst | dst | upside | qualification | compare. Served on every deployment (production included); GET/OPTIONS only; no provider write exists.
  */
 import { runWithWeeklyContext } from "@/lib/weekly/intelligence";
 import { jsonResponse, errorResponse, handleOptions } from "@/lib/http";
@@ -16,7 +16,7 @@ import { qualificationSummary } from "@/lib/w2r1/qualification";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 const VIEWS = new Set(["roster", "player", "drop", "add", "kdst", "compare", "dst", "upside", "qualification"]);
 
