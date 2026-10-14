@@ -8,7 +8,8 @@ import type { WeeklyTeamContext } from "@/lib/weekly/schema";
 import { buildEarlyInputs, type EarlyInputs } from "./adapter";
 import type { LeagueRules, MarketCandidate, Pos, RosterAsset } from "./evidence";
 import { scenarioLineup, topCandidates, weekValue } from "./roster";
-import { computeDynamicVor, type DynamicVor } from "./vor";
+import type { DynamicVor } from "./vor";
+import { computeDynamicVor } from "./generated/vor-fast"; // memoized per request; output identical to ./vor (test-enforced)
 import { W2R1_MODE, W2R1_MODEL_VERSION } from "./version";
 import { qualificationSummary, TACTICAL, W2R1_RESEARCH_VERDICT, UPSIDE_LABEL } from "./qualification";
 import { applyQualifiedDst, dstForTeam, kForTeam, REGIMES, type KdstCapture } from "./dst-live";

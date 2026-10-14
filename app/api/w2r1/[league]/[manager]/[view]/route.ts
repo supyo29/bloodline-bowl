@@ -36,7 +36,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ leag
   await Promise.all([...Object.entries(UPSIDE_LOADERS)].map(async ([w, l]) => { upCaps.set(Number(w), await l()); }));
   const result = await runWithWeeklyContext(league, manager, { week, enableMarketStatePool: true }, (ctx) => {
     const t1 = Date.now(); const cap = kdstCaps.get(ctx.league.week) ?? null; const inp0 = buildEarlyInputs(ctx); const { inp, replaced } = withQualifiedDst(inp0, cap, ctx.league.slug, ctx.league.week); const adapterMs = Date.now() - t1;
-    let data: unknown;
+    let data: unknown; const t2 = Date.now();
     if (view === "roster") data = rosterReport(ctx, inp);
     else if (view === "kdst" || view === "dst") data = { ...kdstReport(ctx, inp, cap), qualified_dst_values_applied: replaced };
     else if (view === "upside") data = upsideReport(ctx, inp, upCaps.get(ctx.league.week) ?? null, q.get("pos"), limit);
@@ -48,11 +48,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ leag
       if (!f.ok) return { ambiguous: true as const, matches: f.matches };
       data = view === "player" ? playerReport(ctx, inp, f.id) : dropReport(ctx, inp, f.id);
     }
-    return { ambiguous: false as const, body: envelope(ctx, inp, view, data), adapter_ms: adapterMs, excluded: inp.excluded.length };
+    return { ambiguous: false as const, body: envelope(ctx, inp, view, data), adapter_ms: adapterMs, compute_ms: Date.now() - t2, excluded: inp.excluded.length };
   });
   if (!result.data) return errorResponse(result.status, result.code ?? "weekly_context_unavailable", result.detail);
   const d = result.data;
   if (d.ambiguous) return jsonResponse({ error: "player_not_found_or_ambiguous", matches: d.matches }, { status: 404, headers: { "Cache-Control": "no-store" } });
-  return jsonResponse({ ...d.body, timing: { total_ms: Date.now() - t0, adapter_ms: d.adapter_ms }, context: result.context_meta ? { status: result.context_meta.status, lineage: result.context_meta.lineage?.snapshot ?? null } : null }, { headers: { "Cache-Control": "no-store", "X-W2R1": "EARLY-SHADOW" } });
+  return jsonResponse({ ...d.body, timing: { total_ms: Date.now() - t0, context_ms: Math.max(0, Date.now() - t0 - d.adapter_ms - d.compute_ms), adapter_ms: d.adapter_ms, compute_ms: d.compute_ms }, context: result.context_meta ? { status: result.context_meta.status, lineage: result.context_meta.lineage?.snapshot ?? null } : null }, { headers: { "Cache-Control": "no-store", "X-W2R1": "EARLY-SHADOW" } });
 }
 export async function OPTIONS(): Promise<Response> { return handleOptions(); }

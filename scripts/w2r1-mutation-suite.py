@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts", "test/w2r1-freeze.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts", "test/w2r1-freeze.test.ts", "test/w2r1-s8.test.ts", "test/w2r1-s9.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -81,6 +81,24 @@ MUT = [
  ("W77", "S7 freeze: the verifier ignores an artifact hash mismatch", "scripts/w2r1/s7_verify_frozen.ts", [("if (sha(at(p)) !== f.artifacts_sha256[p]) problems.push", "if (false as boolean) problems.push")]),
  ("W78", "S7 freeze: the verifier no longer pins the immutable preregistration", "scripts/w2r1/s7_verify_frozen.ts", [("if (sha(at(\"scripts/w2r1/prereg.json\")) !== PREREG_IMMUTABLE_SHA256 || f.prereg_sha256 !== PREREG_IMMUTABLE_SHA256)", "if (false as boolean)")]),
  ("W79", "S7 freeze: a missing artifact is silently skipped", "scripts/w2r1/s7_verify_frozen.ts", [("if (!existsSync(at(p))) { problems.push(`missing artifact ${p}`); continue; }", "if (!existsSync(at(p))) { continue; }")]),
+ ("W80", "S8: a generic provider forecast may wear a W2.R1-qualified label (silent fallback)", "lib/w2r1/qualification.ts", [('if (q.state === "QUALIFIED_SHADOW" && source !== "W2R1_COMPONENT_MODEL") {', 'if (false as boolean) {')]),
+ ("W81", "S8: Rogers Park D/ST is described as qualified", "lib/w2r1/qualification.ts", [('"rogers-park": { state: "EXPLORATORY_POST_DEFECT"', '"rogers-park": { state: "QUALIFIED_SHADOW"')]),
+ ("W82", "S8: Bloodline D/ST is described as qualified", "lib/w2r1/qualification.ts", [('"bloodline-bowl": { state: "DIAGNOSTIC_ONLY", label: "D/ST expected points — unqualified"', '"bloodline-bowl": { state: "QUALIFIED_SHADOW", label: "D/ST expected points — unqualified"')]),
+ ("W83", "S8: a kicker model is called W2.R1-qualified", "lib/w2r1/qualification.ts", [('const base = { state: "DIAGNOSTIC_ONLY" as const, label: "K forecast quality', 'const base = { state: "QUALIFIED_SHADOW" as unknown as "DIAGNOSTIC_ONLY", label: "K forecast quality')]),
+ ("W84", "S8: the tactical layer is marked as applied to forecasts", "lib/w2r1/qualification.ts", [('applied_to_forecast: false as const', 'applied_to_forecast: true as unknown as false')]),
+ ("W85", "S8: TE upside is shown as a calibrated (qualified) output", "lib/w2r1/qualification.ts", [('if (pos === "TE") return { state: "INSUFFICIENT_FINAL_SAMPLE"', 'if (pos === "TE") return { state: "QUALIFIED_SHADOW"')]),
+ ("W86", "S8: WR upside gets a probability", "lib/w2r1/upside-live.ts", [('if (q.state === "NO_RELIABLE_SIGNAL") return', 'if (false as boolean) return')]),
+ ("W87", "S8: Dynamic VOR is fed non-qualified D/ST values", "lib/w2r1/dst-live.ts", [('if (q.state !== "QUALIFIED_SHADOW" || cap.meta.target_week !== week)', 'if (cap.meta.target_week !== week)')]),
+ ("W88", "S8: the D/ST override also rewrites future weeks / wrong-week captures", "lib/w2r1/dst-live.ts", [('|| cap.meta.target_week !== week)', ')')]),
+ ("W89", "S8: D/ST override replaces a bye week", "lib/w2r1/dst-live.ts", [('if ("unavailable" in live || !cur || cur.state === "BYE") return a;', 'if ("unavailable" in live || !cur) return a;')]),
+ ("W90", "S8: a bye / missing team is not reported UNAVAILABLE", "lib/w2r1/dst-live.ts", [('if (!t) return { unavailable: true, reason: `team ${team} has no game in week', 'if (!t && false as boolean) return { unavailable: true, reason: `team ${team} has no game in week')]),
+ ("W91", "S8: the manifest verifier ignores a hash mismatch", "lib/w2r1/capture.ts", [('if (sha256(canonicalJson(JSON.parse(readFileSync(join(dir, f), "utf8")))) !== h) out.push', 'if (false as boolean) out.push')]),
+ ("W92", "S8: a capture frozen AT kickoff is accepted", "lib/w2r1/capture.ts", [('if (Date.parse(frozenAt) >= Date.parse(firstKickoffAt)) throw', 'if (Date.parse(frozenAt) > Date.parse(firstKickoffAt)) throw')]),
+ ("W93", "S8: decision regret ignores the best verified-pool alternative", "lib/w2r1/capture.ts", [('Math.max(rep, ...f.verified_pool_alternatives.map((id) => realized[id] ?? -Infinity)) - rep', '0')]),
+ ("W94", "S8: the persistence row is allowed to influence production", "lib/w2r1/capture-store.ts", [('may_influence_production: "false"', 'may_influence_production: "true"')]),
+ ("W95", "S9: the scenario memo ignores the removed player", "lib/w2r1/scenario-cache.ts", [('${s.removeId ?? ""}|', '|')]),
+ ("W96", "S9: the scenario memo ignores the week", "lib/w2r1/scenario-cache.ts", [('const key = `${s.week}|', 'const key = `|')]),
+ ("W97", "S9: the scenario memo ignores a value override (hold VOR)", "lib/w2r1/scenario-cache.ts", [('${s.valueOverride ? `${s.valueOverride.id}:${s.valueOverride.kind}` : ""}`;', '`;')]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),
