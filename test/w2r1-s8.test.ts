@@ -152,3 +152,21 @@ describe("S8/integration: W2.R1 is READ-ONLY decision support (hard tests)", () 
   });
   it("every live envelope states it is read-only decision support with no provider writes, plus per-component states", () => { const q = qualificationSummary("devoted-to-the-game"); assert.equal(q.dst_expected_points.state, "QUALIFIED_SHADOW"); });
 });
+
+describe("S8 persistence schema (optional; migration is NOT applied; validated on throwaway local staging only)", () => {
+  const sql = readFileSync("supabase/migrations/20261014120000_w2r1_prospective_captures.sql", "utf8");
+  it("migration is append-only, database-clock pregame-enforced, read-only-record, service-role-only, and the runtime does not need it", () => {
+    for (const re of [/create trigger bridge_w2r1_captures_immutable before update or delete/, /create trigger bridge_w2r1_captures_not_late before insert/, /captured_at < first_kickoff_at/, /writes_to_providers'\) = 'false'/, /mode'\) = 'CURRENT_INTELLIGENCE'/, /enable row level security/, /revoke all on public\.bridge_w2r1_prospective_captures from anon, authenticated/, /NOT APPLIED/, /works WITHOUT it/]) assert.match(sql, re);
+    assert.doesNotMatch(sql, /\balter table (?!public\.bridge_w2r1_prospective_captures)/i); assert.doesNotMatch(sql, /^\s*drop table(?! if exists public\.bridge_w2r1_prospective_captures;)/m);
+    const runtime = [...readdirSync("lib/w2r1"), ...readdirSync("app/api/w2r1")].length; assert.ok(runtime > 0);
+    for (const f of ["lib/w2r1/dst-live.ts", "lib/w2r1/context-hook.ts", "lib/w2r1/live.ts", "lib/w2r1/upside-live.ts"]) assert.doesNotMatch(readFileSync(f, "utf8"), /bridge_w2r1_prospective_captures|capture-store/, `${f} must not depend on the persistence table`);
+  });
+  it("captureRow: deterministic content id, read-only flags, refuses non-pregame and unknown kinds", () => {
+    const a = { kind: "KDST_COMPONENTS" as const, season: 2026, week: 6, firstKickoffAt: "2026-10-16T00:15:00Z", capturedAt: "2026-10-14T20:00:00Z", payload: { b: 1, a: 2 }, modelArtifactHashes: {}, qualification: {} };
+    const r1 = captureRow(a), r2 = captureRow({ ...a, payload: { a: 2, b: 1 } }); assert.equal(r1.capture_id, r2.capture_id); assert.match(r1.capture_id, /^w2c:[0-9a-f]{16}$/); assert.equal(r1.record.writes_to_providers, "false"); assert.equal(r1.record.mode, "CURRENT_INTELLIGENCE");
+    assert.notEqual(captureRow({ ...a, payload: { a: 3 } }).capture_id, r1.capture_id); assert.throws(() => captureRow({ ...a, capturedAt: "2026-10-16T00:15:00Z" }), /not pregame/); assert.throws(() => captureRow({ ...a, kind: "X" as never }), /unknown capture kind/);
+  });
+  it("Role/opportunity (C2) and the tactical layer are never applied to forecasts", async () => {
+    const q = await import("@/lib/w2r1/qualification"); assert.equal(q.ROLE_OPPORTUNITY.applied_to_forecast, false); assert.equal(q.ROLE_OPPORTUNITY.state, "DIAGNOSTIC_ONLY"); assert.equal(q.TACTICAL.applied_to_forecast, false);
+  });
+});
