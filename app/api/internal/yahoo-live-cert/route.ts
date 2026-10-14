@@ -70,6 +70,14 @@ export async function GET(request: Request): Promise<Response> {
       const { fetchPlayerPool } = await import("@/lib/providers/yahoo/players"); const loader = [] as number[]; for (let r = 0; r < 3; r++) { const T = await fetchPlayerPool(o.handle.client, o.handle.leagueKey, { status: "T", start: 0, count: null, deadlineMs: Date.now() + 100000, withOwnership: true } as never); loader.push(T.players.length); }
       return json({ step, parallel8_runs: runs, wave4_runs: wave4, loader_T_sizes: loader });
     }
+    if (step === "sorts") {
+      const { defaultYahooMarketIO: io } = await import("@/lib/market-state/yahoo-load"); const o = await io.open(slug); if (!o.ok) return json({ error: o.code });
+      const keysOf = (data: unknown) => [...JSON.stringify(data).matchAll(/"player_key":"(\d+\.p\.\d+)"/g)].map((m) => m[1]!);
+      const sweep = async (code: string, sort: string) => { const uniq = new Set<string>(); let rows = 0; for (let w = 0; w < 60; w += 4) { const pages = await Promise.all([0, 1, 2, 3].map(async (j) => { const { data } = await o.handle.client.get(`/league/${o.handle.leagueKey}/players;status=${code};start=${(w + j) * 25};count=25;sort=${sort}/ownership`) as any; const pl = data?.fantasy_content?.league?.[1]?.players ?? {}; const entries = Object.entries(pl).filter(([k]) => k !== "count"); return entries.map(([, v]) => keysOf(v)[0]!); })); // eslint-disable-line @typescript-eslint/no-explicit-any
+          let empty = false; for (const pg of pages) { rows += pg.length; for (const k of pg) uniq.add(k); if (pg.length === 0) empty = true; } if (empty) break; } return { rows, unique: uniq.size, duplicates: rows - uniq.size }; };
+      const out: Record<string, unknown> = {}; for (const code of ["T", "FA"]) for (const sort of ["OR", "NAME"]) { out[`${code}/${sort}`] = [await sweep(code, sort), await sweep(code, sort)]; }
+      return json({ step, slug, out });
+    }
     if (step === "recon") {
       const { defaultYahooMarketIO: io } = await import("@/lib/market-state/yahoo-load");
       const o = await io.open(slug); if (!o.ok) return json({ error: o.code });
