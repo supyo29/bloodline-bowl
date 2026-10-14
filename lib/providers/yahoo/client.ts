@@ -16,7 +16,7 @@
  */
 
 import { YAHOO_FANTASY_BASE_URL, type YahooConfig } from "./config";
-import { getValidAccessToken, type YahooTokenStore } from "./oauth";
+import { getValidAccessToken, recordYahooAuthenticatedRead, type YahooTokenStore } from "./oauth";
 
 export type YahooApiErrorKind =
   | "NOT_CONNECTED"
@@ -151,6 +151,7 @@ export class YahooFantasyClient {
       // Exactly one forced-refresh retry.
       const second = await getValidAccessToken(this.#config, this.#store, {
         forceRefresh: true,
+        rejectedAccessToken: first.access_token,
         fetchImpl: this.#fetch,
       });
       if (second.status !== "OK" || !second.access_token) {
@@ -182,6 +183,7 @@ export class YahooFantasyClient {
           )
         : attempt.error;
     }
+    recordYahooAuthenticatedRead(this.#store.connection_id ?? "default");
     return { data: attempt.data as T, meta: { ...attempt.meta!, refreshed } };
   }
 

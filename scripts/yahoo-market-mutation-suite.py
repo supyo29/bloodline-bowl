@@ -4,7 +4,7 @@
 Usage: python3 scripts/yahoo-market-mutation-suite.py [Y1 Y5 ...]"""
 import hashlib, subprocess, sys, json
 TESTS = ["test/yahoo-market-state-build.test.ts", "test/yahoo-market-state-load.test.ts", "test/yahoo-market-state-weekly.test.ts", "test/yahoo-sleeper-bridge.test.ts",
-         "test/yahoo-market-parsers.test.ts", "test/yahoo-readonly-auth.test.ts", "test/yahoo-market-architecture.test.ts", "test/yahoo-players.test.ts", "test/yahoo-fetch.test.ts", "test/market-state-adversarial.test.ts"]
+         "test/yahoo-market-parsers.test.ts", "test/yahoo-readonly-auth.test.ts", "test/yahoo-token-lifecycle.test.ts", "test/yahoo-market-architecture.test.ts", "test/yahoo-players.test.ts", "test/yahoo-fetch.test.ts", "test/market-state-adversarial.test.ts"]
 BUILD, LOAD, INT = "lib/market-state/yahoo-build.ts", "lib/market-state/yahoo-load.ts", "lib/market-state/integrity.ts"
 PLY, CLIENT, DISC, PEND = "lib/providers/yahoo/players.ts", "lib/providers/yahoo/client.ts", "lib/providers/yahoo/discovery.ts", "lib/providers/yahoo/pending-claims.ts"
 ADAPT, REPL, W2 = "lib/weekly/market-pool-adapter.ts", "lib/weekly/replacement.ts", "lib/waiver2/market-pool.ts"
@@ -53,6 +53,17 @@ MUT = [
  ("Y34", "the read-only token store accepts a write (a refresh could persist a rotated token)", "lib/providers/yahoo/read-only-auth.ts", [("  async set(): Promise<void> { this.writeAttempts += 1; throw new YahooReadOnlyViolation(\"set\"); }", "  async set(): Promise<void> { /* mutated: write allowed */ }")]),
  ("Y35", "the client ignores readOnly and takes the normal refresh path", "lib/providers/yahoo/client.ts", [("    if (this.#readOnly) return this.#getReadOnly<T>(url, path);\n", "")]),
  ("Y36", "the read-only provider no longer checks expiry (it hands out an expired token)", "lib/providers/yahoo/provider.ts", [("      if (t.expires_at - Date.now() <= READ_ONLY_EXPIRY_MARGIN_MS) return { ok: false", "      if (false as boolean) return { ok: false")]),
+ ("Y37", "rotation is no longer compare-and-swap (last writer wins across instances)", "lib/providers/yahoo/oauth.ts", [("      if (store.rotate) {", "      if (false as boolean) {")]),
+ ("Y38", "a refresher that gets invalid_grant no longer adopts a sibling's rotation (would demand reauthorization)", "lib/providers/yahoo/oauth.ts", [("          if (cur && (cur.seq > seq", "          if (false as boolean && cur && (cur.seq > seq")]),
+ ("Y39", "concurrent callers no longer share one refresh (double rotation in-process)", "lib/providers/yahoo/oauth.ts", [("  let p = map.get(key);\n", "  let p: Promise<RefreshOutcome> | undefined;\n")]),
+ ("Y40", "a rotation that could not be persisted is forgotten (new refresh token lost)", "lib/providers/yahoo/oauth.ts", [("  pendingRotation.set(key, { token: fresh, baseSeq: seq }); rec(connId).persist_pending = true;", "  rec(connId).persist_pending = true;")]),
+ ("Y41", "a genuine invalid_grant is not flagged as requiring reauthorization", "lib/providers/yahoo/oauth.ts", [('no sibling rotation was found.", reauth: true }', 'no sibling rotation was found.", reauth: false }')]),
+ ("Y42", "a transient network/5xx failure is flagged as requiring reauthorization", "lib/providers/yahoo/oauth.ts", [('"Yahoo token refresh failed.", reauth: false }', '"Yahoo token refresh failed.", reauth: true }')]),
+ ("Y43", "a 401 retry no longer adopts a sibling's fresh token (burns another rotation)", "lib/providers/yahoo/oauth.ts", [("  if (opts.rejectedAccessToken !== undefined && !rejected &&", "  if (false as boolean && opts.rejectedAccessToken !== undefined && !rejected &&")]),
+ ("Y44", "a failed refresh still hands out the stale access token (stale served as live)", "lib/providers/yahoo/oauth.ts", [("return { status: \"REFRESH_FAILED\", access_token: null, token, detail: out.detail", "return { status: \"REFRESH_FAILED\", access_token: token.access_token, token, detail: out.detail")]),
+ ("Y45", "the Supabase rotation drops its seq guard and row scope", "lib/providers/yahoo/token-store.ts", [("{ connection_id: `eq.${this.connection_id}`, refresh_seq: `eq.${expectedSeq}` },", "{ connection_id: `eq.${this.connection_id}` },")]),
+ ("Y46", "health ignores a reauthorization-required connection", "lib/providers/yahoo/health.ts", [("const status: YahooConnectionStatus = reauth ?", "const status: YahooConnectionStatus = false as boolean ?")]),
+ ("Y47", "the refresh single-flight is shared across connections (maclin and primary interfere)", "lib/providers/yahoo/oauth.ts", [("`${config.client_id}:${connId}:${token.yahoo_guid ?? \"no-guid\"}`", "`${config.client_id}:${token.yahoo_guid ?? \"no-guid\"}`")]),
  ("Y27", "a rejected token / auth failure on the pool is swallowed as an empty pool that looks complete", LOAD, [('    if (r.status !== "fulfilled") { poolErrs.push(', '    if (r.status !== "fulfilled") { sub[code] = { returned: 0, complete: true, pages_fetched: 0, stopped_reason: "end_of_pool" }; poolErrs.push(')]),
 ]
 EQUIVALENT = {"Y36": "the provider pre-check duplicates the client guard: with the pre-check removed the client throws the same AUTH_REFRESH_REQUIRED_READ_ONLY (mapped to the same degraded code) before any network request, so no observable behavior differs (defense in depth; the client guard is killed by Y32)"}

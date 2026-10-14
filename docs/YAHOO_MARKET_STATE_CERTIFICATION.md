@@ -127,3 +127,13 @@ Live gate: `YAHOO_ACCESS_TOKEN_MACLIN=... YAHOO_ACCESS_TOKEN_PRIMARY=... node --
 Without a token it exits 3 with `LIVE_CERT_BLOCKED_NO_SAFE_ACCESS_TOKEN`.
 
 **Status 2026-10-14: LIVE_CERT_BLOCKED_NO_SAFE_ACCESS_TOKEN** - no safe access token available in this environment; no Yahoo request was made by the new loader.
+
+## Permanent token lifecycle (no manual maintenance)
+
+`getValidAccessToken` (lib/providers/yahoo/oauth.ts): refresh within 120 s of expiry or on a 401 (one retry); in-process single-flight per (client, connection, guid);
+cross-instance rotation is a compare-and-swap on `refresh_seq` (ONE `UPDATE ... WHERE connection_id AND refresh_seq`, both ciphertexts + provenance in the same statement);
+a CAS loser or an `invalid_grant` loser re-reads the store and ADOPTS the sibling's rotation; a rotation Yahoo issued but the store could not persist is retried and held in memory
+(re-persisted before any further refresh); a genuine `invalid_grant` on the still-stored refresh token => `reauthorization_required`; every failed refresh serves NO token.
+`GET /api/yahoo/health` (credential-free; per connection) and `GET /api/cron/yahoo-health` (daily 10:00 UTC keep-alive; refreshes only inside a 30-min window, then one read-only probe).
+Tests: test/yahoo-token-lifecycle.test.ts (16), test/yahoo-health-job.test.ts (2); mutants Y37-Y47 all killed. No migration is required (`refresh_seq`, `last_refreshed_at`, `last_used_at` already exist).
+Known limitation: "last refresh failure" is per server instance (not persisted; no column exists and no migration was authorized).
