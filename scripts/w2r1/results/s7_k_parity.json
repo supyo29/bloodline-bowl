@@ -1,0 +1,66 @@
+{
+  "n_kicker_weeks_compared": 191,
+  "n_kicker_weeks_nflverse": 479,
+  "note": "Sleeper player dump carries gsis ids for ~63 current kickers: coverage is partial (reported), parity within the overlap is the evidence",
+  "fg0": {
+    "exact_rate": 1,
+    "sleeper": 2,
+    "mine": 2
+  },
+  "fg20": {
+    "exact_rate": 1,
+    "sleeper": 79,
+    "mine": 79
+  },
+  "fg30": {
+    "exact_rate": 1,
+    "sleeper": 110,
+    "mine": 110
+  },
+  "fg40": {
+    "exact_rate": 1,
+    "sleeper": 116,
+    "mine": 116
+  },
+  "fg50": {
+    "exact_rate": 1,
+    "sleeper": 76,
+    "mine": 76
+  },
+  "m0": {
+    "exact_rate": 1,
+    "sleeper": 0,
+    "mine": 0
+  },
+  "m20": {
+    "exact_rate": 1,
+    "sleeper": 1,
+    "mine": 1
+  },
+  "m30": {
+    "exact_rate": 1,
+    "sleeper": 6,
+    "mine": 6
+  },
+  "m40": {
+    "exact_rate": 1,
+    "sleeper": 20,
+    "mine": 20
+  },
+  "m50": {
+    "exact_rate": 1,
+    "sleeper": 33,
+    "mine": 33
+  },
+  "xpm": {
+    "n": 197,
+    "exact_rate": 1,
+    "sleeper": 482,
+    "mine": 482
+  },
+  "xpmiss": {
+    "exact_rate": 1,
+    "sleeper": 22,
+    "mine": 22
+  }
+}

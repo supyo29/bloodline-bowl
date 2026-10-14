@@ -71,8 +71,8 @@ export const bandOf = (p: number, base: number): Band => (p >= ALERT_HIGH * base
 export function displayBreakout(verdict: BreakoutVerdict, shownP: number, positionBaseRate: number, comparable: { n: number; events: number } | null): { text: string; band: Band | null; percent: number | null } {
   if (verdict !== "VALIDATION CANDIDATE") return { text: verdict === "INSUFFICIENT SAMPLE" ? "INSUFFICIENT SAMPLE" : "NO RELIABLE BREAKOUT SIGNAL", band: null, percent: null };
   const pct = Math.round(shownP * 100); const baseP = Math.round(positionBaseRate * 100);
-  const comp = comparable ? ` Comparable situations: ${comparable.n}; breakouts: ${comparable.events}; empirical rate: ${Math.round((100 * comparable.events) / Math.max(1, comparable.n))}%.` : "";
-  return { text: `Upside likelihood: ${bandOf(shownP, positionBaseRate)} (about ${pct}% vs position base rate ${baseP}%).${comp}`, band: bandOf(shownP, positionBaseRate), percent: pct };
+  const comp = comparable ? ` Comparable situations: ${comparable.n}; top-N finishes: ${comparable.events}; empirical rate: ${Math.round((100 * comparable.events) / Math.max(1, comparable.n))}%.` : "";
+  return { text: `Upside likelihood (probability of a top-N finish at this position): ${bandOf(shownP, positionBaseRate)} (about ${pct}% vs position base rate ${baseP}%). Driven by expected usage level and game context, not by a trend-based breakout mechanism.${comp}`, band: bandOf(shownP, positionBaseRate), percent: pct };
 }
 
 /** negative examples are part of every cohort statistic (survivor-bias guard). */

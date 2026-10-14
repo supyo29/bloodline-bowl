@@ -15,7 +15,7 @@ MAT <- 0.05; TOT <- 0.10; E2E <- 0.25
 out <- list(rule = list(material_mean_abs_pts_per_team_game = MAT, immaterial_total_cap = TOT, end_to_end_cap = E2E))
 for (rn in names(regs)) { rg <- regs[[rn]]; w <- wD(rg); sleeperP <- identical(rg$provider, "sleeper")
   recon <- actualD(g, w)  # reconstructed from pbp, all 2025 team-games
-  if (sleeperP) { d <- slm; v <- function(k) { x <- d[[k]]; if (is.null(x)) x <- d[[paste0(k, ".sl")]]; x }
+  if (sleeperP) { d <- slm; v <- function(k) { x <- d[[paste0(k, ".sl")]]; if (is.null(x)) x <- d[[k]]; x }  # PROVIDER column wins over a same-named reconstructed column
     # provider-stat-line-implied points under the league's exact keys (Sleeper keys, incl. the individual-player-free D/ST subset)
     prov <- v("sack") * W(rg, "sack") + v("sack_yd") * W(rg, "sack_yd") + v("int") * W(rg, "int") + v("int_ret_yd") * W(rg, "int_ret_yd") + v("fum_rec") * W(rg, "fum_rec") + v("def_st_fum_rec") * W(rg, "def_st_fum_rec") + v("fum_ret_yd") * W(rg, "fum_ret_yd") +
       v("ff") * W(rg, "ff") + v("def_st_ff") * W(rg, "def_st_ff") + v("def_td") * W(rg, "def_td") + v("def_st_td") * W(rg, "def_st_td") + v("safe") * W(rg, "safe") + v("blk_kick") * W(rg, "blk_kick") + v("def_4_and_stop") * W(rg, "def_4_and_stop") + v("def_forced_punts") * W(rg, "def_forced_punts") +

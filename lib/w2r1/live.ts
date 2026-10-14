@@ -22,7 +22,7 @@ export const LAYER_STATUS = {
   S7_final_retrospective_qualification: "NOT YET RUN",
 } as const;
 export const K_DST_NOTICE = "K/DST Dynamic VOR mechanics are live; K/DST forecast quality is not yet W2.R1-qualified (inherited generic forecasts are used).";
-export const BREAKOUT_NOTICE = "No W2.R1 breakout/upside probability is shown: the empirical model (S6) has not produced a calibrated result.";
+export const BREAKOUT_NOTICE = "No W2.R1 upside likelihood (top-N finish probability) is shown: the empirical model (S6) has not produced a calibrated result.";
 export const PRODUCTION_STATEMENT = "NONE — this response is a shadow diagnostic. It changes no production start/sit, waiver, drop, trade, VOR or fantasy transaction.";
 
 export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string, data: unknown) {

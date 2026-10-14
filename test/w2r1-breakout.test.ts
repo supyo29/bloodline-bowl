@@ -28,7 +28,7 @@ describe("W2.R1 S6 small samples, unknowns and display discipline", () => {
   it("a raw / uncalibrated score is never shown as a probability: only a VALIDATION CANDIDATE position may display one", () => {
     for (const v of ["DIAGNOSTIC ONLY", "NO RELIABLE BREAKOUT SIGNAL", "INSUFFICIENT SAMPLE"] as const) { const d = displayBreakout(v, 0.4, 0.12, { n: 38, events: 11 }); assert.equal(d.percent, null); assert.equal(d.band, null); assert.ok(!/%/.test(d.text)); }
     const ok = displayBreakout("VALIDATION CANDIDATE", 0.29, 0.12, { n: 38, events: 11 });
-    assert.equal(ok.percent, 29); assert.match(ok.text, /Comparable situations: 38; breakouts: 11; empirical rate: 29%/); assert.match(ok.text, /position base rate 12%/); assert.equal(ok.band, "High");
+    assert.equal(ok.percent, 29); assert.match(ok.text, /Comparable situations: 38; top-N finishes: 11; empirical rate: 29%/); assert.match(ok.text, /position base rate 12%/); assert.equal(ok.band, "High");
   });
   it("alert thresholds are fixed multiples of the position base rate", () => { assert.equal(alertLevel(0.24, 0.12), "HIGH"); assert.equal(alertLevel(0.18, 0.12), "ELEVATED"); assert.equal(alertLevel(0.17, 0.12), "NONE"); assert.equal(bandOf(0.05, 0.12), "Low"); });
   it("cohort statistics include the NEGATIVE examples and the base rate", () => {

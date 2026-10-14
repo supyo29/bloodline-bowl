@@ -1,0 +1,551 @@
+{
+ "adjudication_version": "w2r1-s7-protocol-adjudication-1",
+ "kind": "PROTOCOL_CLARIFICATION_AND_AMENDMENT",
+ "committed_before_final_set_access": true,
+ "final_set_status_at_writing": "UNOPENED (2026 weeks 1-5 outcomes never loaded; the S4 builder briefly cached 2026 rows earlier, never scored/inspected, then restricted to 2022:2025 and rebuilt)",
+ "preserves": {
+  "prereg_json": "scripts/w2r1/prereg.json (unmodified; sha256 recorded in FROZEN.json)",
+  "thresholds": "NO preregistered threshold, cap, split, label or gate is changed by this document",
+  "selection_rule": "no clarification below was selected because it improved a validation result; original metrics are retained beside corrected ones"
+ },
+ "A_scope": "Clarifications of HOW preregistered quantities are measured/labelled. Where a clarification would change a gate outcome, the ORIGINAL preregistered gate result stands as the confirmatory result.",
+ "B_cap_hit_audit": {
+  "question": "Why are cap-hit rates 14-44% against the preregistered <=10% gate?",
+  "definition_checked": "cap = max(1, 0.25*|B0p|); capped iff |raw ridge correction z| > cap (z = icpt + sum(standardized feature * coef), target = actual - B0p). Matches prereg.",
+  "coding_defect": "NONE. Independent R re-implementation (closed-form ridge, same FIT filter) reproduces the harness cap-hit exactly: WR RL 0.1414 vs 0.14139; QB RL 0.1892 vs 0.18924.",
+  "intercept_or_normalization_artifact": "NO. Removing the intercept leaves cap-hit unchanged or higher (e.g. TE RL 0.337 -> 0.307 only; RB RL 0.214 -> 0.249; WR RL 0.141 -> 0.192).",
+  "population_mismatch": "CONTRIBUTING but not causal for cap-hit: FIT rows contain 0.6-10% actual==0 rows while VAL rows contain 18.5-22.5% (healthy scratches / inactive non-OUT players). Cap-hit among PLAYED rows is nearly as high as overall (QB 0.143 / RB 0.214 / WR 0.130 / TE 0.331 for RL), so it is not driven by DNP rows.",
+  "sparse_role_evidence": "NO. By player-games bucket the rate is flat (QB: 0.172 at 4-9 games; n<4 rows are 19 of 576); hits do not concentrate where Role evidence is thin.",
+  "legitimate_behaviour": "YES - the dominant cause. Hits concentrate in LOW-B0p cells where the cap floor is the absolute 1.0 point: QB b0<6: 94-100%, b0 6-10: 70-77%, b0>=10: 3-20%; RB b0<6: 35-60%; WR b0<6: 27-35%. The ridge correction is a few points wide for low-baseline players (the baseline is a poor predictor there) so it frequently exceeds 1.0/25%. The correction is also asymmetric: upward hits dominate for QB/RB/WR.",
+  "cap_not_tuned": "The cap is NOT raised, removed or tuned. No fix was legitimate, so there is no before/after: before == after.",
+  "verdict": "Every candidate that exceeds 10% cap-hit FAILS the preregistered cap gate. They remain failed. Cap-hit is reported for every candidate at final scoring.",
+  "numbers": {
+   "QB": {
+    "fit_share_actual_zero": 0.006,
+    "val_share_actual_zero": 0.225,
+    "RL": {
+     "cap_hit_rate": 0.189,
+     "hit_high": 0.182,
+     "hit_low": 0.007,
+     "intercept": -0.136,
+     "cap_hit_if_intercept_removed": 0.21,
+     "cap_hit_among_played": 0.143,
+     "cap_hit_among_actual_zero": 0.352,
+     "cap_hit_by_b0": {
+      "lt6": 1,
+      "b6_10": 0.77,
+      "ge10": 0.03
+     },
+     "share_of_raw_z_explained_by_intercept": 0.063
+    },
+    "G1": {
+     "cap_hit_rate": 0.281,
+     "hit_high": 0.228,
+     "hit_low": 0.053,
+     "intercept": -0.136,
+     "cap_hit_if_intercept_removed": 0.281,
+     "cap_hit_among_played": 0.249,
+     "cap_hit_among_actual_zero": 0.391,
+     "cap_hit_by_b0": {
+      "lt6": 0.94,
+      "b6_10": 0.7,
+      "ge10": 0.16
+     },
+     "share_of_raw_z_explained_by_intercept": 0.051
+    },
+    "G2": {
+     "cap_hit_rate": 0.32,
+     "hit_high": 0.254,
+     "hit_low": 0.066,
+     "intercept": -0.136,
+     "cap_hit_if_intercept_removed": 0.327,
+     "cap_hit_among_played": 0.288,
+     "cap_hit_among_actual_zero": 0.43,
+     "cap_hit_by_b0": {
+      "lt6": 0.94,
+      "b6_10": 0.73,
+      "ge10": 0.2
+     },
+     "share_of_raw_z_explained_by_intercept": 0.047
+    }
+   },
+   "RB": {
+    "fit_share_actual_zero": 0.021,
+    "val_share_actual_zero": 0.185,
+    "RL": {
+     "cap_hit_rate": 0.214,
+     "hit_high": 0.153,
+     "hit_low": 0.062,
+     "intercept": -0.467,
+     "cap_hit_if_intercept_removed": 0.249,
+     "cap_hit_among_played": 0.214,
+     "cap_hit_among_actual_zero": 0.219,
+     "cap_hit_by_b0": {
+      "lt6": 0.35,
+      "b6_10": 0.23,
+      "ge10": 0.11
+     },
+     "share_of_raw_z_explained_by_intercept": 0.288
+    },
+    "G1": {
+     "cap_hit_rate": 0.295,
+     "hit_high": 0.214,
+     "hit_low": 0.081,
+     "intercept": -0.467,
+     "cap_hit_if_intercept_removed": 0.308,
+     "cap_hit_among_played": 0.276,
+     "cap_hit_among_actual_zero": 0.381,
+     "cap_hit_by_b0": {
+      "lt6": 0.5,
+      "b6_10": 0.3,
+      "ge10": 0.14
+     },
+     "share_of_raw_z_explained_by_intercept": 0.263
+    },
+    "G2": {
+     "cap_hit_rate": 0.413,
+     "hit_high": 0.238,
+     "hit_low": 0.175,
+     "intercept": -0.467,
+     "cap_hit_if_intercept_removed": 0.422,
+     "cap_hit_among_played": 0.397,
+     "cap_hit_among_actual_zero": 0.487,
+     "cap_hit_by_b0": {
+      "lt6": 0.6,
+      "b6_10": 0.41,
+      "ge10": 0.28
+     },
+     "share_of_raw_z_explained_by_intercept": 0.217
+    }
+   },
+   "WR": {
+    "fit_share_actual_zero": 0.078,
+    "val_share_actual_zero": 0.221,
+    "RL": {
+     "cap_hit_rate": 0.141,
+     "hit_high": 0.094,
+     "hit_low": 0.047,
+     "intercept": -0.586,
+     "cap_hit_if_intercept_removed": 0.192,
+     "cap_hit_among_played": 0.13,
+     "cap_hit_among_actual_zero": 0.183,
+     "cap_hit_by_b0": {
+      "lt6": 0.27,
+      "b6_10": 0.08,
+      "ge10": 0.03
+     },
+     "share_of_raw_z_explained_by_intercept": 0.529
+    },
+    "G1": {
+     "cap_hit_rate": 0.153,
+     "hit_high": 0.113,
+     "hit_low": 0.04,
+     "intercept": -0.586,
+     "cap_hit_if_intercept_removed": 0.218,
+     "cap_hit_among_played": 0.145,
+     "cap_hit_among_actual_zero": 0.182,
+     "cap_hit_by_b0": {
+      "lt6": 0.29,
+      "b6_10": 0.08,
+      "ge10": 0.03
+     },
+     "share_of_raw_z_explained_by_intercept": 0.533
+    },
+    "G2": {
+     "cap_hit_rate": 0.181,
+     "hit_high": 0.123,
+     "hit_low": 0.058,
+     "intercept": -0.586,
+     "cap_hit_if_intercept_removed": 0.254,
+     "cap_hit_among_played": 0.169,
+     "cap_hit_among_actual_zero": 0.23,
+     "cap_hit_by_b0": {
+      "lt6": 0.35,
+      "b6_10": 0.1,
+      "ge10": 0.04
+     },
+     "share_of_raw_z_explained_by_intercept": 0.518
+    }
+   },
+   "TE": {
+    "fit_share_actual_zero": 0.1,
+    "val_share_actual_zero": 0.223,
+    "RL": {
+     "cap_hit_rate": 0.337,
+     "hit_high": 0.103,
+     "hit_low": 0.234,
+     "intercept": -0.487,
+     "cap_hit_if_intercept_removed": 0.307,
+     "cap_hit_among_played": 0.331,
+     "cap_hit_among_actual_zero": 0.355,
+     "cap_hit_by_b0": {
+      "lt6": 0.34,
+      "b6_10": 0.22,
+      "ge10": 0.5
+     },
+     "share_of_raw_z_explained_by_intercept": 0.324
+    },
+    "G1": {
+     "cap_hit_rate": 0.336,
+     "hit_high": 0.14,
+     "hit_low": 0.196,
+     "intercept": -0.487,
+     "cap_hit_if_intercept_removed": 0.353,
+     "cap_hit_among_played": 0.331,
+     "cap_hit_among_actual_zero": 0.352,
+     "cap_hit_by_b0": {
+      "lt6": 0.39,
+      "b6_10": 0.18,
+      "ge10": 0.46
+     },
+     "share_of_raw_z_explained_by_intercept": 0.312
+    },
+    "G2": {
+     "cap_hit_rate": 0.408,
+     "hit_high": 0.194,
+     "hit_low": 0.214,
+     "intercept": -0.487,
+     "cap_hit_if_intercept_removed": 0.419,
+     "cap_hit_among_played": 0.406,
+     "cap_hit_among_actual_zero": 0.415,
+     "cap_hit_by_b0": {
+      "lt6": 0.5,
+      "b6_10": 0.23,
+      "ge10": 0.47
+     },
+     "share_of_raw_z_explained_by_intercept": 0.282
+    }
+   }
+  }
+ },
+ "C_bias_conditioning": {
+  "finding": "The preregistered forecasts are CONDITIONAL-ON-ACTIVE point forecasts (B0p, source_semantics CONDITIONAL_ON_ACTIVE) with the canonical injury model (evaluateInjuryModel, injury-expected-value-2026.1) applied exactly once. VAL/FINAL rows additionally contain 18.5-22.5% actual==0 rows (non-designated inactives / scratches) that NO availability authority predicts. This mismatch makes |bias|<=0.5 structurally unreachable for the CHAMPION too (B1p bias -1.1 .. -2.4).",
+  "population_labels": {
+   "ORIGINAL_CONFIRMATORY": "bias / MAE on ALL gate rows (including actual==0 rows) - the preregistered T4 gate. UNCHANGED. Candidates fail T4 at every position, as the champion does.",
+   "PIPELINE_CORRECTED_CONFIRMATORY": "NOT DEFENSIBLE. The evaluated pipeline already is (conditional forecast x canonical availability applied once). A further availability correction would require a NEW availability model (forbidden) or actual participation as a pregame feature (leakage). No pipeline-corrected confirmatory metric exists.",
+   "CONDITIONAL_ON_PLAY_DIAGNOSTIC": "bias / MAE restricted to rows with actual>0. DIAGNOSTIC ONLY: it conditions on the outcome and cannot support a qualification claim. It is reported beside the original metric."
+  },
+  "dnp_rows_discarded": false,
+  "actual_participation_used_as_pregame_feature": false,
+  "new_availability_model_fit": false,
+  "diagnostic_finding": "Even conditional on play, the candidate layers carry a POSITIVE bias of +0.1..+0.75 points (RL/G1/G2) against ~0 for the champion B1p: the correction layers are not bias-clean. FIT target contamination: FIT mean(actual - B0p) = -0.14 QB, -0.47 RB, -0.59 WR, -0.49 TE, of which only -0.09/-0.37/-0.15/-0.00 remains on played rows (the rest is DNP rows inside FIT). This is recorded, not repaired (no refit).",
+  "availability_applied_exactly_once": {
+   "authority": "lib/weekly/forecast/injury-model.ts evaluateInjuryModel (INJURY_MODEL_VERSION injury-expected-value-2026.1)",
+   "numeric_proof": "for every applicable VAL row, expected == inj(b0 + delta) to 0.0 (single application); designation-NONE rows deviate from the undiscounted value by <=0.005 (rounding only); on discounted rows a second application would differ by >=0.15 pts (min) - so no double discount.",
+   "structural_proof": "scripts/w2r1/s5_run.ts calls evaluateInjuryModel in exactly one helper (inj), and the delta is added BEFORE that single call (tested in test/w2r1-freeze.test.ts); mutants W9, W25, W48 kill second-application variants.",
+   "per_position": {
+    "QB": {
+     "B1p_bias_original_all_val_rows": -2.376,
+     "B1p_bias_conditional_on_play_DIAGNOSTIC": 0.019,
+     "RL": {
+      "bias_original_all_val_rows": -2.079,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.647
+     },
+     "G1": {
+      "bias_original_all_val_rows": -2.4,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.207
+     },
+     "G2": {
+      "bias_original_all_val_rows": -2.482,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.115
+     },
+     "availability_applied_once_proof_G2": {
+      "n_rows": 562,
+      "max_abs_dev_expected_vs_single_application": 0,
+      "n_designation_NONE_rows": 540,
+      "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+      "n_discounted_rows": 22,
+      "min_abs_dev_vs_double_application_on_discounted_rows": 0.45
+     }
+    },
+    "RB": {
+     "B1p_bias_original_all_val_rows": -1.127,
+     "B1p_bias_conditional_on_play_DIAGNOSTIC": 0.098,
+     "RL": {
+      "bias_original_all_val_rows": -0.609,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.753
+     },
+     "G1": {
+      "bias_original_all_val_rows": -0.721,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.611
+     },
+     "G2": {
+      "bias_original_all_val_rows": -0.655,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.684
+     },
+     "availability_applied_once_proof_G2": {
+      "n_rows": 916,
+      "max_abs_dev_expected_vs_single_application": 0,
+      "n_designation_NONE_rows": 867,
+      "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+      "n_discounted_rows": 49,
+      "min_abs_dev_vs_double_application_on_discounted_rows": 0.25
+     }
+    },
+    "WR": {
+     "B1p_bias_original_all_val_rows": -1.347,
+     "B1p_bias_conditional_on_play_DIAGNOSTIC": -0.067,
+     "RL": {
+      "bias_original_all_val_rows": -0.888,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.431
+     },
+     "G1": {
+      "bias_original_all_val_rows": -1.0,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.304
+     },
+     "G2": {
+      "bias_original_all_val_rows": -1.048,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.238
+     },
+     "availability_applied_once_proof_G2": {
+      "n_rows": 1411,
+      "max_abs_dev_expected_vs_single_application": 0,
+      "n_designation_NONE_rows": 1323,
+      "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+      "n_discounted_rows": 88,
+      "min_abs_dev_vs_double_application_on_discounted_rows": 0.15
+     }
+    },
+    "TE": {
+     "B1p_bias_original_all_val_rows": -1.322,
+     "B1p_bias_conditional_on_play_DIAGNOSTIC": 0.085,
+     "RL": {
+      "bias_original_all_val_rows": -0.644,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.678
+     },
+     "G1": {
+      "bias_original_all_val_rows": -0.769,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.556
+     },
+     "G2": {
+      "bias_original_all_val_rows": -0.864,
+      "bias_conditional_on_play_DIAGNOSTIC": 0.475
+     },
+     "availability_applied_once_proof_G2": {
+      "n_rows": 649,
+      "max_abs_dev_expected_vs_single_application": 0,
+      "n_designation_NONE_rows": 614,
+      "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+      "n_discounted_rows": 35,
+      "min_abs_dev_vs_double_application_on_discounted_rows": 0.16
+     }
+    }
+   }
+  },
+  "numbers": {
+   "QB": {
+    "B1p_bias_original_all_val_rows": -2.376,
+    "B1p_bias_conditional_on_play_DIAGNOSTIC": 0.019,
+    "RL": {
+     "bias_original_all_val_rows": -2.079,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.647
+    },
+    "G1": {
+     "bias_original_all_val_rows": -2.4,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.207
+    },
+    "G2": {
+     "bias_original_all_val_rows": -2.482,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.115
+    },
+    "availability_applied_once_proof_G2": {
+     "n_rows": 562,
+     "max_abs_dev_expected_vs_single_application": 0,
+     "n_designation_NONE_rows": 540,
+     "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+     "n_discounted_rows": 22,
+     "min_abs_dev_vs_double_application_on_discounted_rows": 0.45
+    }
+   },
+   "RB": {
+    "B1p_bias_original_all_val_rows": -1.127,
+    "B1p_bias_conditional_on_play_DIAGNOSTIC": 0.098,
+    "RL": {
+     "bias_original_all_val_rows": -0.609,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.753
+    },
+    "G1": {
+     "bias_original_all_val_rows": -0.721,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.611
+    },
+    "G2": {
+     "bias_original_all_val_rows": -0.655,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.684
+    },
+    "availability_applied_once_proof_G2": {
+     "n_rows": 916,
+     "max_abs_dev_expected_vs_single_application": 0,
+     "n_designation_NONE_rows": 867,
+     "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+     "n_discounted_rows": 49,
+     "min_abs_dev_vs_double_application_on_discounted_rows": 0.25
+    }
+   },
+   "WR": {
+    "B1p_bias_original_all_val_rows": -1.347,
+    "B1p_bias_conditional_on_play_DIAGNOSTIC": -0.067,
+    "RL": {
+     "bias_original_all_val_rows": -0.888,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.431
+    },
+    "G1": {
+     "bias_original_all_val_rows": -1.0,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.304
+    },
+    "G2": {
+     "bias_original_all_val_rows": -1.048,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.238
+    },
+    "availability_applied_once_proof_G2": {
+     "n_rows": 1411,
+     "max_abs_dev_expected_vs_single_application": 0,
+     "n_designation_NONE_rows": 1323,
+     "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+     "n_discounted_rows": 88,
+     "min_abs_dev_vs_double_application_on_discounted_rows": 0.15
+    }
+   },
+   "TE": {
+    "B1p_bias_original_all_val_rows": -1.322,
+    "B1p_bias_conditional_on_play_DIAGNOSTIC": 0.085,
+    "RL": {
+     "bias_original_all_val_rows": -0.644,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.678
+    },
+    "G1": {
+     "bias_original_all_val_rows": -0.769,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.556
+    },
+    "G2": {
+     "bias_original_all_val_rows": -0.864,
+     "bias_conditional_on_play_DIAGNOSTIC": 0.475
+    },
+    "availability_applied_once_proof_G2": {
+     "n_rows": 649,
+     "max_abs_dev_expected_vs_single_application": 0,
+     "n_designation_NONE_rows": 614,
+     "max_abs_dev_NONE_rows_vs_undiscounted": 0.005,
+     "n_discounted_rows": 35,
+     "min_abs_dev_vs_double_application_on_discounted_rows": 0.16
+    }
+   }
+  }
+ },
+ "D_kdst_scoring": {
+  "provider_semantics_verified_against_live_2025_stat_lines": {
+   "sleeper": {
+    "fum_rec": "defensive recoveries",
+    "def_st_fum_rec": "special-teams recoveries by the D/ST",
+    "ff": "defensive forced fumbles",
+    "def_st_ff": "special-teams forced fumbles",
+    "def_td": "defensive TDs (pick-six / fumble-return) - 39/39 exact",
+    "def_st_td": "kick/punt-return TDs + blocked punt/FG TDs - 26/26 exact",
+    "pts_allow": "opponent offense points + 6 x opponent special-teams/blocked-kick TDs (99.6% exact)",
+    "individual_keys_not_applicable": [
+     "st_td",
+     "st_ff",
+     "st_fum_rec",
+     "kr_yd",
+     "pr_yd",
+     "fum_rec_td"
+    ]
+   },
+   "yahoo": {
+    "Fumble Recovery": "defense AND special teams recoveries (99.4% exact; defense-only 94.3%)",
+    "Touchdown": "defensive TD + blocked punt/FG TD (45 vs 46; 99.8% of team-games)",
+    "KR/PR TD": "unblocked kick/punt-return TDs only (22/22 exact)",
+    "Return Yards": "kr+pr yards (100%)",
+    "Points Allowed": "opponent offense points + 6 x opponent ST TDs (99.2% exact; 4 residual games)",
+    "forced_fumble": "no D/ST forced-fumble stat",
+    "fum_rec_td": "offensive-player key, not a D/ST stat"
+   }
+  },
+  "mismatch_resolutions": {
+   "defensive_TD_45_vs_28": "nflverse defensive-TD counts include ST/blocked-kick TDs and offense-recovery TDs; Sleeper def_td is exactly interception/fumble-return TDs on non-ST plays (39/39).",
+   "special_teams_TD_18_vs_27": "CODING DEFECT (fixed): kickoff returns were missed because td_team != posteam on kickoffs, and blocked FG TDs carry special_teams_play=0. Now a separate blk_td component; Sleeper 26/26, Yahoo 22/22 + 45/46."
+  },
+  "defects_fixed": [
+   "ST-TD attribution on kickoffs",
+   "blocked punt / FG TD component (blk_td)",
+   "forced fumbles split defense vs ST (ff_def/ff_st)",
+   "Sleeper fum_rec/def_st_fum_rec and ff/def_st_ff double counting",
+   "Sleeper ST-TD weight read from st_td instead of def_st_td",
+   "points allowed now includes opponent ST/blocked-kick TDs",
+   "Yahoo fumble recovery covers ST recoveries"
+  ],
+  "materiality_rule": {
+   "material_mean_abs_pts_per_team_game": 0.05,
+   "immaterial_total_cap": 0.1,
+   "end_to_end_cap": 0.25,
+   "rule_text": "A league's D/ST is EXACT_SCORING_QUALIFIED only if every non-zero key is reconstructed / mapped-equivalent / not-applicable, any unreconstructable key is quantified immaterial (<0.05 pts/team-game; league total <0.10), and the end-to-end mean absolute error of reconstructed actual points vs provider-stat-line-implied points is <=0.25. Otherwise DIAGNOSTIC ONLY. Fixed before final access; not tuned to results."
+  },
+  "coverage_artifact": "scripts/w2r1/results/s7_kdst_coverage.json",
+  "k_parity_artifact": "scripts/w2r1/results/s7_k_parity.json",
+  "dst_status_by_league": {
+   "bloodline-bowl": {
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+    "end_to_end_mean_abs_pts_error": 0.1034,
+    "unreconstructable_keys_mean_abs_pts": {
+     "blk_kick_ret_yd": 0.01266,
+     "fg_ret_yd": 0.00306
+    }
+   },
+   "devoted-to-the-game": {
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+    "end_to_end_mean_abs_pts_error": 0.0363,
+    "unreconstructable_keys_mean_abs_pts": {
+     "blk_kick_ret_yd": 0,
+     "fg_ret_yd": 0
+    }
+   },
+   "sportys-alumni": {
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+    "end_to_end_mean_abs_pts_error": 0.0363,
+    "unreconstructable_keys_mean_abs_pts": {
+     "blk_kick_ret_yd": 0,
+     "fg_ret_yd": 0
+    }
+   },
+   "maclin-on-chicks-xvi": {
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+    "end_to_end_mean_abs_pts_error": 0.0391,
+    "unreconstructable_keys_mean_abs_pts": []
+   },
+   "rogers-park": {
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+    "end_to_end_mean_abs_pts_error": 0.0332,
+    "unreconstructable_keys_mean_abs_pts": []
+   }
+  },
+  "unknown_components_never_scored_as_zero": "Bloodline blk_kick_ret_yd (0.04/yd) and fg_ret_yd (0.04/yd): not reconstructable from nflverse; provider actuals imply 0.0157 pts/team-game combined (immaterial, < 0.05 each and < 0.10 total) - recorded as UNKNOWN_BOUNDED in the coverage artifact; Bloodline D/ST carries EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL, never plain exact.",
+  "k_status_by_league": {
+   "bloodline-bowl": "K: key coverage complete; FG-bin/XP parity vs Sleeper stat lines exact on 191 kicker-weeks -> eligible",
+   "devoted-to-the-game": "same as Bloodline (Sleeper) -> eligible",
+   "sportys-alumni": "same (Sleeper) -> eligible",
+   "maclin-on-chicks-xvi": "K: Yahoo K stat-line parity NOT verified -> DIAGNOSTIC ONLY",
+   "rogers-park": "no kicker slot"
+  }
+ },
+ "E_s6_terminology": {
+  "user_facing_label": "Upside likelihood (probability of a top-N finish at this position)",
+  "driver_statement": "driven by expected usage level and game context, not by a trend-based breakout mechanism",
+  "labels_and_artifacts_unchanged": true,
+  "refit": false,
+  "statuses": {
+   "TE": "M1b VALIDATION CANDIDATE",
+   "QB": "M1b DIAGNOSTIC ONLY",
+   "RB": "M1b DIAGNOSTIC ONLY",
+   "WR": "NO RELIABLE BREAKOUT SIGNAL",
+   "K": "no spike candidate",
+   "DST": "no spike candidate"
+  },
+  "open_p2": "RB injury-return over-prediction remains open (P2)"
+ },
+ "G_contamination_rules": {
+  "rule": "Opening ANY 2026 week 1-5 outcome SPENDS the final set. After that: no refitting, no feature/threshold/cap/scoring-semantic change, no candidate substitution. A post-open defect is REPORTED, affected confirmatory results are INVALIDATED, and any rerun is EXPLORATORY.",
+  "enforced_by": "scripts/w2r1/FROZEN.json + test/w2r1-freeze.test.ts (artifact hashes must match before final scoring)"
+ },
+ "decisions_requested_of_the_user_before_final": [
+  "authorize opening the 2026 weeks 1-5 final set once, against FROZEN.json"
+ ]
+}
