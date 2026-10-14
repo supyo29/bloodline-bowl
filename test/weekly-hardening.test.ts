@@ -33,6 +33,11 @@ import type { ProjectionProvider } from "../lib/weekly/projections/types";
 import type { CanonicalPlayer } from "../lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "../lib/weekly/schema";
 
+import { beforeEach as __isolateBeforeEach } from "node:test";
+import { clearProjectionFeedCache as __clearFeedCache } from "@/lib/sleeper/client";
+/* The Sleeper projection feed cache is process-global (infra 8c6814a, 2026-09-26): a test that mocks fetch must not inherit rows cached by an earlier test. */
+__isolateBeforeEach(() => __clearFeedCache());
+
 setPersistence(memoryPersistence());
 const cw = () => new PlayerCrosswalk(NoCrosswalk);
 

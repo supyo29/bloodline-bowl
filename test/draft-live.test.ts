@@ -223,7 +223,9 @@ describe("live draft snapshot", () => {
   });
 });
 
-describe("live draft: pre-draft-only guarantees (skip once drafted)", () => {
+/* EXPLICIT LIVE GATE: these four run only while the REAL league is still pre_draft, so they are SKIPPED now that the draft is complete. The same four guarantees run unconditionally,
+ * for a snake and an auction draft, in test/draft-predraft.test.ts (hermetic, fixture-routed Sleeper). This block is kept as the live cross-check for a future pre-draft league. */
+describe("live draft: pre-draft-only guarantees (skip once drafted; hermetic twin: draft-predraft.test.ts)", () => {
   const isPreDraft = () => response.draft?.status === "pre_draft";
 
   it("reports the pre-draft status without treating it as an error", (t) => {

@@ -20,7 +20,8 @@ import {
   buildTeamOffenseProfile,
 } from "@/lib/player-scheme-intelligence";
 
-const OUT = join(process.cwd(), "outputs", "player-scheme-intelligence-2026");
+/* tracked build-certification reports (were read from the gitignored outputs/ dir, so they only passed where the R build had been run) — see lib/player-scheme-intelligence/certification/README.md */
+const OUT = join(process.cwd(), "lib", "player-scheme-intelligence", "certification");
 
 test("tierC: manifest lists tiers A,B,C and per-column availability", () => {
   __resetPlayerSchemeCache();

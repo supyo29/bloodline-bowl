@@ -162,25 +162,28 @@ test("history: points are published states with snapshot ids; the current partia
 });
 
 /** Build a temp root holding the real store PLUS a synthetic later snapshot with different content. */
-function rootWithSyntheticWeek(): { root: string; expected: number } {
+function rootWithSyntheticWeek(): { root: string; expected: number; realWeeks: number[]; syntheticWeek: number } {
   const root = mkdtempSync(join(tmpdir(), "brroot-")); cpSync(join(ROOT, "data", "intelligence-history"), join(root, "data", "intelligence-history"), { recursive: true });
   const m = loadHistoryManifest(root); const base = [...m.entries].filter((e) => e.surface === "football-intelligence").pop()!;
+  /* the real store GROWS (bots preserve each completed week): the synthetic state is appended AFTER the latest real one, whatever that is */
+  const realWeeks = [...new Set(m.entries.filter((e) => e.surface === "football-intelligence" && e.week_state === "COMPLETE").map((e) => e.through_week))].sort((a, b) => a - b); const syntheticWeek = Math.max(...realWeeks) + 1;
   const readObj = (sha: string) => gunzipSync(readFileSync(objectPath(sha, root)));
   const tp = base.files.find((f) => f.name === "team_profile.csv")!; const rows = parseCsv(readObj(tp.sha256).toString("utf8"));
   const target = rows.find((r) => r.team === "KC" && r.metric === "off_pass_epa")!; const expected = 0.4242;
   const text = readObj(tp.sha256).toString("utf8").replace(new RegExp(`("${target.modeled}")|(${target.modeled})`), String(expected));
   const buf = Buffer.from(text); const sha = sha256(buf); mkdirSync(dirname(objectPath(sha, root)), { recursive: true }); writeFileSync(objectPath(sha, root), gzipSync(buf));
   const files = base.files.map((f) => (f.name === "team_profile.csv" ? { ...f, sha256: sha, bytes: buf.length } : f)); const cid = contentId(files);
-  const entry: SnapshotEntry = { ...base, version: "fi:2026:w02:synthetic00", through_week: 2, generated_at: "2026-09-22T12:00:00.000Z", content_id: cid, snapshot_id: snapshotId("football-intelligence", "fi:2026:w02:synthetic00", cid), files };
-  m.entries.push(entry); writeFileSync(join(historyRoot(root), "manifest.json"), JSON.stringify(m)); return { root, expected };
+  const entry: SnapshotEntry = { ...base, version: `fi:2026:w${String(syntheticWeek).padStart(2, "0")}:synthetic00`, through_week: syntheticWeek, generated_at: "2099-01-01T12:00:00.000Z", content_id: cid, snapshot_id: snapshotId("football-intelligence", `fi:2026:w${String(syntheticWeek).padStart(2, "0")}:synthetic00`, cid), files };
+  m.entries.push(entry); writeFileSync(join(historyRoot(root), "manifest.json"), JSON.stringify(m)); return { root, expected, realWeeks, syntheticWeek };
 }
 test("history reads EACH snapshot's own content (never the latest file for every week) and keeps points in time order", () => {
-  const { root, expected } = rootWithSyntheticWeek(); __clearCsvCache();
+  const { root, expected, realWeeks, syntheticWeek } = rootWithSyntheticWeek(); __clearCsvCache();
   const b = fiTeamMetricEvidence({ team: "KC", metrics: ["off_pass_epa"] }, defaultContext({ root, history: true }))[0]!;
   const states = b.history!.points.filter((p) => p.temporal.point_kind === "POINT_IN_TIME_STATE");
-  assert.deepEqual(states.map((p) => p.temporal.through_week), [1, 2]);
-  assert.equal(states[1]!.value, expected); assert.notEqual(states[0]!.value, expected, "week 1 is NOT overwritten by week 2's content");
-  assert.ok(states[0]!.temporal.snapshot_id !== states[1]!.temporal.snapshot_id);
+  assert.deepEqual(states.map((p) => p.temporal.through_week), [...realWeeks, syntheticWeek]);
+  const last = states.length - 1;
+  assert.equal(states[last]!.value, expected); for (const earlier of states.slice(0, last)) assert.notEqual(earlier.value, expected, "an earlier week is NOT overwritten by the later week's content");
+  assert.ok(new Set(states.map((p) => p.temporal.snapshot_id)).size === states.length, "every preserved state keeps its own snapshot identity");
   assert.equal(b.change![0]!.prior_value, expected, "change is computed against the previous PRESERVED state");
   __clearCsvCache();
 });

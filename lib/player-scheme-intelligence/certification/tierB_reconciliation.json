@@ -1,0 +1,18 @@
+{
+  "reconciliation": "psi-tierB-reconciliation-2026.1",
+  "season": 2025,
+  "week": 22,
+  "coverage_man_plus_zone_le_charted": true,
+  "coverage_charted_le_eligible": true,
+  "coverage_only_man_zone_buckets": true,
+  "pressure_states_reconcile": true,
+  "pressure_only_two_states": true,
+  "route_shares_sum_to_1_max_err": 3.3307e-16,
+  "box_shares_sum_to_1_max_err": 1.1102e-16,
+  "box_only_three_buckets": true,
+  "concept_within_charted": true,
+  "no_current_season_participation": true,
+  "no_current_season_ftn": true,
+  "served_content_sha256": "5a10eac5bd1dac9af2f7f715dc4f0ce2255df192a63f4f72d3a077c91391b6a7",
+  "all_pass": true
+}

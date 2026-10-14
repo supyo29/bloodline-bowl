@@ -25,6 +25,11 @@ for (const [pn, prov] of Object.entries(PROVIDERS)) for (const enrichment of [fa
 import { calculateFantasyPoints } from "@/lib/scoring/calculate";
 import { deriveCompletedGameThresholdEvents } from "@/lib/scoring/derived-events";
 import { scoreWeeklyLine } from "@/lib/weekly/scoring";
+import { beforeEach as __isolateBeforeEach } from "node:test";
+import { clearProjectionFeedCache as __clearFeedCache } from "@/lib/sleeper/client";
+/* The Sleeper projection feed cache is process-global (infra 8c6814a, 2026-09-26): a test that mocks fetch must not inherit rows cached by an earlier test. */
+__isolateBeforeEach(() => __clearFeedCache());
+
 test("nonlinear boundaries: completed games earn the threshold (inclusive), projections never do — 299/300/301 passing, 99/100/101 receiving", () => {
   const pass = { pass_yd: 0.04, bonus_pass_yd_300: 3 }, rec = { rec_yd: 0.1, bonus_rec_yd_100: 3 };
   for (const [y, bonus] of [[299, 0], [300, 3], [301, 3]] as const) {

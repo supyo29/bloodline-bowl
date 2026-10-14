@@ -290,7 +290,7 @@ describe("live: canonical route handlers return correct status + context", () =>
     const res = await GET();
     assert.equal(res.status, 200);
     const body = (await res.json()) as {
-      leagues: Array<{ league_slug: string; canonical_urls: Record<string, string> }>;
+      leagues: Array<{ league_slug: string; canonical_urls: Record<string, string>; sleeper_only_urls: Record<string, string> | null; manager_route_template: string | null }>;
     };
     const slugs = body.leagues.map((l) => l.league_slug).sort();
     // Sleeper leagues both present; the Yahoo entry is registered too (v2).
@@ -298,7 +298,12 @@ describe("live: canonical route handlers return correct status + context", () =>
     assert.ok(slugs.includes("devoted-to-the-game"));
     assert.ok(slugs.includes("maclin-on-chicks-xvi"));
     const bb = body.leagues.find((l) => l.league_slug === "bloodline-bowl")!;
-    assert.equal(bb.canonical_urls.draft, "/api/leagues/bloodline-bowl/draft");
+    // fed80bf: the Sleeper-native surface (/api/leagues/{slug}/*) is advertised ONLY for Sleeper leagues, under `sleeper_only_urls`; provider-independent URLs live in `canonical_urls`.
+    assert.equal(bb.sleeper_only_urls?.draft, "/api/leagues/bloodline-bowl/draft");
+    assert.equal(bb.canonical_urls.state, "/api/league/bloodline-bowl/state"); assert.equal(bb.canonical_urls.transactions, "/api/transactions/bloodline-bowl");
+    // a Yahoo league never advertises a Sleeper-only URL (a Yahoo id must never be routed into a Sleeper API) but always has the provider-independent ones
+    const mac = body.leagues.find((l) => l.league_slug === "maclin-on-chicks-xvi")!;
+    assert.equal(mac.sleeper_only_urls, null); assert.equal(mac.manager_route_template, null); assert.equal(mac.canonical_urls.state, "/api/league/maclin-on-chicks-xvi/state");
   });
 
   it("GET /api/leagues/bloodline-bowl/managers/supyo29 -> 200, manager context", async () => {
