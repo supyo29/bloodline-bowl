@@ -33,6 +33,7 @@ export interface PolicyEntry {
 
 export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/ai", access: "public-read", cost: "standard" },
+  { template: "/api/ai/compact", access: "public-read", cost: "standard" },
   { template: "/api/auth/yahoo/callback", access: "self-guarded", cost: "standard" },
   { template: "/api/auth/yahoo/connect", access: "self-guarded", cost: "standard" },
   { template: "/api/auth/yahoo/status", access: "self-guarded", cost: "standard" },
@@ -83,6 +84,8 @@ export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/managers", access: "public-read", cost: "standard" },
   { template: "/api/matchup/:league/:manager/week/:week", access: "public-read", cost: "standard" },
   { template: "/api/matchups", access: "public-read", cost: "standard" },
+  // MCP Streamable HTTP endpoint (JSON-RPC over POST; stateless, so GET/DELETE are 405). Also served at /mcp.
+  { template: "/api/mcp", access: "public-compute", cost: "standard" },
   { template: "/api/player-availability", access: "public-read", cost: "standard" },
   { template: "/api/player-scheme", access: "public-read", cost: "standard" },
   { template: "/api/player-scheme/matchups/:playerId/:opponent", access: "public-read", cost: "standard" },

@@ -21,6 +21,17 @@ const CORS_BASE = {
   "Access-Control-Max-Age": "86400",
 };
 
+// MCP clients running in a browser (e.g. the MCP Inspector) send protocol headers that must be allowed by CORS.
+const MCP_CORS = {
+  "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, Mcp-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name, Last-Event-ID",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id, Mcp-Protocol-Version, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining",
+};
+
+/** `/mcp` is a public alias of `/api/mcp` (rewritten in next.config.ts); classify it as the same route. */
+function policyPath(pathname: string): string {
+  return pathname === "/mcp" || pathname === "/mcp/" ? "/api/mcp" : pathname;
+}
+
 function jsonError(status: number, code: string, detail: string, extra: Record<string, string> = {}): NextResponse {
   return NextResponse.json(
     { ok: false, error: code, detail, status, generated_at: new Date().toISOString() },
@@ -29,8 +40,9 @@ function jsonError(status: number, code: string, detail: string, extra: Record<s
 }
 
 export function proxy(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
+  const pathname = policyPath(request.nextUrl.pathname);
   const decision = decide(request.method, pathname);
+  const cors = pathname === "/api/mcp" ? { ...CORS_BASE, ...MCP_CORS } : CORS_BASE;
 
   if (decision.kind === "deny") {
     return jsonError(decision.status, decision.code, decision.detail, decision.allow ? { Allow: decision.allow.join(", ") } : {});
@@ -39,7 +51,7 @@ export function proxy(request: NextRequest): NextResponse {
   if (decision.kind === "preflight") {
     return new NextResponse(null, {
       status: 204,
-      headers: { ...CORS_BASE, "Access-Control-Allow-Methods": allowedMethods(decision.entry).join(", ") },
+      headers: { ...cors, "Access-Control-Allow-Methods": allowedMethods(decision.entry).join(", ") },
     });
   }
 
@@ -56,7 +68,7 @@ export function proxy(request: NextRequest): NextResponse {
   }
   return NextResponse.next({
     headers: {
-      ...CORS_BASE,
+      ...cors,
       "X-RateLimit-Limit": String(rate.limit),
       "X-RateLimit-Remaining": String(rate.remaining),
     },
@@ -64,5 +76,5 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: ["/api/:path*", "/mcp"],
 };

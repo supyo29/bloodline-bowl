@@ -734,6 +734,278 @@
    ]
   },
   {
+   "snapshot_id": "football-intelligence@fi:2026:w04:877c238515b7#e6f354540860",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w04:877c238515b7",
+   "content_id": "e6f354540860ee4247a6a3d6e7e7b629edcbbcf22ad9c3360ff5aea917a9ddd3",
+   "season": 2026,
+   "through_week": 4,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-10-07T19:13:43+0000",
+   "source_cutoff": {
+    "ftn_charting": 4,
+    "ngs_passing": 4,
+    "ngs_receiving": 4,
+    "ngs_rushing": 4,
+    "pbp": 4,
+    "pfr_def": 4,
+    "pfr_pass": 4,
+    "snap_counts": 4
+   },
+   "provenance": {
+    "kind": "LIVE_SNAPSHOT"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "45515af6d68c81909ac6c0a0b6591ed6a7d407aee77ce8fc8cc2fb3a5a2d15fb",
+     "bytes": 2480,
+     "gz_bytes": 1236
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "bfb7e02ca6cf59d2fd2ee0dd370160afa65398be1db9122a06a3ee73be2ac969",
+     "bytes": 216840,
+     "gz_bytes": 61291
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "16d90fdd5c58b70b2e8d60202274ea1a3fde4751acf00617fdbc65176c7c7eae",
+     "bytes": 2044300,
+     "gz_bytes": 199004
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "218c30d73973843fbe1bd6266128c3b79a0b39ea3df969cb48ec2f166c3373fd",
+     "bytes": 16794,
+     "gz_bytes": 4398
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "fb6a175d6213a6592f90d93669baf5f95e0917f7154537c560af9512f681f240",
+     "bytes": 845713,
+     "gz_bytes": 78818
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "a9d5c836058ace60011e3383f712dacd599aca6f864ead51646d9099afab5e12",
+     "bytes": 20378,
+     "gz_bytes": 1330
+    },
+    {
+     "name": "receiver_progression.csv",
+     "sha256": "de9956eec9e8b8971d879b24546131e9b2ac2bb66163a8683c1e05a0521b60d2",
+     "bytes": 562410,
+     "gz_bytes": 71562
+    }
+   ]
+  },
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w04:795cedd1d1c3#76a864c5b45d",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w04:795cedd1d1c3",
+   "content_id": "76a864c5b45d69fc13e0ab66acc80a2a45b292ed9295fe063178c56f737fa319",
+   "season": 2026,
+   "through_week": 4,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-10-08T19:08:35+0000",
+   "source_cutoff": {
+    "ftn_charting": 4,
+    "ngs_passing": 4,
+    "ngs_receiving": 4,
+    "ngs_rushing": 4,
+    "pbp": 4,
+    "pfr_def": 4,
+    "pfr_pass": 4,
+    "snap_counts": 4
+   },
+   "provenance": {
+    "kind": "LIVE_SNAPSHOT"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "73dde24af8f324a6dbeee22ebfc59d175d3c5403eb25822065e673037fd026b1",
+     "bytes": 2480,
+     "gz_bytes": 1234
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "d1744d03180153974e5ac740728a31abcb0b6a54b78e31623d7798728ae4d83f",
+     "bytes": 216807,
+     "gz_bytes": 61306
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "16d90fdd5c58b70b2e8d60202274ea1a3fde4751acf00617fdbc65176c7c7eae",
+     "bytes": 2044300,
+     "gz_bytes": 199004
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "07d28d849cb91046742a3c3ae6756fc9f6d2e0fab573e65b205b8479e8423069",
+     "bytes": 16793,
+     "gz_bytes": 4398
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "fb6a175d6213a6592f90d93669baf5f95e0917f7154537c560af9512f681f240",
+     "bytes": 845713,
+     "gz_bytes": 78818
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "e602ab64863e4f4ed7308855abd66de306cef372ed7867dc2a68b55aa19125f3",
+     "bytes": 20378,
+     "gz_bytes": 1330
+    },
+    {
+     "name": "receiver_progression.csv",
+     "sha256": "92f87677ce48133468830d7cf094193281b88170a89519b0fe554bfdeb612492",
+     "bytes": 562201,
+     "gz_bytes": 71543
+    }
+   ]
+  },
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w05:dd31f16150f1#0f91c9eecadc",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w05:dd31f16150f1",
+   "content_id": "0f91c9eecadc4cc7234935270117db3e417e80f401161ade0f93950145288ab9",
+   "season": 2026,
+   "through_week": 5,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-10-13T19:43:22+0000",
+   "source_cutoff": {
+    "ftn_charting": 5,
+    "ngs_passing": 5,
+    "ngs_receiving": 5,
+    "ngs_rushing": 5,
+    "pbp": 5,
+    "pfr_def": 5,
+    "pfr_pass": 5,
+    "snap_counts": 5
+   },
+   "provenance": {
+    "kind": "LIVE_SNAPSHOT"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "cdd5f6e3b478500a14c2f77f946b0166aef793310157411d975a00ccbe008efc",
+     "bytes": 2480,
+     "gz_bytes": 1232
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "5adb79a2a437b7037a3b85c50b906a8eaa9a228166c0f7d2d861709678786a50",
+     "bytes": 216786,
+     "gz_bytes": 61451
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "4683373869e6a5d6693ffdc05b4f69c5205a733d5273068a1809ed2e634dafee",
+     "bytes": 2171599,
+     "gz_bytes": 214388
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "7c65277665354a28bd319f6af6b08a3627a913c127a6ca832bd34052db569b2b",
+     "bytes": 16775,
+     "gz_bytes": 4413
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "5c290efa191c54bb64664bb8cc1a6cb0e07cf8d060f576fd435cefe82cbd2c81",
+     "bytes": 846499,
+     "gz_bytes": 79220
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "d2bfa1eea6bfa1983204008c554404dcd88e282498f831866ba12e1079a333b6",
+     "bytes": 20376,
+     "gz_bytes": 1323
+    },
+    {
+     "name": "receiver_progression.csv",
+     "sha256": "c517672bb9f8fa834ff01402fc14c616fbb9c0902b9b3732460ad7030a48dc62",
+     "bytes": 689654,
+     "gz_bytes": 87811
+    }
+   ]
+  },
+  {
+   "snapshot_id": "football-intelligence@fi:2026:w05:8f36e665ca6b#f71c7169a058",
+   "surface": "football-intelligence",
+   "version": "fi:2026:w05:8f36e665ca6b",
+   "content_id": "f71c7169a0580caf9874001afef116fb6930f254e35db0a0c5aefa176356f9f3",
+   "season": 2026,
+   "through_week": 5,
+   "week_state": "COMPLETE",
+   "generated_at": "2026-10-14T17:45:37+0000",
+   "source_cutoff": {
+    "ftn_charting": 5,
+    "ngs_passing": 5,
+    "ngs_receiving": 5,
+    "ngs_rushing": 5,
+    "pbp": 5,
+    "pfr_def": 5,
+    "pfr_pass": 5,
+    "snap_counts": 5
+   },
+   "provenance": {
+    "kind": "LIVE_SNAPSHOT"
+   },
+   "policy": "COMPLETE_WEEK",
+   "files": [
+    {
+     "name": "football_intelligence_manifest.json",
+     "sha256": "3790c3be0c2baec7347e49420ff853bd5557cb7f21c793e123ec599abb6ab801",
+     "bytes": 2480,
+     "gz_bytes": 1234
+    },
+    {
+     "name": "team_profile.csv",
+     "sha256": "9f34b81e314883a29f57d97b844cd76254a3c42f707672e4318b9a43514a3cd1",
+     "bytes": 216849,
+     "gz_bytes": 61398
+    },
+    {
+     "name": "player_usage_profile.csv",
+     "sha256": "4683373869e6a5d6693ffdc05b4f69c5205a733d5273068a1809ed2e634dafee",
+     "bytes": 2171599,
+     "gz_bytes": 214388
+    },
+    {
+     "name": "unit_coverage_profile.csv",
+     "sha256": "68b33e54aac2b6fe8bbbcf4b156d2e7a2c42d0418e1615ea7b83f3be87c02e8d",
+     "bytes": 16784,
+     "gz_bytes": 4432
+    },
+    {
+     "name": "contextual_matchup_feature.csv",
+     "sha256": "5c290efa191c54bb64664bb8cc1a6cb0e07cf8d060f576fd435cefe82cbd2c81",
+     "bytes": 846499,
+     "gz_bytes": 79220
+    },
+    {
+     "name": "ftn_descriptive.csv",
+     "sha256": "d81dee1dd000978e4421d826b36dbe648d8865d73795733cba34448cf7fd6979",
+     "bytes": 20384,
+     "gz_bytes": 1329
+    },
+    {
+     "name": "receiver_progression.csv",
+     "sha256": "68dbc169af5a4c589fdb8c642917ad832c997f7b7e01b6092455fd99882dbf07",
+     "bytes": 694429,
+     "gz_bytes": 88218
+    }
+   ]
+  },
+  {
    "snapshot_id": "opportunity-propagation@opi:2026:w01:bef17990fe91#421e3ef9b460",
    "surface": "opportunity-propagation",
    "version": "opi:2026:w01:bef17990fe91",

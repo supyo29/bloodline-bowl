@@ -24,10 +24,12 @@ function routes(dir = "app/api", acc: string[] = []): string[] {
 /** Routes intentionally NOT advertised to AI clients, with the reason. */
 const UNADVERTISED: Record<string, string> = {
   "/api/ai": "the discovery entry point itself",
+  "/api/ai/compact": "compact absolute-URL index of the discovery contract (linked from /api/ai start_here.compact_index)",
   "/api/trades/analyze": "legacy trade-engine POST analytics with a request body; discovery advertises only /api/trades/competitive (body schema + modes documented). Advertising these needs documented request schemas (Phase 3.5C prerequisite)",
   "/api/trades/discover": "legacy trade-engine POST analytics (see /api/trades/analyze)",
   "/api/trades/negotiate": "legacy trade-engine POST analytics (see /api/trades/analyze)",
   "/api/health": "operational probe, not a data capability",
+  "/api/mcp": "MCP transport endpoint (JSON-RPC tools over Streamable HTTP), advertised in /api/ai under mcp, not a REST capability",
   "/api/auth/yahoo/callback": "OAuth plumbing", "/api/auth/yahoo/connect": "OAuth plumbing", "/api/auth/yahoo/status": "OAuth plumbing",
   "/api/yahoo/auth/start": "OAuth plumbing", "/api/yahoo/oauth/callback": "OAuth plumbing", "/api/yahoo/status": "provider auth status",
   "/api/yahoo/diagnostics": "provider diagnostics", "/api/w2r1/manifest": "W2.R1 EARLY SHADOW (never served from production)", "/api/w2r1/[league]/[manager]/[view]": "W2.R1 EARLY SHADOW diagnostics (never served from production)", "/api/yahoo/health": "credential-free Yahoo connection health (timestamps/enums only)", "/api/cron/yahoo-health": "scheduled job (auth-gated Yahoo keep-alive)", "/api/yahoo/leagues": "Yahoo provider (not yet a registered league source)", "/api/yahoo/leagues/*": "Yahoo provider",

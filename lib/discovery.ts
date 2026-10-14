@@ -791,6 +791,19 @@ export const SERVICE_DESCRIPTION = {
   ],
 } as const;
 
+/**
+ * The remote MCP server (app/api/mcp). AI clients that support MCP connectors
+ * (ChatGPT, Claude, Grok, ...) should connect here instead of fetching URLs:
+ * tools are invoked directly, so no web-retrieval cache is involved.
+ */
+export const MCP_SERVER = {
+  url: absoluteUrl("/mcp"),
+  transport: "streamable-http",
+  authentication: "none (public read-only data)",
+  read_only: true,
+  docs: `${GITHUB_REPOSITORY}/blob/main/docs/MCP_CONNECTOR.md`,
+} as const;
+
 export const IDENTITY_MODEL = {
   league_identity_is_not_manager_identity: true,
   instructions: [

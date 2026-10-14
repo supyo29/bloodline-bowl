@@ -15,7 +15,7 @@ import { cacheHeader, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function GET(): Promise<Response> {
   const [providers, persistenceStatus] = await Promise.all([

@@ -44,6 +44,10 @@ jobs:
           test/weekly-readiness.test.ts
           test/weekly-waivers.test.ts
           test/weekly-waiver-readiness.test.ts
+          test/competitive-calibration-artifact-load.test.ts
+          test/function-duration-classes.test.ts
+          test/function-storage-audit.test.ts
+          test/vercel-ignore-build.test.ts
       - run: npm run lint
 
   r-syntax:

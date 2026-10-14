@@ -27,7 +27,7 @@ import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeSecret(request, "REFRESH_SECRET", { header: "x-refresh-secret" });

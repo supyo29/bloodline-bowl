@@ -240,3 +240,5 @@ export async function GET(request: Request): Promise<Response> {
 export async function OPTIONS(): Promise<Response> {
   return handleOptions();
 }
+
+export const maxDuration = 60;

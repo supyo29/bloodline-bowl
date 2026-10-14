@@ -16,6 +16,7 @@ import {
   IDENTITY_MODEL,
   LEGACY_ROUTES,
   PRODUCTION_BASE_URL,
+  MCP_SERVER,
   SERVICE_DESCRIPTION,
   absoluteUrl,
   discoveryLeagues,
@@ -63,6 +64,10 @@ export async function GET(): Promise<Response> {
     },
     start_here: {
       ai_discovery: "/api/ai",
+      // Absolute, fully concrete URLs for browsing agents that cannot resolve relative paths or templates.
+      compact_index: absoluteUrl("/api/ai/compact"),
+      // MCP-capable assistants: connect to this server instead of browsing (tools, no web cache).
+      mcp_server: MCP_SERVER,
       league_discovery: "/api/leagues",
       manager_discovery_template: "/api/leagues/{leagueSlug}/managers",
       league_overview_template: "/api/leagues/{leagueSlug}",
@@ -145,3 +150,5 @@ export async function GET(): Promise<Response> {
 export async function OPTIONS(): Promise<Response> {
   return handleOptions();
 }
+
+export const maxDuration = 60;
