@@ -1,8 +1,8 @@
 {
-  "football_intelligence_version": "fi:2026:w05:8f36e665ca6b",
+  "football_intelligence_version": "fi:2026:w05:1102ed4e5144",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-10-14T17:45:37+0000",
+  "generated_at": "2026-10-14T22:44:19+0000",
   "season": 2026,
   "through_week": 5,
   "week_completion": {
