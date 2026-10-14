@@ -1,0 +1,67 @@
+{
+  "spec_version": "w2r1-s5-spec-1",
+  "extends": "scripts/w2r1/prereg.json (unchanged, sha256 6caf1f70ad2a926b368927c521d799311f09191963bf17c957c6959701cb521d). No threshold, label or split is changed here.",
+  "declared_before": "any S5 model fit, any S5 validation scoring, any look at 2026 outcomes. S4 stays DIAGNOSTIC / validation-only and is not mixed into S5.",
+  "objective": "Test whether point-in-time TACTICAL evidence adds reliable INCREMENTAL forecast value beyond (a) the champion B1p and (b) the W2.P1 Role candidate C2. A valid result is NO RELIABLE INCREMENTAL GAME-PLAN SIGNAL for any or all positions. The prior player-scheme interaction research was a clean null: interactions carry the burden of proof.",
+  "scope": {"positions": ["QB", "RB", "WR", "TE"], "excluded": ["K", "DST (S4)"], "splits": {"FIT": "2022-2024 weeks 3-18 targets", "VAL": "2025 weeks 3-17 (the W2.P1 world rows; weeks 14-17 are VAL-contaminated by W2.P1 and used only for validation here)", "FINAL": "2026 weeks 1-5: NOT loaded, NOT scored (S7 only, after FROZEN.json)"}, "scoring": "HALF primary (identical to W2.P1); STD/PPR robustness reported at S7 only"},
+  "population": "identical to W2.P1: B0p(HALF) >= 3, covered row, headline designations NONE/QUESTIONABLE/DOUBTFUL (OUT only for the exactly-zero contribution check). VAL candidates are scored on the intersection of the W2.P1 world rows and rows with the candidate's features; coverage is reported.",
+  "champions_controls": {"B0p": "mean of the previous up to 4 games' HALF points (same season; >= 1 prior game)", "B1p": "evaluateInjuryModel(B0p, historical designation, CONDITIONAL_ON_ACTIVE) — availability is applied EXACTLY ONCE, here", "C2": "the W2.P1 Role candidate as frozen in scripts/w2p1/FROZEN.json (fit on 2025 weeks 3-9 DEV; in-sample for those weeks => conservative for challengers)", "target": "actual HALF points - B0p on rows where the player played and designation in {NONE, QUESTIONABLE, DOUBTFUL}; every candidate predicts a CONDITIONAL-ON-ACTIVE delta; expected = evaluateInjuryModel(B0p + delta). No S5 layer re-discounts availability."},
+  "evidence_tiers": {
+    "tier_A": "play-by-play, FTN charting, schedules/lines/weather, player stats, snap counts, injury designations (same definition every season 2022-2026). The ONLY features in the primary candidates (G1-G4).",
+    "tier_B": "participation-derived formation / personnel / coverage-shell / man-zone. NOT published for 2026. Allowed only as a separately labelled variant `G2b`: PRIOR-SEASON carryover (season-1 only), shrunk to the league mean by the continuity factor, carrying evidence age and continuity. Never presented as observed target-season truth.",
+    "tier_B_features": ["off_11_personnel_rate (prior season, team offense)", "def_man_rate (prior season, team defense, man vs zone)", "def_two_high_rate (prior season, team defense, coverage shells COVER_2/COVER_4/COVER_6/2_MAN)"],
+    "tier_B_formula": "value = cont * prior_season_rate + (1 - cont) * league_mean; cont = HC_same?1:0.4 * QB_same?1:0.6 (offense) / HC_same?1:0.4 (defense); 0.5^(1) age factor applied on the weight in the confidence rule, not in the value"
+  },
+  "as_of_rule": "every feature for a target game g of team T uses only games with (season, week) strictly earlier than g; schedule lines/weather are pregame; injury designations are the reconstructed FINAL team-week designation (RECONSTRUCTED_FINAL_DESIGNATION, symmetric for every candidate and the control).",
+  "continuity": {
+    "factors": {"HC_changed": 0.4, "QB_changed": 0.6, "OC_changed": "UNKNOWN (coordinator registry is empty; absent => NO extra discount per the repo guardrail, flagged oc_dc_unknown)", "DC_changed": "UNKNOWN (same)", "personnel": "UNAVAILABLE (no historical rosters): flagged, no discount"},
+    "season_age_weight": "0.5^(seasons_ago)",
+    "modes_compared": {"CUR": "current-season games only", "MULTI": "previous up to 10 games across seasons, equal weight", "CONT": "previous up to 10 games across seasons; prior-season games weighted 0.5^(seasons_ago) x continuity factor"},
+    "selection": "the tactical mode per position is the one with the lowest VAL MAE among {CUR, MULTI, CONT}; ties -> CUR (simplest); CONT is NOT assumed to win",
+    "rate_estimator": "(sum_i w_i * r_i + k0 * league_mean) / (sum_i w_i + k0), k0 = 4 game-equivalents, league_mean = FIT mean; r_i = the game's ratio statistic"
+  },
+  "feature_families": {
+    "RL_role_lite_tierA": {"description": "own as-of usage substrate from pbp/snap counts (NOT the W2.P1 Role forecast): empirical-Bayes per-game usage over the previous up to 6 games, k0 = 3", "QB": ["u_dropbacks", "u_designed_rushes", "u_scrambles", "u_snap"], "RB": ["u_carries", "u_targets", "u_rz_carries", "u_rz_targets", "u_snap"], "WR_TE": ["u_targets", "u_rz_targets", "u_snap", "u_air_share"], "all": ["b0"]},
+    "G1_game_context": ["implied_team_total", "team_spread", "opp_implied_total", "team_pace (as-of plays/game)", "dome"],
+    "offense_tendency_tierA": ["t_neutral_pass_rate", "t_early_down_pass_rate", "t_play_action_rate", "t_screen_rate", "t_deep_attempt_rate", "t_rb_target_share", "t_rz_pass_rate", "t_goal_line_run_rate", "t_sack_rate_suffered"],
+    "defense_response_tierA": ["d_sack_rate", "d_blitz_rate", "d_pass_epa_allowed", "d_rush_epa_allowed", "d_explosive_pass_allowed", "d_deep_target_concession", "d_rb_target_share_allowed", "d_rz_td_rate_allowed", "d_ppg_allowed"],
+    "player_fingerprint_tierA": {"QB": ["f_sack_sensitivity", "f_scramble_rate", "f_adot", "f_play_action_share", "f_deep_rate"], "RB": ["f_rb_target_share", "f_goal_line_share", "f_explosive_run_rate", "f_screen_share", "f_rz_carry_share"], "WR": ["f_adot", "f_deep_target_share", "f_rz_target_share", "f_yac"], "TE": ["f_adot", "f_rz_target_share", "f_yac", "f_underneath_share"], "not_built": ["slot/outside", "man/zone splits", "formation features (Tier B only, not observed in 2026)"]},
+    "G3_interactions_limit": "AT MOST these five products, each a product of ONE player fingerprint and ONE opponent response: WR/TE x_deep = f_deep_target_share*d_deep_target_concession; QB x_press = f_sack_sensitivity*d_sack_rate; QB x_pa_blitz = f_play_action_share*d_blitz_rate; RB x_rb_press = f_rb_target_share*d_blitz_rate; all x_rz = player rz share * d_rz_td_rate_allowed. No other interaction may be added after seeing results (any later idea is EXPLORATORY).",
+    "G4_second_order": ["so_missing_target_share (as-of target share of teammates designated OUT this week)", "so_missing_rush_share (as-of carry share of teammates OUT)", "so_ol_out (team offensive linemen designated OUT)", "so_front_out (opponent DL/EDGE designated OUT)"],
+    "second_order_rule": "second-order candidates may only use features built from point-in-time injury designations and as-of shares; the direct-backup-only rule (treating a teammate's absence as an add-on to one named backup) is the CONTROL and is not used as a feature"
+  },
+  "position_hypotheses": {
+    "QB": "pressure-prone QBs lose points against pass-rush-heavy defenses (x_press); play-action QBs gain against blitzing defenses (x_pa_blitz). Prior: weak (W2.P1 QB incremental signal was weak).",
+    "RB": "receiving RBs gain against blitz-heavy defenses (x_rb_press); goal-line backs gain against weak red-zone defenses (x_rz).",
+    "WR": "deep receivers gain against deep-conceding defenses (x_deep); teammate absence redistributes targets (so_missing_target_share).",
+    "TE": "red-zone TEs gain against weak red-zone defenses (x_rz); underneath TEs gain against pressure. Prior: TE was the weakest W2.P1 case."
+  },
+  "candidate_ladder": {
+    "L0": "B1p (control)",
+    "L1": "C2 (W2.P1 Role candidate, comparator only)",
+    "RL": "ridge on RL_role_lite features",
+    "G1": "RL + G1_game_context",
+    "G2": "G1 + offense_tendency + defense_response + player_fingerprint (Tier A; 3 continuity modes -> one chosen per position on VAL)",
+    "G2b": "G2 (chosen mode) + Tier-B carryover features (labelled variant, never the primary)",
+    "G3": "G2 + the five declared interactions",
+    "G4": "G3 + second-order features",
+    "model": "per-position, per-scoring ridge regression on standardized features, intercept unpenalized; ridge grid [1,10,100,1000] chosen on VAL MAE of the FINAL EXPECTED value (ties -> larger lambda); shrinkage delta = confidence_weight * clamp(prediction, -cap, +cap), cap = max(1.0, 0.25*B0p) (prereg)",
+    "inclusion_rule": "each step must improve MAE vs the PREVIOUS retained step by >= 0.03 points with a 95% cluster-bootstrap (team-week, B=2000, seed 20261014) lower bound > 0; a step that fails is NOT retained and later steps are measured against the last retained step. Interaction step: must beat the additive G2 under the same rule. Anything that does not beat B1p AND C2 (T2b: >= 0.03, lower bound > 0 vs C2) is not an S7 candidate.",
+    "internal_check": "to reduce selection optimism a second view is reported: lambda and the mode chosen on VAL weeks 3-9 only, scored on VAL weeks 10-17 (VAL-LATE)"
+  },
+  "confidence_and_missing_evidence": {
+    "confidence_weight": "HIGH/MEDIUM 1.0 when the player has >= 4 prior games and both team evidence windows have >= 4 games (CUR: current-season games); LOW 0.6 when 2-3; INSUFFICIENT 0 when < 2 (delta = 0, neutral WITH the missing-evidence reason; coverage reports it)",
+    "evidence_state_labels": ["NO_EVIDENCE (n = 0)", "STALE_EVIDENCE (last relevant game > 21 days before kickoff)", "PRIOR_SEASON_ONLY (current-season n < 2 and a prior-season window used)", "LOW_CONTINUITY (continuity factor < 0.5)"],
+    "rule": "missing tactical evidence is never converted into a neutral high-confidence matchup grade: unknown stays unknown, the delta is 0, the label and reason are reported, and the row counts against coverage"
+  },
+  "metrics": ["MAE", "RMSE", "bias", "dMAE vs B1p", "dMAE vs C2", "95% cluster-bootstrap CI (team-week)", "cap-hit rate (hard fail > 10% at S7)", "n and coverage", "Holm-adjusted p across the 4 positions (family alpha 0.05, one-sided bootstrap p for dMAE>0 vs the best control)", "decision pairs, tiers", "robustness reported at S7"],
+  "leakage_controls": {
+    "poison": "recompute every feature for sampled VAL rows after replacing the target game and every later game of the team (and the player) with absurd values: features must be byte-identical",
+    "season_end_aggregates": "assert that no feature column is a function of games at or after the target (checked by the poison test and by a structural test that every as-of function reads only rows with index < current)",
+    "postgame_injury": "designations are the reconstructed final team-week designation used identically by control and candidates; no postgame-only injury field is read",
+    "tier_b": "assert the primary candidate feature matrix contains NO participation-derived column; G2b columns must equal values computed from season-1 only (checked against a recomputation with all later data poisoned)",
+    "target_outcome": "the target game's own usage/outcome never participates in a feature (poison test); ORACLE control = target-game actual usage as features must beat every candidate by >= 25% of the champion MAE (harness sensitivity)"
+  },
+  "explainability_contract": "each candidate row can emit {likely_offensive_tendency, likely_defensive_response, player_fit_or_mismatch, second_order_effect, confidence, evidence_age, provenance, tier, continuity}. Wording is probabilistic ('tends to', 'historically'), never a claim about an unpublished game plan.",
+  "stop_point": "validation only; FROZEN.json is not created or modified; 2026 weeks 1-5 are not loaded."
+}
