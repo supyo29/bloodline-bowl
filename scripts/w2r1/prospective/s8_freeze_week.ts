@@ -26,4 +26,8 @@ const q = { schema: "w2r1-s8-qualification-snapshot-1", season: 2026, week, rese
 writeFileSync(`${dir}/qualification.json`, JSON.stringify(q, null, 1) + "\n");
 const m = buildManifest(dir, 2026, week, now, kickoff, ["kdst_components.json", "upside.json", "qualification.json"]);
 writeFileSync(`${dir}/${MANIFEST_NAME}`, JSON.stringify(m, null, 1) + "\n");
+// register the week in the bundled loader index (idempotent)
+const idxPath = "lib/w2r1/data/prospective/index.ts"; let idx = readFileSync(idxPath, "utf8"); const wk2 = String(week).padStart(2, "0");
+const add = (rec: string, file: string, type: string) => { const line = `  ${week}: () => import("./wk${wk2}/${file}.json").then((m) => m.default as unknown as ${type}),`; if (idx.includes(line)) return; const at = idx.indexOf("};", idx.indexOf(rec)); idx = idx.slice(0, at) + line + "\n" + idx.slice(at); };
+add("export const KDST_LOADERS", "kdst_components", "KdstCapture"); add("export const UPSIDE_LOADERS", "upside", "UpsideCapture"); writeFileSync(idxPath, idx);
 console.log("frozen", dir, now, "files", Object.keys(m.files).join(","));

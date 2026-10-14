@@ -59,6 +59,7 @@ describe("W2.R1 D/ST integration into the main weekly context", () => {
     assert.equal(q.forTeam("LAR") != null || teams.includes("LA") === false, true, "provider abbreviations are normalized (LAR -> LA)");
     for (const l of ["rogers-park", "bloodline-bowl", "no-such-league"]) { const p = await planQualifiedDst({ leagueSlug: l, week: 6 }); assert.equal(p.capture_week, null, l); assert.equal(p.forTeam(t), null, l); }
     const w7 = await planQualifiedDst({ leagueSlug: "devoted-to-the-game", week: 7 }); assert.equal(w7.capture_week, null); assert.match(w7.reason ?? "", /no frozen pregame/);
+    const wrong = await planQualifiedDst({ leagueSlug: "devoted-to-the-game", week: 7, capture: wk6 }); assert.equal(wrong.capture_week, null, "a capture for a different week is never applied"); assert.equal(wrong.forTeam(t), null);
     const off = await planQualifiedDst({ leagueSlug: "devoted-to-the-game", week: 6, env: { W2R1_DST_DISABLED: "1" } as unknown as NodeJS.ProcessEnv }); assert.equal(off.capture_week, null);
   });
   it("ORDER: the W1 final-pregame calibration capture reads the PROVIDER forecasts (before the W2.R1 replacement), never the replaced values", () => {

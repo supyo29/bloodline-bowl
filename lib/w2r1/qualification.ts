@@ -40,6 +40,9 @@ export function kQualification(league: string): Qualification {
 }
 export const TACTICAL = { state: "NO_RELIABLE_SIGNAL" as QualState, tactical_signal: "NO_RELIABLE_INCREMENTAL_SIGNAL" as const, applied_to_forecast: false as const, reason: "S7: G2 never beats G1/Role-lite (TE significantly worse); S5 evidence machinery is retained for research/provenance only", evidence: "scripts/w2r1/results/final/s5_final.json" };
 
+/** W2.P1/P2 Role & Opportunity: the descriptive Role intelligence is available (evidence routes); the W2.P1 Role challenger C2 is NOT applied to any forecast (S5/S7: cap-hit and bias gates failed, G3 insufficient evidence). */
+export const ROLE_OPPORTUNITY = { state: "DIAGNOSTIC_ONLY" as QualState, applied_to_forecast: false as const, reason: "descriptive role/opportunity state is exposed; the Role challenger (C2) failed the preregistered cap/bias gates and is not applied to forecasts", evidence: "scripts/w2p1/results/final.json; scripts/w2r1/results/final/s5_final.json" };
+
 export const UPSIDE_LABEL = "Upside likelihood — probability of a top-N positional finish" as const;
 export type UpsidePos = "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
 export function upsideQualification(pos: string): Qualification {

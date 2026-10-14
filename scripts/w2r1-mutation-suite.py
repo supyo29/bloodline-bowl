@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts", "test/w2r1-freeze.test.ts", "test/w2r1-s8.test.ts", "test/w2r1-s9.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts", "test/w2r1-freeze.test.ts", "test/w2r1-s8.test.ts", "test/w2r1-s9.test.ts", "test/w2r1-integration.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -34,7 +34,7 @@ MUT = [
  ("W29", "a verified current-week bye is not represented as a bye", A, [('else if (cw === "BYE" || f.game_status.is_bye) weeks[week]', 'else if (false as boolean) weeks[week]')]),
  ("W30", "the W2.R1 emergency stop is ignored", G, [('return env.W2R1_DISABLED !== "1";', "return true;")]),
  ("W31", "an unfinished layer is advertised as qualified", L, [('S4_k_dst_component_model: "D/ST: QUALIFIED_SHADOW (Devoted to the Game, Sporty\'s Alumni, Maclin on Chick\'s XVI); EXPLORATORY_POST_DEFECT (Rogers Park); DIAGNOSTIC_ONLY (Bloodline Bowl D/ST, all K)",', 'S4_k_dst_component_model: "QUALIFIED",')]),
- ("W32", "the production-influence statement is dropped from responses", L, [("production_influence: PRODUCTION_STATEMENT,", "")]),
+ ("W32", "the decision-support / read-only statement is dropped from responses", L, [("decision_support: DECISION_SUPPORT_STATEMENT, writes_to_providers: false as const,", "")]),
  ("W34", "an acquisition may enter a full active roster (no open spot)", R, [("const adds = wanted.slice(0, room);", "const adds = wanted;")]),
  ("W35", "an IR-slot player with unknown designation is assumed activatable now", A, [('returns = status === "IR" && out > 0 ? week + out : null;', 'returns = status === "IR" ? week + out : null;')]),
  ("W36", "K: the flat per-FG score (fgm) is not added to the distance-bin weights", "lib/w2r1/kdst.ts", [('make: [w(s, "fgm_0_19") + fm, w(s, "fgm_20_29") + fm, w(s, "fgm_30_39") + fm, w(s, "fgm_40_49") + fm,', 'make: [w(s, "fgm_0_19"), w(s, "fgm_20_29"), w(s, "fgm_30_39"), w(s, "fgm_40_49"),')]),
@@ -99,6 +99,13 @@ MUT = [
  ("W95", "S9: the scenario memo ignores the removed player", "lib/w2r1/scenario-cache.ts", [('${s.removeId ?? ""}|', '|')]),
  ("W96", "S9: the scenario memo ignores the week", "lib/w2r1/scenario-cache.ts", [('const key = `${s.week}|', 'const key = `|')]),
  ("W97", "S9: the scenario memo ignores a value override (hold VOR)", "lib/w2r1/scenario-cache.ts", [('${s.valueOverride ? `${s.valueOverride.id}:${s.valueOverride.kind}` : ""}`;', '`;')]),
+ ("W98", "integration: the D/ST override replaces a bye team's defense", "lib/weekly/context.ts", [('if (!p || p.position !== "DEF" || !p.nfl_team || row.is_bye) continue;', 'if (!p || p.position !== "DEF" || !p.nfl_team) continue;')]),
+ ("W99", "integration: the W1 final-pregame calibration capture records the REPLACED values instead of provider evidence", "lib/weekly/context.ts", [('.map((id) => providerForecasts.by_player.get(id))', '.map((id) => forecasts.by_player.get(id))')]),
+ ("W100", "integration: an unqualified league receives the D/ST override", "lib/w2r1/context-hook.ts", [('if (q.state !== "QUALIFIED_SHADOW") return off(', 'if (false as boolean) return off(')]),
+ ("W101", "integration: a capture for a different week is applied", "lib/w2r1/context-hook.ts", [('if (!cap || cap.meta.target_week !== a.week) return off(', 'if (!cap) return off(')]),
+ ("W102", "integration: the D/ST emergency stop is ignored", "lib/w2r1/context-hook.ts", [('if ((a.env ?? process.env).W2R1_DST_DISABLED === "1") return off("W2R1_DST_DISABLED emergency stop");', '')]),
+ ("W103", "integration: forecasts are not recomposed after the D/ST replacement (production value diverges from the canonical forecast)", "lib/weekly/context.ts", [('if (dstReplaced.length > 0) forecasts = composeForecasts();', '')]),
+ ("W104", "integration: a team without a capture row is zero-filled", "lib/w2r1/dst-live.ts", [('const t = cap.teams[normTeam(team)];\n  if (!t) return {', 'const t = cap.teams[normTeam(team)] ?? ({ available: true, opp: "", gameday: "", dst: { e_sacks: 0, e_ints: 0, e_fr: 0, r_fumrec_st: 0, r_ff_def: 0, r_ff_st: 0, r_def_td: 0, r_st_td: 0, r_blk_td: 0, r_safeties: 0, r_blk: 0, r_stops4: 0, r_forced_punts: 0, r_kr_yd: 0, r_pr_yd: 0, r_def2pt: 0, mean_yds: { sack_yd: 0, int_ret_yd: 0, fum_ret_yd: 0 }, pa_pmf: [1], pa_mean: 0 } } as never);\n  if (!t) return {')]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),
