@@ -11,6 +11,7 @@
  * `computeWeeklyReplacement`) — no second projection or replacement model.
  */
 
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
@@ -97,9 +98,9 @@ export async function buildRosterHealthInputs(
   const resolution = resolveLeagueStrict(leagueSlug);
   if (!resolution.ok) throw new Error(`roster-health: ${resolution.code ?? "league_unresolved"}`);
   const league = resolution.league;
-  const crosswalk = defaultCrosswalkSource()
-    ? new PlayerCrosswalk(defaultCrosswalkSource()!)
-    : new PlayerCrosswalk(NoCrosswalk);
+  const crosswalk = await resolveLeagueCrosswalk(league.provider, undefined, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
   const state = options.snapshotOverride
     ? { ok: true as const, snapshot: options.snapshotOverride, code: undefined as string | undefined }
     : await buildCanonicalLeagueState(leagueSlug, {
