@@ -22,7 +22,7 @@ import { registerTools } from "@/lib/mcp/tools";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 // Trade discovery can take ~60 s on a cold instance; route timeouts inside tools are lower.
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const handler = createMcpHandler(
   (server) => {

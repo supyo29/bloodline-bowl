@@ -16,3 +16,5 @@ export async function GET(request: Request): Promise<Response> {
   return jsonResponse({ season, week: week ?? null, mode: "SHADOW_ONLY", model_version: GAME_DISTRIBUTION_MODEL_VERSION, production_influence: "NONE", models: MODEL_LABELS, report: distributionReport(rows) }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function OPTIONS(): Promise<Response> { return handleOptions(); }
+
+export const maxDuration = 60;

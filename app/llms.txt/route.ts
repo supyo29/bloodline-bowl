@@ -109,3 +109,5 @@ export async function GET(): Promise<Response> {
     },
   });
 }
+
+export const maxDuration = 60;

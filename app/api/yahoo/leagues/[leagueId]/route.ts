@@ -23,7 +23,7 @@ import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/h
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function GET(
   _request: Request,

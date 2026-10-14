@@ -25,3 +25,5 @@ export async function GET(request: Request): Promise<Response> {
   return jsonResponse({ season, week: week ?? null, total_cases: rows.length, status_counts: statusCounts(rows), report: buildCalibrationReport(rows, group) }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function OPTIONS(): Promise<Response> { return handleOptions(); }
+
+export const maxDuration = 60;

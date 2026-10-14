@@ -44,7 +44,7 @@ import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 300;
 
 const MAX_BODY_BYTES = 16 * 1024;
 const VALID_MODES: CompetitiveTradeMode[] = ["evaluate", "negotiate", "discover", "strategy_path"];
