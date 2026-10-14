@@ -83,7 +83,7 @@ export interface LeagueRules {
   slots: string[];
   bench_size: number;
   ir_slots: number;
-  teams: number;
+  teams: number | null;
   /** last regular-season week considered by ROS */
   last_week: number;
 }

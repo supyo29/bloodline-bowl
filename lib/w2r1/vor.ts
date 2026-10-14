@@ -37,6 +37,8 @@ export interface WeeklyDetail {
   without_roster_only: number | null;
   chosen_add: { player_id: string; method: string; success_probability: number | null; faab_cost: number | null } | null;
   chain: ChainStep[];
+  /** the most helpful candidate whose acquisition probability is UNKNOWN (never counted in `value`): shown so the user can see what would happen IF it were acquired */
+  optimistic_unverified_add: { player_id: string; method: string; success_probability: number | null; vor_if_acquired: number; chain: ChainStep[] } | null;
   activated_from_reserve: string[];
   empty_slots_without: string[];
   provisional: boolean;
@@ -81,11 +83,13 @@ function calcWeek(rules: LeagueRules, roster: RosterAsset[], focal: RosterAsset,
   let value = rosterOnly, low = rosterOnly; let chosen: MarketCandidate | null = null; let chosenLineup = withoutL;
   const cands = opts.heldAdd ? [opts.heldAdd] : market && market.verified ? topCandidates(market.candidates, week, TOP_K) : [];
   const knownP: Array<{ c: MarketCandidate; l: ReturnType<typeof scenarioLineup>; p: number }> = [];
+  let optimistic: { c: MarketCandidate; l: ReturnType<typeof scenarioLineup> } | null = null;
   for (const c of cands) {
     const l = scenarioLineup({ ...base, removeId: focal.player_id, adds: [c] });
     const pr = c.acquisition.success_probability;
     low = Math.min(low, withL.total - l.total); // optimistic: every candidate acquired
     if (pr != null) knownP.push({ c, l, p: pr });
+    else if (l.total > withoutL.total + 1e-12 && (!optimistic || l.total > optimistic.l.total)) optimistic = { c, l };
   }
   let bestExpected = withoutL.total;
   for (const k of knownP) {
@@ -96,7 +100,9 @@ function calcWeek(rules: LeagueRules, roster: RosterAsset[], focal: RosterAsset,
   const detail: WeeklyDetail = {
     week, with_total: withL.total, without_roster_only: withoutL.total,
     chosen_add: chosen ? { player_id: chosen.player_id, method: chosen.acquisition.method, success_probability: chosen.acquisition.success_probability, faab_cost: chosen.acquisition.faab_cost } : null,
-    chain: chainBetween(withL, chosen ? chosenLineup : withoutL), activated_from_reserve: (chosen ? chosenLineup : withoutL).activated_from_reserve,
+    chain: chainBetween(withL, chosen ? chosenLineup : withoutL),
+    optimistic_unverified_add: optimistic ? { player_id: optimistic.c.player_id, method: optimistic.c.acquisition.method, success_probability: optimistic.c.acquisition.success_probability, vor_if_acquired: withL.total - optimistic.l.total, chain: chainBetween(withL, optimistic.l) } : null,
+    activated_from_reserve: (chosen ? chosenLineup : withoutL).activated_from_reserve,
     empty_slots_without: withoutL.empty_slots, provisional: withL.provisional || withoutL.provisional, unknown_excluded: [...new Set([...withL.unknown_excluded, ...withoutL.unknown_excluded])],
   };
   return { week, withTotal: withL.total, roster_only: rosterOnly, value, low, chosen, detail, known: true };

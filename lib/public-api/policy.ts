@@ -115,6 +115,8 @@ export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/weekly-stats", access: "public-read", cost: "standard" },
   { template: "/api/yahoo/auth/start", access: "self-guarded", cost: "standard" },
   { template: "/api/yahoo/diagnostics", access: "self-guarded", cost: "standard" },
+  { template: "/api/w2r1/manifest", access: "self-guarded", cost: "standard" },
+  { template: "/api/w2r1/:league/:manager/:view", access: "self-guarded", cost: "expensive" },
   { template: "/api/yahoo/health", access: "public-read", cost: "standard" },
   { template: "/api/yahoo/leagues", access: "admin", cost: "standard" },
   { template: "/api/yahoo/leagues/:leagueId", access: "public-read", cost: "expensive" },

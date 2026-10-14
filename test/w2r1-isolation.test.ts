@@ -19,7 +19,13 @@ function* walk(dir: string): Generator<string> {
 describe("W2.R1 production isolation", () => {
   it("no production source file (lib/, app/, proxy.ts) references W2.R1", () => {
     const offenders: string[] = [];
-    for (const root of ["lib", "app"]) for (const f of walk(root)) if (/w2r1/i.test(readFileSync(join(ROOT, f), "utf8"))) offenders.push(f);
+    for (const root of ["lib", "app"]) for (const f of walk(root)) {
+      const text = readFileSync(join(ROOT, f), "utf8");
+      if (!/w2r1/i.test(text)) continue;
+      // the ONLY exemption: the public-API route table may REGISTER the shadow route templates (no logic, no import)
+      if (f === "lib/public-api/policy.ts" && text.split("\n").filter((l) => /w2r1/i.test(l)).every((l) => /template: "\/api\/w2r1\//.test(l))) continue;
+      offenders.push(f);
+    }
     assert.deepEqual(offenders, []);
     assert.ok(!/w2r1/i.test(readFileSync(join(ROOT, "proxy.ts"), "utf8")), "proxy.ts must not reference W2.R1");
   });

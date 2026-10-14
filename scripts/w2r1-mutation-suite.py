@@ -2,8 +2,9 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
+A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
  ("W1", "bye zeroes Hold VOR", V, [('const hold = component(holdCalcs, weeks.length, "UNDERLYING_VALUE_OVER_HORIZON_REGARDLESS_OF_CURRENT_WEEK_STATUS");', 'const hold: VorComponent = focal.weeks[week]?.state === "BYE" ? { ...component(holdCalcs, weeks.length, "x"), value: 0 } : component(holdCalcs, weeks.length, "UNDERLYING_VALUE_OVER_HORIZON_REGARDLESS_OF_CURRENT_WEEK_STATUS");')]),
  ("W2", "bye destroys ROS value", V, [('if (held) ros.low =', 'if (focal.weeks[week]?.state === "BYE") ros.value = 0;\n  if (held) ros.low =')]),
@@ -26,6 +27,14 @@ MUT = [
  ("W19", "evidence validation no longer requires provenance on a feature", E, [("if (!f.provenance) out.push(", "if (false as boolean) out.push(")]),
  ("W20", "evidence validation allows an unknown feature without a reason", E, [("if (f.value == null && !f.unknown_reason)", "if (false as boolean)")]),
  ("W21", "a waiver claim may be declared guaranteed", E, [('if (c.acquisition.method === "WAIVER_CLAIM" && p === 1)', 'if (false as boolean)')]),
+ ("W25", "the adapter re-applies availability (a second injury discount)", A, [('weeks[week] = { state: "ACTIVE", lineup: exp, underlying: cond ?? exp };', 'weeks[week] = { state: "ACTIVE", lineup: exp * 0.9, underlying: cond ?? exp };')]),
+ ("W26", "the adapter zero-fills unknown future weeks", A, [('else if (perGame == null) weeks[w] = { state: "UNKNOWN", lineup: null, underlying: null };', 'else if (perGame == null) weeks[w] = { state: "ACTIVE", lineup: 0, underlying: 0 };')]),
+ ("W27", "the adapter treats a waiver / inferred add as certain", A, [("success_probability: providerVerifiedFa ? 1 : null", "success_probability: 1")]),
+ ("W28", "an uncertified pool is treated as verified", A, [("const verified = ctx.free_agent_pool_readiness.actionable === true;", "const verified = true;")]),
+ ("W29", "a verified current-week bye is not represented as a bye", A, [('else if (cw === "BYE" || f.game_status.is_bye) weeks[week]', 'else if (false as boolean) weeks[week]')]),
+ ("W30", "the shadow routes are served from production", G, [('return env.VERCEL_ENV !== "production" || env.W2R1_SHADOW_ENABLED === "1";', "return true;")]),
+ ("W31", "an unfinished layer is advertised as qualified", L, [('S4_k_dst_component_model: "NOT YET QUALIFIED",', 'S4_k_dst_component_model: "QUALIFIED",')]),
+ ("W32", "the production-influence statement is dropped from responses", L, [("production_influence: PRODUCTION_STATEMENT,", "")]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),
