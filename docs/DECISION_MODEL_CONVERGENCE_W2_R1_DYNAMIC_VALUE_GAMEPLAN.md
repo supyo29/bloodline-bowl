@@ -116,3 +116,35 @@ The component models beat the control in every regime, with the bootstrap lower 
 **Tests / mutants:** `lib/w2r1/kdst.ts` (exact-scoring evaluator) is golden-tested against the R implementation on 27 rows (|diff| < 1e-6); 13 tests; mutants W36–W41 (flat FG score, miss penalty, points-allowed continuous key, distribution vs mean, yardage, silent drop of unreconstructable keys) all killed.
 
 **Regime limitations (pinned in test):** `fum_rec_td` (all regimes: may be paid in addition to `def_td`; ≈ 0.03 events/game), `def_st_td` (Sleeper regimes), `blk_kick_ret_yd`/`fg_ret_yd` (Bloodline) are NOT reconstructed and are reported, never silently scored as 0 or 6. Points allowed = opponent-offense points (a provider may differ on rare plays). No kicker-specific wind splits, no field condition.
+
+## 9. S5 — game-plan / tactical intelligence (stage report; validation only — FINAL untouched)
+
+**Conclusion: `NO RELIABLE INCREMENTAL GAME-PLAN SIGNAL` for QB, RB, WR and TE.** Nothing tactical (offensive tendency, defensive response, player fingerprint, Tier-B carryover, interaction, second-order) earned inclusion over a Role-lite + game-context model at any position. Nothing in S5 is W2.R1-qualified.
+
+**Frozen before fitting:** `scripts/w2r1/s5_spec.json` (sha256 `fd9a199a8130b89045c64ed24caafbd28335840a0d15c7f2a609c4d42b76724c`, commit `1c370a7`); `prereg.json` unchanged (`6caf1f70…`).
+
+**Data / features (Tier A everywhere; Tier B only as labelled prior-season carryover)**
+- FIT 2022–2024 (14,591 played non-OUT player-games, weeks ≥ 3), VAL 2025 weeks 3–17 (the 3,900 W2.P1 world rows; weeks 14–17 are VAL-contaminated by W2.P1). 2026 is never loaded.
+- Tier A (nflverse pbp + FTN charting + schedules/lines + snap counts + injury designations): own Role-lite usage substrate, game context (implied total, spread, pace, dome), 9 offensive-tendency and 9 defensive-response ratios (as-of empirical-Bayes in three continuity modes), position fingerprints, five declared interactions, four second-order features (teammate OUT share, OL OUT, opposing front OUT).
+- Tier B (participation: 11-personnel rate, man-coverage rate, two-high rate): prior-season (season−1) carryover only, shrunk by the continuity factor, never in the primary candidate (test-pinned).
+- Continuity: head coach (nflverse) and QB (most dropbacks) per team-season; OC/DC are UNKNOWN (the repo's coordinator registry is empty → no extra discount, flagged); personnel continuity UNAVAILABLE.
+- Coverage (VAL): Tier-A tactical 97 %, Tier-B carryover 97 %, low-continuity rows 38 %, prior-season-only 0 % and stale 0 % (weeks ≥ 3 targets). Continuity modes are indistinguishable on VAL (CUR / MULTI / CONT within 0.03 MAE at every position): continuity weighting earns nothing.
+
+**Leakage controls:** poison tests pass — player as-of 150/150, team as-of 702/702 (3 modes × 6 metrics × 40 team-games), Tier-B prior-season-only 100/100 — plus ORACLE (target-game actual usage): 28 % (QB), 40 % (RB), 41 % (WR), 44 % (TE) below B1p MAE (≥ 25 % required).
+
+**Validation results (MAE; HALF; n = rows)**
+| Pos | n | B1p | W2.P1 C2 | Role-lite (RL) | +context (G1) | +tactical (G2) | +interactions (G3) | +second-order (G4) | tactical mode |
+|---|---|---|---|---|---|---|---|---|---|
+| QB | 579 | 7.936 | 7.866 | 7.839 | **7.698** | 7.767 | 7.768 | 7.775 | CONT |
+| RB | 964 | 5.884 | **5.659** | 5.735 | 5.710 | 5.710 | 5.712 | 5.688 | MULTI |
+| WR | 1,476 | 5.060 | **4.721** | 4.795 | 4.800 | 4.802 | 4.802 | 4.807 | MULTI |
+| TE | 681 | 4.724 | 4.385 | **4.285** | 4.318 | 4.376 | 4.376 | 4.376 | MULTI |
+Ladder (ΔMAE vs previous retained step, 95 % team-week bootstrap lower bound): tactical G2 −0.07 [−0.13] QB, +0.025 [−0.029] RB, −0.007 [−0.038] WR, −0.09 [−0.145] TE; interactions G3 add −0.001…−0.002 (rejected: no interaction beats the additive model); second-order G4 +0.047 [−0.014] RB, otherwise ≤ 0 (rejected); Tier-B G2b is worse than G2 at every position. VAL-LATE (λ chosen on weeks 3–9, scored on 10–17) agrees.
+
+**Incremental value:** over the control B1p only the Role-lite/context steps help (RB +0.149 [0.043], WR +0.265 [0.198], TE +0.439 [0.336], QB G1 +0.238 [0.052]); over the W2.P1 Role candidate C2 only TE (Role-lite +0.099 [0.047]) and QB (G1 +0.169 [0.041]) — RB and WR lose to C2. Holm-adjusted (4 positions, last retained step): vs B1p all p ≤ 0.007; vs C2 TE 0.002, QB 0.027, RB/WR 1.0. None of this is tactical evidence.
+
+**Cap-hit rates (prereg hard fail > 10 %):** 14–44 % across candidates (QB 19–32 %, RB 21–43 %, WR 14–19 %, TE 34–44 %). Every fitted candidate would FAIL the preregistered cap gate on FINAL; this is the same RB/TE weakness W2.P1 carried. The champion itself is biased (−1.1 to −2.4 points: B0p is conditional-on-active while the population includes DNP zeros), so the |bias| ≤ 0.5 gate is structurally unreachable on this proxy-champion setup; the gates were not changed.
+
+**Mutants / tests:** `lib/w2r1/gameplan.ts` primitives (strictly-earlier window, EB rate, continuity, confidence weight, evidence states, Tier-B carryover, interaction term, proportional teammate redistribution, availability-once, layer inclusion, probabilistic wording) with 14 tests; mutants W42–W55 (target-game leakage, future-game leakage, Tier-B as current truth, continuity ignored, missing evidence as certainty, interaction retained without gain, double injury discount, matchup without usage, direct-backup-only, no-evidence as OK, stale ignored, production import, Tier-B in the primary candidate, certain wording) all killed.
+
+**Layers surviving into the frozen S7 candidate:** none of the tactical layers. Role-lite (TE) and Role-lite + context (QB) beat B1p and C2 on VAL but fail the cap-hit gate as built; they are not game-plan evidence and are carried to S7 only if the cap/bias situation is addressed by a pre-declared, non-tactical design change (exploratory until declared). **Verdicts:** QB `DIAGNOSTIC ONLY` (context), RB `NO RELIABLE INCREMENTAL SIGNAL` (Role C2 stronger), WR `NO RELIABLE INCREMENTAL SIGNAL`, TE `DIAGNOSTIC ONLY` (Role-lite beats C2 but cap fail).

@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -43,6 +43,20 @@ MUT = [
  ("W39", "D/ST: the points-allowed DISTRIBUTION is replaced by its mean (bin scoring evaluated at the mean)", "lib/w2r1/kdst.ts", [("for (let k = 0; k < c.pa_pmf.length; k++) epa += c.pa_pmf[k]! * paScore(k, d);", "let m = 0; for (let k = 0; k < c.pa_pmf.length; k++) m += k * c.pa_pmf[k]!; epa = paScore(Math.round(m), d);")]),
  ("W40", "D/ST: yardage components (sack/return yards) are ignored", "lib/w2r1/kdst.ts", [("c.e_sacks * (d.sacks + d.sack_yd * c.mean_yds.sack_yd)", "c.e_sacks * (d.sacks)")]),
  ("W41", "an unreconstructable scoring key is silently dropped from the report", "lib/w2r1/kdst.ts", [("&& !SUPPORTED_K.test(k) && !SUPPORTED_D.has(k) && !/^pts_allow_/.test(k)", "&& false")]),
+ ("W42", "S5: the TARGET game counts as prior evidence (<= instead of <)", "lib/w2r1/gameplan.ts", [("(g.season === target.season && g.week < target.week)", "(g.season === target.season && g.week <= target.week)")]),
+ ("W43", "S5: later games leak backward into the window", "lib/w2r1/gameplan.ts", [("return games.filter((g) => isStrictlyEarlier(g, target))", "return games.filter(() => true)")]),
+ ("W44", "S5: Tier-B evidence from the TARGET season is accepted as current truth", "lib/w2r1/gameplan.ts", [("if (a.evidenceSeason >= a.targetSeason || a.prior == null) return null;", "if (a.evidenceSeason > a.targetSeason || a.prior == null) return null;")]),
+ ("W45", "S5: coaching continuity is ignored", "lib/w2r1/gameplan.ts", [("return (c.hcSame ? 1 : 0.4) * (c.qbSame === false ? 0.6 : 1);", "return 1;")]),
+ ("W46", "S5: missing evidence is treated as full confidence", "lib/w2r1/gameplan.ts", [("return k >= 4 ? 1 : k >= 2 ? 0.6 : 0;", "return k >= 4 ? 1 : k >= 2 ? 0.6 : 1;")]),
+ ("W47", "S5: a layer / interaction is retained without a bootstrap lower bound or the 0.03 gain", "lib/w2r1/gameplan.ts", [("export const retainLayer = (dMAE: number, lo95: number): boolean => dMAE >= MIN_LAYER_GAIN && lo95 > 0;", "export const retainLayer = (dMAE: number, lo95: number): boolean => dMAE >= 0;")]),
+ ("W48", "S5: availability is discounted twice", "lib/w2r1/gameplan.ts", [("=> injury(b0 + delta);", "=> injury(injury(b0 + delta));")]),
+ ("W49", "S5: an opponent matchup effect applies without player usage relevance", "lib/w2r1/gameplan.ts", [("(playerFingerprint == null || opponentResponse == null ? null : playerFingerprint * opponentResponse)", "(playerFingerprint == null || opponentResponse == null ? null : opponentResponse)")]),
+ ("W50", "S5: teammate absence redistributes only to a direct backup", "lib/w2r1/gameplan.ts", [("for (const t of teammates) out.set(t.id, total > 0 ? absent * (Math.max(0, t.share) / total) : absent / Math.max(1, teammates.length));", "teammates.forEach((t, i) => out.set(t.id, i === 0 ? absent : 0));")]),
+ ("W51", "S5: no-evidence is reported as OK", "lib/w2r1/gameplan.ts", [('if (i.totalGames <= 0) return ["NO_EVIDENCE"];', 'if (i.totalGames <= 0) return ["OK"];')]),
+ ("W52", "S5: stale evidence is never flagged", "lib/w2r1/gameplan.ts", [("if (i.gapDays != null && i.gapDays > STALE_AFTER_DAYS) out.push(\"STALE_EVIDENCE\");", "")]),
+ ("W53", "S5: the game-plan layer is imported by a production module (influences production)", "lib/weekly/waivers.ts", [('import { buildOptimalLineup', 'import "@/lib/w2r1/gameplan";\nimport { buildOptimalLineup')]),
+ ("W54", "S5: Tier-B features enter the primary G2 candidate", "scripts/w2r1/s5_run.ts", [('case "G2": return g2;', 'case "G2": return [...g2, ...TIERB];')]),
+ ("W55", "S5: wording claims certainty about an unpublished game plan", "lib/w2r1/gameplan.ts", [("tendency is ${level}", "will be ${level}")]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),
