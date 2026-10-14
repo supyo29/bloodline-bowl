@@ -10,6 +10,7 @@
  *   - the ledger dedupes on (league, season, provider, provider_transaction_id)
  */
 
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { getProvider } from "@/lib/providers/registry";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
@@ -137,9 +138,9 @@ export async function syncLeagueTransactions(
   });
 
   const provider = getProvider(league.provider, { connectionId: league.provider_connection_id });
-  const crosswalk = defaultCrosswalkSource()
-    ? new PlayerCrosswalk(defaultCrosswalkSource()!)
-    : new PlayerCrosswalk(NoCrosswalk);
+  const crosswalk = await resolveLeagueCrosswalk(league.provider, undefined, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
 
   const result = await provider.getTransactions(
     {

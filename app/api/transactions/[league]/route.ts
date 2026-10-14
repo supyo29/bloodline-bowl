@@ -12,6 +12,7 @@
  * unchanged and still available.
  */
 
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { getProvider } from "@/lib/providers/registry";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
@@ -84,9 +85,9 @@ export async function GET(
   // Each Yahoo league is bound to its own OAuth connection in the registry; using
   // the default connection would read a different account (FORBIDDEN for its league).
   const provider = getProvider(league.provider, { connectionId: league.provider_connection_id });
-  const crosswalk = defaultCrosswalkSource()
-    ? new PlayerCrosswalk(defaultCrosswalkSource()!)
-    : new PlayerCrosswalk(NoCrosswalk);
+  const crosswalk = await resolveLeagueCrosswalk(league.provider, undefined, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
   const live = await provider.getTransactions(
     {
       league_slug: league.league_slug,

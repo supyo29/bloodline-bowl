@@ -4,7 +4,7 @@
 Usage: python3 scripts/yahoo-market-mutation-suite.py [Y1 Y5 ...]"""
 import hashlib, subprocess, sys, json
 TESTS = ["test/yahoo-market-state-build.test.ts", "test/yahoo-market-state-load.test.ts", "test/yahoo-market-state-weekly.test.ts", "test/yahoo-sleeper-bridge.test.ts",
-         "test/yahoo-market-parsers.test.ts", "test/yahoo-readonly-auth.test.ts", "test/yahoo-token-lifecycle.test.ts", "test/yahoo-market-architecture.test.ts", "test/yahoo-players.test.ts", "test/yahoo-fetch.test.ts", "test/market-state-adversarial.test.ts"]
+         "test/yahoo-market-parsers.test.ts", "test/yahoo-readonly-auth.test.ts", "test/yahoo-crosswalk-bridge.test.ts", "test/yahoo-token-lifecycle.test.ts", "test/yahoo-market-architecture.test.ts", "test/yahoo-players.test.ts", "test/yahoo-fetch.test.ts", "test/market-state-adversarial.test.ts"]
 BUILD, LOAD, INT = "lib/market-state/yahoo-build.ts", "lib/market-state/yahoo-load.ts", "lib/market-state/integrity.ts"
 PLY, CLIENT, DISC, PEND = "lib/providers/yahoo/players.ts", "lib/providers/yahoo/client.ts", "lib/providers/yahoo/discovery.ts", "lib/providers/yahoo/pending-claims.ts"
 ADAPT, REPL, W2 = "lib/weekly/market-pool-adapter.ts", "lib/weekly/replacement.ts", "lib/waiver2/market-pool.ts"
@@ -66,6 +66,7 @@ MUT = [
  ("Y47", "the refresh single-flight is shared across connections (maclin and primary interfere)", "lib/providers/yahoo/oauth.ts", [("`${config.client_id}:${connId}:${token.yahoo_guid ?? \"no-guid\"}`", "`${config.client_id}:${token.yahoo_guid ?? \"no-guid\"}`")]),
  ("Y48", "pool paging goes back to the unstable sort=OR (live: skipped + duplicated players)", "lib/providers/yahoo/players.ts", [('parts.push("sort=NAME");', 'parts.push("sort=OR");')]),
  ("Y49", "a duplicate across pages no longer marks the pool incomplete (skipped rows go unnoticed)", "lib/providers/yahoo/players.ts", [("if (duplicates_dropped > 0) { complete = false;", "if (false as boolean) { complete = false;")]),
+ ("Y50", "a Yahoo league default crosswalk is not bridged (roster identities stay provider-scoped: the live roster-projection defect returns)", "lib/canonical/yahoo-bridge-source.ts", [('if (provider === "yahoo") cw.useYahooSleeperBridge(await yahooBridgeLoader.load());', "")]),
  ("Y27", "a rejected token / auth failure on the pool is swallowed as an empty pool that looks complete", LOAD, [('    if (r.status !== "fulfilled") { poolErrs.push(', '    if (r.status !== "fulfilled") { sub[code] = { returned: 0, complete: true, pages_fetched: 0, stopped_reason: "end_of_pool" }; poolErrs.push(')]),
 ]
 EQUIVALENT = {"Y36": "the provider pre-check duplicates the client guard: with the pre-check removed the client throws the same AUTH_REFRESH_REQUIRED_READ_ONLY (mapped to the same degraded code) before any network request, so no observable behavior differs (defense in depth; the client guard is killed by Y32)"}

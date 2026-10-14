@@ -32,7 +32,7 @@ describe("resolveLeagueCrosswalk", () => {
 });
 
 describe("every league-state caller that builds its own crosswalk goes through the bridge-aware resolver", () => {
-  for (const f of ["lib/weekly/context.ts", "lib/trades/context.ts", "lib/roster-health/inputs.ts"]) {
+  for (const f of ["lib/weekly/context.ts", "lib/trades/context.ts", "lib/roster-health/inputs.ts", "lib/persistence/capture.ts", "app/api/transactions/[league]/route.ts", "app/api/yahoo/leagues/[leagueId]/provider-availability/route.ts"]) {
     it(`${f} uses resolveLeagueCrosswalk and no longer builds a bare default crosswalk`, () => {
       const src = readFileSync(f, "utf8");
       assert.match(src, /resolveLeagueCrosswalk\(/);

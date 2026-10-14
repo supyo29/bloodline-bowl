@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/yahoo-crosswalk-bridge.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -35,7 +35,6 @@ MUT = [
  ("W30", "the shadow routes are served from production", G, [('return env.VERCEL_ENV !== "production" || env.W2R1_SHADOW_ENABLED === "1";', "return true;")]),
  ("W31", "an unfinished layer is advertised as qualified", L, [('S4_k_dst_component_model: "NOT YET QUALIFIED",', 'S4_k_dst_component_model: "QUALIFIED",')]),
  ("W32", "the production-influence statement is dropped from responses", L, [("production_influence: PRODUCTION_STATEMENT,", "")]),
- ("W33", "a Yahoo league default crosswalk is not bridged (live roster-identity defect returns)", "lib/canonical/yahoo-bridge-source.ts", [('if (provider === "yahoo") cw.useYahooSleeperBridge(await yahooBridgeLoader.load());', "")]),
  ("W34", "an acquisition may enter a full active roster (no open spot)", R, [("const adds = wanted.slice(0, room);", "const adds = wanted;")]),
  ("W35", "an IR-slot player with unknown designation is assumed activatable now", A, [('returns = status === "IR" && out > 0 ? week + out : null;', 'returns = status === "IR" ? week + out : null;')]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
