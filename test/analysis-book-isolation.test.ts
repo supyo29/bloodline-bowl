@@ -6,10 +6,11 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { loadPlayerDirectory } from "@/lib/analysis-book/directory";
 import { loadCapabilitySnapshot } from "@/lib/analysis-book/capability";
+import { FROZEN_CAPABILITY_ROOT, makeCapabilityRoot } from "./helpers/frozen-capability-root";
 import { createBook } from "@/lib/analysis-book/contents";
 import { buildResearchPlan } from "@/lib/analysis-book/plan";
 import { TOPICS } from "@/lib/book-ready/query";
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? (f === "node_modules" || f === ".next" ? [] : walk(p)) : /\.(ts|tsx)$/.test(f) ? [p] : []; });
@@ -30,15 +31,15 @@ test("the Analysis Book imports no start-sit-fi / matchup / waiver MODULE (topic
 });
 test("frozen Start/Sit model is byte-identical; building books and plans does not touch it or any production surface", () => {
   assert.equal(createHash("sha256").update(readFileSync("lib/weekly/data/start_sit_model.json")).digest("hex"), "85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293");
-  const r = createBook({ question: "Analyze Rome Odunze this week" }, loadPlayerDirectory(), loadCapabilitySnapshot(), NOW); assert.ok(r.ok);
-  const before = JSON.stringify(r.session); buildResearchPlan(r.session, ["player.role.playing_time"], loadCapabilitySnapshot()); assert.equal(JSON.stringify(r.session), before, "planning does not mutate the session");
+  const r = createBook({ question: "Analyze Rome Odunze this week" }, loadPlayerDirectory(), loadCapabilitySnapshot(FROZEN_CAPABILITY_ROOT), NOW); assert.ok(r.ok);
+  const before = JSON.stringify(r.session); buildResearchPlan(r.session, ["player.role.playing_time"], loadCapabilitySnapshot(FROZEN_CAPABILITY_ROOT)); assert.equal(JSON.stringify(r.session), before, "planning does not mutate the session");
 });
 test("no new HTTP route: the Analysis Book is a library foundation (no mutation endpoint exists)", () => {
   const routes = walk("app").filter((f) => /analysis-book|analysis_book/.test(f)); assert.deepEqual(routes, []);
 });
 
 test("REGISTRY-CONSTRAINED: the planner infers capability from the surface registry — changing the registry changes researchability", () => {
-  const root = mkdtempSync(join(tmpdir(), "abreg-")); for (const d of ["docs", "lib", "data"]) cpSync(d, join(root, d), { recursive: true });
+  const root = makeCapabilityRoot();
   const dir = loadPlayerDirectory();
   const base = loadCapabilitySnapshot(root); const b0 = createBook({ question: "Analyze Rome Odunze this week" }, dir, base, NOW); assert.ok(b0.ok);
   assert.equal(b0.session.contents.find((c) => c.chapter_id === "player.role.playing_time")!.researchability.state, "HISTORY_LIMITED");
@@ -56,7 +57,7 @@ test("REGISTRY-CONSTRAINED: the planner infers capability from the surface regis
   writeFileSync(p, JSON.stringify(reg));
   const b3 = createBook({ question: "Rome or Deebo?", league: "bloodline-bowl", manager: "supyo29" }, dir, loadCapabilitySnapshot(root), NOW); assert.ok(b3.ok);
   assert.equal(b3.session.contents.find((c) => c.chapter_id === "startsit.historical_accuracy")!.researchability.state, "CURRENT_ONLY", "topic capability flags guard against registry overstatement");
-  const real = createBook({ question: "Rome or Deebo?", league: "bloodline-bowl", manager: "supyo29" }, dir, loadCapabilitySnapshot(), NOW); assert.ok(real.ok);
+  const real = createBook({ question: "Rome or Deebo?", league: "bloodline-bowl", manager: "supyo29" }, dir, loadCapabilitySnapshot(FROZEN_CAPABILITY_ROOT), NOW); assert.ok(real.ok);
   assert.equal(real.session.contents.find((c) => c.chapter_id === "startsit.historical_accuracy")!.researchability.state, "CURRENT_ONLY");
   assert.throws(() => loadCapabilitySnapshot(mkdtempSync(join(tmpdir(), "abnoreg-"))), /registry missing/);
 });

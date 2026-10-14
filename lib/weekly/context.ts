@@ -22,7 +22,8 @@ import {
 } from "@/lib/canonical/capabilities";
 import { loadMarketSnapshot, type LoadMarketOptions, type MarketFetchers } from "@/lib/market-state/load";
 import type { MarketSnapshot } from "@/lib/market-state/contract";
-import { certifyFreeAgentPool } from "./market-pool-adapter";
+import { certifyFreeAgentPool, scoringCompatibility } from "./market-pool-adapter";
+import { managerAcquisitionContext } from "@/lib/market-state/pool";
 import { snapshotLineage } from "@/lib/canonical/snapshot-lineage";
 import { buildRecommendationLineage, type ProjectionLineageEntry } from "@/lib/canonical/lineage";
 import { resolveManager } from "@/lib/canonical/manager-context";
@@ -539,6 +540,7 @@ export async function buildWeeklyTeamContext(
   const capabilityReport = assessCapabilities(snap);
   const ownershipCapability = capabilityReport.capabilities.ownership;
 
+  let marketPoolSummary: import("./schema").MarketPoolSummary | undefined;
   let free_agent_pool_readiness: FreeAgentPoolReadiness = assessFreeAgentPoolReadiness(snap);
   let market_readiness: WeeklyReadinessContract["market"] = {
     status: free_agent_pool_readiness.actionable ? "READY" : "NOT_READY",
@@ -566,9 +568,11 @@ export async function buildWeeklyTeamContext(
         reasons: certified.market_readiness.reasons.map((r) => `${r.code}: ${r.detail}`),
         blocking_reasons: [...certified.market_readiness.blocks],
         limitations: [...certified.market_readiness.limitations],
+        ...(certified.summary ? { axes: certified.summary.axes } : certified.market_readiness.axes ? { axes: certified.market_readiness.axes } : {}),
       };
       if (certified.free_agent_pool_readiness.actionable) {
-        availability = { ...availability, free_agents: certified.free_agents };
+        availability = { ...availability, free_agents: certified.free_agents, ...(certified.players ? { players: certified.players } : {}) };
+        if (certified.summary) marketPoolSummary = { ...certified.summary, manager: managerAcquisitionContext(market, team.canonical_team_id), scoring: scoringCompatibility(snap.league.scoring_fingerprint ?? null, projections.warnings.map((w) => w.code)) };
       }
     } catch (e) {
       // Fail closed exactly as the pre-Phase-4.5 legacy gate did: a Market
@@ -747,6 +751,7 @@ export async function buildWeeklyTeamContext(
     projections,
     forecasts,
     final_pregame_capture: finalPregameCapture,
+    ...(marketPoolSummary ? { market_pool: marketPoolSummary } : {}),
     replacement,
     availability,
     // Authoritative capability gate for every downstream waiver / pickup surface.

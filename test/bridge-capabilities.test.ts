@@ -60,7 +60,8 @@ function baseSnapshot(opts: {
     waiver_priority: rid,
     provenance: { provider: "sleeper" as const, provider_id: "x", provider_synced_at: null },
   }));
-  const rosterIds = opts.rosterPlayerIds ?? [];
+  /* in-season with no rostered players is rejected by the production gate (d8fa055); a realistic default rosters one resolved player that is unrelated to the ghost under test */
+  const rosterIds = opts.rosterPlayerIds ?? ["player:sleeper:7001"];
   return {
     schema_version: CANONICAL_SCHEMA_VERSION,
     captured_at: new Date().toISOString(),
@@ -136,7 +137,7 @@ describe("assessCapabilities: unresolved-identity materiality", () => {
   it("unresolved id NOT on any surface -> benign, integrity CERTIFIED, player_identity DEGRADED", () => {
     const ghost = player("player:sleeper:99999", true);
     const r = assessCapabilities(
-      baseSnapshot({ players: [ghost], rosterPlayerIds: [] }),
+      baseSnapshot({ players: [ghost], rosterPlayerIds: ["player:sleeper:7001"] }),
     );
     assert.equal(r.snapshot_integrity, "CERTIFIED");
     assert.equal(r.material_unresolved.length, 0);

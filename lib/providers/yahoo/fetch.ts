@@ -92,7 +92,21 @@ export interface YahooLeagueSettingsRaw {
   num_playoff_teams: number | null;
   waiver_type: string | null;
   uses_faab: boolean;
+  /**
+   * Every scalar setting whose name concerns acquisitions (waiver / faab / adds / trade deadline / lock / transaction), preserved VERBATIM.
+   * Yahoo's exact key vocabulary is not guessed: unknown keys are kept as stated so a consumer (and a human) can see what Yahoo actually says.
+   */
+  acquisition_raw: Record<string, string | number | boolean | null>;
+  waiver_rule: string | null;
+  /** days, only when Yahoo states `waiver_time` as a number */
+  waiver_time_days: number | null;
+  max_adds_season: number | null;
+  max_adds_weekly: number | null;
+  /** true only when Yahoo states uses_faab explicitly (false = stated no; null = not stated) */
+  uses_faab_stated: boolean | null;
 }
+
+const ACQUISITION_KEY = /waiver|faab|add|trade_end|trade_reject|lock|deadline|transaction|acquisition/i;
 
 /** `GET /league/{key}/settings` -> roster slots + scoring configuration. */
 export async function fetchYahooLeagueSettings(
@@ -131,6 +145,12 @@ export async function fetchYahooLeagueSettings(
     return { stat_id: asString(s.stat_id) ?? "", value: asNumber(s.value) ?? 0 };
   }).filter((s) => s.stat_id !== "");
 
+  const acquisition_raw: Record<string, string | number | boolean | null> = {};
+  for (const [k, v] of Object.entries(settings)) {
+    if (!ACQUISITION_KEY.test(k) || /playoff|stat_|roster_pos|draft/i.test(k)) continue;
+    if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") acquisition_raw[k] = v as string | number | boolean | null;
+  }
+  const waiverTime = asNumber(settings.waiver_time);
   return {
     roster_positions,
     stat_categories,
@@ -139,6 +159,12 @@ export async function fetchYahooLeagueSettings(
     num_playoff_teams: asNumber(settings.num_playoff_teams),
     waiver_type: asString(settings.waiver_type),
     uses_faab: asBool(settings.uses_faab),
+    acquisition_raw,
+    waiver_rule: asString(settings.waiver_rule),
+    waiver_time_days: waiverTime != null && waiverTime >= 0 ? waiverTime : null,
+    max_adds_season: asNumber(settings.max_adds),
+    max_adds_weekly: asNumber(settings.max_weekly_adds),
+    uses_faab_stated: settings.uses_faab === undefined || settings.uses_faab === null ? null : asBool(settings.uses_faab),
   };
 }
 
@@ -347,7 +373,7 @@ export async function fetchYahooTransactions(
   return { transactions: all, truncated };
 }
 
-function parseYahooTransaction(entry: unknown): YahooFlatTransaction | null {
+export function parseYahooTransaction(entry: unknown): YahooFlatTransaction | null {
   const t = mergeYahooEntity(unwrap(entry, "transaction"));
   const transaction_key = asString(t.transaction_key);
   const transaction_id = asString(t.transaction_id);

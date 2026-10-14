@@ -1,0 +1,17 @@
+{
+  "reconciliation": "psi-tierC-reconciliation-2026.1",
+  "season": 2025,
+  "week": 18,
+  "offense_32_teams": true,
+  "defense_32_teams": true,
+  "def_man_zone_sums_to_1_max_err": 0,
+  "off_lmr_sums_to_1_max_err": 1.1102e-16,
+  "off_depth_sums_to_1_max_err": 1.1102e-16,
+  "qb_vectors_shipped": true,
+  "def_vectors_shipped": true,
+  "labels_only_if_stable": true,
+  "coordinator_not_guessed": true,
+  "fi_untouched": true,
+  "served_content_sha256": "39d7b6d7de7d356b16bdd5c39cdb045c91bb7262552978053c34ff4d9d765743",
+  "all_pass": true
+}

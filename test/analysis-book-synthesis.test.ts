@@ -1,15 +1,18 @@
 /** Phase 3.5D Checkpoint E — synthesis honesty, model/analyst separation, mixed-vintage, cross-chapter findings. Uses REAL Book-Ready evidence. */
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { loadPlayerDirectory } from "@/lib/analysis-book/directory";
 import { loadCapabilitySnapshot, type CapabilitySnapshot } from "@/lib/analysis-book/capability";
+import { FROZEN_CAPABILITY_ROOT } from "./helpers/frozen-capability-root";
 import { createBook } from "@/lib/analysis-book/contents";
 import { researchChapters } from "@/lib/analysis-book/research";
 import { addFinding, synthesize, synthesisIsCurrent, renderSynthesisText, vintageStatement, rangesOf } from "@/lib/analysis-book/synthesis";
 import { recordSupport, recordChapterResearch } from "@/lib/analysis-book/session";
 import type { AnalysisBookSession, EvidenceRef } from "@/lib/analysis-book/schema";
 
-const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(); const NOW = "2026-09-20T12:00:00.000Z";
+const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(FROZEN_CAPABILITY_ROOT); const snapLive = loadCapabilitySnapshot(); /* frozen = pure planning/vintage logic; live = tests that RESEARCH against the live evidence modules */
+const liveFi = (JSON.parse(readFileSync("lib/football-intel/data/football_intelligence_manifest.json", "utf8")) as { week_completion: { latest_week: number; week_state: string } }).week_completion; const NOW = "2026-09-20T12:00:00.000Z";
 const make = (): AnalysisBookSession => { const r = createBook({ question: "Analyze Rome Odunze this week" }, dir, snap, NOW); assert.ok(r.ok); return r.session; };
 const chi = dir.players.find((p) => p.team === "CHI" && p.position === "WR" && p.name !== "Rome Odunze")!;
 const refsOf = (s: AnalysisBookSession, ch: string): EvidenceRef[] => s.chapters[ch]!.revisions.flatMap((r) => r.evidence_refs);
@@ -67,7 +70,7 @@ test("MIXED VINTAGE: FI week 2 (partial), Role week 1, Player-Scheme 2025 and OP
   const r = addFinding(s, { kind: "ANALYST_SYNTHESIS", text: "Opportunity looks stable while the opposing defense is mid-tier", chapters: all.map((a) => a[0]), evidence_ids: all.map((a) => a[1]) }, snap);
   assert.ok(r.ok, r.ok ? "" : r.errors.join()); const f = r.ok ? r.finding : null!;
   assert.equal(f.mixed_vintage, true); assert.equal(f.claim_strength, "TENTATIVE"); assert.equal(f.cross_chapter, true);
-  const st = new Map(f.temporal_context.map((i) => [i.surface, i])); assert.equal(st.get("football-intelligence")!.through_week, 2); assert.equal(st.get("football-intelligence")!.week_state, "PARTIAL"); assert.equal(st.get("role-opportunity")!.through_week, 1); assert.equal(st.get("player-scheme")!.season, 2025); assert.equal(st.get("opportunity-propagation")!.through_week, 1);
+  const st = new Map(f.temporal_context.map((i) => [i.surface, i])); assert.equal(st.get("football-intelligence")!.through_week, liveFi.latest_week); assert.equal(st.get("football-intelligence")!.week_state, liveFi.week_state); /* FI moves weekly (bot refresh): expectation comes from the live manifest; Role / OPP / Player-Scheme vintages below are fixed by their (non-refreshed) manifests */ assert.equal(st.get("role-opportunity")!.through_week, 1); assert.equal(st.get("player-scheme")!.season, 2025); assert.equal(st.get("opportunity-propagation")!.through_week, 1);
   assert.match(f.vintage_statement, /MIXED VINTAGE/); assert.doesNotMatch(f.vintage_statement, /\bcurrent\b/i); assert.match(f.strength_reasons.join(), /different vintages/);
   for (const bad of ["This is the current week 2 intelligence: Odunze's role is stable", "Based on current data the role is stable", "Using this week's evidence the role is stable"]) { const x = addFinding(s, { kind: "ANALYST_SYNTHESIS", text: bad, chapters: all.map((a) => a[0]), evidence_ids: all.map((a) => a[1]) }, snap); assert.equal(x.ok, false, bad); assert.match(x.ok ? "" : x.errors.join(), /must not be described as current/); }
   // a single-vintage claim is allowed to say what it is
@@ -79,9 +82,9 @@ test("MIXED VINTAGE: FI week 2 (partial), Role week 1, Player-Scheme 2025 and OP
 });
 
 test("Synthesis coverage: skipped, unresearchable, support-only and partial chapters stay visible; Contents ≠ research", async () => {
-  const s0 = make(); const none = synthesize(s0, snap, { final: true, now: NOW }); assert.equal(none.report.synthesis_permitted, false); assert.equal(none.report.coverage.researched, 0); assert.match(none.report.notes.join(), /nothing has been researched/);
-  const out = await researchChapters(s0, ["player.role.playing_time", "player.role.route_participation", "player.role.target_opportunity"], { snap, now: NOW }); const s = out.session;
-  const { report } = synthesize(s, snap, { final: true, now: NOW });
+  const s0 = (() => { const r = createBook({ question: "Analyze Rome Odunze this week" }, dir, snapLive, NOW); assert.ok(r.ok); return r.session; })(); const none = synthesize(s0, snapLive, { final: true, now: NOW }); assert.equal(none.report.synthesis_permitted, false); assert.equal(none.report.coverage.researched, 0); assert.match(none.report.notes.join(), /nothing has been researched/);
+  const out = await researchChapters(s0, ["player.role.playing_time", "player.role.route_participation", "player.role.target_opportunity"], { snap: snapLive, now: NOW }); const s = out.session;
+  const { report } = synthesize(s, snapLive, { final: true, now: NOW });
   assert.equal(report.researched.length, 3); assert.equal(report.ranges.researched, "2-4"); assert.equal(report.coverage.total, s.contents.filter((c) => c.kind === "EVIDENCE").length);
   assert.ok(report.not_researched.length > 5); assert.ok(report.not_researchable.some((r) => r.chapter_id === "decision.projection_range"), "unavailable evidence is not described as researched");
   assert.ok(!report.researched.some((r) => r.chapter_id === "decision.projection_range"));
@@ -89,7 +92,7 @@ test("Synthesis coverage: skipped, unresearchable, support-only and partial chap
   const text = renderSynthesisText(report); assert.match(text, /Researched: 2-4/); assert.match(text, /Not researched: /); assert.match(text, /Cannot be researched with current evidence: /);
   assert.ok(report.unresolved_questions.length >= report.not_researched.length + report.not_researchable.length);
   // a chapter that was only USED AS SUPPORT is reported as never explored
-  const sup = await researchChapters(s0, ["decision.risk_uncertainty"], { snap, now: NOW }); const rs = synthesize(sup.session, snap, { final: false, now: NOW }).report;
+  const sup = await researchChapters(s0, ["decision.risk_uncertainty"], { snap: snapLive, now: NOW }); const rs = synthesize(sup.session, snapLive, { final: false, now: NOW }).report;
   assert.equal(rs.researched.length, 1); assert.ok(rs.support_only.some((r) => r.chapter_id === "player.role.playing_time")); assert.ok(!rs.researched.some((r) => r.chapter_id === "player.role.playing_time"));
   assert.equal(rangesOf([1, 2, 3, 5, 9, 10]), "1-3, 5, 9-10"); assert.equal(rangesOf([]), "none");
 });

@@ -73,6 +73,8 @@ export async function GET(
       ros_status: view.data.readiness.rest_of_season.status,
       recommendation_status: view.data.readiness.waiver_recommendations.status,
       readiness: view.data.readiness,
+      // provider-evidence markets (Yahoo): structured pool evidence + the separate readiness axes at the top level, so clients never parse prose
+      ...(view.data.market_pool ? { market_pool: view.data.market_pool, readiness_axes: view.data.market_pool.axes } : {}),
       context: meta,
       data: view.data,
     },

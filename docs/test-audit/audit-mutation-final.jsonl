@@ -1,0 +1,12 @@
+{"baseline_failing": 0, "names": []}
+{"id": "A1", "mutation": "role forecasts accept same-week outcomes (point-in-time leak) \u2014 the injected-poison tests must catch it", "status": "KILLED", "newly_failing": 5, "killed_by": ["1 - ADVE
+{"id": "A2", "mutation": "the projection-feed cache reset is a no-op \u2014 the repaired scoring tests depend on it", "status": "KILLED", "newly_failing": 27, "killed_by": ["1 - TE without a provider 
+{"id": "A3", "mutation": "the empty in-season roster gate is removed \u2014 the production-regression coverage that replaced the old fixtures must still catch it", "status": "KILLED", "newly_failing":
+{"id": "A4", "mutation": "the planner stops reporting SOURCE_LAG (a lagging surface looks current)", "status": "KILLED", "newly_failing": 1, "killed_by": ["16 - lag_weeks > 0 makes a lagging surface S
+{"id": "A9", "mutation": "the planner's lag condition is inverted (lag > 0 no longer lags; negative lag does)", "status": "KILLED", "newly_failing": 1, "killed_by": ["16 - lag_weeks > 0 makes a laggin
+{"id": "A5", "mutation": "a certification report no longer matches the committed served data (hash drift)", "status": "KILLED", "newly_failing": 2, "killed_by": ["85 - the tracked report bytes match t
+{"id": "A6", "mutation": "pre-draft: the bundle counts a phantom acquired player for every team", "status": "KILLED", "newly_failing": 3, "killed_by": ["2 - gives every team an empty roster (and a ful
+{"id": "A7", "mutation": "Sleeper-native URLs are advertised for a Yahoo league again", "status": "KILLED", "newly_failing": 2, "killed_by": ["1 - GET /api/leagues -> discovery lists the registered le
+{"id": "A10", "mutation": "publication-audit latest() loses its tie-break (returns the oldest of tied attempts)", "status": "KILLED", "newly_failing": 2, "killed_by": ["1 - same-millisecond attempts: 
+{"id": "A8", "mutation": "the Yahoo transactions route fabricates an empty success instead of refusing", "status": "KILLED", "newly_failing": 3, "killed_by": ["2 - maclin (Yahoo), OAuth NOT configured
+{"restored_byte_for_byte": true, "killed": 10, "total": 10, "not_killed": []}

@@ -237,6 +237,60 @@ export interface AvailablePlayer {
   owned_by_team_id: string | null;
   /** Present only when identity could NOT be resolved to a stable id. */
   unresolved_note: string | null;
+  /**
+   * Present only for a player certified by PROVIDER evidence (Yahoo FA / W): how he can be acquired. `FREE_AGENT_ADD` = addable now,
+   * `WAIVER_CLAIM` = claim-only. Absent on Sleeper, whose availability is inferred.
+   */
+  acquisition?: { method: "FREE_AGENT_ADD" | "WAIVER_CLAIM"; provider_status: string; waiver_clears_on: string | null };
+}
+
+/**
+ * Readiness AXES, structurally identical to the Market State substrate's (kept local so the weekly schema never imports the substrate: only the one
+ * adapter does — see the production-isolation test).
+ */
+export type WeeklyAxisStatus = "READY" | "PARTIAL" | "NOT_READY" | "UNKNOWN";
+export interface WeeklyReadinessAxes { availability: WeeklyAxisStatus; valuation: WeeklyAxisStatus; transaction: WeeklyAxisStatus; recommendation: WeeklyAxisStatus }
+export interface WeeklyManagerAcquisition {
+  team_id: string; system: string; faab_remaining: number | null; waiver_priority: number | null; roster_size: number; roster_limit: number | null;
+  open_roster_slots: number | null; requires_drop: boolean | null; waiver_clear_days: number | null; status: string;
+}
+
+/** Structured evidence of the verified acquirable pool, exposed on the context and every waiver response (clients never parse prose). */
+export interface MarketPoolSummary {
+  provider: string;
+  /** PROVIDER_STATUS = the provider states each player's availability (Yahoo); INFERRED = derived from rosters + transactions (Sleeper). */
+  basis: "PROVIDER_STATUS" | "INFERRED";
+  market_content_id: string;
+  pool_id: string;
+  observed_at: string | null;
+  age_ms: number | null;
+  freshness: "FRESH" | "STALE" | "UNKNOWN";
+  verified_free_agents: number;
+  verified_waivers: number;
+  unknown_availability: number;
+  rostered: number;
+  /** verified acquirable players that have a weekly projection and are evaluated by the waiver engine */
+  evaluated_with_projection: number;
+  /** verified acquirable players with a resolved identity but NO projection: still in the pool, valuation unknown (never dropped as unavailable) */
+  verified_without_projection: number;
+  /** verified acquirable players with no canonical identity: availability verified, cannot be valued until identity resolves */
+  verified_identity_unresolved: number;
+  by_position: Record<string, { free_agents: number; waivers: number; with_projection: number }>;
+  axes: WeeklyReadinessAxes;
+  rules: { system: string; waiver_type: string | null; waiver_rule: string | null; waiver_time_days: number | null; add_limits: { season: number | null; weekly: number | null } | null };
+  pending_claims: { status: string; reason: string };
+  game_lock_semantics: string | null;
+  pool_evidence: Record<string, { returned: number; complete: boolean; pages_fetched: number; stopped_reason: string }> | null;
+  limitations: string[];
+  /** names of up to 25 verified acquirable players with NO weekly projection (still in the pool; valuation unknown) */
+  verified_without_projection_sample?: string[];
+  /**
+   * Scoring compatibility for the valuation of this pool: the league's exact scoring fingerprint, and an honest statement of how K / D-ST WEEKLY points are
+   * produced (the provider feed's standard precomputed points, NOT re-scored with the league's rules). Availability is unaffected by this limitation.
+   */
+  scoring?: { fingerprint: string | null; k_dst_weekly_projection: "APPROXIMATED_FROM_PROVIDER_STANDARD_POINTS" | "NOT_FLAGGED"; note: string };
+  /** This manager's acquisition context from the market (FAAB remaining / waiver priority / roster room); null when the team is not in the market's roster read. */
+  manager?: WeeklyManagerAcquisition | null;
 }
 
 export interface LeagueAvailability {
@@ -332,6 +386,8 @@ export interface WeeklyReadinessContract {
     reasons: string[];
     blocking_reasons: string[];
     limitations: string[];
+    /** Separate readiness axes (provider-evidence markets): availability / valuation / transaction / recommendation. */
+    axes?: WeeklyReadinessAxes;
   };
   weekly_projections: {
     status: "READY" | "PARTIAL" | "UNAVAILABLE";
@@ -416,6 +472,8 @@ export interface WeeklyTeamContext {
   };
   replacement: WeeklyReplacement;
   availability: LeagueAvailability;
+  /** Structured evidence of the certified acquirable pool (present when Market State enrichment ran and the pool was actionable). */
+  market_pool?: MarketPoolSummary;
 
   /**
    * Authoritative readiness of the league free-agent / waiver pool, derived from

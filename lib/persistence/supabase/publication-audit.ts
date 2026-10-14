@@ -14,6 +14,11 @@ import type {
 import { SupabaseRest } from "./rest";
 
 const TABLE = "bridge_publication_audit";
+/**
+ * Newest attempt first. `attempted_at` is written from a millisecond ISO string, so two attempts can tie; `finished_at` (a later attempt finishes no earlier) is the tie-break that needs NO schema
+ * change, and `id` makes the order total. (A sequence column would be the complete fix; adding one is a production migration and is deliberately not done here.)
+ */
+export const AUDIT_ORDER = "attempted_at.desc,finished_at.desc.nullslast,id.desc";
 
 type Row = PublicationAudit & { id: string };
 
@@ -74,7 +79,7 @@ export class SupabasePublicationAuditStore implements PublicationAuditStore {
   async latest(league_slug: string, season: number): Promise<PublicationAudit | null> {
     const rows = await this.rest.select<Row>(TABLE, {
       filter: { league_slug: `eq.${league_slug}`, season: `eq.${season}` },
-      order: "attempted_at.desc",
+      order: AUDIT_ORDER,
       limit: 1,
     });
     return rows[0] ? fromRow(rows[0]) : null;
@@ -83,7 +88,7 @@ export class SupabasePublicationAuditStore implements PublicationAuditStore {
   async recent(league_slug: string, season: number, limit = 20): Promise<PublicationAudit[]> {
     const rows = await this.rest.select<Row>(TABLE, {
       filter: { league_slug: `eq.${league_slug}`, season: `eq.${season}` },
-      order: "attempted_at.desc",
+      order: AUDIT_ORDER,
       limit,
     });
     return rows.map(fromRow);

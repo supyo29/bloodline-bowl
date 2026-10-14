@@ -1,0 +1,18 @@
+{
+  "audit": "psi-tierC-archetype-stability-2026.1",
+  "qb": {
+    "k": 4,
+    "mean_ari": 0.4347,
+    "note": "UNSTABLE — labels withheld, numeric vector only (spec §22)",
+    "labels_emitted": false,
+    "n": 198
+  },
+  "defense": {
+    "k": 4,
+    "mean_ari": 0.5028,
+    "note": "UNSTABLE — labels withheld, numeric vector only (spec §22)",
+    "labels_emitted": false,
+    "n": 32
+  },
+  "policy": "Numeric vectors always ship. Cluster labels emitted only if mean bootstrap ARI >= 0.55 (spec §22)."
+}

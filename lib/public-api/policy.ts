@@ -53,6 +53,8 @@ export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/intelligence/:league/:manager/week/:week", access: "public-read", cost: "standard" },
   { template: "/api/league", access: "public-read", cost: "standard" },
   { template: "/api/league/:league/state", access: "public-read", cost: "standard" },
+  // Market State: for a Yahoo league one uncached read fans out to ~50 Yahoo requests (paginated FA / W / T pools + every roster), so it gets the tighter limit.
+  { template: "/api/league/:league/market", access: "public-read", cost: "expensive" },
   { template: "/api/leagues", access: "public-read", cost: "standard" },
   { template: "/api/leagues/:leagueSlug", access: "public-read", cost: "standard" },
   { template: "/api/leagues/:leagueSlug/draft", access: "public-read", cost: "standard" },
@@ -113,6 +115,7 @@ export const PUBLIC_API_POLICY: readonly PolicyEntry[] = [
   { template: "/api/weekly-stats", access: "public-read", cost: "standard" },
   { template: "/api/yahoo/auth/start", access: "self-guarded", cost: "standard" },
   { template: "/api/yahoo/diagnostics", access: "self-guarded", cost: "standard" },
+  { template: "/api/yahoo/health", access: "public-read", cost: "standard" },
   { template: "/api/yahoo/leagues", access: "admin", cost: "standard" },
   { template: "/api/yahoo/leagues/:leagueId", access: "public-read", cost: "expensive" },
   { template: "/api/yahoo/leagues/:leagueId/players/available", access: "public-read", cost: "expensive" },

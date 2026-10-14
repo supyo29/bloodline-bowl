@@ -32,6 +32,7 @@ import type { FantasyProvider, ProviderLeagueContext } from "@/lib/providers/typ
 import { resolveLeagueStrict, type ResolvedLeague } from "@/lib/leagues/resolve";
 import { getPersistence } from "@/lib/persistence";
 import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-source";
+import { loadYahooSleeperBridge } from "./yahoo-bridge-source";
 
 export interface CanonicalStateResult {
   ok: boolean;
@@ -106,6 +107,9 @@ async function buildCanonicalLeagueStateUncached(
   const crosswalk =
     options.crosswalkOverride ??
     (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
+
+  // Yahoo carries no cross-provider id: bridge to the Sleeper identity (unique name+position+team only) so Yahoo players join the Sleeper-keyed projections.
+  if (league.provider === "yahoo" && !options.crosswalkOverride) crosswalk.useYahooSleeperBridge(await loadYahooSleeperBridge());
 
   const ctx: ProviderLeagueContext = {
     league_slug: league.league_slug,

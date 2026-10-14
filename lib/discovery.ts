@@ -377,6 +377,16 @@ export const CAPABILITIES: Capability[] = [
     temporality: "historical",
   },
   {
+    id: "league_market_state",
+    title: "League market state (who is actually acquirable)",
+    description:
+      "READ-ONLY, provider-independent Market State: the verified free-agent / waiver pool with the evidence behind every answer. Yahoo availability is stated per player by Yahoo (FA = addable now, W = claim-only with a clear DATE); Sleeper availability is inferred from rosters + the transaction feed. UNKNOWN is never reduced to available. Readiness is reported as separate AXES (availability / valuation / transaction / recommendation) so a verified pool is usable while exact claim timing is only PARTIAL. ?view=summary (default) returns readiness, counts, acquisition rules, FAAB/priority per team, pending-claim visibility, game-lock semantics, pool pagination evidence and freshness; ?view=pool adds the verified players (filter with position=QB|RB|WR|TE|K|DEF and status=FA|W|UNKNOWN). Advisory only: Bloodline never adds, drops, claims or trades.",
+    scope: "league",
+    route_template: "/api/league/{league}/market?week={week}&view={summary|pool}",
+    canonical: true,
+    temporality: "live",
+  },
+  {
     id: "league_roster_health",
     title: "Roster health (league)",
     description:

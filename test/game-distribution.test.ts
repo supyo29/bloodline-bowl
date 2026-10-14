@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { loadObservedRoleGames, loadRoleProfilesAsOf } from "@/lib/role-calibration/data";
+import { type ObservedRow, loadObservedRoleGames, loadRoleProfilesAsOf } from "@/lib/role-calibration/data";
 import { buildWeekForecasts } from "@/lib/role-calibration/forecast-week";
 import type { RoleForecast } from "@/lib/role-calibration/types";
 import type { NflGame } from "@/lib/calibration/types";
@@ -35,26 +35,34 @@ import type { SupabaseRest } from "@/lib/persistence/supabase/rest";
 import type { RoleAnalysisRow } from "@/lib/role-calibration/analysis";
 
 const KICK = "2026-09-27T17:00:00.000Z";
-const mkGame = (id: string, home: string, away: string, over: Partial<NflGame> = {}): NflGame => ({ nfl_game_id: id, season: 2026, week: 3, home_team: home, away_team: away, kickoff_at: KICK, kickoff_source: "test", status: "complete", provenance: {}, ...over });
+/* The committed role inputs MOVE (the weekly refresh workflow replaces role_profile_asof.csv: it now holds only the newest target weeks). Tests take the latest target week present, and build teeth
+ * with INJECTED poisoned outcomes for that week (the committed observed data has none at/after it yet). */
+const TW = Math.max(...loadRoleProfilesAsOf().map((p) => p.target_week));
+const poisonRow = (o: ObservedRow): ObservedRow => ({ ...o, snap_share: 1, target_share: 0.99, rush_share: 0.99, targets: 60, carries: 60, dropbacks: 200, team_pass_att: 500, team_rush_att: 500, team_rz_pass_att: 90, team_rz_rush_att: 90, rz_target_share: 0.99, rz_carry_share: 0.99 });
+const poisonedFrom = (observed: ObservedRow[]): ObservedRow[] => {
+  const latest = Math.max(...observed.filter((o) => o.season === 2026).map((o) => o.week));
+  return [...observed.map((o) => (o.season === 2026 && o.week >= TW ? poisonRow(o) : o)), ...observed.filter((o) => o.season === 2026 && o.week === latest).map((o) => ({ ...poisonRow(o), week: TW, game_id: `poison-${o.game_id}` }))];
+};
+const mkGame = (id: string, home: string, away: string, over: Partial<NflGame> = {}): NflGame => ({ nfl_game_id: id, season: 2026, week: TW, home_team: home, away_team: away, kickoff_at: KICK, kickoff_source: "test", status: "complete", provenance: {}, ...over });
 const PPR = { pass_yd: 0.04, pass_td: 4, pass_int: -2, pass_sack: -1, rush_yd: 0.1, rush_td: 6, rec: 1, rec_yd: 0.1, rec_td: 6, fum_lost: -2 };
 const HALF = { ...PPR, rec: 0.5 };
 const { priors, sampler } = loadModelInputs(2026);
 
-async function week3Forecasts(observed = loadObservedRoleGames()): Promise<RoleForecast[]> {
-  const teams = [...new Set(loadRoleProfilesAsOf().filter((p) => p.target_week === 3).map((p) => p.team))];
+async function targetWeekForecasts(observed = loadObservedRoleGames()): Promise<RoleForecast[]> {
+  const teams = [...new Set(loadRoleProfilesAsOf().filter((p) => p.target_week === TW).map((p) => p.team))];
   const games: NflGame[] = []; const prior = new Map<string, string>();
   for (let i = 0; i + 1 < teams.length; i += 2) games.push(mkGame(`g-${teams[i]}-${teams[i + 1]}`, teams[i]!, teams[i + 1]!));
-  for (const t of teams) { prior.set(`2026|1|${t}`, "2026-09-13T17:00:00.000Z"); prior.set(`2026|2|${t}`, "2026-09-20T17:00:00.000Z"); }
-  return (await buildWeekForecasts({ season: 2026, week: 3, captureKind: "AS_OF_RECONSTRUCTION", games, priorKickoffs: prior, observed })).forecasts;
+  for (const t of teams) for (let w = 1; w < TW; w++) prior.set(`2026|${w}|${t}`, new Date(Date.parse(KICK) - (TW - w) * 86_400_000).toISOString());
+  return (await buildWeekForecasts({ season: 2026, week: TW, captureKind: "AS_OF_RECONSTRUCTION", games, priorKickoffs: prior, observed })).forecasts;
 }
-const pairOf = (fs: RoleForecast[], a: string, b: string) => ({ season: 2026, week: 3, game_id: `g-${a}-${b}`, a: { team: a, forecasts: fs.filter((f) => f.nfl_team === a) }, b: { team: b, forecasts: fs.filter((f) => f.nfl_team === b) } });
+const pairOf = (fs: RoleForecast[], a: string, b: string) => ({ season: 2026, week: TW, game_id: `g-${a}-${b}`, a: { team: a, forecasts: fs.filter((f) => f.nfl_team === a) }, b: { team: b, forecasts: fs.filter((f) => f.nfl_team === b) } });
 const firstPair = (fs: RoleForecast[]) => { const teams = [...new Set(fs.map((f) => f.nfl_team!))]; return pairOf(fs, teams[0]!, teams[1]!); };
 
 describe("leakage: the pregame environment/distribution never sees the game being forecast", () => {
-  test("ADVERSARIAL: poisoning every Week-3 outcome leaves the simulated distributions byte-identical", async () => {
+  test("ADVERSARIAL: poisoning every target-week outcome leaves the simulated distributions byte-identical", async () => {
     const observed = loadObservedRoleGames();
-    const poisoned = observed.map((o) => (o.season === 2026 && o.week >= 3 ? { ...o, snap_share: 1, target_share: 0.99, rush_share: 0.99, targets: 60, carries: 60, dropbacks: 200, team_pass_att: 500, team_rush_att: 500, team_rz_pass_att: 90, team_rz_rush_att: 90, rz_target_share: 0.99, rz_carry_share: 0.99 } : o));
-    const a = await week3Forecasts(observed), b = await week3Forecasts(poisoned);
+    const poisoned = poisonedFrom(observed); assert.ok(poisoned.length > observed.length, "teeth: poisoned target-week outcomes were injected");
+    const a = await targetWeekForecasts(observed), b = await targetWeekForecasts(poisoned);
     const ra = simulateGame(firstPair(a), sampler, priors, { sims: 200 }), rb = simulateGame(firstPair(b), sampler, priors, { sims: 200 });
     assert.ok(ra.players.length > 20);
     assert.deepEqual(rb.players.map((p) => Array.from(p.stats)), ra.players.map((p) => Array.from(p.stats)));
@@ -108,7 +116,7 @@ describe("football constraints", () => {
     assert.ok(allocateCounts([1], 10, rng)[0]! <= 10);
   });
   test("in EVERY simulation: player targets <= team pass attempts and RB carries <= team rush attempts; team volumes are integers", async () => {
-    const r = simulateGame(firstPair(await week3Forecasts()), sampler, priors, { sims: 400 });
+    const r = simulateGame(firstPair(await targetWeekForecasts()), sampler, priors, { sims: 400 });
     for (let t = 0; t < 2; t++) {
       const team = r.teams[t]!; const mine = r.players.filter((p) => p.forecast.nfl_team === team.team);
       for (let s = 0; s < 400; s++) {
@@ -119,32 +127,32 @@ describe("football constraints", () => {
     }
   });
   test("every simulated stat is a non-negative integer count (yards excepted); completions <= attempts, receptions <= targets", async () => {
-    const r = simulateGame(firstPair(await week3Forecasts()), sampler, priors, { sims: 200 });
+    const r = simulateGame(firstPair(await targetWeekForecasts()), sampler, priors, { sims: 200 });
     for (const p of r.players) for (let s = 0; s < 200; s++) { const o = s * N_STATS; const g = (k: keyof typeof STAT_INDEX) => p.stats[o + STAT_INDEX[k]]!;
       for (const k of ["pass_att", "pass_cmp", "pass_td", "pass_int", "pass_sack", "rush_att", "rush_td", "rec_tgt", "rec", "rec_td", "fum_lost"] as const) { assert.ok(g(k) >= 0 && g(k) === Math.round(g(k)), k); }
       assert.ok(g("pass_cmp") <= g("pass_att")); assert.ok(g("rec") <= g("rec_tgt")); }
   });
   test("script scenario probabilities sum to 1 per team and every probability is valid", async () => {
-    const fs = await week3Forecasts(); const g = mkGame("g-x", firstPair(fs).a.team, firstPair(fs).b.team); const ws = simulateWeek({ season: 2026, week: 3, games: [g], forecasts: fs, sims: 300, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: () => "2026-09-27T16:00:00.000Z" });
+    const fs = await targetWeekForecasts(); const g = mkGame("g-x", firstPair(fs).a.team, firstPair(fs).b.team); const ws = simulateWeek({ season: 2026, week: TW, games: [g], forecasts: fs, sims: 300, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: () => "2026-09-27T16:00:00.000Z" });
     const env = ws.envs[0]!; for (const t of env.teams) { const total = Object.values(t.scenario_probabilities).reduce((a, b) => a + b, 0); assert.ok(Math.abs(total - 1) < 2e-3, String(total)); assert.ok(Object.values(t.scenario_probabilities).every((p) => p >= 0 && p <= 1)); }
   });
   test("QB scrambles are a sampled dropback outcome (the substrate's scramble count is always 0): a QB with 0 forecast designed rushes still rushes", async () => {
-    const fs = await week3Forecasts(); const qb = fs.find((f) => f.position === "QB" && f.confidence !== "INSUFFICIENT_SAMPLE" && (f.opportunity.dropbacks ?? 0) > 20 && (f.opportunity.designed_rushes ?? 1) < 0.5)!;
+    const fs = await targetWeekForecasts(); const qb = fs.find((f) => f.position === "QB" && f.confidence !== "INSUFFICIENT_SAMPLE" && (f.opportunity.dropbacks ?? 0) > 20 && (f.opportunity.designed_rushes ?? 1) < 0.5)!;
     const team = qb.nfl_team!; const opp = [...new Set(fs.map((f) => f.nfl_team!))].find((t) => t !== team)!;
     const r = simulateGame(pairOf(fs, team, opp), sampler, priors, { sims: 600 }); const ps = r.players.find((p) => p.forecast.forecast_id === qb.forecast_id)!;
     let rush = 0; for (let s = 0; s < 600; s++) rush += ps.stats[s * N_STATS + STAT_INDEX.rush_att]!; assert.ok(rush / 600 > 0.15, `mean QB rush attempts ${rush / 600}`);
   });
   test("latestForecastPerPlayer: one forecast per player, the latest frozen strictly before that player's kickoff", async () => {
-    const fs = await week3Forecasts(); const f = fs[0]!; const g = mkGame("g", f.nfl_team!, "ZZZ");
+    const fs = await targetWeekForecasts(); const f = fs[0]!; const g = mkGame("g", f.nfl_team!, "ZZZ");
     const mk = (id: string, asOf: string): RoleForecast => ({ ...f, forecast_id: id, as_of_at: asOf, capture_kind: "LIVE_CAPTURED" });
-    const out = latestForecastPerPlayer([mk("early", "2026-09-26T10:00:00Z"), mk("late", "2026-09-27T15:00:00Z"), mk("after", "2026-09-27T17:00:01Z")], [g], 2026, 3);
+    const out = latestForecastPerPlayer([mk("early", "2026-09-26T10:00:00Z"), mk("late", "2026-09-27T15:00:00Z"), mk("after", "2026-09-27T17:00:01Z")], [g], 2026, TW);
     assert.equal(out.length, 1); assert.equal(out[0]!.forecast_id, "late");
   });
 });
 
 describe("distribution math (hand-verifiable)", () => {
   test("simulation is reproducible: same inputs + seed -> identical; a different game id -> a different stream", async () => {
-    const fs = await week3Forecasts(); const spec = firstPair(fs);
+    const fs = await targetWeekForecasts(); const spec = firstPair(fs);
     const a = simulateGame(spec, sampler, priors, { sims: 150 }), b = simulateGame(spec, sampler, priors, { sims: 150 }), c = simulateGame({ ...spec, game_id: "other" }, sampler, priors, { sims: 150 });
     assert.deepEqual(Array.from(b.players[3]!.stats), Array.from(a.players[3]!.stats)); assert.equal(a.seed, b.seed); assert.notEqual(c.seed, a.seed);
     assert.notDeepEqual(Array.from(c.players[3]!.stats), Array.from(a.players[3]!.stats));
@@ -157,7 +165,7 @@ describe("distribution math (hand-verifiable)", () => {
     assert.ok(d.floor < d.quantiles.p50! && d.quantiles.p50! < d.ceiling); assert.ok(Object.values(d.prob_ge).every((p) => p >= 0 && p <= 1));
   });
   test("every simulated player distribution is monotone, valid, and floor < ceiling when non-degenerate", async () => {
-    const fs = await week3Forecasts(); const r = simulateGame(firstPair(fs), sampler, priors, { sims: 300 }); const coef = linearCoefficients("WR", PPR); void coef;
+    const fs = await targetWeekForecasts(); const r = simulateGame(firstPair(fs), sampler, priors, { sims: 300 }); const coef = linearCoefficients("WR", PPR); void coef;
     for (const p of r.players) { const c = linearCoefficients(p.forecast.position, PPR); const pts = new Float64Array(300); for (let s = 0; s < 300; s++) pts[s] = scoreStats(p.stats, s * N_STATS, c);
       const d = summarize(pts); const qs = QUANTILE_LEVELS.map((x) => d.quantiles[`p${Math.round(x * 100)}`]!); for (let i = 1; i < qs.length; i++) assert.ok(qs[i]! >= qs[i - 1]!);
       if (d.quantiles.p95! > d.quantiles.p5!) assert.ok(d.floor <= d.ceiling); assert.ok(d.sd >= 0); }
@@ -199,7 +207,7 @@ describe("one football outcome, multiple league translations", () => {
     }
   });
   test("the SAME simulated stat line scores differently under different league fingerprints (TE premium, PPR, interception value)", async () => {
-    const fs = await week3Forecasts(); const teamsAll = [...new Set(fs.map((f) => f.nfl_team!))]; const teTeam = fs.find((f) => f.position === "TE" && (f.metrics.target_share?.value ?? 0) > 0.1 && f.confidence !== "INSUFFICIENT_SAMPLE")!.nfl_team!; const r = simulateGame(pairOf(fs, teTeam, teamsAll.find((t) => t !== teTeam)!), sampler, priors, { sims: 200 }); const te = r.players.find((p) => p.forecast.position === "TE" && (p.forecast.metrics.target_share?.value ?? 0) > 0.1)!;
+    const fs = await targetWeekForecasts(); const teamsAll = [...new Set(fs.map((f) => f.nfl_team!))]; const teTeam = fs.find((f) => f.position === "TE" && (f.metrics.target_share?.value ?? 0) > 0.1 && f.confidence !== "INSUFFICIENT_SAMPLE")!.nfl_team!; const r = simulateGame(pairOf(fs, teTeam, teamsAll.find((t) => t !== teTeam)!), sampler, priors, { sims: 200 }); const te = r.players.find((p) => p.forecast.position === "TE" && (p.forecast.metrics.target_share?.value ?? 0) > 0.1)!;
     const mean = (raw: Record<string, number>) => { const c = linearCoefficients("TE", raw); let s = 0; for (let k = 0; k < 200; k++) s += scoreStats(te.stats, k * N_STATS, c); return s / 200; };
     assert.ok(mean(PPR) > mean(HALF)); assert.ok(mean({ ...HALF, bonus_rec_te: 0.5 }) > mean(HALF));
     const rec = buildPlayerDistributionRecord({ ps: te, sims: 200, seed: r.seed, game: mkGame("g", te.forecast.nfl_team!, "ZZZ"), env_id: null, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: "2026-09-27T16:00:00.000Z", leagues: [{ scoring_fingerprint: "fp-ppr", raw_scoring: PPR }, { scoring_fingerprint: "fp-half", raw_scoring: HALF }, { scoring_fingerprint: "fp-ppr", raw_scoring: PPR }], priors });
@@ -210,7 +218,7 @@ describe("one football outcome, multiple league translations", () => {
 
 describe("analysis: models A/B/C/D, error classes and exclusions", () => {
   const base = (over: Partial<RoleAnalysisRow> = {}): RoleAnalysisRow => ({ analysis_id: "ra:" + "a".repeat(24), analysis_version: "v", case_id: "cc:" + "1".repeat(24), evidence_digest: "d", forecast_id: "rf:x", season: 2026, week: 3, league_slug: "L1", provider: "sleeper", scoring_fingerprint: "fp-ppr", position: "WR", canonical_player_id: "player:gsis:x", gsis_id: "x", sleeper_id: "1", player_name: "X", nfl_team: "AAA", baseline_projection: 10, actual_fantasy_points: 14, projection_error: 4, forecast_capture_kind: "AS_OF_RECONSTRUCTION", forecast_confidence: "LOW", confidence_score: 0.4, role: {}, opportunity: { forecast: null, forecast_no_pressure: null, actual: null }, xfp: { forecast: 9, forecast_no_pressure: 9, actual_opportunity: 12 }, decomposition: null, labels: { designation: "NONE", expected_absent: false, participated: true, injury_contamination: null, teammate_absence: false, depth_starter: true, role_trend: "STABLE", role_volatility: 0.02 }, eval_populations: { projection_eval: true, role_accuracy: true }, exclusion_reasons: [], shadow: { mode: "SHADOW_ONLY", baseline_projection: 10, role_adjustment: 0.6, candidate_projection: 10.6, teammate_only_adjustment: 0, teammate_only_candidate: 10, contributions: { xfp_forecast: 9, xfp_effective: 9, xfp_gap_vs_baseline: -1, teammate_pressure_points: 0, kappa: 0.3, confidence_weight: 0.6, capped: false }, confidence: "LOW", reason_codes: [] }, stats_note: "", ...over });
-  async function sim() { const fs = await week3Forecasts(); const r = simulateGame(firstPair(fs), sampler, priors, { sims: 400 }); const ps = r.players.find((p) => p.forecast.position === "WR" && (p.forecast.metrics.target_share?.value ?? 0) > 0.12)!; return { r, ps }; }
+  async function sim() { const fs = await targetWeekForecasts(); const r = simulateGame(firstPair(fs), sampler, priors, { sims: 400 }); const ps = r.players.find((p) => p.forecast.position === "WR" && (p.forecast.metrics.target_share?.value ?? 0) > 0.12)!; return { r, ps }; }
   test("models A/B/C/D: A = production normal, B/D keep the baseline/candidate mean, C = simulated mean; scores are internally consistent; SHADOW_ONLY", async () => {
     const { ps } = await sim(); const gsis = ps.forecast.gsis_id!;
     const rows = buildDistributionAnalysis({ roleRows: [base({ gsis_id: gsis })], cases: new Map([["cc:" + "1".repeat(24), { case_id: "cc:" + "1".repeat(24), projected_std_dev: 4.8, projected_floor: null, projected_ceiling: null, projection_artifact_kind: "PROJECTION_SNAPSHOT" }]]), sims: new Map(), simByGsis: new Map([[gsis, ps]]), priors, rawScoringByFingerprint: new Map([["fp-ppr", PPR]]) });
@@ -246,8 +254,8 @@ describe("analysis: models A/B/C/D, error classes and exclusions", () => {
 describe("persistence: idempotency, versioning, immutability", () => {
   const fakeRest = () => { const seen = new Set<string>(); const targets: string[] = []; return { rest: { insertIgnoreDuplicates: async (_t: string, rows: Array<Record<string, string>>, cols: string[]) => { targets.push(cols[0]!); return rows.filter((r) => { const k = r[cols[0]!]!; if (seen.has(k)) return false; seen.add(k); return true; }); } } as unknown as SupabaseRest, targets }; };
   test("env / player-distribution / analysis / weather writes are idempotent (second identical write inserts nothing) and key on the primary id", async () => {
-    const fs = await week3Forecasts(); const spec = firstPair(fs); const g = mkGame("g-1", spec.a.team, spec.b.team);
-    const ws = simulateWeek({ season: 2026, week: 3, games: [g], forecasts: fs, sims: 100, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: () => "2026-09-27T16:00:00.000Z" });
+    const fs = await targetWeekForecasts(); const spec = firstPair(fs); const g = mkGame("g-1", spec.a.team, spec.b.team);
+    const ws = simulateWeek({ season: 2026, week: TW, games: [g], forecasts: fs, sims: 100, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: () => "2026-09-27T16:00:00.000Z" });
     const f = fakeRest(); const env = ws.envs[0]!; const pd = buildPlayerDistributionRecord({ ps: [...ws.simByGsis.values()][0]!, sims: 100, seed: 1, game: g, env_id: env.env_id, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: "2026-09-27T16:00:00.000Z", leagues: [], priors });
     const a = await writeEnvironments(f.rest, [env]), b = await writeEnvironments(f.rest, [env]); assert.equal(a.inserted, 1); assert.equal(b.inserted, 0); assert.equal(b.duplicate, 1);
     assert.equal((await writePlayerDistributions(f.rest, [pd])).inserted, 1); assert.equal((await writePlayerDistributions(f.rest, [pd])).inserted, 0);
@@ -257,8 +265,8 @@ describe("persistence: idempotency, versioning, immutability", () => {
     assert.equal((await writeDistributionAnalysis(f.rest, [])).attempted, 0);
   });
   test("deterministic ids; changed inputs create a NEW id (a new revision), never a rewrite", async () => {
-    const fs = await week3Forecasts(); const spec = firstPair(fs); const g = mkGame("g-1", spec.a.team, spec.b.team);
-    const run = (sims: number) => simulateWeek({ season: 2026, week: 3, games: [g], forecasts: fs, sims, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: () => "2026-09-27T16:00:00.000Z" });
+    const fs = await targetWeekForecasts(); const spec = firstPair(fs); const g = mkGame("g-1", spec.a.team, spec.b.team);
+    const run = (sims: number) => simulateWeek({ season: 2026, week: TW, games: [g], forecasts: fs, sims, captureKind: "AS_OF_RECONSTRUCTION", asOfAt: () => "2026-09-27T16:00:00.000Z" });
     const a = run(120), b = run(120), c = run(121);
     assert.equal(a.envs[0]!.env_id, b.envs[0]!.env_id); assert.notEqual(c.envs[0]!.env_id, a.envs[0]!.env_id);
     assert.match(a.envs[0]!.env_id, /^ge:[0-9a-f]{24}$/); assert.equal(a.envs[0]!.model_version, GAME_DISTRIBUTION_MODEL_VERSION);

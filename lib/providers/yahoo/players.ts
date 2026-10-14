@@ -95,7 +95,7 @@ export interface PoolResult {
   complete: boolean;
   /** Offset to request next when `complete` is false, else null. */
   next_start: number | null;
-  stopped_reason: "end_of_pool" | "count_reached" | "safety_limit" | "deadline";
+  stopped_reason: "end_of_pool" | "count_reached" | "safety_limit" | "deadline" | "unstable_pagination";
   ownership: "requested" | "not_requested" | "unavailable_fell_back";
   /** Rows dropped because Yahoo's ownership said "team" inside an FA/W query. */
   dropped_rostered: number;
@@ -121,8 +121,9 @@ export function buildPlayersPath(
   if (q.search) parts.push(`search=${encodeURIComponent(q.search)}`);
   if (!q.playerKeys?.length) {
     parts.push(`start=${q.start}`, `count=${q.count}`);
-    // Overall rank gives a stable ordering across pages (otherwise paging can drift).
-    parts.push("sort=OR");
+    // LIVE-CERTIFIED (2026-10-14): `sort=OR` (overall rank) is NOT stable across requests - tied/unranked players reshuffle between page fetches, so
+    // paging skipped some players and duplicated others (Rogers Park FA: 947-961 unique of 975 real; T: 153-154 of 155). Alphabetical NAME is deterministic.
+    parts.push("sort=NAME");
   }
   return `/league/${leagueKey}/players;${parts.join(";")}${withOwnership ? "/ownership" : ""}`;
 }
@@ -267,8 +268,8 @@ export async function fetchPlayerPool(
     }
     offset = cursor;
     if (ended) {
-      complete = true;
-      stopped = "end_of_pool";
+      // A duplicate across pages means the server's ordering moved while we paged, so rows may have been SKIPPED as well: the traversal is not provably complete.
+      if (duplicates_dropped > 0) { complete = false; stopped = "unstable_pagination"; } else { complete = true; stopped = "end_of_pool"; }
       break;
     }
     if (wanted !== null && players.length >= wanted) {

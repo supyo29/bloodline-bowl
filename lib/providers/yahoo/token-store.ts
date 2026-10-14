@@ -14,7 +14,7 @@
 import { loadSupabaseConfig } from "@/lib/persistence/supabase/rest";
 import { SupabaseRest } from "@/lib/persistence/supabase/rest";
 import { decryptToken, encryptToken, yahooCryptoStatus } from "./crypto";
-import { InMemoryYahooTokenStore, type YahooToken, type YahooTokenStore } from "./oauth";
+import { InMemoryYahooTokenStore, type YahooToken, type YahooTokenStore, type YahooVersionedToken } from "./oauth";
 
 export { InMemoryYahooTokenStore } from "./oauth";
 
@@ -29,6 +29,8 @@ interface ConnectionRow {
   scope: string | null;
   expires_at: string;
   refresh_seq: number;
+  last_refreshed_at: string | null;
+  last_used_at: string | null;
 }
 
 export class SupabaseYahooTokenStore implements YahooTokenStore {
@@ -55,6 +57,49 @@ export class SupabaseYahooTokenStore implements YahooTokenStore {
       expires_at: new Date(row.expires_at).getTime(),
       yahoo_guid: row.yahoo_guid,
     };
+  }
+
+  async getVersioned(): Promise<YahooVersionedToken | null> {
+    const rows = await this.rest.select<ConnectionRow>(TABLE, { filter: { connection_id: `eq.${this.connection_id}` }, limit: 1 });
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      token: {
+        access_token: decryptToken(row.access_token_encrypted, this.env),
+        refresh_token: decryptToken(row.refresh_token_encrypted, this.env),
+        token_type: row.token_type,
+        scope: row.scope,
+        expires_at: new Date(row.expires_at).getTime(),
+        yahoo_guid: row.yahoo_guid,
+      },
+      seq: Number(row.refresh_seq ?? 0),
+      last_refreshed_at: row.last_refreshed_at ? new Date(row.last_refreshed_at).getTime() : null,
+      last_used_at: row.last_used_at ? new Date(row.last_used_at).getTime() : null,
+    };
+  }
+
+  /**
+   * Atomic token rotation: ONE `UPDATE ... WHERE connection_id = $1 AND refresh_seq = $expected` writing BOTH new ciphertexts and bumping the seq.
+   * An empty result is an unambiguous "a sibling rotated first" (CONFLICT), never an error. Only this connection's row can be touched.
+   */
+  async rotate(expectedSeq: number, token: YahooToken): Promise<{ ok: true; seq: number } | { ok: false; reason: "CONFLICT" }> {
+    const now = new Date().toISOString();
+    const rows = await this.rest.updateReturning<{ refresh_seq: number }>(
+      TABLE,
+      { connection_id: `eq.${this.connection_id}`, refresh_seq: `eq.${expectedSeq}` },
+      {
+        yahoo_guid: token.yahoo_guid,
+        access_token_encrypted: encryptToken(token.access_token, this.env),
+        refresh_token_encrypted: encryptToken(token.refresh_token, this.env),
+        token_type: token.token_type,
+        scope: token.scope,
+        expires_at: new Date(token.expires_at).toISOString(),
+        updated_at: now,
+        last_refreshed_at: now,
+        refresh_seq: expectedSeq + 1,
+      },
+    );
+    return rows[0] ? { ok: true, seq: Number(rows[0].refresh_seq) } : { ok: false, reason: "CONFLICT" };
   }
 
   async set(token: YahooToken): Promise<void> {

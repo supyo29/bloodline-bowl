@@ -15,7 +15,7 @@
 export const MARKET_STATE_VERSION = "market-state-2026.1";
 export const MARKET_ELIGIBILITY_RULES_VERSION = "market-eligibility-2026.1";
 
-export type MarketProvider = "sleeper";
+export type MarketProvider = "sleeper" | "yahoo";
 
 /** The headline state per player. WAIVER_CLAIM_PENDING is part of the vocabulary but no supported provider can emit it. */
 export type PlayerMarketStatus =
@@ -48,7 +48,9 @@ export type UnknownReason =
   | "WAIVER_WINDOW_UNVERIFIABLE"
   | "ACQUISITION_RULES_UNKNOWN"
   | "ROSTER_STATE_UNAVAILABLE"
-  | "PLAYER_UNIVERSE_UNAVAILABLE";
+  | "PLAYER_UNIVERSE_UNAVAILABLE"
+  | "OWNERSHIP_CONFLICT"
+  | "IDENTITY_UNRESOLVED";
 /** Facts that do NOT change availability but that a consumer may need (a poor or injured player is still available). */
 export type PlayerCaveat = "NFL_INJURED_RESERVE_DESIGNATION" | "NFL_INACTIVE_DESIGNATION" | "SUSPENDED" | "PUP_OR_NFI" | "INJURY_DESIGNATION_PRESENT";
 
@@ -94,7 +96,43 @@ export interface PlayerMarketState {
   injury_status: string | null;
   nfl_status: string | null;
   source: { provider: MarketProvider; source_class: SourceClass; freshness: Freshness };
+  /**
+   * Present only on providers that state availability DIRECTLY per player (Yahoo FA / W / T queries). Absent on Sleeper, whose availability is
+   * INFERRED from rosters + the transaction feed. A `PROVIDER_STATUS` basis is the only thing that makes a Yahoo player FREE_AGENT / WAIVERS verified.
+   */
+  availability_evidence?: AvailabilityEvidence;
+  /** Waiver-claimable even though not addable right now (provider says WAIVERS). Only ever true with a PROVIDER_STATUS basis. */
+  claimable?: boolean;
+  /** Date-only (YYYY-MM-DD) waiver clear day when the provider exposes a date but not an instant. Never promoted to `waiver_clears_at`. */
+  waiver_clears_on?: string | null;
+  /** The connected account's OWN pending claim on this player (Yahoo shows pending claims only for an owned team). */
+  pending_claim?: { team_key: string; bid: number | null; drop_player_key: string | null };
+  /** Provider ownership detail for a rostered player (e.g. Yahoo `team` ownership_type), preserved verbatim. */
+  provider_ownership_type?: string | null;
 }
+export interface AvailabilityEvidence {
+  basis: "PROVIDER_STATUS";
+  /** The provider's own label: Yahoo "FA" | "W" | "T". */
+  provider_status: string;
+  provider: MarketProvider;
+  observed_at: string;
+}
+
+/** Separate readiness axes: a verified pool can be actionable while valuation and transaction detail are only PARTIAL. */
+export type AxisStatus = "READY" | "PARTIAL" | "NOT_READY" | "UNKNOWN";
+export interface ReadinessAxes {
+  /** Can the player pool be verified? */
+  availability: AxisStatus;
+  /** Can the verified players be forecast/ranked? Assessed by the consumer (projection coverage); the snapshot reports UNKNOWN. */
+  valuation: AxisStatus;
+  /** Can an exact claim be verified under every rule (clear time, locks, limits, pending claims)? */
+  transaction: AxisStatus;
+  /** Enough to make a trustworthy recommendation. Provisional here; the consumer finalizes it with valuation. */
+  recommendation: AxisStatus;
+}
+
+export type PendingClaimVisibility = "AVAILABLE" | "UNAVAILABLE" | "NOT_EXPOSED";
+export interface SnapshotFreshness { observed_at: string; evaluated_at: string; age_ms: number; ttl_ms: number; state: Freshness }
 
 /* ------------------------------------------------------------------------------------------ readiness */
 export type ReadinessReasonCode =
@@ -110,7 +148,14 @@ export type ReadinessReasonCode =
   | "PENDING_CLAIMS_NOT_EXPOSED"
   | "WAIVER_CLEAR_TIME_NOT_EXPOSED"
   | "GAME_LOCK_ADD_RULE_NOT_PUBLISHED"
-  | "OWNERSHIP_INTEGRITY_VIOLATION";
+  | "OWNERSHIP_INTEGRITY_VIOLATION"
+  // provider-evidence markets (Yahoo): precise partial states that must not read as "no pool"
+  | "PLAYER_UNIVERSE_PARTIAL"
+  | "ROSTER_STATE_PARTIAL"
+  | "OWNERSHIP_CONFLICT"
+  | "PENDING_CLAIMS_UNAVAILABLE"
+  | "WAIVER_RULES_PARTIAL"
+  | "IDENTITY_UNRESOLVED_PLAYERS";
 /** BLOCKING: the pool must not be treated as actionable. LIMITING: actionable, but a stated caveat applies. INFO: permanent provider limitation. */
 export type ReadinessSeverity = "BLOCKING" | "LIMITING" | "INFO";
 export interface ReadinessReason { code: ReadinessReasonCode; severity: ReadinessSeverity; detail: string }
@@ -125,6 +170,8 @@ export interface MarketReadiness {
   blocks: ReadinessReasonCode[];
   /** Codes that limit but do not block. */
   limitations: ReadinessReasonCode[];
+  /** Per-axis state (Yahoo path). Absent on Sleeper snapshots so their serialized form is unchanged. */
+  axes?: ReadinessAxes;
 }
 
 /* ------------------------------------------------------------------------------------------ rules + acquisition context */
@@ -145,6 +192,10 @@ export interface LeagueAcquisitionRules {
   taxi_slots: number | null;
   /** Positions this league can start (after FLEX/SUPER_FLEX/IDP expansion). */
   startable_positions: string[];
+  /** Provider settings preserved VERBATIM (Yahoo): e.g. waiver_type, waiver_rule, waiver_time, max_adds. Never reinterpreted beyond the typed fields above. */
+  provider_raw?: Record<string, string | number | boolean | null>;
+  /** Max adds the provider states (season / weekly), when stated. */
+  add_limits?: { season: number | null; weekly: number | null } | null;
 }
 export interface TeamAcquisitionContext { team_id: string; roster_id: number; faab_remaining: number | null; waiver_priority: number | null; roster_size: number; roster_limit: number | null }
 /** Separate from availability by construction. Missing FAAB never changes a player's `status`. */
@@ -190,6 +241,19 @@ export interface MarketSnapshot {
   ineligible_counts: Record<string, number>;
   counts: Record<PlayerMarketStatus, number>;
   limitations: string[];
+  /** Pending-claim visibility for the connected account (Yahoo exposes pending claims only for a team the account owns). */
+  pending_claim_visibility?: { status: PendingClaimVisibility; reason: string };
+  /** How the provider reports game locks, stated honestly (what is a fact vs what is unpublished). */
+  game_lock_semantics?: string;
+  /** Pool pagination evidence per provider sub-pool (Yahoo FA / W / T). */
+  pool_evidence?: Record<string, { returned: number; complete: boolean; pages_fetched: number; stopped_reason: string }>;
+  /** When the provider was read and how old that is at evaluation time. */
+  freshness?: SnapshotFreshness;
+  /**
+   * Cross-check of the union of every team roster read against the provider's own rostered pool (Yahoo T). `comparable` is false when either side is
+   * incomplete (the comparison would prove nothing). A disagreement beyond a small tolerance is surfaced as OWNERSHIP_CONFLICT, never papered over.
+   */
+  ownership_reconciliation?: { comparable: boolean; roster_union: number; provider_rostered_pool: number; in_both: number; roster_only: number; pool_only: number; tolerance: number };
 }
 
 /** The union of provider limits that no consumer may ignore; kept in one place so docs, Book-Ready and readiness agree. */

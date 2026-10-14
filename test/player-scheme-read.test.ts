@@ -37,7 +37,7 @@ test("psi: manifest loads, Tier A, SHARED_DESCRIPTIVE, no fantasy adjustment", (
 
 test("psi: reconciliation artifact reports all_pass", () => {
   const recon = JSON.parse(
-    readFileSync(join(process.cwd(), "outputs", "player-scheme-intelligence-2026", "tierA_reconciliation.json"), "utf8"),
+    readFileSync(join(process.cwd(), "lib", "player-scheme-intelligence", "certification", "tierA_reconciliation.json"), "utf8"),
   );
   assert.equal(recon.all_pass, true, "R-side reconciliation must pass");
   assert.equal(recon.qb_matrix_reconciles, true);
@@ -151,7 +151,7 @@ test("psi: defense profile has 32 teams and a 12-cell vulnerability map", () => 
 
 test("psi: identical inputs -> identical served content hash (determinism)", () => {
   const recon = JSON.parse(
-    readFileSync(join(process.cwd(), "outputs", "player-scheme-intelligence-2026", "tierA_reconciliation.json"), "utf8"),
+    readFileSync(join(process.cwd(), "lib", "player-scheme-intelligence", "certification", "tierA_reconciliation.json"), "utf8"),
   );
   const psi = loadPlayerSchemeIntelligence()!;
   assert.equal(psi.manifest.player_scheme_version.split(":")[3], recon.served_content_sha256.slice(0, 12));
