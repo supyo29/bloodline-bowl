@@ -64,7 +64,11 @@ export async function GET(request: Request): Promise<Response> {
       const T = await io.pool(o.handle, "T", Date.now() + 120_000); const tKeys = new Set(T.players.map((p: any) => p.player_key)); // eslint-disable-line @typescript-eslint/no-explicit-any
       const only = [...rosterRows].filter(([k]) => !tKeys.has(k)).map(([k, v]) => ({ key: k, ...v }));
       const slotDist: Record<string, number> = {}; for (const v of rosterRows.values()) slotDist[v.slot ?? "?"] = (slotDist[v.slot ?? "?"] ?? 0) + 1;
-      return json({ step, slug, roster_union: rosterRows.size, T_pool: T.players.length, T_complete: T.complete, roster_only: only, slot_distribution: slotDist });
+      const { fetchPlayersWithOwnership } = await import("@/lib/providers/yahoo/players");
+      const T2 = await io.pool(o.handle, "T", Date.now() + 120_000); const T3 = await io.pool(o.handle, "T", Date.now() + 120_000);
+      const direct = await fetchPlayersWithOwnership(o.handle.client, o.handle.leagueKey, only.map((x) => x.key)); const dist: Record<string, number> = {}; for (const p of direct.players as any[]) dist[p.status ?? "?"] = (dist[p.status ?? "?"] ?? 0) + 1; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const FA = await io.pool(o.handle, "FA", Date.now() + 120_000); const W = await io.pool(o.handle, "W", Date.now() + 120_000); const poolKeys = new Set([...FA.players, ...W.players].map((p: any) => p.player_key)); // eslint-disable-line @typescript-eslint/no-explicit-any
+      return json({ step, slug, roster_union: rosterRows.size, T_pool_runs: [T.players.length, T2.players.length, T3.players.length], T_requests_sample: T.requests.slice(0, 2), direct_lookup_of_roster_only: { asked: only.length, classified_status_counts: dist, unclassified: direct.unclassified.length }, roster_only_present_in_FA_or_W: only.filter((x) => poolKeys.has(x.key)).length, FA_total: FA.players.length, W_total: W.players.length, roster_only_n: only.length, slot_distribution: slotDist });
     }
     if (step === "market") {
       const { loadYahooMarketSnapshot, defaultYahooMarketIO, __clearYahooMarketMemo, yahooBindingFor } = await import("@/lib/market-state/yahoo-load");
