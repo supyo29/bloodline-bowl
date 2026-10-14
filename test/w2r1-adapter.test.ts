@@ -51,7 +51,7 @@ describe("W2.R1 live adapter (provider neutral)", () => {
     assert.ok(inp.roster.every((a) => a.scoring_fingerprint === inp.rules.scoring_fingerprint));
   });
   it("a verified bye: this week 0, future weeks keep the ROS value, a future bye is BYE; hold/ROS stay positive end to end", () => {
-    const ctx = ctxOf({ byes: { rb1: 6, wr1: 9 }, forecasts: { rb1: { exp: 0, state: "BYE", cond: 10, bye: true } } });
+    const ctx = ctxOf({ byes: { rb1: 6, wr1: 9 }, forecasts: { rb1: { exp: 0, state: "BYE", cond: 10, bye: true, hold: 14 } } });
     const inp = buildEarlyInputs(ctx);
     const rb1 = inp.roster.find((a) => a.player_id === "rb1")!; const wr1 = inp.roster.find((a) => a.player_id === "wr1")!;
     assert.equal(rb1.weeks[6]!.state, "BYE"); assert.equal(rb1.weeks[6]!.lineup, 0); assert.equal(rb1.weeks[7]!.state, "ACTIVE"); assert.ok(rb1.weeks[7]!.lineup! > 0);
@@ -71,8 +71,14 @@ describe("W2.R1 live adapter (provider neutral)", () => {
     assert.equal(ir.status, "IR"); assert.equal(ir.returns_in_week, null);
     assert.ok(ir.missing_evidence.includes("IR_SLOT_WITH_NO_LONG_TERM_DESIGNATION_RETURN_UNKNOWN"));
   });
-  it("unknown ROS => future weeks UNKNOWN with a reason (never zero-filled)", () => {
-    const ctx = ctxOf({ forecasts: { wr2: { ros: null } } });
+  it("future weeks use the Wave-1 hold rate; a large disagreement with the ROS rate is exposed, not averaged", () => {
+    const a = buildEarlyInputs(ctxOf({ forecasts: { wr2: { hold: 17, ros: 25 } } })).roster.find((x) => x.player_id === "wr2")!; // ros per game ~2
+    assert.equal(a.weeks[9]!.lineup, 17); assert.ok(a.missing_evidence.includes("FUTURE_PROXY_DISAGREES_WITH_ROS_RATE"));
+    const b = buildEarlyInputs(ctxOf({ forecasts: { wr2: { hold: 10, ros: 120 } } })).roster.find((x) => x.player_id === "wr2")!;
+    assert.equal(b.weeks[9]!.lineup, 10); assert.ok(!b.missing_evidence.includes("FUTURE_PROXY_DISAGREES_WITH_ROS_RATE"));
+  });
+  it("unknown hold AND ROS => future weeks UNKNOWN with a reason (never zero-filled)", () => {
+    const ctx = ctxOf({ forecasts: { wr2: { ros: null, hold: null } } });
     const wr2 = buildEarlyInputs(ctx).roster.find((a) => a.player_id === "wr2")!;
     assert.equal(wr2.weeks[8]!.state, "UNKNOWN"); assert.equal(wr2.weeks[8]!.lineup, null);
     assert.ok(wr2.missing_evidence.includes("ROS_UNAVAILABLE_FUTURE_WEEKS_UNKNOWN")); assert.deepEqual(validateAsset(wr2), []);

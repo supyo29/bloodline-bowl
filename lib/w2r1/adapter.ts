@@ -10,7 +10,7 @@ import type { CanonicalPlayer } from "@/lib/canonical/schema";
 import type { CanonicalWeeklyPlayerForecast } from "@/lib/weekly/forecast/schema";
 import type { WeeklyTeamContext } from "@/lib/weekly/schema";
 import { holdHorizonWeeks } from "@/lib/weekly/forecast/bye";
-import type { AssetEvidence, Confidence, LeagueRules, MarketCandidate, MarketPool, Pos, RosterAsset, WeekState, WeekValue } from "./evidence";
+import type { AssetEvidence, Confidence, LeagueRules, MarketCandidate, MarketPool, Pos, RosterAsset, WeekValue } from "./evidence";
 import { W2R1_EVIDENCE_VERSION } from "./version";
 
 const POS_OK = new Set<string>(["QB", "RB", "WR", "TE", "K", "DEF"]);
@@ -44,11 +44,15 @@ function buildAsset(p: CanonicalPlayer, f: CanonicalWeeklyPlayerForecast | undef
   else if (cw === "OUT") weeks[week] = { state: "OUT", lineup: 0, underlying: cond ?? asset?.asset_value.hold_points_per_week ?? null };
   else if (cw === "UNKNOWN" || exp == null) { weeks[week] = { state: "UNKNOWN", lineup: null, underlying: cond ?? null }; missing.push("CURRENT_WEEK_PROJECTION_UNKNOWN"); }
   else weeks[week] = { state: "ACTIVE", lineup: exp, underlying: cond ?? exp };
-  // future weeks: explicit ROS per-game proxy (verified byes; long-term injury horizon). Never zero-filled when unknown.
+  // future weeks: an EXPLICIT proxy. Primary = the Wave-1 canonical asset HOLD rate (per active week; the certified drop-side value: current source projection when the
+  // player has no temporary condition, pre-bye / forward rate otherwise). Cross-check = ROS per-game. A large disagreement is exposed, never averaged away.
   const futureBye = byeWeek != null && byeWeek > week && byeWeek <= lastWeek;
   const gamesInHorizon = Math.max(1, horizon - (futureBye ? 1 : 0) - (weeks[week]?.state === "BYE" ? 1 : 0));
-  const perGame = ros == null ? null : Math.round((ros / gamesInHorizon) * 100) / 100;
+  const rosRate = ros == null ? null : Math.round((ros / gamesInHorizon) * 100) / 100;
+  const holdRate = asset?.asset_value.hold_points_per_week ?? null;
+  const perGame = holdRate ?? rosRate;
   if (perGame == null) missing.push("ROS_UNAVAILABLE_FUTURE_WEEKS_UNKNOWN");
+  else if (holdRate != null && rosRate != null && Math.abs(holdRate - rosRate) > Math.max(5, 0.5 * Math.max(holdRate, rosRate))) missing.push("FUTURE_PROXY_DISAGREES_WITH_ROS_RATE");
   for (let w = week + 1; w <= lastWeek; w++) {
     if (byeWeek === w) weeks[w] = { state: "BYE", lineup: 0, underlying: 0 };
     else if (w < week + outWeeks) weeks[w] = { state: "OUT", lineup: 0, underlying: 0 };
@@ -122,6 +126,6 @@ export function buildEarlyInputs(ctx: WeeklyTeamContext, opts: { lastWeek?: numb
   const market: MarketPool = { provider: ctx.league.provider === "yahoo" ? "yahoo" : "sleeper", verified, observed_at: observedAt, freshness, candidates };
   if (!verified) notes.push("REPLACEMENT_MARKET_NOT_CERTIFIED: the free-agent pool is not an actionable certified pool; replacements come from the roster only.");
   if (ctx.byes.bye_status !== "VERIFIED") notes.push("BYE_SCHEDULE_UNVERIFIED: future byes unknown; ROS/Hold do not reflect future byes.");
-  notes.push("FUTURE_WEEKS_ARE_A_PROXY: weeks after the current week use the ROS per-game rate (verified byes, long-term injury horizon). Confidence capped LOW; no schedule/matchup/game-plan adjustment yet (S5).");
+  notes.push("FUTURE_WEEKS_ARE_A_PROXY: weeks after the current week use the Wave-1 canonical hold rate (ROS per-game as cross-check), verified byes and the long-term injury horizon. Flat across weeks; no schedule/matchup/game-plan adjustment yet (S5). Confidence capped LOW.");
   return { rules, roster, market, notes, names, excluded };
 }

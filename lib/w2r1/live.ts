@@ -37,7 +37,7 @@ export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string,
     manager: ctx.manager.manager_slug,
     scoring_fingerprint: inp.rules.scoring_fingerprint,
     league_rules: { slots: inp.rules.slots, bench_size: inp.rules.bench_size, ir_slots: inp.rules.ir_slots, last_week_considered: inp.rules.last_week },
-    confidence: { current_week: "from Wave 1 forecast", future_weeks: "LOW (ROS per-game proxy; no schedule/matchup/game-plan adjustment)", overall: "LOW-MEDIUM" },
+    confidence: { current_week: "from Wave 1 forecast", future_weeks: "LOW (Wave-1 hold-rate proxy; no schedule/matchup/game-plan adjustment)", overall: "LOW-MEDIUM" },
     evidence: { context_generated_at: ctx.generated_at, projection_source: ctx.projections.source, projection_status: ctx.projections.status, context_status: ctx.status },
     market: { provider: inp.market.provider, basis: mp?.basis ?? null, verified: inp.market.verified, freshness: inp.market.freshness, observed_at: inp.market.observed_at, age_ms: mp?.age_ms ?? (inp.market.observed_at ? Math.max(0, Date.now() - Date.parse(inp.market.observed_at)) : null), market_content_id: mp?.market_content_id ?? null, candidates: inp.market.candidates.length, readiness_axes: mp?.axes ?? null, pool_actionable: ctx.free_agent_pool_readiness.actionable },
     notes: inp.notes,
@@ -168,7 +168,6 @@ export function compareReport(ctx: WeeklyTeamContext, inp: EarlyInputs) {
   const roster = rosterReport(ctx, inp);
   const prodWaivers = buildWaiverRecommendations(ctx, { limit: 8 });
   const add = addReport(ctx, inp, 8);
-  const nm = (x: string) => inp.names.get(x) ?? x;
   return {
     "CURRENT PRODUCTION DECISION": {
       lineup: roster.lineup_comparison["CURRENT PRODUCTION DECISION"],
