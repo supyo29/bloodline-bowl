@@ -32,6 +32,7 @@ parts <- list(
   agg(pbp, quote(return_team), quote(ifelse(!is.na(field_goal_result) & field_goal_result %in% c("missed", "blocked") & !is.na(return_yards), return_yards, 0)), "fg_ret_yd"),
   agg(pbp, quote(defteam), quote(ifelse(td == 1 & !is.na(td_team) & td_team == defteam & st == 0 & (ic == 1 | fl == 1), 1, 0)), "def_td"),
   agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team), 1, 0)), "st_td"),
+  agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team) & !is.na(play_type) & play_type %in% c("kickoff", "punt"), 1, 0)), "st_td_kp"),
   agg(pbp, quote(defteam), quote(one(safety)), "safeties"),
   agg(pbp, quote(defteam), quote(ifelse(one(punt_blocked) == 1 | (!is.na(field_goal_result) & field_goal_result == "blocked") | (!is.na(extra_point_result) & extra_point_result == "blocked"), 1, 0)), "blk"),
   agg(pbp, quote(defteam), quote(one(fourth_down_failed)), "stops4"),

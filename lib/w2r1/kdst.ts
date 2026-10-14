@@ -27,15 +27,20 @@ export function expectedKPoints(c: KComponents, s: Scoring): number {
   return pts + c.e_xp * (c.xp_rate * k.xpm + (1 - c.xp_rate) * k.xpmiss);
 }
 
+/** Provider semantics differ (verified against live 2025 provider D/ST stat lines, S7 adjudication). */
+export type Provider = "sleeper" | "yahoo";
 export interface DWeights {
-  sacks: number; sack_yd: number; ints: number; int_ret_yd: number; fumrec_def: number; fumrec_st: number; fum_ret_yd: number; ff_def: number; def_td: number; st_td: number;
+  sacks: number; sack_yd: number; ints: number; int_ret_yd: number; fumrec_def: number; fumrec_st: number; fum_ret_yd: number; ff_def: number; ff_st: number; def_td: number; st_td: number;
   safeties: number; blk: number; stops4: number; forced_punts: number; kr_yd: number; pr_yd: number; def2pt: number; pa_cont: number; pa_bins: number[];
 }
-export function dWeights(s: Scoring): DWeights {
+export function dWeights(s: Scoring, provider: Provider): DWeights {
   const dk = (a: string, b: string) => (has(s, a) ? w(s, a) : w(s, b));
+  const sl = provider === "sleeper";
+  // Sleeper: fum_rec = defensive recoveries, def_st_fum_rec = ST recoveries by the D/ST; ff / def_st_ff split likewise; def_td vs def_st_td (KR/PR TDs). st_* and fum_rec_td are individual-player keys.
+  // Yahoo: Fumble Recovery covers defense AND special teams; Touchdown = def_td; KR/PR TD = st_td; no forced-fumble stat; fum_rec_td is an offensive-player key.
   return {
-    sacks: w(s, "sack"), sack_yd: w(s, "sack_yd"), ints: w(s, "int"), int_ret_yd: w(s, "int_ret_yd"), fumrec_def: w(s, "fum_rec") + w(s, "def_st_fum_rec"), fumrec_st: w(s, "def_st_fum_rec") + w(s, "st_fum_rec"),
-    fum_ret_yd: w(s, "fum_ret_yd"), ff_def: w(s, "ff") + w(s, "def_st_ff"), def_td: w(s, "def_td"), st_td: w(s, "st_td"), safeties: w(s, "safe"), blk: w(s, "blk_kick"), stops4: w(s, "def_4_and_stop"),
+    sacks: w(s, "sack"), sack_yd: w(s, "sack_yd"), ints: w(s, "int"), int_ret_yd: w(s, "int_ret_yd"), fumrec_def: w(s, "fum_rec"), fumrec_st: sl ? w(s, "def_st_fum_rec") : w(s, "fum_rec"),
+    fum_ret_yd: w(s, "fum_ret_yd"), ff_def: sl ? w(s, "ff") : 0, ff_st: sl ? w(s, "def_st_ff") : 0, def_td: w(s, "def_td"), st_td: sl ? w(s, "def_st_td") : w(s, "st_td"), safeties: w(s, "safe"), blk: w(s, "blk_kick"), stops4: w(s, "def_4_and_stop"),
     forced_punts: w(s, "def_forced_punts"), kr_yd: dk("def_kr_yd", "kr_yd"), pr_yd: dk("def_pr_yd", "pr_yd"), def2pt: w(s, "def_2pt"), pa_cont: w(s, "pts_allow"),
     pa_bins: [w(s, "pts_allow_0"), w(s, "pts_allow_1_6"), w(s, "pts_allow_7_13"), w(s, "pts_allow_14_20"), w(s, "pts_allow_21_27"), w(s, "pts_allow_28_34"), w(s, "pts_allow_35p")],
   };
@@ -46,25 +51,38 @@ export function paScore(pa: number, d: DWeights): number {
 }
 
 export interface DComponents {
-  e_sacks: number; e_ints: number; e_fr: number; r_fumrec_st: number; r_ff_def: number; r_def_td: number; r_st_td: number; r_safeties: number; r_blk: number; r_stops4: number;
+  e_sacks: number; e_ints: number; e_fr: number; r_fumrec_st: number; r_ff_def: number; r_ff_st: number; r_def_td: number; r_st_td: number; r_safeties: number; r_blk: number; r_stops4: number;
   r_forced_punts: number; r_kr_yd: number; r_pr_yd: number; r_def2pt: number; mean_yds: { sack_yd: number; int_ret_yd: number; fum_ret_yd: number };
   /** P(points allowed by the opponent offense = k), k = 0..70, normalized */
   pa_pmf: number[];
 }
-export function expectedDstPoints(c: DComponents, s: Scoring): number {
-  const d = dWeights(s);
+export function expectedDstPoints(c: DComponents, s: Scoring, provider: Provider): number {
+  const d = dWeights(s, provider);
   let epa = 0;
   for (let k = 0; k < c.pa_pmf.length; k++) epa += c.pa_pmf[k]! * paScore(k, d);
   return (
     c.e_sacks * (d.sacks + d.sack_yd * c.mean_yds.sack_yd) + c.e_ints * (d.ints + d.int_ret_yd * c.mean_yds.int_ret_yd) + c.e_fr * (d.fumrec_def + d.fum_ret_yd * c.mean_yds.fum_ret_yd) +
-    c.r_fumrec_st * d.fumrec_st + c.r_ff_def * d.ff_def + c.r_def_td * d.def_td + c.r_st_td * d.st_td + c.r_safeties * d.safeties + c.r_blk * d.blk + c.r_stops4 * d.stops4 +
+    c.r_fumrec_st * d.fumrec_st + c.r_ff_def * d.ff_def + c.r_ff_st * d.ff_st + c.r_def_td * d.def_td + c.r_st_td * d.st_td + c.r_safeties * d.safeties + c.r_blk * d.blk + c.r_stops4 * d.stops4 +
     c.r_forced_punts * d.forced_punts + c.r_kr_yd * d.kr_yd + c.r_pr_yd * d.pr_yd + c.r_def2pt * d.def2pt + epa
   );
 }
 
-/** keys of a scoring regime that the K/D-ST component model CANNOT reconstruct (reported, never silently scored as 0): the regime is DIAGNOSTIC_UNQUALIFIED for them. */
+/** keys of a scoring regime that the K/D-ST component model CANNOT reconstruct (reported, never silently scored as 0): the regime is DIAGNOSTIC_UNQUALIFIED for them unless quantified immaterial.
+ *  Provider-aware: keys that are individual-player stats (not D/ST) are NOT APPLICABLE to the D/ST and are listed in `notApplicableDstKeys`. */
 const SUPPORTED_K = /^(fgm|fgmiss|xpm|xpmiss)(_|$)/;
-const SUPPORTED_D = new Set(["sack", "sack_yd", "int", "int_ret_yd", "fum_rec", "def_st_fum_rec", "st_fum_rec", "fum_ret_yd", "ff", "def_st_ff", "st_ff", "def_td", "st_td", "safe", "blk_kick", "def_4_and_stop", "def_forced_punts", "def_kr_yd", "kr_yd", "def_pr_yd", "pr_yd", "def_2pt", "pts_allow"]);
-export function unsupportedKdstKeys(s: Scoring): string[] {
-  return Object.entries(s).filter(([k, v]) => v !== 0 && /^(fg|xp|sack|int|fum|def_|st_|safe|blk|pts_allow|yds_allow|ff|kr_yd|pr_yd|bonus_def)/.test(k) && !SUPPORTED_K.test(k) && !SUPPORTED_D.has(k) && !/^pts_allow_/.test(k)).map(([k]) => k).sort();
+const SUPPORTED_D_COMMON = ["sack", "sack_yd", "int", "int_ret_yd", "fum_rec", "fum_ret_yd", "safe", "blk_kick", "def_4_and_stop", "def_forced_punts", "def_kr_yd", "def_pr_yd", "def_2pt", "def_td", "pts_allow"];
+const SUPPORTED_D: Record<Provider, Set<string>> = {
+  sleeper: new Set([...SUPPORTED_D_COMMON, "def_st_fum_rec", "ff", "def_st_ff", "def_st_td"]),
+  yahoo: new Set([...SUPPORTED_D_COMMON, "st_td"]),
+};
+/** Individual-player stat keys that exist in the league scoring but are not D/ST stat-line components (a D/ST never earns them). */
+const NOT_APPLICABLE_D: Record<Provider, Set<string>> = {
+  sleeper: new Set(["st_td", "st_ff", "st_fum_rec", "kr_yd", "pr_yd", "fum_rec_td"]),
+  yahoo: new Set(["fum_rec_td", "kr_yd", "pr_yd"]),
+};
+export function notApplicableDstKeys(s: Scoring, provider: Provider): string[] {
+  return Object.entries(s).filter(([k, v]) => v !== 0 && NOT_APPLICABLE_D[provider].has(k)).map(([k]) => k).sort();
+}
+export function unsupportedKdstKeys(s: Scoring, provider: Provider): string[] {
+  return Object.entries(s).filter(([k, v]) => v !== 0 && /^(fg|xp|sack|int|fum|def_|st_|safe|blk|pts_allow|yds_allow|ff|kr_yd|pr_yd|bonus_def)/.test(k) && !SUPPORTED_K.test(k) && !SUPPORTED_D[provider].has(k) && !NOT_APPLICABLE_D[provider].has(k) && !/^pts_allow_/.test(k)).map(([k]) => k).sort();
 }
