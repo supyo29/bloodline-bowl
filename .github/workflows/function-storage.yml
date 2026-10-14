@@ -1,0 +1,58 @@
+name: Function Storage Audit
+
+# Builds the app exactly as Vercel does and fails if the deployed function payload regresses
+# (physical lambdas > 6, total uncompressed > 600 MB, near the 250 MB per-function limit, research caches shipped,
+# a required runtime file missing, or the ignoreCommand allowlist covering a file that ships).
+# Requires repository secrets VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID; without them the job reports and skips.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "lib/**"
+      - "data/**"
+      - "docs/*.json"
+      - "next.config.ts"
+      - "vercel.json"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/function-storage-audit.mjs"
+      - "scripts/vercel-ignore-build.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Check secrets
+        id: gate
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Vercel secrets not configured; skipping build-based storage audit."; echo "run=false" >> "$GITHUB_OUTPUT"
+          else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.gate.outputs.run == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.run == 'true'
+        run: npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - if: steps.gate.outputs.run == 'true'
+        run: npx vercel build --prod --token="$VERCEL_TOKEN"
+      - if: steps.gate.outputs.run == 'true'
+        run: node scripts/function-storage-audit.mjs --json function-storage-report.json
+      - if: steps.gate.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-storage-report
+          path: function-storage-report.json
