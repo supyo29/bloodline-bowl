@@ -4,7 +4,7 @@
  * (method + url) so tests can prove what was and was not asked of Yahoo. No network.
  */
 import { YahooFantasyClient } from "../../lib/providers/yahoo/client";
-import { InMemoryYahooTokenStore } from "../../lib/providers/yahoo/oauth";
+import { InMemoryYahooTokenStore, type YahooTokenStore } from "../../lib/providers/yahoo/oauth";
 import { defaultYahooMarketIO, type YahooLeagueHandle, type YahooMarketIO } from "../../lib/market-state/yahoo-load";
 import type { ScheduleGameInput } from "../../lib/market-state/build";
 
@@ -93,10 +93,10 @@ function pendingBody(w: World) {
 }
 
 export interface Recorded { method: string; url: string }
-export function makeWorldClient(w: World): { client: YahooFantasyClient; requests: Recorded[]; store: InMemoryYahooTokenStore; refreshes: () => number } {
+export function makeWorldClient(w: World, o: { readOnlyStore?: YahooTokenStore } = {}): { client: YahooFantasyClient; requests: Recorded[]; store: YahooTokenStore; refreshes: () => number } {
   const requests: Recorded[] = [];
-  const store = new InMemoryYahooTokenStore();
-  void store.set({ access_token: "A", refresh_token: "R", token_type: "bearer", scope: "fspt-r", expires_at: w.token?.expires_at ?? Date.now() + 3_600_000, yahoo_guid: "G" });
+  const memStore = new InMemoryYahooTokenStore(); const store: YahooTokenStore = o.readOnlyStore ?? memStore;
+  if (!o.readOnlyStore) void memStore.set({ access_token: "A", refresh_token: "R", token_type: "bearer", scope: "fspt-r", expires_at: w.token?.expires_at ?? Date.now() + 3_600_000, yahoo_guid: "G" });
   let refreshCount = 0;
   const poolSources = (): Record<"FA" | "W" | "T", unknown[]> => {
     const all = [...w.teams.flatMap((t) => t.roster.map((p) => ({ p, owner: t.id }))), ...(w.tOnly ?? []).map((p) => ({ p, owner: p.owner }))];
@@ -131,12 +131,12 @@ export function makeWorldClient(w: World): { client: YahooFantasyClient; request
     }
     return new Response("{}", { status: 404 });
   }) as typeof fetch;
-  return { client: new YahooFantasyClient({ config: CONFIG, store, fetchImpl }), requests, store, refreshes: () => refreshCount };
+  return { client: new YahooFantasyClient({ config: CONFIG, store, fetchImpl, readOnly: !!o.readOnlyStore }), requests, store, refreshes: () => refreshCount };
 }
 
 export interface WorldIO { io: YahooMarketIO; requests: Recorded[]; client: YahooFantasyClient; handle: YahooLeagueHandle; opened: { count: number }; schedule: ScheduleGameInput[] }
-export function makeWorldIO(w: World, o: { schedule?: ScheduleGameInput[] | "fail"; resolver?: (p: { player_key: string; name: string | null; position: string | null; team: string | null }) => string | null; openFail?: { code: string; detail: string } } = {}): WorldIO {
-  const { client, requests } = makeWorldClient(w);
+export function makeWorldIO(w: World, o: { readOnlyStore?: YahooTokenStore; schedule?: ScheduleGameInput[] | "fail"; resolver?: (p: { player_key: string; name: string | null; position: string | null; team: string | null }) => string | null; openFail?: { code: string; detail: string } } = {}): WorldIO {
+  const { client, requests } = makeWorldClient(w, { readOnlyStore: o.readOnlyStore });
   const handle: YahooLeagueHandle = { client, leagueKey: LK, gameKey: "471", connectionId: "primary" };
   const opened = { count: 0 };
   const schedule: ScheduleGameInput[] = o.schedule === "fail" || !o.schedule ? [{ week: 6, home: "BUF", away: "NYJ", status: "pre_game" }, { week: 6, home: "DET", away: "MIN", status: "complete" }] : o.schedule;

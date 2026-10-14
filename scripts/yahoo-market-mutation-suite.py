@@ -4,7 +4,7 @@
 Usage: python3 scripts/yahoo-market-mutation-suite.py [Y1 Y5 ...]"""
 import hashlib, subprocess, sys, json
 TESTS = ["test/yahoo-market-state-build.test.ts", "test/yahoo-market-state-load.test.ts", "test/yahoo-market-state-weekly.test.ts", "test/yahoo-sleeper-bridge.test.ts",
-         "test/yahoo-market-parsers.test.ts", "test/yahoo-market-architecture.test.ts", "test/yahoo-players.test.ts", "test/yahoo-fetch.test.ts", "test/market-state-adversarial.test.ts"]
+         "test/yahoo-market-parsers.test.ts", "test/yahoo-readonly-auth.test.ts", "test/yahoo-market-architecture.test.ts", "test/yahoo-players.test.ts", "test/yahoo-fetch.test.ts", "test/market-state-adversarial.test.ts"]
 BUILD, LOAD, INT = "lib/market-state/yahoo-build.ts", "lib/market-state/yahoo-load.ts", "lib/market-state/integrity.ts"
 PLY, CLIENT, DISC, PEND = "lib/providers/yahoo/players.ts", "lib/providers/yahoo/client.ts", "lib/providers/yahoo/discovery.ts", "lib/providers/yahoo/pending-claims.ts"
 ADAPT, REPL, W2 = "lib/weekly/market-pool-adapter.ts", "lib/weekly/replacement.ts", "lib/waiver2/market-pool.ts"
@@ -48,9 +48,14 @@ MUT = [
  ("Y29", "the reconciliation compares against an INCOMPLETE rostered pool as if it were whole", BUILD, [('  const comparable = rostersComplete && haveT && sub.T!.complete;', '  const comparable = rostersComplete && haveT;')]),
  ("Y30", "the null-team fallback ignores another same-name player who HAS a team (could be the player Yahoo means)", BR, [('    if (np.withTeam.size > 0) return { status: "NONE" };', '')]),
  ("Y31", "the null-team fallback accepts several team-less same-name players (first wins)", BR, [('    if (np.noTeam.size > 1) return { status: "AMBIGUOUS", candidates: [...np.noTeam].sort() };', '')]),
+ ("Y32", "read-only mode no longer rejects an expired token (it would send a stale token / fall through)", "lib/providers/yahoo/client.ts", [('    if (token.expires_at - Date.now() <= READ_ONLY_EXPIRY_MARGIN_MS) {\n      throw new YahooApiError("AUTH_REFRESH_REQUIRED_READ_ONLY"', '    if (false as boolean) {\n      throw new YahooApiError("AUTH_REFRESH_REQUIRED_READ_ONLY"')]),
+ ("Y33", "read-only mode no longer maps a Yahoo 401 to AUTH_REFRESH_REQUIRED_READ_ONLY", "lib/providers/yahoo/client.ts", [("      if (attempt.error.httpStatus === 401) throw new YahooApiError(\"AUTH_REFRESH_REQUIRED_READ_ONLY\"", "      if (false as boolean) throw new YahooApiError(\"AUTH_REFRESH_REQUIRED_READ_ONLY\"")]),
+ ("Y34", "the read-only token store accepts a write (a refresh could persist a rotated token)", "lib/providers/yahoo/read-only-auth.ts", [("  async set(): Promise<void> { this.writeAttempts += 1; throw new YahooReadOnlyViolation(\"set\"); }", "  async set(): Promise<void> { /* mutated: write allowed */ }")]),
+ ("Y35", "the client ignores readOnly and takes the normal refresh path", "lib/providers/yahoo/client.ts", [("    if (this.#readOnly) return this.#getReadOnly<T>(url, path);\n", "")]),
+ ("Y36", "the read-only provider no longer checks expiry (it hands out an expired token)", "lib/providers/yahoo/provider.ts", [("      if (t.expires_at - Date.now() <= READ_ONLY_EXPIRY_MARGIN_MS) return { ok: false", "      if (false as boolean) return { ok: false")]),
  ("Y27", "a rejected token / auth failure on the pool is swallowed as an empty pool that looks complete", LOAD, [('    if (r.status !== "fulfilled") { poolErrs.push(', '    if (r.status !== "fulfilled") { sub[code] = { returned: 0, complete: true, pages_fetched: 0, stopped_reason: "end_of_pool" }; poolErrs.push(')]),
 ]
-EQUIVALENT = {}
+EQUIVALENT = {"Y36": "the provider pre-check duplicates the client guard: with the pre-check removed the client throws the same AUTH_REFRESH_REQUIRED_READ_ONLY (mapped to the same degraded code) before any network request, so no observable behavior differs (defense in depth; the client guard is killed by Y32)"}
 sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
 def run():
     r = subprocess.run(["node", "--import", "tsx", "--test", *TESTS], capture_output=True, text=True)

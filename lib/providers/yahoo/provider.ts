@@ -45,7 +45,7 @@ import {
 } from "../types";
 import { yahooBundleToCanonical, yahooMatchupsToCanonical, type YahooFlatBundle } from "./canonical";
 import { loadYahooConfig, type YahooConfig } from "./config";
-import { YahooApiError, YahooFantasyClient } from "./client";
+import { YahooApiError, YahooFantasyClient, READ_ONLY_EXPIRY_MARGIN_MS } from "./client";
 import { probeLeague } from "./discovery";
 import {
   fetchYahooLeagueBundle,
@@ -76,6 +76,8 @@ export interface YahooProviderOptions {
   tokenStore?: YahooTokenStore;
   /** Durable OAuth connection id. Defaults to the legacy/certified "primary". */
   connectionId?: string;
+  /** Strict read-only / no-refresh mode (live certification): requires `tokenStore`; needs no OAuth app credentials; never refreshes, never writes a token. */
+  readOnly?: boolean;
 }
 
 const POOL_TIME_BUDGET_MS = 48_000;
@@ -127,6 +129,8 @@ function mapYahooError<T>(error: unknown, resource: string): ProviderResult<T> {
         return degraded("PROVIDER_ERROR", "yahoo_server_error", `Yahoo returned a server error fetching ${resource}: ${error.message}`);
       case "MALFORMED":
         return degraded("PROVIDER_ERROR", "yahoo_malformed_response", `Yahoo response for ${resource} could not be parsed: ${error.message}`);
+      case "AUTH_REFRESH_REQUIRED_READ_ONLY":
+        return degraded("AUTH_REQUIRED", "AUTH_REFRESH_REQUIRED_READ_ONLY", `Yahoo access token for ${resource} is expired or rejected and refresh is forbidden in strict read-only mode.`);
       case "TIMEOUT":
         return degraded("PROVIDER_ERROR", "yahoo_timeout", `Yahoo request for ${resource} timed out.`);
       case "NETWORK":
@@ -150,8 +154,11 @@ export class YahooProvider implements FantasyProvider {
   #env: NodeJS.ProcessEnv;
   #tokenStore: YahooTokenStore;
   #connectionId: string;
+  #readOnly: boolean;
 
   constructor(opts: YahooProviderOptions = {}) {
+    this.#readOnly = opts.readOnly === true;
+    if (this.#readOnly && !opts.tokenStore) throw new Error("YahooProvider readOnly requires an explicit tokenStore (no durable store is ever resolved in read-only mode)");
     this.#env = opts.env ?? process.env;
     this.#connectionId = opts.connectionId?.trim() || "primary";
     if (opts.tokenStore) {
@@ -194,6 +201,13 @@ export class YahooProvider implements FantasyProvider {
     | { ok: true; accessToken: string; config: YahooConfig }
     | { ok: false; result: ProviderResult<never> }
   > {
+    if (this.#readOnly) {
+      // strict read-only: the current access token is used as-is; NO refresh is possible, so no OAuth app credentials are needed or read
+      const t = await this.#tokenStore.get().catch(() => null);
+      if (!t) return { ok: false, result: degraded("AUTH_REQUIRED", "yahoo_auth_required", `Yahoo connection "${this.#connectionId}" has no access token (read-only mode).`) };
+      if (t.expires_at - Date.now() <= READ_ONLY_EXPIRY_MARGIN_MS) return { ok: false, result: degraded("AUTH_REQUIRED", "AUTH_REFRESH_REQUIRED_READ_ONLY", `Yahoo connection "${this.#connectionId}": access token expired and refresh is forbidden in strict read-only mode.`) };
+      return { ok: true, accessToken: t.access_token, config: { client_id: "", client_secret: "", redirect_uri: "", scope: "fspt-r", game_key_override: null } };
+    }
     const cfg = loadYahooConfig(this.#env);
     if (!cfg.configured || !cfg.config) {
       return {
@@ -233,7 +247,7 @@ export class YahooProvider implements FantasyProvider {
     const auth = await this.#authStatus();
     if (!auth.ok) return auth;
 
-    const client = new YahooFantasyClient({ config: auth.config, store: this.#tokenStore });
+    const client = new YahooFantasyClient({ config: auth.config, store: this.#tokenStore, readOnly: this.#readOnly });
 
     const gameKeyResult = await resolveNflGameKey(client, ctx.season, {
       overrideKey: auth.config.game_key_override,

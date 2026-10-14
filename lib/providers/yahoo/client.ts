@@ -27,7 +27,9 @@ export type YahooApiErrorKind =
   | "SERVER" // 5xx
   | "MALFORMED" // 2xx body we cannot parse
   | "TIMEOUT"
-  | "NETWORK";
+  | "NETWORK"
+  // strict read-only certification mode: the current access token is expired / rejected and refreshing is FORBIDDEN (a refresh would write a rotated token to the token store)
+  | "AUTH_REFRESH_REQUIRED_READ_ONLY";
 
 export class YahooApiError extends Error {
   constructor(
@@ -88,7 +90,15 @@ export interface YahooFantasyClientOptions {
   /** Override for tests. */
   fetchImpl?: typeof fetch;
   baseUrl?: string;
+  /**
+   * STRICT READ-ONLY / NO-REFRESH mode (live certification). The current access token may be used for GET requests; token refresh is impossible by construction: the refresh code
+   * (`getValidAccessToken`, the token endpoint, `store.set`) is never reached. An expired token or a Yahoo 401 fails with `AUTH_REFRESH_REQUIRED_READ_ONLY`.
+   */
+  readOnly?: boolean;
 }
+
+/** an access token this close to expiry is treated as expired in read-only mode (it could lapse mid-request) */
+export const READ_ONLY_EXPIRY_MARGIN_MS = 5_000;
 
 export class YahooFantasyClient {
   #config: YahooConfig;
@@ -96,8 +106,10 @@ export class YahooFantasyClient {
   #timeoutMs: number;
   #fetch: typeof fetch;
   #base: string;
+  #readOnly: boolean;
 
   constructor(opts: YahooFantasyClientOptions) {
+    this.#readOnly = opts.readOnly === true;
     this.#config = opts.config;
     this.#store = opts.store;
     this.#timeoutMs = opts.timeoutMs ?? 12_000;
@@ -117,6 +129,8 @@ export class YahooFantasyClient {
     const path = resourcePath.startsWith("/") ? resourcePath : `/${resourcePath}`;
     const sep = path.includes("?") ? "&" : "?";
     const url = `${this.#base}${path}${sep}format=json`;
+
+    if (this.#readOnly) return this.#getReadOnly<T>(url, path);
 
     const first = await getValidAccessToken(this.#config, this.#store, { fetchImpl: this.#fetch });
     if (first.status === "NOT_CONNECTED") {
@@ -171,11 +185,28 @@ export class YahooFantasyClient {
     return { data: attempt.data as T, meta: { ...attempt.meta!, refreshed } };
   }
 
+  /** The ONLY read-only path: current token, one GET, no refresh, no store write. */
+  async #getReadOnly<T>(url: string, path: string): Promise<YahooResponse<T>> {
+    let token;
+    try { token = await this.#store.get(); } catch { throw new YahooApiError("AUTH", "Yahoo token store read failed (read-only mode).", null, path); }
+    if (!token) throw new YahooApiError("NOT_CONNECTED", "No Yahoo access token is available (read-only mode).", null, path);
+    if (token.expires_at - Date.now() <= READ_ONLY_EXPIRY_MARGIN_MS) {
+      throw new YahooApiError("AUTH_REFRESH_REQUIRED_READ_ONLY", "AUTH_REFRESH_REQUIRED_READ_ONLY: the access token is expired and token refresh is forbidden in strict read-only mode.", null, path);
+    }
+    const attempt = await this.#send<T>(url, token.access_token, path, false, true);
+    if (attempt.error) {
+      if (attempt.error.httpStatus === 401) throw new YahooApiError("AUTH_REFRESH_REQUIRED_READ_ONLY", "AUTH_REFRESH_REQUIRED_READ_ONLY: Yahoo rejected the access token (401) and token refresh is forbidden in strict read-only mode.", 401, path);
+      throw attempt.error;
+    }
+    return { data: attempt.data as T, meta: { ...attempt.meta!, refreshed: false } };
+  }
+
   async #send<T>(
     url: string,
     accessToken: string,
     path: string,
     isRetry: boolean,
+    noAuthRetry = false,
   ): Promise<{
     retryableAuth: boolean;
     data?: T;
@@ -216,7 +247,7 @@ export class YahooFantasyClient {
     };
     const bodyText = await res.text().catch(() => "");
 
-    if (res.status === 401 && !isRetry) return { retryableAuth: true };
+    if (res.status === 401 && !isRetry && !noAuthRetry) return { retryableAuth: true };
 
     if (!res.ok) {
       const kind: YahooApiErrorKind =

@@ -113,3 +113,17 @@ Evidence: `docs/evidence/yahoo-market-live-replay-{rogers-park,maclin}.json`. Sc
 - Mutation suite `scripts/yahoo-market-mutation-suite.py`: **37 / 37 killed**, files restored byte-for-byte (every mutation the brief lists plus regressions found while building). Two survivors on the first run exposed real test gaps (the loader's own default reads were not exercised; fixture ids hid an id-matching bug) and were closed.
 
 **To close the live gap (your call):** either (a) authorize pulling the Yahoo OAuth app config + token-store access into a local, untracked environment for one read-only run — note a token **refresh writes the rotated token back to production's `bridge_yahoo_connections`**, so this should be done once, deliberately, with the deployed app idle; or (b) authorize a Vercel **preview** deployment of this branch, which would run the new code on Vercel with the app's own env. Neither has been done.
+
+
+## Strict read-only (no-refresh) live certification mode
+
+`YahooProvider({ readOnly: true, tokenStore })` / `YahooFantasyClient({ readOnly: true })` use only a *current access token*:
+the refresh endpoint is never reached, no POST is possible, `store.set/clear` are never called (`NoRefreshTokenStore` throws and counts attempts, holds no refresh token),
+an expired token or a Yahoo 401 fails with `AUTH_REFRESH_REQUIRED_READ_ONLY` (degraded `AUTH_REQUIRED`). Production (non read-only) refresh behavior is unchanged (existing tests).
+Tests: `test/yahoo-readonly-auth.test.ts`; mutants Y32-Y36 (Y36 = provider pre-check duplicating the client guard, documented equivalent).
+
+Live gate: `YAHOO_ACCESS_TOKEN_MACLIN=... YAHOO_ACCESS_TOKEN_PRIMARY=... node --import tsx scripts/yahoo-live-readonly-cert.ts`
+(tokens only from the environment; never printed or persisted; whole-run enforcement of GET-only / no token-endpoint / no store writes).
+Without a token it exits 3 with `LIVE_CERT_BLOCKED_NO_SAFE_ACCESS_TOKEN`.
+
+**Status 2026-10-14: LIVE_CERT_BLOCKED_NO_SAFE_ACCESS_TOKEN** - no safe access token available in this environment; no Yahoo request was made by the new loader.
