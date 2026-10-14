@@ -77,6 +77,7 @@ test("PRODUCTION ISOLATION: Market State reaches the legacy production weekly en
   assert.deepEqual(
     importers,
     [
+      "app/api/league/[league]/market/route.ts",
       "lib/book-ready/families/market-state.ts", "lib/book-ready/query.ts", "lib/persistence/supabase/market-state.ts",
       "lib/waiver2/adapter.ts", "lib/waiver2/market-pool.ts", "lib/waiver2/market-policy.ts", "lib/waiver2/types.ts",
       "lib/weekly/context.ts", "lib/weekly/market-pool-adapter.ts",

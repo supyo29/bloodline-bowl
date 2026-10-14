@@ -620,6 +620,20 @@ export class YahooProvider implements FantasyProvider {
     }
   }
 
+  /**
+   * Authenticated, league-verified READ handle for the Market State loader: the SAME auth, game-key resolution, league probe and identity check every
+   * other provider read goes through (no second client). The connection is the one this provider was constructed with (registry binding), so a league can
+   * never be read with another league's connection. Read-only: the handle exposes only `YahooFantasyClient.get`.
+   */
+  async openReadHandle(
+    ctx: Pick<ProviderLeagueContext, "league_slug" | "external_league_id" | "season">,
+  ): Promise<ProviderResult<{ client: YahooFantasyClient; leagueKey: string; gameKey: string; connectionId: string }>> {
+    const resolved = await this.#resolveLeague(ctx);
+    if (!resolved.ok) return resolved.result;
+    const { client, leagueKey, gameKey } = resolved.resolved;
+    return ok({ client, leagueKey, gameKey, connectionId: this.#connectionId }, { status: "READY" });
+  }
+
   getFreeAgents(ctx: ProviderLeagueContext, query: Omit<AvailablePlayersQuery, "status"> = {}) {
     return this.getAvailablePlayers(ctx, { ...query, status: "FA" });
   }

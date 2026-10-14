@@ -103,6 +103,11 @@ export interface WaiverCandidateEval {
   reasons: string[];
   ros_signal: import("./schema").RosSignal | null;
   /**
+   * Present only for a candidate certified by PROVIDER evidence (Yahoo): `FREE_AGENT_ADD` = addable now; `WAIVER_CLAIM` = claim-only (Yahoo's own `W`
+   * status, with its clear DATE when stated). Advisory only — Bloodline never submits a claim.
+   */
+  acquisition?: import("./schema").AvailablePlayer["acquisition"];
+  /**
    * W1.P3: present only when at least one verified-bye player was a drop candidate for this add. Exposes the bye-neutral
    * counterfactual so a bye can never silently drive (or silently block) a drop.
    */
@@ -174,6 +179,11 @@ export interface WaiverResult {
   warnings: WeeklyWarning[];
   /** Intelligence Modernization Phase 1: what produced this result and how fresh it is. Additive -- never affects `recommendations`/`considered`/`do_not_add`. */
   intelligence: WaiverIntelligenceProvenance;
+  /**
+   * Structured evidence of the verified acquirable pool (counts of verified free agents / waivers / unknown, projection coverage, readiness AXES, rules,
+   * pending-claim visibility, freshness, pool pagination evidence). Present only for provider-evidence markets (Yahoo). Clients read this, never prose.
+   */
+  market_pool?: import("./schema").MarketPoolSummary;
 }
 
 const BASE_POS = ["QB", "RB", "WR", "TE", "K", "DEF"];
@@ -677,6 +687,7 @@ export function buildWaiverRecommendations(
       score,
       reasons,
       ros_signal: rosSig ?? null,
+      ...(fa.acquisition ? { acquisition: fa.acquisition } : {}),
       ...(byeDiagnostics.length > 0 ? { bye_diagnostics: byeDiagnostics } : {}),
       ...(() => {
         if (openActiveSpot) return {};
@@ -746,6 +757,7 @@ export function buildWaiverRecommendations(
     do_not_add,
     warnings,
     intelligence: buildWaiverIntelligenceProvenance(ctx),
+    ...(ctx.market_pool ? { market_pool: ctx.market_pool } : {}),
   };
 }
 

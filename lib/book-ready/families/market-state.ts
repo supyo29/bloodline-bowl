@@ -10,6 +10,7 @@
 import type { MarketSnapshot } from "@/lib/market-state/contract";
 import { MARKET_STATE_VERSION, PROVIDER_LIMITATIONS } from "@/lib/market-state/contract";
 import { managerAcquisitionContext } from "@/lib/market-state/pool";
+import { YAHOO_LIMITATIONS } from "@/lib/market-state/yahoo-build";
 import { unitFor } from "../units";
 import { phaseRef } from "../phase-namespaces";
 import type { Component, EvidenceBlock, TemporalIdentity } from "../schema";
@@ -32,8 +33,8 @@ export function marketStateEvidence(s: MarketSnapshot, manager?: { team_id: stri
     surface: MARKET_SURFACE, topic: "market.state", subject, deployment: { state: "SHARED_DESCRIPTIVE" as const, may_influence_production: false }, temporal: temporal(s),
     freshness: { as_of: s.as_of, through_week: null, generated_at: s.as_of },
     lineage: { surface_version: MARKET_STATE_VERSION, content_identity: s.identities.market_content_id, canonical: { market_content_id: s.identities.market_content_id, acquisition_context_id: s.acquisition.context_id, history_class: s.history_class, readiness_status: s.readiness.status, readiness_codes: codes, actionable: s.readiness.pool_actionable, sources: Object.fromEntries(Object.entries(s.sources).map(([k, v]) => [k, v.status])) } },
-    source: { built_in: BUILT_IN, source_data: "provider league rules + rosters + player universe + transaction window + NFL schedule (derived, never a provider free-agent endpoint)" },
-    limitations: Object.values(PROVIDER_LIMITATIONS), predictive: { source_status: "DESCRIPTIVE_ONLY", class: "DESCRIPTIVE_ONLY" as const }, origin: { source_class: "DERIVED_FROM_STATE", analysis_class: "DESCRIPTIVE" as const },
+    source: { built_in: BUILT_IN, source_data: s.provider === "yahoo" ? "Yahoo league settings + every team roster + Yahoo's own per-player FA / W / T pool statuses + NFL schedule (availability is STATED by the provider per player; never inferred from a roster)" : "provider league rules + rosters + player universe + transaction window + NFL schedule (derived, never a provider free-agent endpoint)" },
+    limitations: Object.values(s.provider === "yahoo" ? YAHOO_LIMITATIONS : PROVIDER_LIMITATIONS), predictive: { source_status: "DESCRIPTIVE_ONLY", class: "DESCRIPTIVE_ONLY" as const }, origin: { source_class: "DERIVED_FROM_STATE", analysis_class: "DESCRIPTIVE" as const },
   };
   const out: EvidenceBlock[] = [];
   out.push(mk({ ...base, metric: "readiness.status", availability: { state: "AVAILABLE" }, value: s.readiness.status, unit: unitFor("category"), category: { raw: s.readiness.status, normalized: s.readiness.status, mapping_status: "VERIFIED" },
@@ -52,6 +53,12 @@ export function marketStateEvidence(s: MarketSnapshot, manager?: { team_id: stri
   const unkBy: Record<string, number> = {}; for (const p of s.players) if (p.status === "UNKNOWN_AVAILABILITY" || p.status === "SOURCE_UNAVAILABLE") unkBy[p.reason ?? "UNSPECIFIED"] = (unkBy[p.reason ?? "UNSPECIFIED"] ?? 0) + 1;
   out.push(pool("pool.available_count", s.counts.AVAILABLE_FREE_AGENT, Object.entries(byPos).sort().map(([k, v]) => count(k, v))));
   out.push(pool("pool.on_waivers_count", s.counts.ON_WAIVERS, []));
+  if (s.provider === "yahoo") {
+    // provider-evidence market: claim-only waiver players are acquirable (a claim, not an add) and the readiness AXES are separate facts
+    out.push(pool("pool.claimable_waiver_count", s.players.filter((p) => p.status === "ON_WAIVERS" && p.claimable === true).length, []));
+    const axes = s.readiness.axes;
+    if (axes) for (const [k, v] of Object.entries(axes)) out.push(mk({ ...base, metric: `readiness.axis.${k}`, availability: { state: "AVAILABLE" }, value: v, unit: unitFor("category"), category: { raw: v, normalized: v, mapping_status: "VERIFIED" } }, [`axis.${k}`]));
+  }
   out.push(pool("pool.unknown_availability_count", s.counts.UNKNOWN_AVAILABILITY + s.counts.SOURCE_UNAVAILABLE, Object.entries(unkBy).sort().map(([k, v]) => count(k, v))));
   out.push(pool("pool.rostered_count", s.counts.ROSTERED, []));
   out.push(pool("pool.ineligible_count", Object.values(s.ineligible_counts).reduce((a, b) => a + b, 0), Object.entries(s.ineligible_counts).sort().map(([k, v]) => count(k, v))));

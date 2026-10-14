@@ -80,7 +80,8 @@ export function computeWeeklyReplacement(input: Input): WeeklyReplacement {
     const pos = wp.position;
     if (!poolAll[pos]) continue;
     poolAll[pos]!.push(wp.projected_points);
-    if (ap.ownership === "free_agent") poolFA[pos]!.push(wp.projected_points);
+    // free_agent = addable now; waiver = provider-verified claim-only (never produced for inferred-availability providers). Both are the acquirable pool.
+    if (ap.ownership === "free_agent" || ap.ownership === "waiver") poolFA[pos]!.push(wp.projected_points);
   }
   for (const p of BASE_POSITIONS) {
     poolAll[p]!.sort((a, b) => b - a);

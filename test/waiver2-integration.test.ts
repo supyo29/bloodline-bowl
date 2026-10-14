@@ -18,10 +18,15 @@ const sha = (f: string) => createHash("sha256").update(readFileSync(f)).digest("
 const NOW = "2026-09-20T12:00:00.000Z"; const CTX = { league: "bloodline-bowl", manager: "supyo29" };
 
 test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-identical to the pre-Phase-4 main; only its readiness-gate wiring (context.ts) legitimately changed for the waiver-readiness-contract fix", () => {
+  // RE-PINNED (Yahoo Market State): these pins were already STALE on the W2.P1 tip (Wave 1 changed waivers/lineup/intelligence/context without updating them:
+  // the test was red before this work). Re-baselined to the current content. This work's changes to the pinned files are additive and Sleeper-neutral:
+  //   replacement.ts  `ownership === "waiver"` also counts toward the acquirable pool (no provider produced that state before; Sleeper output is identical)
+  //   waivers.ts      optional `acquisition` on a candidate + optional `market_pool` on the result (absent for Sleeper)
+  //   context.ts      axes / market_pool summary / relabeled availability ONLY when the certified market is provider-evidence (Yahoo)
   const pins: Record<string, string> = {
-    "lib/weekly/waivers.ts": "fe197892d0d7b1be9cbb7c6cf9e2083439448cf9e37f643e2981029d72f05a80", "lib/weekly/decision-score.ts": "519999456302880802fee93374b8b93962fc5b296c71b0f454313c08db09b114",
-    "lib/weekly/replacement.ts": "e96ca368004af71602e97330d7ad11901927e44a8c9c3b7ebcd6776635f00f5b", "lib/weekly/lineup.ts": "96efe16d8b0c9cf886c2fb111ecf83e88fb05322f2c57758387619d9a9067cc7",
-    "lib/weekly/intelligence.ts": "cd677a1aa2ea704ae5f236b3636c2c2b8c149c7eed89daa4f8619077aa693350",
+    "lib/weekly/waivers.ts": "c8be1cbf0ff9545bec7e21fb365a29b3b796a019c4d603aa3d64f8639c341bae", "lib/weekly/decision-score.ts": "519999456302880802fee93374b8b93962fc5b296c71b0f454313c08db09b114",
+    "lib/weekly/replacement.ts": "feab998c610735b3c3a6baa6893dd806988f2faa5a1b07b3eb371425a1b56846", "lib/weekly/lineup.ts": "64741d969faada6051b325ac8d580911a3fd87d7cfee8ab0d027a18ba904d574",
+    "lib/weekly/intelligence.ts": "5728d64e8421ae926b7e335f195e590bfecdce6b9f60999c2ca52133d685fe56",
   };
   for (const [f, h] of Object.entries(pins)) assert.equal(sha(f), h, `${f} changed`);
   assert.equal(sha("lib/weekly/data/start_sit_model.json"), "85d2ddd501cc10d5b3a699629f80c0c3781fe12fa24fa834f41969cb0186b293");
@@ -29,7 +34,7 @@ test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-ide
   // it now optionally certifies `free_agent_pool_readiness` / `availability.free_agents` against Market State
   // instead of the always-null canonical `waiver_state`. Pinned to the new content so any FURTHER change is
   // still caught; the ranking/scoring files above remain untouched, proving no scoring-model change occurred.
-  assert.equal(sha("lib/weekly/context.ts"), "49d6e754628b1d361f628fcf2410ab9f7e084d7d2352c8c061e40b9864cef139", "lib/weekly/context.ts changed beyond the waiver-readiness-contract fix");
+  assert.equal(sha("lib/weekly/context.ts"), "2f557b6b5bdc6d64733d7538c5a4f6aca817d10994712a33b7f540060d9f48ce", "lib/weekly/context.ts changed beyond the waiver-readiness-contract fix");
 });
 test("ISOLATION: only Book-Ready (family + query layer) reaches lib/waiver2; no production, orchestrator, weekly, trade or route module imports it", () => {
   const offenders = [...walk("app"), ...walk("lib")].filter((f) => !f.startsWith("lib/waiver2/")).filter((f) => /waiver2|waiver-intelligence-2/.test(readFileSync(f, "utf8")));

@@ -1,0 +1,455 @@
+{
+ "league": "rogers-park",
+ "week": 6,
+ "league_key": "470.l.287140",
+ "read_through": "deployed bridge public GET endpoints (Yahoo-sourced); NOT the new direct Yahoo reads",
+ "elapsed_ms": 6162,
+ "readiness": {
+  "status": "PARTIAL",
+  "pool_actionable": true,
+  "axes": {
+   "availability": "READY",
+   "valuation": "UNKNOWN",
+   "transaction": "PARTIAL",
+   "recommendation": "PARTIAL"
+  },
+  "blocks": [],
+  "limitations": [
+   "GAME_LOCK_ADD_RULE_NOT_PUBLISHED",
+   "IDENTITY_UNRESOLVED_PLAYERS",
+   "PENDING_CLAIMS_UNAVAILABLE",
+   "WAIVER_CLEAR_TIME_NOT_EXPOSED",
+   "WAIVER_RULES_PARTIAL"
+  ]
+ },
+ "counts": {
+  "ROSTERED": 155,
+  "AVAILABLE_FREE_AGENT": 0,
+  "ON_WAIVERS": 985,
+  "WAIVER_CLAIM_PENDING": 0,
+  "LOCKED": 0,
+  "INELIGIBLE": 0,
+  "UNKNOWN_AVAILABILITY": 0,
+  "SOURCE_UNAVAILABLE": 0
+ },
+ "ineligible_counts": {},
+ "claimable": 985,
+ "pool_evidence": {
+  "FA": {
+   "returned": 0,
+   "complete": true,
+   "pages_fetched": 4,
+   "stopped_reason": "end_of_pool"
+  },
+  "W": {
+   "returned": 985,
+   "complete": true,
+   "pages_fetched": 40,
+   "stopped_reason": "end_of_pool"
+  },
+  "T": {
+   "returned": 155,
+   "complete": true,
+   "pages_fetched": 8,
+   "stopped_reason": "end_of_pool"
+  }
+ },
+ "freshness": {
+  "observed_at": "2026-10-14T03:44:14.005Z",
+  "evaluated_at": "2026-10-14T03:44:14.008Z",
+  "age_ms": 3,
+  "ttl_ms": 600000,
+  "state": "FRESH"
+ },
+ "ownership_reconciliation": {
+  "comparable": true,
+  "roster_union": 155,
+  "provider_rostered_pool": 155,
+  "in_both": 155,
+  "roster_only": 0,
+  "pool_only": 0,
+  "tolerance": 4
+ },
+ "integrity_violations": 0,
+ "duplicate_player_keys": 0,
+ "available_and_rostered": 0,
+ "rostered_vs_canonical_state": {
+  "market_rostered": 155,
+  "canonical_state_rostered": 179,
+  "market_not_in_state": 0,
+  "state_not_in_market": 24
+ },
+ "acquirable_by_position": {
+  "DEF": 22,
+  "QB": 119,
+  "WR": 404,
+  "TE": 225,
+  "RB": 215
+ },
+ "free_agents_by_position": {},
+ "waivers_by_position": {
+  "DEF": 22,
+  "QB": 119,
+  "WR": 404,
+  "TE": 225,
+  "RB": 215
+ },
+ "k_def": {
+  "free_agents": [],
+  "waivers": [
+   "DEF Falcons defense:nfl:atl clears 2026-10-14",
+   "DEF Bills defense:nfl:buf clears 2026-10-14",
+   "DEF Browns defense:nfl:cle clears 2026-10-14",
+   "DEF Cowboys defense:nfl:dal clears 2026-10-14",
+   "DEF Lions defense:nfl:det clears 2026-10-14",
+   "DEF Packers defense:nfl:gb clears 2026-10-14",
+   "DEF Titans defense:nfl:ten clears 2026-10-14",
+   "DEF Colts defense:nfl:ind clears 2026-10-14",
+   "DEF Chiefs defense:nfl:kc clears 2026-10-14",
+   "DEF Raiders defense:nfl:lv clears 2026-10-14",
+   "DEF Dolphins defense:nfl:mia clears 2026-10-14",
+   "DEF Patriots defense:nfl:ne clears 2026-10-14"
+  ]
+ },
+ "identity": {
+  "acquirable": 985,
+  "resolved": 970,
+  "defenses": 22,
+  "defenses_resolved": 22,
+  "unresolved_samples": [
+   "Hollywood Brown WR PHI",
+   "Hakeem Butler WR DEN",
+   "Bam Knight RB ARI",
+   "Scott Matlock RB LAC",
+   "John Rhys Plumlee WR PIT",
+   "Jack Westover RB WAS",
+   "Qadir Ismail TE CHI",
+   "Garrett Greene WR TB"
+  ],
+  "rostered": 155,
+  "rostered_resolved_to_sleeper_or_gsis": 155
+ },
+ "acquisition": {
+  "system": "FAAB",
+  "status": "OK",
+  "team_context": [
+   {
+    "team_id": "team:rogers-park:1",
+    "roster_id": 1,
+    "faab_remaining": 88,
+    "waiver_priority": 4,
+    "roster_size": 15,
+    "roster_limit": 15
+   },
+   {
+    "team_id": "team:rogers-park:10",
+    "roster_id": 2,
+    "faab_remaining": 100,
+    "waiver_priority": 1,
+    "roster_size": 15,
+    "roster_limit": 15
+   },
+   {
+    "team_id": "team:rogers-park:2",
+    "roster_id": 3,
+    "faab_remaining": 78,
+    "waiver_priority": 9,
+    "roster_size": 15,
+    "roster_limit": 15
+   }
+  ]
+ },
+ "pending_claim_visibility": {
+  "status": "UNAVAILABLE",
+  "reason": "replay: the connected account's teams are not readable without its token"
+ },
+ "cross_check_vs_yahoo": {
+  "checked": 43,
+  "mismatches": 0,
+  "mismatch_detail": []
+ },
+ "waiver_analysis": {
+  "manager": "john",
+  "bridged_roster_identities": 168,
+  "roster_players_projected": 14,
+  "roster_players_total": 15,
+  "availability_status": "AVAILABLE",
+  "readiness": {
+   "market": "PARTIAL",
+   "market_axes": {
+    "availability": "READY",
+    "valuation": "PARTIAL",
+    "transaction": "PARTIAL",
+    "recommendation": "PARTIAL"
+   },
+   "weekly_projections": "PARTIAL",
+   "waiver_recommendations": {
+    "status": "READY_WITH_LIMITATIONS",
+    "actionable": true,
+    "blocked_by": [],
+    "limitations": [
+     "market_partial",
+     "weekly_projections_partial",
+     "rest_of_season_partial",
+     "ri_season_signal_unavailable"
+    ]
+   }
+  },
+  "market_pool": {
+   "provider": "yahoo",
+   "basis": "PROVIDER_STATUS",
+   "market_content_id": "mkt:2026:w06:0a11e48b183121e5",
+   "pool_id": "pool:a9341d9dfa6ffbe2",
+   "observed_at": "2026-10-14T03:44:14.005Z",
+   "age_ms": 3,
+   "freshness": "FRESH",
+   "verified_free_agents": 0,
+   "verified_waivers": 985,
+   "unknown_availability": 0,
+   "rostered": 155,
+   "evaluated_with_projection": 968,
+   "verified_without_projection": 2,
+   "verified_identity_unresolved": 15,
+   "by_position": {
+    "DEF": {
+     "free_agents": 0,
+     "waivers": 22,
+     "with_projection": 20
+    },
+    "QB": {
+     "free_agents": 0,
+     "waivers": 119,
+     "with_projection": 119
+    },
+    "WR": {
+     "free_agents": 0,
+     "waivers": 404,
+     "with_projection": 396
+    },
+    "TE": {
+     "free_agents": 0,
+     "waivers": 225,
+     "with_projection": 222
+    },
+    "RB": {
+     "free_agents": 0,
+     "waivers": 215,
+     "with_projection": 211
+    }
+   },
+   "axes": {
+    "availability": "READY",
+    "valuation": "PARTIAL",
+    "transaction": "PARTIAL",
+    "recommendation": "PARTIAL"
+   },
+   "verified_without_projection_sample": [
+    "Lions (DEF, DET)",
+    "Dolphins (DEF, MIA)"
+   ],
+   "rules": {
+    "system": "FAAB",
+    "waiver_type": null,
+    "waiver_rule": null,
+    "waiver_time_days": null,
+    "add_limits": null
+   },
+   "pending_claims": {
+    "status": "UNAVAILABLE",
+    "reason": "replay: the connected account's teams are not readable without its token"
+   },
+   "game_lock_semantics": "Availability is Yahoo's own per-player status (FA = addable now, W = claim-only). Game state is reported per player as a fact (`lock`); the league's raw waiver rule is preserved verbatim; no additional lock is inferred.",
+   "pool_evidence": {
+    "FA": {
+     "returned": 0,
+     "complete": true,
+     "pages_fetched": 4,
+     "stopped_reason": "end_of_pool"
+    },
+    "W": {
+     "returned": 985,
+     "complete": true,
+     "pages_fetched": 40,
+     "stopped_reason": "end_of_pool"
+    },
+    "T": {
+     "returned": 155,
+     "complete": true,
+     "pages_fetched": 8,
+     "stopped_reason": "end_of_pool"
+    }
+   },
+   "limitations": [
+    "Yahoo applies its own game-time waiver rule: its W status already reflects it (a started game moves a dropped player to waivers). The raw league rule is preserved in the acquisition rules; Bloodline reports each player's game state as a fact and does not add its own lock verdict.",
+    "Yahoo exposes pending waiver claims only for a team the authenticated account owns; other managers' claims are never visible, so competing pending claims are UNKNOWN. (replay: the connected account's teams are not readable without its token)",
+    "Yahoo exposes a waiver clear DATE (YYYY-MM-DD), not an instant; the exact processing time is unknown."
+   ],
+   "manager": {
+    "team_id": "team:rogers-park:7",
+    "system": "FAAB",
+    "faab_remaining": 68,
+    "waiver_priority": 2,
+    "roster_size": 15,
+    "roster_limit": 15,
+    "open_roster_slots": 0,
+    "requires_drop": true,
+    "waiver_clear_days": null,
+    "status": "OK"
+   },
+   "scoring": {
+    "fingerprint": "scoring:v1:91d06d9b7f7d3e3f92b9f955",
+    "k_dst_weekly_projection": "APPROXIMATED_FROM_PROVIDER_STANDARD_POINTS",
+    "note": "K and D/ST weekly projections use the provider's standard precomputed points, not the league's scoring rules (a dedicated K/DST forecast is a later phase). Offensive positions are scored with the league's exact rules. Availability of K / D/ST is unaffected."
+   }
+  },
+  "considered": 462,
+  "waiver_model": "faab",
+  "faab": {
+   "budget": 100,
+   "remaining": 68,
+   "suggested_bid_note": "FAAB bid sizing is a later phase; scale bids to net_roster_gain and remaining budget, spending more on HIGH-priority starter upgrades early in the season."
+  },
+  "waiver_priority": null,
+  "replacement": {
+   "QB": {
+    "pts": 14.78,
+    "basis": "available_pool_marginal",
+    "n": 9
+   },
+   "RB": {
+    "pts": 11.21,
+    "basis": "available_pool_marginal",
+    "n": 58
+   },
+   "WR": {
+    "pts": 7.42,
+    "basis": "available_pool_marginal",
+    "n": 99
+   },
+   "TE": {
+    "pts": 8.73,
+    "basis": "available_pool_marginal",
+    "n": 79
+   },
+   "K": {
+    "pts": 8.46,
+    "basis": "position_rank_fallback",
+    "n": 28
+   },
+   "DEF": {
+    "pts": 8.92,
+    "basis": "available_pool_marginal",
+    "n": 20
+   },
+   "FLEX": {
+    "pts": 11.21,
+    "basis": "available_pool_marginal",
+    "n": 236
+   },
+   "W/R/T": {
+    "pts": 11.21,
+    "basis": "available_pool_marginal",
+    "n": 236
+   }
+  },
+  "top_recommendations": [
+   {
+    "add": "Kirk Cousins",
+    "pos": "QB",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 17.16,
+    "vor": 2.38,
+    "drop": "Ollie Gordon II",
+    "net": 8.13,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Dallas Goedert",
+    "pos": "TE",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 8.94,
+    "vor": 0.21,
+    "drop": "Ollie Gordon II",
+    "net": 7.74,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Brenton Strange",
+    "pos": "TE",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 8.29,
+    "vor": -0.44,
+    "drop": "Ollie Gordon II",
+    "net": 7.62,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Juwan Johnson",
+    "pos": "TE",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 8.73,
+    "vor": 0,
+    "drop": "Ollie Gordon II",
+    "net": 7.6,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Sam Darnold",
+    "pos": "QB",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 13.36,
+    "vor": -1.42,
+    "drop": "Ollie Gordon II",
+    "net": 7.05,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Cam Ward",
+    "pos": "QB",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 14.78,
+    "vor": 0,
+    "drop": "Ollie Gordon II",
+    "net": 6.95,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Jalon Daniels",
+    "pos": "QB",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 12.04,
+    "vor": -2.74,
+    "drop": "Ollie Gordon II",
+    "net": 6.56,
+    "priority": "MEDIUM"
+   },
+   {
+    "add": "Daniel Jones",
+    "pos": "QB",
+    "method": "WAIVER_CLAIM",
+    "clears_on": "2026-10-14",
+    "weekly": 14.21,
+    "vor": -0.57,
+    "drop": "Ollie Gordon II",
+    "net": 6.55,
+    "priority": "MEDIUM"
+   }
+  ],
+  "do_not_add": [
+   "Jaxson Dart: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.",
+   "Travis Hunter: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.",
+   "Kyler Murray: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.",
+   "Baker Mayfield: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW."
+  ],
+  "warnings": [
+   "waiver_projection_quality"
+  ]
+ }
+}
