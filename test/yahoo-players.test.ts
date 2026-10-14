@@ -69,7 +69,7 @@ describe("buildPlayersPath", () => {
   it("builds a status/position/search/paging path and appends ownership", () => {
     assert.equal(
       buildPlayersPath(LK, { status: "FA", position: "RB", start: 25, count: 25 }, false),
-      `/league/${LK}/players;status=FA;position=RB;start=25;count=25;sort=OR`,
+      `/league/${LK}/players;status=FA;position=RB;start=25;count=25;sort=NAME`,
     );
     assert.match(buildPlayersPath(LK, { status: "W", search: "Bijan Robinson", start: 0, count: 25 }, true), /search=Bijan%20Robinson;.*\/ownership$/);
   });
@@ -106,6 +106,19 @@ describe("fetchPlayerPool pagination", () => {
     assert.equal(new Set(r.players.map((p) => p.player_key)).size, 137);
     assert.ok(urls.length >= 6); // 137 players = 6 pages (5 full + 1 short)
     assert.ok(urls.every((u) => u.includes("format=json")));
+  });
+  it("LIVE DEFECT (unstable server ordering): a row repeated across pages proves rows may have been skipped, so the pool is NOT complete", async () => {
+    // page 2 re-serves the last row of page 1 (what Yahoo's sort=OR did live) and therefore also hides one row elsewhere
+    const { c } = client((url) => {
+      const start = Number(/start=(\d+)/.exec(url)?.[1]); const count = Math.min(25, Number(/count=(\d+)/.exec(url)?.[1])); const nodes: unknown[] = [];
+      for (let i = start; i < Math.min(60, start + count); i++) nodes.push(playerNode(1000 + (start === 25 && i === 25 ? 24 : i)));
+      return { body: page(nodes) };
+    });
+    const r = await fetchPlayerPool(c, LK, { status: "FA", start: 0, count: null });
+    assert.equal(r.duplicates_dropped, 1);
+    assert.equal(r.complete, false);
+    assert.equal(r.stopped_reason, "unstable_pagination");
+    assert.equal(new Set(r.players.map((p) => p.player_key)).size, r.players.length, "duplicates are never double counted");
   });
   it("handles a pool that is an exact multiple of the page size", async () => {
     const { c } = client(pooled(50));
