@@ -1,0 +1,260 @@
+{
+ "generated_at": "2026-10-14T02:44:01.108Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "WAIVER.1",
+   "area": "WAIVER",
+   "name": "per-manager graft results (real roster/forecasts, synthetic pool)",
+   "status": "INFO",
+   "detail": [
+    {
+     "manager": "rsamuel1013",
+     "bye_stars": [
+      "player:sleeper:6801",
+      "player:sleeper:9221"
+     ],
+     "injured_stars": [],
+     "drop": "player:sleeper:1339",
+     "priority": "HIGH",
+     "drop_cost": -4.58,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "bijimac",
+     "bye_stars": [
+      "player:sleeper:3163",
+      "player:sleeper:6770",
+      "player:sleeper:6794"
+     ],
+     "injured_stars": [
+      "player:sleeper:10229"
+     ],
+     "drop": "player:sleeper:5045",
+     "priority": "HIGH",
+     "drop_cost": -1.17,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "nightfallfox",
+     "bye_stars": [],
+     "injured_stars": [
+      "player:sleeper:4881",
+      "player:sleeper:6786"
+     ],
+     "drop": "player:sleeper:5947",
+     "priority": "HIGH",
+     "drop_cost": -0.18,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "theberserkfury",
+     "bye_stars": [],
+     "injured_stars": [
+      "player:sleeper:11560"
+     ],
+     "drop": "player:sleeper:8126",
+     "priority": "MEDIUM",
+     "drop_cost": 1.65,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "jerin117",
+     "bye_stars": [],
+     "injured_stars": [
+      "player:sleeper:11646"
+     ],
+     "drop": "player:sleeper:4037",
+     "priority": "LOW",
+     "drop_cost": -0.24,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "ezs4415",
+     "bye_stars": [],
+     "injured_stars": [
+      "player:sleeper:8155"
+     ],
+     "drop": "player:sleeper:2449",
+     "priority": "MEDIUM",
+     "drop_cost": -0.08,
+     "dropped_state": "KNOWN_UNAVAILABLE",
+     "wrong": false
+    },
+    {
+     "manager": "zzzerena",
+     "bye_stars": [
+      "player:sleeper:6801",
+      "player:sleeper:9221"
+     ],
+     "injured_stars": [],
+     "drop": "player:sleeper:1339",
+     "priority": "HIGH",
+     "drop_cost": -4.58,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "rojan765",
+     "bye_stars": [
+      "player:sleeper:7564",
+      "player:sleeper:8148"
+     ],
+     "injured_stars": [],
+     "drop": "player:sleeper:11610",
+     "priority": "HIGH",
+     "drop_cost": -6.18,
+     "dropped_state": "BYE_VERIFIED",
+     "wrong": false
+    },
+    {
+     "manager": "hammy535",
+     "bye_stars": [],
+     "injured_stars": [],
+     "drop": "player:sleeper:8134",
+     "priority": "LOW",
+     "drop_cost": -0.25,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "bijoy2theworld",
+     "bye_stars": [
+      "player:sleeper:5849"
+     ],
+     "injured_stars": [
+      "player:sleeper:9488"
+     ],
+     "drop": "player:sleeper:9486",
+     "priority": "MEDIUM",
+     "drop_cost": -2.53,
+     "dropped_state": "PROJECTED",
+     "wrong": false
+    },
+    {
+     "manager": "shitalkers",
+     "bye_stars": [],
+     "injured_stars": [
+      "player:sleeper:4866"
+     ],
+     "drop": "player:sleeper:13264",
+     "priority": "HIGH",
+     "drop_cost": -5.33,
+     "dropped_state": "BYE_VERIFIED",
+     "wrong": false
+    },
+    {
+     "manager": "erg725",
+     "bye_stars": [
+      "player:sleeper:7564",
+      "player:sleeper:8148"
+     ],
+     "injured_stars": [],
+     "drop": "player:sleeper:11610",
+     "priority": "HIGH",
+     "drop_cost": -6.18,
+     "dropped_state": "BYE_VERIFIED",
+     "wrong": false
+    }
+   ]
+  },
+  {
+   "id": "WAIVER.2",
+   "area": "WAIVER",
+   "name": "the REAL (ungrafted) context refuses waiver output: the certified pool is UNAVAILABLE and nothing is claimed (fail-closed intact on real data)",
+   "status": "PASS",
+   "detail": {
+    "managers_failing_closed": 14
+   }
+  },
+  {
+   "id": "WAIVER.3",
+   "area": "WAIVER",
+   "name": "real bye/injured stars exist on real rosters to exercise the guard",
+   "status": "PASS",
+   "detail": {
+    "real_bye_stars": 14,
+    "real_injured_or_questionable_stars": 9,
+    "decisions": 12
+   }
+  },
+  {
+   "id": "WAIVER.4",
+   "area": "WAIVER",
+   "name": "no real bye star / injured star is recommended as the drop for an 11-point free agent (asset value, not the depressed current week, prices the drop)",
+   "status": "PASS",
+   "detail": {
+    "decisions": 12,
+    "wrong_drops": 0
+   }
+  },
+  {
+   "id": "TRADE.1",
+   "area": "TRADE",
+   "name": "real subjects",
+   "status": "INFO",
+   "detail": {
+    "bye": "player:sleeper:9221",
+    "healthy": "player:sleeper:9509",
+    "out_not_bye": "player:sleeper:4881"
+   }
+  },
+  {
+   "id": "TRADE.2",
+   "area": "TRADE",
+   "name": "give real bye star / receive real healthy player",
+   "status": "INFO",
+   "detail": {
+    "give_bye": {
+     "availability_delta": 0,
+     "permanent": 0
+    },
+    "give_healthy_receive_bye": {
+     "availability_delta": 0,
+     "permanent": 0
+    },
+    "bye_ros": 209.92,
+    "healthy_ros": 206.12
+   }
+  },
+  {
+   "id": "TRADE.3",
+   "area": "TRADE",
+   "name": "a real bye star is NOT priced as a one-week zero: giving him is not charged a bye-zero availability penalty larger than one week of his value",
+   "status": "PASS",
+   "detail": {
+    "availability_delta": 0,
+    "one_week_value": 17.49
+   }
+  },
+  {
+   "id": "TRADE.4",
+   "area": "TRADE",
+   "name": "give real OUT (non-bye) player",
+   "status": "INFO",
+   "detail": {
+    "id": "player:sleeper:4881",
+    "result": {
+     "availability_delta": 1.4721,
+     "permanent": 1.1363
+    },
+    "status": "Out"
+   }
+  },
+  {
+   "id": "TRADE.5",
+   "area": "TRADE",
+   "name": "a real OUT player's availability is priced from his rest-of-season availability (finite, not NaN)",
+   "status": "PASS",
+   "detail": {
+    "availability_delta": 1.4721,
+    "permanent": 1.1363
+   }
+  }
+ ]
+}
