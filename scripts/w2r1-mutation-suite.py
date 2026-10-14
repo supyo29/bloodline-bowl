@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -37,6 +37,12 @@ MUT = [
  ("W32", "the production-influence statement is dropped from responses", L, [("production_influence: PRODUCTION_STATEMENT,", "")]),
  ("W34", "an acquisition may enter a full active roster (no open spot)", R, [("const adds = wanted.slice(0, room);", "const adds = wanted;")]),
  ("W35", "an IR-slot player with unknown designation is assumed activatable now", A, [('returns = status === "IR" && out > 0 ? week + out : null;', 'returns = status === "IR" ? week + out : null;')]),
+ ("W36", "K: the flat per-FG score (fgm) is not added to the distance-bin weights", "lib/w2r1/kdst.ts", [('make: [w(s, "fgm_0_19") + fm, w(s, "fgm_20_29") + fm, w(s, "fgm_30_39") + fm, w(s, "fgm_40_49") + fm,', 'make: [w(s, "fgm_0_19"), w(s, "fgm_20_29"), w(s, "fgm_30_39"), w(s, "fgm_40_49"),')]),
+ ("W37", "K: a missed FG is never penalised", "lib/w2r1/kdst.ts", [("pbin[b]! * k.make[b]! + (1 - c.pbin[b]!) * k.miss[b]!)", "pbin[b]! * k.make[b]!)")]),
+ ("W38", "D/ST: points-allowed uses only the bins (the continuous per-point key is ignored)", "lib/w2r1/kdst.ts", [("return d.pa_bins[bin]! + d.pa_cont * pa;", "return d.pa_bins[bin]!;")]),
+ ("W39", "D/ST: the points-allowed DISTRIBUTION is replaced by its mean (bin scoring evaluated at the mean)", "lib/w2r1/kdst.ts", [("for (let k = 0; k < c.pa_pmf.length; k++) epa += c.pa_pmf[k]! * paScore(k, d);", "let m = 0; for (let k = 0; k < c.pa_pmf.length; k++) m += k * c.pa_pmf[k]!; epa = paScore(Math.round(m), d);")]),
+ ("W40", "D/ST: yardage components (sack/return yards) are ignored", "lib/w2r1/kdst.ts", [("c.e_sacks * (d.sacks + d.sack_yd * c.mean_yds.sack_yd)", "c.e_sacks * (d.sacks)")]),
+ ("W41", "an unreconstructable scoring key is silently dropped from the report", "lib/w2r1/kdst.ts", [("&& !SUPPORTED_K.test(k) && !SUPPORTED_D.has(k) && !/^pts_allow_/.test(k)", "&& false")]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),

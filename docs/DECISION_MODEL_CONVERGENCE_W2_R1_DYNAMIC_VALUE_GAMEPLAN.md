@@ -90,3 +90,29 @@ All 4 reachable registered leagues: Maclin (Yahoo, PRIORITY, 2QB), Rogers Park (
 - Secret scope: Vercel custom environments are unavailable (limit 0), so the only mechanism was preview-wide scope on the six Yahoo/Supabase variables, widened **only for the ~80 s of each redeploy** and restored to production-only immediately (6 windows); env values are baked into the deployment at build time. Superseded secret-bearing previews were deleted. Durable alternative (recommended before a long-lived test environment): a separate Vercel project/team-scoped env group for the shadow environment.
 
 **Known limitations of the early preview:** FAAB bids/competition are not modelled; future weeks are flat; K/DST forecasts are the inherited generic ones; no game-plan, breakout or calibration layers yet; a bench/non-lineup player's weekly VOR can be negative when a roster spot is better used on a verified add (explained per player in `negative_value_reason`).
+
+## 8. S4 — dedicated K and D/ST component models (stage report; VAL only — FINAL untouched)
+
+**Label: DIAGNOSTIC.** Qualification labels (QUALIFIED / INSUFFICIENT_FINAL_SAMPLE / NO_RELIABLE_SIGNAL) are assigned only at S7 on the frozen 2026 weeks 1–5 evaluation. Nothing here influences production.
+
+**Design (fixed before fitting: `scripts/w2r1/s4_spec.json`, `s4_regimes.json`; `prereg.json` unchanged, sha256 `6caf1f70…`).** K and D/ST are modelled from COMPONENTS and scored under each league's exact scoring:
+K = FG attempts (Poisson, as-of team rate + opponent + implied total ± weather/spread) × distance-bin shares × make probability (league logistic on distance/wind/dome/cold × kicker empirical-Bayes ratio) + XP; D/ST = sacks, interceptions, fumble recoveries (Poisson GLMs on as-of team/opponent rates), rare components at shrunk team rates, yard components = expected count × mean yards, and the full points-allowed DISTRIBUTION (negative binomial around a fitted opponent-scoring mean) so bin scoring is exact. Components are reconstructed from nflverse play-by-play (2022–2026; sacks 98 %, interceptions 100 %, safeties 100 % exact vs nflverse team stats; TD attribution differs from nflverse by definition). Provider "standard points" are NOT used; historically they do not exist, so the control is the prior-4-game mean under the same exact scoring.
+
+**Datasets:** FIT 2022–2024 (weeks ≥ 3 targets), VAL 2025 weeks 3–17 (480 team-games; K 478 after the relevance floor). 2026 outcomes are never loaded (guard in the script).
+
+**VAL results vs control (MAE points; Δ = control − model, 95 % cluster-bootstrap lower bound by game)**
+| Regime | K ΔMAE [lo95] | D/ST ΔMAE [lo95] | D/ST bias model/control |
+|---|---|---|---|
+| Bloodline Bowl (Sleeper) | +0.38 [+0.22] | +0.86 [+0.56] | +0.50 / +0.11 |
+| Devoted = Sporty's (identical K/DST scoring) | +0.47 [+0.29] | +0.69 [+0.43] | −0.21 / +0.16 |
+| Maclin (Yahoo) | +0.47 [+0.29] | +0.63 [+0.38] | +0.35 / +0.15 |
+| Rogers Park (Yahoo, no K) | — | +0.57 [+0.36] | −0.05 / +0.15 |
+The component models beat the control in every regime, with the bootstrap lower bound above 0. The control is deliberately weak (no generic provider projection exists historically): these are NOT claims of beating the live provider forecast, and the Bloodline D/ST bias (+0.50) would fail the prereg |bias| ≤ 0.5 / ≤ control+0.15 gate if repeated on FINAL.
+
+**Spike (weekly top-6) on VAL, simulated component distribution vs tercile base rate (M0):** K Brier skill +2 % to +4 % (lift 1.3–1.5, calibration slope 1.3–1.8: under-confident); D/ST skill −3.6 % to +3 % (slope 0.4–0.8: over-confident; Devoted/Sporty's D/ST is WORSE than the base rate). Top-decile events are 14–21, below the prereg B5 floor of only borderline coverage; **spike probabilities are not display-ready: expected label NO_RELIABLE_SIGNAL for D/ST in at least Devoted/Sporty's, DIAGNOSTIC for K pending S7.**
+
+**Leakage controls:** poison test — 720/720 feature recomputations unchanged when the target game and every later game of the team are replaced by 999; 120/120 kicker-ratio recomputations unchanged when the kicker's current-and-later attempts are poisoned. ORACLE (target-game counts as expectations): D/ST MAE 2.46 vs model 4.62 (Maclin), 1.79 vs 4.33 (Rogers Park); K 1.53 vs 3.74 — the harness is sensitive (≥ 25 % criterion met by a wide margin).
+
+**Tests / mutants:** `lib/w2r1/kdst.ts` (exact-scoring evaluator) is golden-tested against the R implementation on 27 rows (|diff| < 1e-6); 13 tests; mutants W36–W41 (flat FG score, miss penalty, points-allowed continuous key, distribution vs mean, yardage, silent drop of unreconstructable keys) all killed.
+
+**Regime limitations (pinned in test):** `fum_rec_td` (all regimes: may be paid in addition to `def_td`; ≈ 0.03 events/game), `def_st_td` (Sleeper regimes), `blk_kick_ret_yd`/`fg_ret_yd` (Bloodline) are NOT reconstructed and are reported, never silently scored as 0 or 6. Points allowed = opponent-offense points (a provider may differ on rare plays). No kicker-specific wind splits, no field condition.
