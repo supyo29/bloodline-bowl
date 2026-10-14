@@ -54,6 +54,7 @@ Rows by season (nflverse): player stats, schedules, injuries, snap counts, play-
 | S6 | **Breakout/upside study** with negative examples, base-rate-first models, calibration gates | may end `NO_RELIABLE_SIGNAL` per position |
 | S7 | **Retrospective harness** (FIT/VAL/FINAL), freeze, one FINAL look, per-position qualification, VOR validation (V1–V4) | FROZEN.json before FINAL |
 | S8 | **Shadow persistence** extension (additive to W2.P2), bridge diagnostics route, simple/deep explanation contract, manifest | additive; no migration applied remotely |
+| S10 | **Live shadow validation (exit requirement)**: after S1-S9 are green (full suite 0 failures, all W2.R1 mutants killed or justified, tsc/lint/build clean, no P0/P1, leakage/bye/injury/provider-isolation/no-production-influence tests passing), deploy a PROTECTED Vercel preview of this branch on live Sleeper + certified Yahoo data (existing automatic OAuth lifecycle; no manual tokens) exposing additive, clearly-labelled `W2.R1 SHADOW` diagnostics with a CURRENT PRODUCTION vs W2.R1 SHADOW side-by-side; live-smoke every accessible registered league; fix-redeploy-repeat until clean. Authorization note: the preview needs the production env scope exposed to preview again (reverted after each run) — requested when S10 starts. | no production influence; no merge to main |
 | S9 | **Mutation suite** (all 20 listed dangerous assumptions), isolation proof (source-scan + byte-identical production surfaces), performance measurement, final doc + verdict | |
 
 ## 6. Standing constraints for this phase
