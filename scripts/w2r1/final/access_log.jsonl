@@ -1,0 +1,11 @@
+{"t":"2026-10-14T18:22:14Z","event":"FIRST_FINAL_ACCESS","what":"read 2026 pbp week/game counts from FI raw cache (no model scoring yet)","freeze_verified_before":true,"head":"4c7086a"}
+{"t":"2026-10-14T18:23:18Z","event":"REFRESH_RAW_CACHE_STARTED","what":"fetch_raw.R --refresh in bb-w2r1 (gitignored cache); includes completed 2026 wk1-5 outcomes"}
+{"t":"2026-10-14T18:24:23Z","event":"S4_FINAL_BUILD","what":"s4_build_final.R (2022-2026 pbp; 2026 wk1-5 completed games)"}
+{"t":"2026-10-14T18:24:48Z","event":"S4_FINAL_SCORING","what":"s4_fit_eval_final.R scores 2026 wk1-5 K and D/ST"}
+{"t":"2026-10-14T18:25:43Z","event":"S4_FINAL_SCORING_RERUN","what":"rerun of the same scorer with game_id cluster capture and oracle controls for all regimes; no candidate/model/threshold change"}
+{"t":"2026-10-14T18:26:16Z","event":"S4_FINAL_SCORING_RERUN2","what":"same scorer; only the raw-json write moved after the oracle block (reporting fix, deterministic)"}
+{"t":"2026-10-14T18:26:52Z","event":"ROLE_SUBSTRATE_BUILD","what":"run_build.R 2026 + export_role_inputs.R (suffix _2026f) to produce as-of role profiles for 2026 wk1-5 (frozen W2.P1 machinery)"}
+{"t":"2026-10-14T18:33:03Z","event":"FINAL_WORLD_EXPORT","what":"2026 wk1-5 W2.P1-style world (b0, designation, covered, frozen C2)"}
+{"t":"2026-10-14T18:34:11Z","event":"S5_S6_FINAL_ROW_BUILD","what":"s5_build_final.R and s6_build_final.R (2022-2026 features; FINAL rows 2026 wk1-5)"}
+{"t":"2026-10-14T18:37:17Z","event":"S6_FINAL_SCORING","what":"s6_fit_eval_final.R scores 2026 wk1-5 upside-likelihood rungs"}
+{"t":"2026-10-14T18:38:32Z","event":"S5_FINAL_SCORING","what":"s5_final_run.ts scores 2026 wk1-5 for 12 report-only S5 candidates; freeze verified immediately before"}

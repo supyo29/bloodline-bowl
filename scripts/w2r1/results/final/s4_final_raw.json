@@ -1,0 +1,406 @@
+{
+  "spec": "w2r1-s4-spec-1",
+  "feature_sets": {
+    "fg_att": "B",
+    "xp_att": "A",
+    "sacks": "A",
+    "ints": "B",
+    "fumrec_def": "A"
+  },
+  "pa": {
+    "size": 8.44944,
+    "coef": {
+      "(Intercept)": 2.5113,
+      "o_implied_total": 1.046,
+      "o_pts_scored_off": 0.05812,
+      "r_def_pa": -0.23476
+    }
+  },
+  "lg_means": {
+    "sacks": 2.46687,
+    "sack_yd": 16.38589,
+    "ints": 0.75767,
+    "int_ret_yd": 9.30061,
+    "fumrec_def": 0.46135,
+    "fumrec_st": 0.06564,
+    "fum_ret_yd": 1.99509,
+    "ff_def": 0.7227,
+    "ff_st": 0.06258,
+    "def_td": 0.10184,
+    "st_td": 0.02209,
+    "blk_td": 0.00798,
+    "safeties": 0.02761,
+    "blk": 0.07301,
+    "stops4": 0.66319,
+    "forced_punts": 3.99325,
+    "kr_yd": 38.00982,
+    "pr_yd": 16.20368,
+    "def2pt": 0.00061,
+    "pts_scored_off": 21.33865,
+    "sacks_suffered": 2.46687,
+    "dropbacks": 37.59693,
+    "ints_thrown": 0.75767,
+    "fumlost_off": 0.46442,
+    "xp_att": 2.20675,
+    "xp_made": 2.10613,
+    "att_b0_19": 0.00429,
+    "att_b20_29": 0.44049,
+    "att_b30_39": 0.54969,
+    "att_b40_49": 0.54172,
+    "att_b50_59": 0.42699,
+    "att_b60p": 0.0227,
+    "made_b0_19": 0.00429,
+    "made_b20_29": 0.43006,
+    "made_b30_39": 0.51472,
+    "made_b40_49": 0.42761,
+    "made_b50_59": 0.30245,
+    "made_b60p": 0.00859,
+    "fg_att": 1.98589,
+    "pa_actual": 21.51902
+  },
+  "results": {
+    "bloodline-bowl|K": {
+      "n": 158,
+      "MAE_model": 3.07655,
+      "MAE_control": 3.28797,
+      "dMAE": 0.21142,
+      "dMAE_lo95": -0.05302,
+      "RMSE_model": 3.7451,
+      "RMSE_control": 4.10667,
+      "bias_model": 0.10694,
+      "bias_control": -0.02532
+    },
+    "bloodline-bowl|DST": {
+      "n": 158,
+      "MAE_model": 4.89066,
+      "MAE_control": 5.70816,
+      "dMAE": 0.81751,
+      "dMAE_lo95": 0.32108,
+      "RMSE_model": 6.26712,
+      "RMSE_control": 7.24912,
+      "bias_model": 0.72704,
+      "bias_control": 0.54386
+    },
+    "devoted-to-the-game|K": {
+      "n": 158,
+      "MAE_model": 3.82769,
+      "MAE_control": 4.00949,
+      "dMAE": 0.18181,
+      "dMAE_lo95": -0.15704,
+      "RMSE_model": 4.74613,
+      "RMSE_control": 5.0862,
+      "bias_model": 0.31975,
+      "bias_control": -0.00316
+    },
+    "devoted-to-the-game|DST": {
+      "n": 158,
+      "MAE_model": 4.21061,
+      "MAE_control": 4.94462,
+      "dMAE": 0.73401,
+      "dMAE_lo95": 0.26307,
+      "RMSE_model": 5.48742,
+      "RMSE_control": 6.30799,
+      "bias_model": -0.24995,
+      "bias_control": -0.13766
+    },
+    "sportys-alumni|K": {
+      "n": 158,
+      "MAE_model": 3.82769,
+      "MAE_control": 4.00949,
+      "dMAE": 0.18181,
+      "dMAE_lo95": -0.15704,
+      "RMSE_model": 4.74613,
+      "RMSE_control": 5.0862,
+      "bias_model": 0.31975,
+      "bias_control": -0.00316
+    },
+    "sportys-alumni|DST": {
+      "n": 158,
+      "MAE_model": 4.21061,
+      "MAE_control": 4.94462,
+      "dMAE": 0.73401,
+      "dMAE_lo95": 0.26307,
+      "RMSE_model": 5.48742,
+      "RMSE_control": 6.30799,
+      "bias_model": -0.24995,
+      "bias_control": -0.13766
+    },
+    "maclin-on-chicks-xvi|K": {
+      "n": 158,
+      "MAE_model": 3.68624,
+      "MAE_control": 3.91456,
+      "dMAE": 0.22832,
+      "dMAE_lo95": -0.08547,
+      "RMSE_model": 4.57648,
+      "RMSE_control": 4.93294,
+      "bias_model": 0.36528,
+      "bias_control": 0.06329
+    },
+    "maclin-on-chicks-xvi|DST": {
+      "n": 158,
+      "MAE_model": 4.1474,
+      "MAE_control": 4.82494,
+      "dMAE": 0.67753,
+      "dMAE_lo95": 0.17359,
+      "RMSE_model": 5.42662,
+      "RMSE_control": 6.1713,
+      "bias_model": 0.02414,
+      "bias_control": -0.11418
+    },
+    "rogers-park|DST": {
+      "n": 158,
+      "MAE_model": 3.97443,
+      "MAE_control": 4.56329,
+      "dMAE": 0.58886,
+      "dMAE_lo95": 0.13719,
+      "RMSE_model": 5.09971,
+      "RMSE_control": 5.80525,
+      "bias_model": -0.4719,
+      "bias_control": -0.32278
+    }
+  },
+  "spike": {
+    "bloodline-bowl|K": {
+      "n": 158,
+      "base_rate": 0.22785,
+      "cut": 10,
+      "M0": {
+        "brier": 0.1777,
+        "logloss": 0.54162,
+        "slope": -1.16702,
+        "ece": 0.02776,
+        "top_decile_lift": 0.90805,
+        "top_decile_events": 12
+      },
+      "M_sim": {
+        "brier": 0.17672,
+        "logloss": 0.5379,
+        "slope": 0.54741,
+        "ece": 0.08831,
+        "top_decile_lift": 0.51634,
+        "top_decile_events": 2
+      },
+      "brier_skill_vs_M0": 0.00551
+    },
+    "bloodline-bowl|DST": {
+      "n": 158,
+      "base_rate": 0.18987,
+      "cut": 13.17,
+      "M0": {
+        "brier": 0.15388,
+        "logloss": 0.486,
+        "slope": 0.69626,
+        "ece": 0.01969,
+        "top_decile_lift": 1.11268,
+        "top_decile_events": 15
+      },
+      "M_sim": {
+        "brier": 0.15526,
+        "logloss": 0.49748,
+        "slope": 0.44428,
+        "ece": 0.08577,
+        "top_decile_lift": 1.64583,
+        "top_decile_events": 5
+      },
+      "brier_skill_vs_M0": -0.00897
+    },
+    "devoted-to-the-game|K": {
+      "n": 158,
+      "base_rate": 0.20886,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16493,
+        "logloss": 0.51154,
+        "slope": 3.50476,
+        "ece": 0.0274,
+        "top_decile_lift": 0.95758,
+        "top_decile_events": 11
+      },
+      "M_sim": {
+        "brier": 0.16631,
+        "logloss": 0.51496,
+        "slope": 0.37805,
+        "ece": 0.06629,
+        "top_decile_lift": 1.19697,
+        "top_decile_events": 4
+      },
+      "brier_skill_vs_M0": -0.00833
+    },
+    "devoted-to-the-game|DST": {
+      "n": 158,
+      "base_rate": 0.22152,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16993,
+        "logloss": 0.5213,
+        "slope": 1.16756,
+        "ece": 0.00756,
+        "top_decile_lift": 1.23117,
+        "top_decile_events": 12
+      },
+      "M_sim": {
+        "brier": 0.17331,
+        "logloss": 0.54312,
+        "slope": 0.61283,
+        "ece": 0.12654,
+        "top_decile_lift": 2.25714,
+        "top_decile_events": 8
+      },
+      "brier_skill_vs_M0": -0.01991
+    },
+    "sportys-alumni|K": {
+      "n": 158,
+      "base_rate": 0.20886,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16493,
+        "logloss": 0.51154,
+        "slope": 3.50476,
+        "ece": 0.0274,
+        "top_decile_lift": 0.95758,
+        "top_decile_events": 11
+      },
+      "M_sim": {
+        "brier": 0.16631,
+        "logloss": 0.51496,
+        "slope": 0.37805,
+        "ece": 0.06629,
+        "top_decile_lift": 1.19697,
+        "top_decile_events": 4
+      },
+      "brier_skill_vs_M0": -0.00833
+    },
+    "sportys-alumni|DST": {
+      "n": 158,
+      "base_rate": 0.22152,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16993,
+        "logloss": 0.5213,
+        "slope": 1.16756,
+        "ece": 0.00756,
+        "top_decile_lift": 1.23117,
+        "top_decile_events": 12
+      },
+      "M_sim": {
+        "brier": 0.17331,
+        "logloss": 0.54312,
+        "slope": 0.61283,
+        "ece": 0.12654,
+        "top_decile_lift": 2.25714,
+        "top_decile_events": 8
+      },
+      "brier_skill_vs_M0": -0.01991
+    },
+    "maclin-on-chicks-xvi|K": {
+      "n": 158,
+      "base_rate": 0.20886,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16439,
+        "logloss": 0.51007,
+        "slope": 2.58,
+        "ece": 0.03171,
+        "top_decile_lift": 1.27178,
+        "top_decile_events": 17
+      },
+      "M_sim": {
+        "brier": 0.16842,
+        "logloss": 0.52044,
+        "slope": 0.08236,
+        "ece": 0.05548,
+        "top_decile_lift": 1.19697,
+        "top_decile_events": 4
+      },
+      "brier_skill_vs_M0": -0.02452
+    },
+    "maclin-on-chicks-xvi|DST": {
+      "n": 158,
+      "base_rate": 0.18987,
+      "cut": 13.29,
+      "M0": {
+        "brier": 0.15063,
+        "logloss": 0.47524,
+        "slope": 2.13981,
+        "ece": 0.01474,
+        "top_decile_lift": 1.13436,
+        "top_decile_events": 14
+      },
+      "M_sim": {
+        "brier": 0.14972,
+        "logloss": 0.48116,
+        "slope": 0.72773,
+        "ece": 0.09597,
+        "top_decile_lift": 2.63333,
+        "top_decile_events": 8
+      },
+      "brier_skill_vs_M0": 0.00599
+    },
+    "rogers-park|DST": {
+      "n": 158,
+      "base_rate": 0.1962,
+      "cut": 11,
+      "M0": {
+        "brier": 0.15808,
+        "logloss": 0.49596,
+        "slope": 0.53484,
+        "ece": 0.02003,
+        "top_decile_lift": 1.19286,
+        "top_decile_events": 11
+      },
+      "M_sim": {
+        "brier": 0.15487,
+        "logloss": 0.49377,
+        "slope": 0.63738,
+        "ece": 0.08562,
+        "top_decile_lift": 2.22984,
+        "top_decile_events": 7
+      },
+      "brier_skill_vs_M0": 0.02032
+    }
+  },
+  "oracle": {
+    "bloodline-bowl|DST": {
+      "MAE_oracle_components_only": 2.2463,
+      "MAE_model": 4.89066
+    },
+    "devoted-to-the-game|DST": {
+      "MAE_oracle_components_only": 1.70956,
+      "MAE_model": 4.21061
+    },
+    "sportys-alumni|DST": {
+      "MAE_oracle_components_only": 1.70956,
+      "MAE_model": 4.21061
+    },
+    "maclin-on-chicks-xvi|DST": {
+      "MAE_oracle_components_only": 2.42668,
+      "MAE_model": 4.1474
+    },
+    "rogers-park|DST": {
+      "MAE_oracle_components_only": 1.70956,
+      "MAE_model": 3.97443
+    },
+    "bloodline-bowl|K": {
+      "MAE_oracle_counts": 1.66692,
+      "MAE_model": 3.07655
+    },
+    "devoted-to-the-game|K": {
+      "MAE_oracle_counts": 2.19865,
+      "MAE_model": 3.82769
+    },
+    "sportys-alumni|K": {
+      "MAE_oracle_counts": 2.19865,
+      "MAE_model": 3.82769
+    },
+    "maclin-on-chicks-xvi|K": {
+      "MAE_oracle_counts": 1.72219,
+      "MAE_model": 3.68624
+    }
+  },
+  "leakage": {
+    "poison_feature_checks_passed": 720,
+    "poison_feature_checks_total": 720,
+    "poison_kicker_ratio_passed": 120,
+    "poison_kicker_ratio_total": 120
+  }
+}

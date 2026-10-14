@@ -1,0 +1,831 @@
+{
+  "S4.bloodline-bowl.K": {
+    "id": "S4.bloodline-bowl.K",
+    "regime_slot": "bloodline-bowl|K",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "GATE_FAILURE",
+    "final_status": "SHADOW_UNPROVEN",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 3.07655,
+      "MAE_control": 3.28797,
+      "RMSE_model": 3.7451,
+      "RMSE_control": 4.10667,
+      "bias_model": 0.10694,
+      "bias_control": -0.02532,
+      "dMAE": 0.21142,
+      "dMAE_lo95": -0.05302,
+      "dMAE_hi95": 0.49043,
+      "by_week": {
+        "1": 1.18826,
+        "2": 0.12,
+        "3": -0.04108,
+        "4": -0.20186,
+        "5": -0.02284
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 2,
+      "val_dMAE": 0.37849,
+      "decisions": {
+        "disagreements": 1060,
+        "decided": 978,
+        "challenger_wins": 495,
+        "control_wins": 483,
+        "ambiguous": 82,
+        "p_one_sided": 0.36253
+      },
+      "tiers": {
+        "LOW": {
+          "n": 57,
+          "dMAE": 0.18364
+        },
+        "MID": {
+          "n": 49,
+          "dMAE": -0.14011
+        },
+        "HIGH": {
+          "n": 52,
+          "dMAE": 0.57313
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "FAIL",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "PASS",
+        "T5": "FAIL",
+        "T6": "FAIL",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.22785,
+      "cut": 10,
+      "M0": {
+        "brier": 0.1777,
+        "logloss": 0.54162,
+        "slope": -1.16702,
+        "ece": 0.02776,
+        "top_decile_lift": 0.90805,
+        "top_decile_events": 12
+      },
+      "M_sim": {
+        "brier": 0.17672,
+        "logloss": 0.5379,
+        "slope": 0.54741,
+        "ece": 0.08831,
+        "top_decile_lift": 0.51634,
+        "top_decile_events": 2
+      },
+      "brier_skill_vs_M0": 0.00551
+    }
+  },
+  "S4.bloodline-bowl.DST": {
+    "id": "S4.bloodline-bowl.DST",
+    "regime_slot": "bloodline-bowl|DST",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "GATE_FAILURE",
+    "final_status": "SHADOW_UNPROVEN",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 4.89066,
+      "MAE_control": 5.70816,
+      "RMSE_model": 6.26712,
+      "RMSE_control": 7.24912,
+      "bias_model": 0.72704,
+      "bias_control": 0.54386,
+      "dMAE": 0.81751,
+      "dMAE_lo95": 0.32108,
+      "dMAE_hi95": 1.34042,
+      "by_week": {
+        "1": 1.0467,
+        "2": -0.00199,
+        "3": 0.06436,
+        "4": 2.23126,
+        "5": 0.74252
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 4,
+      "val_dMAE": 0.76856,
+      "decisions": {
+        "disagreements": 943,
+        "decided": 864,
+        "challenger_wins": 493,
+        "control_wins": 371,
+        "ambiguous": 79,
+        "p_one_sided": 0.00002
+      },
+      "tiers": {
+        "LOW": {
+          "n": 53,
+          "dMAE": 0.92132
+        },
+        "MID": {
+          "n": 52,
+          "dMAE": 0.29408
+        },
+        "HIGH": {
+          "n": 53,
+          "dMAE": 1.22725
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "PASS",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "FAIL",
+        "T5": "PASS",
+        "T6": "PASS",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.18987,
+      "cut": 13.17,
+      "M0": {
+        "brier": 0.15388,
+        "logloss": 0.486,
+        "slope": 0.69626,
+        "ece": 0.01969,
+        "top_decile_lift": 1.11268,
+        "top_decile_events": 15
+      },
+      "M_sim": {
+        "brier": 0.15526,
+        "logloss": 0.49748,
+        "slope": 0.44428,
+        "ece": 0.08577,
+        "top_decile_lift": 1.64583,
+        "top_decile_events": 5
+      },
+      "brier_skill_vs_M0": -0.00897
+    }
+  },
+  "S4.devoted-to-the-game.K": {
+    "id": "S4.devoted-to-the-game.K",
+    "regime_slot": "devoted-to-the-game|K",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "GATE_FAILURE",
+    "final_status": "SHADOW_UNPROVEN",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 3.82769,
+      "MAE_control": 4.00949,
+      "RMSE_model": 4.74613,
+      "RMSE_control": 5.0862,
+      "bias_model": 0.31975,
+      "bias_control": -0.00316,
+      "dMAE": 0.18181,
+      "dMAE_lo95": -0.15704,
+      "dMAE_hi95": 0.52747,
+      "by_week": {
+        "1": 1.31738,
+        "2": 0.16126,
+        "3": -0.14229,
+        "4": -0.24724,
+        "5": -0.2042
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 2,
+      "val_dMAE": 0.47261,
+      "decisions": {
+        "disagreements": 1069,
+        "decided": 995,
+        "challenger_wins": 481,
+        "control_wins": 514,
+        "ambiguous": 74,
+        "p_one_sided": 0.85946
+      },
+      "tiers": {
+        "LOW": {
+          "n": 62,
+          "dMAE": 0.04478
+        },
+        "MID": {
+          "n": 43,
+          "dMAE": -0.01967
+        },
+        "HIGH": {
+          "n": 53,
+          "dMAE": 0.50556
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "FAIL",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "FAIL",
+        "T5": "FAIL",
+        "T6": "FAIL",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.20886,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16493,
+        "logloss": 0.51154,
+        "slope": 3.50476,
+        "ece": 0.0274,
+        "top_decile_lift": 0.95758,
+        "top_decile_events": 11
+      },
+      "M_sim": {
+        "brier": 0.16631,
+        "logloss": 0.51496,
+        "slope": 0.37805,
+        "ece": 0.06629,
+        "top_decile_lift": 1.19697,
+        "top_decile_events": 4
+      },
+      "brier_skill_vs_M0": -0.00833
+    }
+  },
+  "S4.devoted-to-the-game.DST": {
+    "id": "S4.devoted-to-the-game.DST",
+    "regime_slot": "devoted-to-the-game|DST",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "ALL_PREREG_GATES_PASS",
+    "final_status": "SHADOW_QUALIFIED",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 4.21061,
+      "MAE_control": 4.94462,
+      "RMSE_model": 5.48742,
+      "RMSE_control": 6.30799,
+      "bias_model": -0.24995,
+      "bias_control": -0.13766,
+      "dMAE": 0.73401,
+      "dMAE_lo95": 0.26307,
+      "dMAE_hi95": 1.21142,
+      "by_week": {
+        "1": 1.2597,
+        "2": -0.23436,
+        "3": -0.06798,
+        "4": 1.81433,
+        "5": 0.90933
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 3,
+      "val_dMAE": 0.61197,
+      "decisions": {
+        "disagreements": 1019,
+        "decided": 971,
+        "challenger_wins": 551,
+        "control_wins": 420,
+        "ambiguous": 48,
+        "p_one_sided": 0.00001
+      },
+      "tiers": {
+        "LOW": {
+          "n": 54,
+          "dMAE": 0.44672
+        },
+        "MID": {
+          "n": 56,
+          "dMAE": 0.38741
+        },
+        "HIGH": {
+          "n": 48,
+          "dMAE": 1.46157
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "PASS",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "PASS",
+        "T5": "PASS",
+        "T6": "PASS",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.22152,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16993,
+        "logloss": 0.5213,
+        "slope": 1.16756,
+        "ece": 0.00756,
+        "top_decile_lift": 1.23117,
+        "top_decile_events": 12
+      },
+      "M_sim": {
+        "brier": 0.17331,
+        "logloss": 0.54312,
+        "slope": 0.61283,
+        "ece": 0.12654,
+        "top_decile_lift": 2.25714,
+        "top_decile_events": 8
+      },
+      "brier_skill_vs_M0": -0.01991
+    }
+  },
+  "S4.sportys-alumni.K": {
+    "id": "S4.sportys-alumni.K",
+    "regime_slot": "sportys-alumni|K",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "GATE_FAILURE",
+    "final_status": "SHADOW_UNPROVEN",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 3.82769,
+      "MAE_control": 4.00949,
+      "RMSE_model": 4.74613,
+      "RMSE_control": 5.0862,
+      "bias_model": 0.31975,
+      "bias_control": -0.00316,
+      "dMAE": 0.18181,
+      "dMAE_lo95": -0.15704,
+      "dMAE_hi95": 0.52747,
+      "by_week": {
+        "1": 1.31738,
+        "2": 0.16126,
+        "3": -0.14229,
+        "4": -0.24724,
+        "5": -0.2042
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 2,
+      "val_dMAE": 0.47261,
+      "decisions": {
+        "disagreements": 1069,
+        "decided": 995,
+        "challenger_wins": 481,
+        "control_wins": 514,
+        "ambiguous": 74,
+        "p_one_sided": 0.85946
+      },
+      "tiers": {
+        "LOW": {
+          "n": 62,
+          "dMAE": 0.04478
+        },
+        "MID": {
+          "n": 43,
+          "dMAE": -0.01967
+        },
+        "HIGH": {
+          "n": 53,
+          "dMAE": 0.50556
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "FAIL",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "FAIL",
+        "T5": "FAIL",
+        "T6": "FAIL",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.20886,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16493,
+        "logloss": 0.51154,
+        "slope": 3.50476,
+        "ece": 0.0274,
+        "top_decile_lift": 0.95758,
+        "top_decile_events": 11
+      },
+      "M_sim": {
+        "brier": 0.16631,
+        "logloss": 0.51496,
+        "slope": 0.37805,
+        "ece": 0.06629,
+        "top_decile_lift": 1.19697,
+        "top_decile_events": 4
+      },
+      "brier_skill_vs_M0": -0.00833
+    }
+  },
+  "S4.sportys-alumni.DST": {
+    "id": "S4.sportys-alumni.DST",
+    "regime_slot": "sportys-alumni|DST",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "ALL_PREREG_GATES_PASS",
+    "final_status": "SHADOW_QUALIFIED",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 4.21061,
+      "MAE_control": 4.94462,
+      "RMSE_model": 5.48742,
+      "RMSE_control": 6.30799,
+      "bias_model": -0.24995,
+      "bias_control": -0.13766,
+      "dMAE": 0.73401,
+      "dMAE_lo95": 0.26307,
+      "dMAE_hi95": 1.21142,
+      "by_week": {
+        "1": 1.2597,
+        "2": -0.23436,
+        "3": -0.06798,
+        "4": 1.81433,
+        "5": 0.90933
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 3,
+      "val_dMAE": 0.61197,
+      "decisions": {
+        "disagreements": 1019,
+        "decided": 971,
+        "challenger_wins": 551,
+        "control_wins": 420,
+        "ambiguous": 48,
+        "p_one_sided": 0.00001
+      },
+      "tiers": {
+        "LOW": {
+          "n": 54,
+          "dMAE": 0.44672
+        },
+        "MID": {
+          "n": 56,
+          "dMAE": 0.38741
+        },
+        "HIGH": {
+          "n": 48,
+          "dMAE": 1.46157
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "PASS",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "PASS",
+        "T5": "PASS",
+        "T6": "PASS",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.22152,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16993,
+        "logloss": 0.5213,
+        "slope": 1.16756,
+        "ece": 0.00756,
+        "top_decile_lift": 1.23117,
+        "top_decile_events": 12
+      },
+      "M_sim": {
+        "brier": 0.17331,
+        "logloss": 0.54312,
+        "slope": 0.61283,
+        "ece": 0.12654,
+        "top_decile_lift": 2.25714,
+        "top_decile_events": 8
+      },
+      "brier_skill_vs_M0": -0.01991
+    }
+  },
+  "S4.maclin-on-chicks-xvi.K": {
+    "id": "S4.maclin-on-chicks-xvi.K",
+    "regime_slot": "maclin-on-chicks-xvi|K",
+    "frozen_ceiling": "DIAGNOSTIC_ONLY",
+    "gate_verdict": "GATE_FAILURE",
+    "final_status": "DIAGNOSTIC_ONLY",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 3.68624,
+      "MAE_control": 3.91456,
+      "RMSE_model": 4.57648,
+      "RMSE_control": 4.93294,
+      "bias_model": 0.36528,
+      "bias_control": 0.06329,
+      "dMAE": 0.22832,
+      "dMAE_lo95": -0.08547,
+      "dMAE_hi95": 0.57488,
+      "by_week": {
+        "1": 1.31634,
+        "2": 0.16159,
+        "3": -0.07248,
+        "4": -0.11183,
+        "5": -0.17737
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 2,
+      "val_dMAE": 0.47228,
+      "decisions": {
+        "disagreements": 1056,
+        "decided": 990,
+        "challenger_wins": 471,
+        "control_wins": 519,
+        "ambiguous": 66,
+        "p_one_sided": 0.94033
+      },
+      "tiers": {
+        "LOW": {
+          "n": 54,
+          "dMAE": 0.12112
+        },
+        "MID": {
+          "n": 55,
+          "dMAE": -0.00821
+        },
+        "HIGH": {
+          "n": 49,
+          "dMAE": 0.61196
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "FAIL",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "FAIL",
+        "T5": "FAIL",
+        "T6": "FAIL",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.20886,
+      "cut": 12,
+      "M0": {
+        "brier": 0.16439,
+        "logloss": 0.51007,
+        "slope": 2.58,
+        "ece": 0.03171,
+        "top_decile_lift": 1.27178,
+        "top_decile_events": 17
+      },
+      "M_sim": {
+        "brier": 0.16842,
+        "logloss": 0.52044,
+        "slope": 0.08236,
+        "ece": 0.05548,
+        "top_decile_lift": 1.19697,
+        "top_decile_events": 4
+      },
+      "brier_skill_vs_M0": -0.02452
+    }
+  },
+  "S4.maclin-on-chicks-xvi.DST": {
+    "id": "S4.maclin-on-chicks-xvi.DST",
+    "regime_slot": "maclin-on-chicks-xvi|DST",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "ALL_PREREG_GATES_PASS",
+    "final_status": "SHADOW_QUALIFIED",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 4.1474,
+      "MAE_control": 4.82494,
+      "RMSE_model": 5.42662,
+      "RMSE_control": 6.1713,
+      "bias_model": 0.02414,
+      "bias_control": -0.11418,
+      "dMAE": 0.67753,
+      "dMAE_lo95": 0.17359,
+      "dMAE_hi95": 1.19354,
+      "by_week": {
+        "1": 1.01734,
+        "2": -0.0941,
+        "3": 0.01678,
+        "4": 1.87798,
+        "5": 0.56247
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 4,
+      "val_dMAE": 0.61809,
+      "decisions": {
+        "disagreements": 1133,
+        "decided": 1006,
+        "challenger_wins": 551,
+        "control_wins": 455,
+        "ambiguous": 127,
+        "p_one_sided": 0.00136
+      },
+      "tiers": {
+        "LOW": {
+          "n": 53,
+          "dMAE": 0.52596
+        },
+        "MID": {
+          "n": 52,
+          "dMAE": 0.36026
+        },
+        "HIGH": {
+          "n": 53,
+          "dMAE": 1.14039
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "PASS",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "PASS",
+        "T5": "PASS",
+        "T6": "PASS",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.18987,
+      "cut": 13.29,
+      "M0": {
+        "brier": 0.15063,
+        "logloss": 0.47524,
+        "slope": 2.13981,
+        "ece": 0.01474,
+        "top_decile_lift": 1.13436,
+        "top_decile_events": 14
+      },
+      "M_sim": {
+        "brier": 0.14972,
+        "logloss": 0.48116,
+        "slope": 0.72773,
+        "ece": 0.09597,
+        "top_decile_lift": 2.63333,
+        "top_decile_events": 8
+      },
+      "brier_skill_vs_M0": 0.00599
+    }
+  },
+  "S4.rogers-park.DST": {
+    "id": "S4.rogers-park.DST",
+    "regime_slot": "rogers-park|DST",
+    "frozen_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL",
+    "gate_verdict": "INVALIDATED_BY_POST_OPEN_DEFECT",
+    "final_status": "EXPLORATORY_PASS_NOT_CONFIRMATORY (not SHADOW_QUALIFIED)",
+    "expected_points": {
+      "n": 158,
+      "MAE_model": 3.97443,
+      "MAE_control": 4.56329,
+      "RMSE_model": 5.09971,
+      "RMSE_control": 5.80525,
+      "bias_model": -0.4719,
+      "bias_control": -0.32278,
+      "dMAE": 0.58886,
+      "dMAE_lo95": 0.13719,
+      "dMAE_hi95": 1.03822,
+      "by_week": {
+        "1": 1.0742,
+        "2": -0.16837,
+        "3": -0.1452,
+        "4": 1.59695,
+        "5": 0.58657
+      },
+      "by_week_n": {
+        "1": 32,
+        "2": 32,
+        "3": 32,
+        "4": 32,
+        "5": 30
+      },
+      "weeks_positive": 3,
+      "val_dMAE": 0.56703,
+      "decisions": {
+        "disagreements": 1072,
+        "decided": 1004,
+        "challenger_wins": 569,
+        "control_wins": 435,
+        "ambiguous": 68,
+        "p_one_sided": 0.00001
+      },
+      "tiers": {
+        "LOW": {
+          "n": 59,
+          "dMAE": 0.17984
+        },
+        "MID": {
+          "n": 47,
+          "dMAE": 0.23782
+        },
+        "HIGH": {
+          "n": 52,
+          "dMAE": 1.37022
+        }
+      },
+      "gates": {
+        "T1": "PASS",
+        "T2": "PASS",
+        "T2b": "NOT_APPLICABLE (no Role layer for K/DST)",
+        "T3": "PASS",
+        "T4": "PASS",
+        "T5": "PASS",
+        "T6": "PASS",
+        "T7": "PASS",
+        "T8": "NOT_APPLICABLE (no designation / cap for K/DST; OUT contribution n/a)",
+        "T9": "PASS (oracle beats model by >=25% of control MAE; poison PASS)",
+        "T10": "NOT_APPLICABLE (scored under each league's exact scoring only; no STD/PPR regimes)"
+      }
+    },
+    "spike_diagnostic_only": {
+      "n": 158,
+      "base_rate": 0.1962,
+      "cut": 11,
+      "M0": {
+        "brier": 0.15808,
+        "logloss": 0.49596,
+        "slope": 0.53484,
+        "ece": 0.02003,
+        "top_decile_lift": 1.19286,
+        "top_decile_events": 11
+      },
+      "M_sim": {
+        "brier": 0.15487,
+        "logloss": 0.49377,
+        "slope": 0.63738,
+        "ece": 0.08562,
+        "top_decile_lift": 2.22984,
+        "top_decile_events": 7
+      },
+      "brier_skill_vs_M0": 0.02032
+    },
+    "exploratory_gate_verdict": "ALL_PREREG_GATES_PASS"
+  }
+}

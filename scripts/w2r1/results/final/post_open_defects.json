@@ -1,0 +1,23 @@
+{
+ "note": "Defects found AFTER the final set was first accessed (S7 rule: report, invalidate affected confirmatory results; corrected reruns are EXPLORATORY). No frozen artifact, model, feature, threshold, cap or scoring semantic was changed by any of them; they are all in the NEW final-scoring/reporting code written after the freeze.",
+ "defects": [
+  {
+   "id": "PO-1",
+   "where": "scripts/w2r1/final/gates.R (new K/DST gate code), first S4 scoring run",
+   "defect": "The cluster bootstrap for T2 clustered by season|week (5 giant clusters) instead of the preregistered team-week / the frozen S4 harness's game_id cluster.",
+   "found": "immediately after the first S4 gate table was printed (same session, before any other layer was scored)",
+   "first_run_dMAE_lo95_by_slot": {"bloodline-bowl.K": -0.105, "bloodline-bowl.DST": 0.166, "devoted-to-the-game.K": -0.209, "devoted-to-the-game.DST": 0.050, "sportys-alumni.DST": 0.050, "maclin-on-chicks-xvi.K": -0.124, "maclin-on-chicks-xvi.DST": 0.075, "rogers-park.DST": -0.016},
+   "corrected_dMAE_lo95_by_slot": {"bloodline-bowl.K": -0.053, "bloodline-bowl.DST": 0.321, "devoted-to-the-game.K": -0.157, "devoted-to-the-game.DST": 0.263, "sportys-alumni.DST": 0.263, "maclin-on-chicks-xvi.K": -0.085, "maclin-on-chicks-xvi.DST": 0.174, "rogers-park.DST": 0.137},
+   "verdict_changed_by_correction": ["S4.rogers-park.DST (T2 FAIL -> PASS)"],
+   "verdict_unchanged_by_correction": ["every other S4 slot (identical pass/fail on every gate)"],
+   "treatment": "S4.rogers-park.DST confirmatory result is INVALIDATED: reported as EXPLORATORY_PASS_NOT_CONFIRMATORY and NOT counted as SHADOW_QUALIFIED. The other slots' gate outcomes are identical under both cluster definitions and are retained, with this disclosure."
+  },
+  {
+   "id": "PO-2",
+   "where": "scripts/w2r1/final/s4_gates.R + generated S4 scorer",
+   "defect": "T9 (oracle sensitivity) was first reported NOT_COMPUTED and that string was (wrongly) accepted by the pass regex; the frozen harness computed the oracle for only 3 of 9 slots, and the first raw json was written before the oracle block ran.",
+   "treatment": "the oracle control (a harness-sensitivity check, not a candidate change) was computed for ALL regimes and the regex made strict; all 9 slots PASS T9; no gate outcome changed. Disclosed; verdicts unaffected.",
+   "reruns": "S4 final scorer executed 3 times (deterministic; identical component results each time)"
+  }
+ ]
+}

@@ -1,0 +1,1396 @@
+{
+ "spec": "w2r1-s7-final-s5",
+ "frozen_sha256_checked_by": "scripts/w2r1/s7_verify_frozen.ts (run before this script)",
+ "candidates": {
+  "QB.B1p": {
+   "n": 264,
+   "mae": 7.40636,
+   "rmse": 9.07134,
+   "bias": -2.83644,
+   "role": "champion"
+  },
+  "QB.B2p_C2": {
+   "n": 264,
+   "mae": 7.36008,
+   "rmse": 8.89311,
+   "bias": -2.89045,
+   "role": "W2.P1 Role comparator (frozen)"
+  },
+  "QB.ORACLE": {
+   "n": 264,
+   "mae": 4.81951,
+   "rmse": 6.39647,
+   "bias": -0.67769,
+   "role": "T9 harness-sensitivity control",
+   "relative_reduction_vs_B1p": 0.34927
+  },
+  "S5.QB.RL": {
+   "id": "S5.QB.RL",
+   "position": "QB",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 1,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 264,
+   "n_applicable": 258,
+   "coverage": 0.97727,
+   "cap_hit_rate": 0.31395,
+   "val_cap_hit_rate": 0.18924,
+   "n": 264,
+   "mae": 7.67348,
+   "rmse": 9.05879,
+   "bias": -2.94341,
+   "vs_B1p": {
+    "dMAE": -0.26712,
+    "lo95": -0.47981,
+    "hi95": -0.02969,
+    "p_one_sided": 0.986,
+    "dRMSE": 0.01255
+   },
+   "vs_C2": {
+    "dMAE": -0.31341,
+    "lo95": -0.46123,
+    "hi95": -0.15536,
+    "p_one_sided": 1
+   },
+   "by_week": {
+    "1": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.35113,
+     "dMAE_vs_C2": -0.35113
+    },
+    "2": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.36038,
+     "dMAE_vs_C2": -0.39679
+    },
+    "3": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.43868,
+     "dMAE_vs_C2": -0.51415
+    },
+    "4": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.16698,
+     "dMAE_vs_C2": -0.22226
+    },
+    "5": {
+     "n": 52,
+     "dMAE_vs_B1p": -0.01365,
+     "dMAE_vs_C2": -0.07827
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": -0.35575,
+   "weeks_3_5_dMAE_vs_B1p": -0.20766,
+   "tiers": {
+    "STARTER": {
+     "n": 147,
+     "dMAE_vs_B1p": 0.23476
+    },
+    "FLEX": {
+     "n": 81,
+     "dMAE_vs_B1p": -0.99049
+    },
+    "FRINGE": {
+     "n": 36,
+     "dMAE_vs_B1p": -0.68889
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": -0.05889,
+   "n_questionable_doubtful": 9,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 14,
+   "decisions": {
+    "disagreements": 4,
+    "decided": 3,
+    "challenger_wins": 2,
+    "champion_wins": 1,
+    "ambiguous": 1,
+    "p_one_sided": 0.5
+   },
+   "val_dMAE_vs_B1p": 0.09712,
+   "gates": {
+    "T1": "PASS",
+    "T2": "FAIL",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "FAIL",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.QB.G1": {
+   "id": "S5.QB.G1",
+   "position": "QB",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 10,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 264,
+   "n_applicable": 253,
+   "coverage": 0.95833,
+   "cap_hit_rate": 0.49802,
+   "val_cap_hit_rate": 0.28114,
+   "n": 264,
+   "mae": 7.54705,
+   "rmse": 8.93137,
+   "bias": -3.17924,
+   "vs_B1p": {
+    "dMAE": -0.14068,
+    "lo95": -0.41283,
+    "hi95": 0.1365,
+    "p_one_sided": 0.858,
+    "dRMSE": 0.13997
+   },
+   "vs_C2": {
+    "dMAE": -0.18697,
+    "lo95": -0.41612,
+    "hi95": 0.04077,
+    "p_one_sided": 0.9525
+   },
+   "by_week": {
+    "1": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.61132,
+     "dMAE_vs_C2": -0.61132
+    },
+    "2": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.31698,
+     "dMAE_vs_C2": -0.3534
+    },
+    "3": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.15038,
+     "dMAE_vs_C2": -0.22585
+    },
+    "4": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.08566,
+     "dMAE_vs_C2": -0.14094
+    },
+    "5": {
+     "n": 52,
+     "dMAE_vs_B1p": 0.4725,
+     "dMAE_vs_C2": 0.40788
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": -0.46415,
+   "weeks_3_5_dMAE_vs_B1p": 0.07633,
+   "tiers": {
+    "STARTER": {
+     "n": 147,
+     "dMAE_vs_B1p": 0.47088
+    },
+    "FLEX": {
+     "n": 81,
+     "dMAE_vs_B1p": -1.00691
+    },
+    "FRINGE": {
+     "n": 36,
+     "dMAE_vs_B1p": -0.68889
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": -0.21,
+   "n_questionable_doubtful": 9,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 14,
+   "decisions": {
+    "disagreements": 3,
+    "decided": 2,
+    "challenger_wins": 2,
+    "champion_wins": 0,
+    "ambiguous": 1,
+    "p_one_sided": 0.25
+   },
+   "val_dMAE_vs_B1p": 0.23834,
+   "gates": {
+    "T1": "PASS",
+    "T2": "FAIL",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "FAIL",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.QB.G2": {
+   "id": "S5.QB.G2",
+   "position": "QB",
+   "step": "G2",
+   "tactical_mode": "CONT",
+   "lambda": 10,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 264,
+   "n_applicable": 253,
+   "coverage": 0.95833,
+   "cap_hit_rate": 0.47431,
+   "val_cap_hit_rate": 0.32028,
+   "n": 264,
+   "mae": 7.60947,
+   "rmse": 8.97938,
+   "bias": -3.22417,
+   "vs_B1p": {
+    "dMAE": -0.20311,
+    "lo95": -0.47011,
+    "hi95": 0.0625,
+    "p_one_sided": 0.935,
+    "dRMSE": 0.09197
+   },
+   "vs_C2": {
+    "dMAE": -0.24939,
+    "lo95": -0.47442,
+    "hi95": -0.03496,
+    "p_one_sided": 0.9835
+   },
+   "by_week": {
+    "1": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.59925,
+     "dMAE_vs_C2": -0.59925
+    },
+    "2": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.27415,
+     "dMAE_vs_C2": -0.31057
+    },
+    "3": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.16189,
+     "dMAE_vs_C2": -0.23736
+    },
+    "4": {
+     "n": 53,
+     "dMAE_vs_B1p": -0.2,
+     "dMAE_vs_C2": -0.25528
+    },
+    "5": {
+     "n": 52,
+     "dMAE_vs_B1p": 0.22788,
+     "dMAE_vs_C2": 0.16327
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": -0.4367,
+   "weeks_3_5_dMAE_vs_B1p": -0.04639,
+   "tiers": {
+    "STARTER": {
+     "n": 147,
+     "dMAE_vs_B1p": 0.31449
+    },
+    "FLEX": {
+     "n": 81,
+     "dMAE_vs_B1p": -0.92654
+    },
+    "FRINGE": {
+     "n": 36,
+     "dMAE_vs_B1p": -0.68889
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": -0.17222,
+   "n_questionable_doubtful": 9,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 14,
+   "decisions": {
+    "disagreements": 2,
+    "decided": 1,
+    "challenger_wins": 1,
+    "champion_wins": 0,
+    "ambiguous": 1,
+    "p_one_sided": 0.5
+   },
+   "val_dMAE_vs_B1p": 0.16869,
+   "gates": {
+    "T1": "PASS",
+    "T2": "FAIL",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "FAIL",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "QB.G2_vs_G1": {
+   "dMAE": -0.06242,
+   "lo95": -0.15717,
+   "hi95": 0.02678,
+   "p_one_sided": 0.914
+  },
+  "QB.G2_vs_RL": {
+   "dMAE": 0.06402,
+   "lo95": -0.11513,
+   "hi95": 0.24303,
+   "p_one_sided": 0.2275
+  },
+  "RB.B1p": {
+   "n": 400,
+   "mae": 5.92183,
+   "rmse": 7.29151,
+   "bias": -1.98792,
+   "role": "champion"
+  },
+  "RB.B2p_C2": {
+   "n": 400,
+   "mae": 5.79455,
+   "rmse": 7.13164,
+   "bias": -1.88315,
+   "role": "W2.P1 Role comparator (frozen)"
+  },
+  "RB.ORACLE": {
+   "n": 400,
+   "mae": 2.78718,
+   "rmse": 4.46374,
+   "bias": 0.17573,
+   "role": "T9 harness-sensitivity control",
+   "relative_reduction_vs_B1p": 0.52934
+  },
+  "S5.RB.RL": {
+   "id": "S5.RB.RL",
+   "position": "RB",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 100,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 400,
+   "n_applicable": 390,
+   "coverage": 0.975,
+   "cap_hit_rate": 0.24103,
+   "val_cap_hit_rate": 0.21444,
+   "n": 400,
+   "mae": 5.7391,
+   "rmse": 7.03542,
+   "bias": -1.6326,
+   "vs_B1p": {
+    "dMAE": 0.18273,
+    "lo95": 0.01417,
+    "hi95": 0.36115,
+    "p_one_sided": 0.0145,
+    "dRMSE": 0.2561
+   },
+   "vs_C2": {
+    "dMAE": 0.05545,
+    "lo95": -0.0695,
+    "hi95": 0.18241,
+    "p_one_sided": 0.19
+   },
+   "by_week": {
+    "1": {
+     "n": 77,
+     "dMAE_vs_B1p": 0.26468,
+     "dMAE_vs_C2": 0.26494
+    },
+    "2": {
+     "n": 83,
+     "dMAE_vs_B1p": 0.35482,
+     "dMAE_vs_C2": 0.04024
+    },
+    "3": {
+     "n": 81,
+     "dMAE_vs_B1p": 0.11457,
+     "dMAE_vs_C2": -0.02889
+    },
+    "4": {
+     "n": 82,
+     "dMAE_vs_B1p": 0.07341,
+     "dMAE_vs_C2": -0.05268
+    },
+    "5": {
+     "n": 77,
+     "dMAE_vs_B1p": 0.10338,
+     "dMAE_vs_C2": 0.06623
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.31144,
+   "weeks_3_5_dMAE_vs_B1p": 0.09692,
+   "tiers": {
+    "STARTER": {
+     "n": 86,
+     "dMAE_vs_B1p": 0.65872
+    },
+    "FLEX": {
+     "n": 173,
+     "dMAE_vs_B1p": 0.22301
+    },
+    "FRINGE": {
+     "n": 141,
+     "dMAE_vs_B1p": -0.15702
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.36267,
+   "n_questionable_doubtful": 15,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 14,
+   "decisions": {
+    "disagreements": 23,
+    "decided": 17,
+    "challenger_wins": 13,
+    "champion_wins": 4,
+    "ambiguous": 6,
+    "p_one_sided": 0.02452
+   },
+   "val_dMAE_vs_B1p": 0.14892,
+   "gates": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "FAIL",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.RB.G1": {
+   "id": "S5.RB.G1",
+   "position": "RB",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 100,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 400,
+   "n_applicable": 380,
+   "coverage": 0.95,
+   "cap_hit_rate": 0.31053,
+   "val_cap_hit_rate": 0.29476,
+   "n": 400,
+   "mae": 5.75208,
+   "rmse": 7.02269,
+   "bias": -1.77482,
+   "vs_B1p": {
+    "dMAE": 0.16975,
+    "lo95": -0.00237,
+    "hi95": 0.34751,
+    "p_one_sided": 0.027,
+    "dRMSE": 0.26883
+   },
+   "vs_C2": {
+    "dMAE": 0.04247,
+    "lo95": -0.09293,
+    "hi95": 0.18035,
+    "p_one_sided": 0.2725
+   },
+   "by_week": {
+    "1": {
+     "n": 77,
+     "dMAE_vs_B1p": 0.29143,
+     "dMAE_vs_C2": 0.29169
+    },
+    "2": {
+     "n": 83,
+     "dMAE_vs_B1p": 0.39627,
+     "dMAE_vs_C2": 0.08169
+    },
+    "3": {
+     "n": 81,
+     "dMAE_vs_B1p": 0.15654,
+     "dMAE_vs_C2": 0.01309
+    },
+    "4": {
+     "n": 82,
+     "dMAE_vs_B1p": -0.01317,
+     "dMAE_vs_C2": -0.13927
+    },
+    "5": {
+     "n": 77,
+     "dMAE_vs_B1p": 0.0126,
+     "dMAE_vs_C2": -0.02455
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.34581,
+   "weeks_3_5_dMAE_vs_B1p": 0.05238,
+   "tiers": {
+    "STARTER": {
+     "n": 86,
+     "dMAE_vs_B1p": 0.78674
+    },
+    "FLEX": {
+     "n": 173,
+     "dMAE_vs_B1p": 0.19919
+    },
+    "FRINGE": {
+     "n": 141,
+     "dMAE_vs_B1p": -0.2427
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.346,
+   "n_questionable_doubtful": 15,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 14,
+   "decisions": {
+    "disagreements": 23,
+    "decided": 17,
+    "challenger_wins": 12,
+    "champion_wins": 5,
+    "ambiguous": 6,
+    "p_one_sided": 0.07173
+   },
+   "val_dMAE_vs_B1p": 0.17392,
+   "gates": {
+    "T1": "PASS",
+    "T2": "FAIL",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "FAIL",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.RB.G2": {
+   "id": "S5.RB.G2",
+   "position": "RB",
+   "step": "G2",
+   "tactical_mode": "MULTI",
+   "lambda": 1,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 400,
+   "n_applicable": 380,
+   "coverage": 0.95,
+   "cap_hit_rate": 0.42368,
+   "val_cap_hit_rate": 0.41266,
+   "n": 400,
+   "mae": 5.75788,
+   "rmse": 7.06909,
+   "bias": -1.70722,
+   "vs_B1p": {
+    "dMAE": 0.16395,
+    "lo95": -0.02012,
+    "hi95": 0.35892,
+    "p_one_sided": 0.0385,
+    "dRMSE": 0.22243
+   },
+   "vs_C2": {
+    "dMAE": 0.03667,
+    "lo95": -0.11877,
+    "hi95": 0.18616,
+    "p_one_sided": 0.31
+   },
+   "by_week": {
+    "1": {
+     "n": 77,
+     "dMAE_vs_B1p": 0.35675,
+     "dMAE_vs_C2": 0.35701
+    },
+    "2": {
+     "n": 83,
+     "dMAE_vs_B1p": 0.35916,
+     "dMAE_vs_C2": 0.04458
+    },
+    "3": {
+     "n": 81,
+     "dMAE_vs_B1p": 0.11235,
+     "dMAE_vs_C2": -0.03111
+    },
+    "4": {
+     "n": 82,
+     "dMAE_vs_B1p": 0.02915,
+     "dMAE_vs_C2": -0.09695
+    },
+    "5": {
+     "n": 77,
+     "dMAE_vs_B1p": -0.04143,
+     "dMAE_vs_C2": -0.07857
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.358,
+   "weeks_3_5_dMAE_vs_B1p": 0.03458,
+   "tiers": {
+    "STARTER": {
+     "n": 86,
+     "dMAE_vs_B1p": 0.64674
+    },
+    "FLEX": {
+     "n": 173,
+     "dMAE_vs_B1p": 0.25012
+    },
+    "FRINGE": {
+     "n": 141,
+     "dMAE_vs_B1p": -0.23624
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.4,
+   "n_questionable_doubtful": 15,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 14,
+   "decisions": {
+    "disagreements": 32,
+    "decided": 20,
+    "challenger_wins": 12,
+    "champion_wins": 8,
+    "ambiguous": 12,
+    "p_one_sided": 0.25172
+   },
+   "val_dMAE_vs_B1p": 0.17436,
+   "gates": {
+    "T1": "PASS",
+    "T2": "FAIL",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "FAIL",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "RB.G2_vs_G1": {
+   "dMAE": -0.0058,
+   "lo95": -0.05661,
+   "hi95": 0.04536,
+   "p_one_sided": 0.591
+  },
+  "RB.G2_vs_RL": {
+   "dMAE": -0.01878,
+   "lo95": -0.09399,
+   "hi95": 0.05776,
+   "p_one_sided": 0.7035
+  },
+  "WR.B1p": {
+   "n": 594,
+   "mae": 5.09357,
+   "rmse": 6.49993,
+   "bias": -1.08677,
+   "role": "champion"
+  },
+  "WR.B2p_C2": {
+   "n": 594,
+   "mae": 4.89106,
+   "rmse": 6.3152,
+   "bias": -0.76763,
+   "role": "W2.P1 Role comparator (frozen)"
+  },
+  "WR.ORACLE": {
+   "n": 594,
+   "mae": 2.65498,
+   "rmse": 4.34187,
+   "bias": 0.55152,
+   "role": "T9 harness-sensitivity control",
+   "relative_reduction_vs_B1p": 0.47876
+  },
+  "S5.WR.RL": {
+   "id": "S5.WR.RL",
+   "position": "WR",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 1000,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 594,
+   "n_applicable": 576,
+   "coverage": 0.9697,
+   "cap_hit_rate": 0.15104,
+   "val_cap_hit_rate": 0.14139,
+   "n": 594,
+   "mae": 4.8684,
+   "rmse": 6.26455,
+   "bias": -0.67776,
+   "vs_B1p": {
+    "dMAE": 0.22517,
+    "lo95": 0.12382,
+    "hi95": 0.33267,
+    "p_one_sided": 0,
+    "dRMSE": 0.23538
+   },
+   "vs_C2": {
+    "dMAE": 0.02266,
+    "lo95": -0.04051,
+    "hi95": 0.09557,
+    "p_one_sided": 0.257
+   },
+   "by_week": {
+    "1": {
+     "n": 118,
+     "dMAE_vs_B1p": 0.16407,
+     "dMAE_vs_C2": 0.16407
+    },
+    "2": {
+     "n": 123,
+     "dMAE_vs_B1p": 0.25154,
+     "dMAE_vs_C2": -0.03154
+    },
+    "3": {
+     "n": 121,
+     "dMAE_vs_B1p": 0.19504,
+     "dMAE_vs_C2": -0.0262
+    },
+    "4": {
+     "n": 122,
+     "dMAE_vs_B1p": 0.29098,
+     "dMAE_vs_C2": 0.02664
+    },
+    "5": {
+     "n": 110,
+     "dMAE_vs_B1p": 0.22136,
+     "dMAE_vs_C2": -0.01909
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.20871,
+   "weeks_3_5_dMAE_vs_B1p": 0.2364,
+   "tiers": {
+    "STARTER": {
+     "n": 82,
+     "dMAE_vs_B1p": 0.54756
+    },
+    "FLEX": {
+     "n": 220,
+     "dMAE_vs_B1p": 0.29723
+    },
+    "FRINGE": {
+     "n": 292,
+     "dMAE_vs_B1p": 0.08034
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.11692,
+   "n_questionable_doubtful": 39,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 25,
+   "decisions": {
+    "disagreements": 98,
+    "decided": 82,
+    "challenger_wins": 61,
+    "champion_wins": 21,
+    "ambiguous": 16,
+    "p_one_sided": 0.00001
+   },
+   "val_dMAE_vs_B1p": 0.26488,
+   "gates": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.WR.G1": {
+   "id": "S5.WR.G1",
+   "position": "WR",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 1000,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 594,
+   "n_applicable": 560,
+   "coverage": 0.94276,
+   "cap_hit_rate": 0.17857,
+   "val_cap_hit_rate": 0.15308,
+   "n": 594,
+   "mae": 4.89249,
+   "rmse": 6.27876,
+   "bias": -0.7835,
+   "vs_B1p": {
+    "dMAE": 0.20108,
+    "lo95": 0.10726,
+    "hi95": 0.30334,
+    "p_one_sided": 0,
+    "dRMSE": 0.22116
+   },
+   "vs_C2": {
+    "dMAE": -0.00143,
+    "lo95": -0.06619,
+    "hi95": 0.06506,
+    "p_one_sided": 0.509
+   },
+   "by_week": {
+    "1": {
+     "n": 118,
+     "dMAE_vs_B1p": 0.07797,
+     "dMAE_vs_C2": 0.07797
+    },
+    "2": {
+     "n": 123,
+     "dMAE_vs_B1p": 0.17276,
+     "dMAE_vs_C2": -0.11033
+    },
+    "3": {
+     "n": 121,
+     "dMAE_vs_B1p": 0.19512,
+     "dMAE_vs_C2": -0.02612
+    },
+    "4": {
+     "n": 122,
+     "dMAE_vs_B1p": 0.32123,
+     "dMAE_vs_C2": 0.05689
+    },
+    "5": {
+     "n": 110,
+     "dMAE_vs_B1p": 0.23809,
+     "dMAE_vs_C2": -0.00236
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.12635,
+   "weeks_3_5_dMAE_vs_B1p": 0.2521,
+   "tiers": {
+    "STARTER": {
+     "n": 82,
+     "dMAE_vs_B1p": 0.52061
+    },
+    "FLEX": {
+     "n": 220,
+     "dMAE_vs_B1p": 0.24464
+    },
+    "FRINGE": {
+     "n": 292,
+     "dMAE_vs_B1p": 0.07853
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.02795,
+   "n_questionable_doubtful": 39,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 25,
+   "decisions": {
+    "disagreements": 103,
+    "decided": 83,
+    "challenger_wins": 64,
+    "champion_wins": 19,
+    "ambiguous": 20,
+    "p_one_sided": 0
+   },
+   "val_dMAE_vs_B1p": 0.25991,
+   "gates": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.WR.G2": {
+   "id": "S5.WR.G2",
+   "position": "WR",
+   "step": "G2",
+   "tactical_mode": "MULTI",
+   "lambda": 1000,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 594,
+   "n_applicable": 560,
+   "coverage": 0.94276,
+   "cap_hit_rate": 0.23036,
+   "val_cap_hit_rate": 0.18143,
+   "n": 594,
+   "mae": 4.91052,
+   "rmse": 6.29896,
+   "bias": -0.84453,
+   "vs_B1p": {
+    "dMAE": 0.18305,
+    "lo95": 0.09357,
+    "hi95": 0.28011,
+    "p_one_sided": 0,
+    "dRMSE": 0.20097
+   },
+   "vs_C2": {
+    "dMAE": -0.01946,
+    "lo95": -0.08361,
+    "hi95": 0.04482,
+    "p_one_sided": 0.7045
+   },
+   "by_week": {
+    "1": {
+     "n": 118,
+     "dMAE_vs_B1p": 0.04068,
+     "dMAE_vs_C2": 0.04068
+    },
+    "2": {
+     "n": 123,
+     "dMAE_vs_B1p": 0.15724,
+     "dMAE_vs_C2": -0.12585
+    },
+    "3": {
+     "n": 121,
+     "dMAE_vs_B1p": 0.23339,
+     "dMAE_vs_C2": 0.01215
+    },
+    "4": {
+     "n": 122,
+     "dMAE_vs_B1p": 0.2773,
+     "dMAE_vs_C2": 0.01295
+    },
+    "5": {
+     "n": 110,
+     "dMAE_vs_B1p": 0.20473,
+     "dMAE_vs_C2": -0.03573
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.10017,
+   "weeks_3_5_dMAE_vs_B1p": 0.23963,
+   "tiers": {
+    "STARTER": {
+     "n": 82,
+     "dMAE_vs_B1p": 0.51085
+    },
+    "FLEX": {
+     "n": 220,
+     "dMAE_vs_B1p": 0.20595
+    },
+    "FRINGE": {
+     "n": 292,
+     "dMAE_vs_B1p": 0.07373
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.08564,
+   "n_questionable_doubtful": 39,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 25,
+   "decisions": {
+    "disagreements": 100,
+    "decided": 82,
+    "challenger_wins": 61,
+    "champion_wins": 21,
+    "ambiguous": 18,
+    "p_one_sided": 0.00001
+   },
+   "val_dMAE_vs_B1p": 0.25768,
+   "gates": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "WR.G2_vs_G1": {
+   "dMAE": -0.01803,
+   "lo95": -0.04942,
+   "hi95": 0.01208,
+   "p_one_sided": 0.8825
+  },
+  "WR.G2_vs_RL": {
+   "dMAE": -0.04212,
+   "lo95": -0.09464,
+   "hi95": 0.00733,
+   "p_one_sided": 0.9495
+  },
+  "TE.B1p": {
+   "n": 262,
+   "mae": 4.82821,
+   "rmse": 5.87462,
+   "bias": -1.38347,
+   "role": "champion"
+  },
+  "TE.B2p_C2": {
+   "n": 262,
+   "mae": 4.63084,
+   "rmse": 5.707,
+   "bias": -1.11145,
+   "role": "W2.P1 Role comparator (frozen)"
+  },
+  "TE.ORACLE": {
+   "n": 262,
+   "mae": 2.70847,
+   "rmse": 3.88835,
+   "bias": 0.05053,
+   "role": "T9 harness-sensitivity control",
+   "relative_reduction_vs_B1p": 0.43903
+  },
+  "S5.TE.RL": {
+   "id": "S5.TE.RL",
+   "position": "TE",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 10,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 262,
+   "n_applicable": 259,
+   "coverage": 0.98855,
+   "cap_hit_rate": 0.2471,
+   "val_cap_hit_rate": 0.33676,
+   "n": 262,
+   "mae": 4.47683,
+   "rmse": 5.52989,
+   "bias": -0.72805,
+   "vs_B1p": {
+    "dMAE": 0.35137,
+    "lo95": 0.18927,
+    "hi95": 0.50962,
+    "p_one_sided": 0,
+    "dRMSE": 0.34472
+   },
+   "vs_C2": {
+    "dMAE": 0.15401,
+    "lo95": 0.02803,
+    "hi95": 0.27822,
+    "p_one_sided": 0.0095
+   },
+   "by_week": {
+    "1": {
+     "n": 53,
+     "dMAE_vs_B1p": 0.55642,
+     "dMAE_vs_C2": 0.55642
+    },
+    "2": {
+     "n": 56,
+     "dMAE_vs_B1p": 0.38643,
+     "dMAE_vs_C2": 0.10518
+    },
+    "3": {
+     "n": 49,
+     "dMAE_vs_B1p": 0.20143,
+     "dMAE_vs_C2": 0.10898
+    },
+    "4": {
+     "n": 51,
+     "dMAE_vs_B1p": 0.28824,
+     "dMAE_vs_C2": 0.02235
+    },
+    "5": {
+     "n": 53,
+     "dMAE_vs_B1p": 0.30868,
+     "dMAE_vs_C2": -0.02849
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.46908,
+   "weeks_3_5_dMAE_vs_B1p": 0.26752,
+   "tiers": {
+    "STARTER": {
+     "n": 21,
+     "dMAE_vs_B1p": 1.22762
+    },
+    "FLEX": {
+     "n": 109,
+     "dMAE_vs_B1p": 0.44972
+    },
+    "FRINGE": {
+     "n": 132,
+     "dMAE_vs_B1p": 0.13076
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.195,
+   "n_questionable_doubtful": 8,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 8,
+   "decisions": {
+    "disagreements": 9,
+    "decided": 8,
+    "challenger_wins": 7,
+    "champion_wins": 1,
+    "ambiguous": 1,
+    "p_one_sided": 0.03516
+   },
+   "val_dMAE_vs_B1p": 0.43897,
+   "gates": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T2b": "PASS",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "GATE_FAILURE",
+   "final_status": "DIAGNOSTIC_ONLY (cap gate T8 failed; report-only candidate)"
+  },
+  "S5.TE.G1": {
+   "id": "S5.TE.G1",
+   "position": "TE",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 1,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 262,
+   "n_applicable": 245,
+   "coverage": 0.93511,
+   "cap_hit_rate": 0.27755,
+   "val_cap_hit_rate": 0.3359,
+   "n": 262,
+   "mae": 4.49679,
+   "rmse": 5.56615,
+   "bias": -0.90832,
+   "vs_B1p": {
+    "dMAE": 0.33141,
+    "lo95": 0.18695,
+    "hi95": 0.47759,
+    "p_one_sided": 0,
+    "dRMSE": 0.30847
+   },
+   "vs_C2": {
+    "dMAE": 0.13405,
+    "lo95": 0.01377,
+    "hi95": 0.25464,
+    "p_one_sided": 0.015
+   },
+   "by_week": {
+    "1": {
+     "n": 53,
+     "dMAE_vs_B1p": 0.41585,
+     "dMAE_vs_C2": 0.41585
+    },
+    "2": {
+     "n": 56,
+     "dMAE_vs_B1p": 0.38143,
+     "dMAE_vs_C2": 0.10018
+    },
+    "3": {
+     "n": 49,
+     "dMAE_vs_B1p": 0.19,
+     "dMAE_vs_C2": 0.09755
+    },
+    "4": {
+     "n": 51,
+     "dMAE_vs_B1p": 0.2951,
+     "dMAE_vs_C2": 0.02922
+    },
+    "5": {
+     "n": 53,
+     "dMAE_vs_B1p": 0.35981,
+     "dMAE_vs_C2": 0.02264
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.39817,
+   "weeks_3_5_dMAE_vs_B1p": 0.28386,
+   "tiers": {
+    "STARTER": {
+     "n": 21,
+     "dMAE_vs_B1p": 1.07571
+    },
+    "FLEX": {
+     "n": 109,
+     "dMAE_vs_B1p": 0.48073
+    },
+    "FRINGE": {
+     "n": 132,
+     "dMAE_vs_B1p": 0.0897
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.235,
+   "n_questionable_doubtful": 8,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 8,
+   "decisions": {
+    "disagreements": 9,
+    "decided": 9,
+    "challenger_wins": 7,
+    "champion_wins": 2,
+    "ambiguous": 0,
+    "p_one_sided": 0.08984
+   },
+   "val_dMAE_vs_B1p": 0.40636,
+   "gates": {
+    "T1": "INSUFFICIENT_FINAL_SAMPLE",
+    "T2": "PASS",
+    "T2b": "PASS",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "PASS",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "INSUFFICIENT_FINAL_SAMPLE",
+   "final_status": "INSUFFICIENT_FINAL_SAMPLE"
+  },
+  "S5.TE.G2": {
+   "id": "S5.TE.G2",
+   "position": "TE",
+   "step": "G2",
+   "tactical_mode": "MULTI",
+   "lambda": 1,
+   "frozen_ceiling": "DIAGNOSTIC_ONLY",
+   "n_rows": 262,
+   "n_applicable": 245,
+   "coverage": 0.93511,
+   "cap_hit_rate": 0.36327,
+   "val_cap_hit_rate": 0.40832,
+   "n": 262,
+   "mae": 4.62855,
+   "rmse": 5.64828,
+   "bias": -1.09252,
+   "vs_B1p": {
+    "dMAE": 0.19966,
+    "lo95": 0.04441,
+    "hi95": 0.35133,
+    "p_one_sided": 0.007,
+    "dRMSE": 0.22633
+   },
+   "vs_C2": {
+    "dMAE": 0.00229,
+    "lo95": -0.13651,
+    "hi95": 0.13665,
+    "p_one_sided": 0.5115
+   },
+   "by_week": {
+    "1": {
+     "n": 53,
+     "dMAE_vs_B1p": 0.26019,
+     "dMAE_vs_C2": 0.26019
+    },
+    "2": {
+     "n": 56,
+     "dMAE_vs_B1p": 0.29054,
+     "dMAE_vs_C2": 0.00929
+    },
+    "3": {
+     "n": 49,
+     "dMAE_vs_B1p": 0.13939,
+     "dMAE_vs_C2": 0.04694
+    },
+    "4": {
+     "n": 51,
+     "dMAE_vs_B1p": 0.1951,
+     "dMAE_vs_C2": -0.07078
+    },
+    "5": {
+     "n": 53,
+     "dMAE_vs_B1p": 0.10321,
+     "dMAE_vs_C2": -0.23396
+    }
+   },
+   "weeks_1_2_dMAE_vs_B1p": 0.27578,
+   "weeks_3_5_dMAE_vs_B1p": 0.14542,
+   "tiers": {
+    "STARTER": {
+     "n": 21,
+     "dMAE_vs_B1p": 0.8619
+    },
+    "FLEX": {
+     "n": 109,
+     "dMAE_vs_B1p": 0.44569
+    },
+    "FRINGE": {
+     "n": 132,
+     "dMAE_vs_B1p": -0.10886
+    }
+   },
+   "questionable_doubtful_dMAE_vs_B1p": 0.1675,
+   "n_questionable_doubtful": 8,
+   "out_rows_contribution_exactly_zero": true,
+   "n_out_rows": 8,
+   "decisions": {
+    "disagreements": 8,
+    "decided": 8,
+    "challenger_wins": 6,
+    "champion_wins": 2,
+    "ambiguous": 0,
+    "p_one_sided": 0.14453
+   },
+   "val_dMAE_vs_B1p": 0.34863,
+   "gates": {
+    "T1": "INSUFFICIENT_FINAL_SAMPLE",
+    "T2": "PASS",
+    "T2b": "FAIL",
+    "T3": "PASS",
+    "T4": "FAIL",
+    "T5": "PASS",
+    "T6": "INSUFFICIENT",
+    "T7": "FAIL",
+    "T8": "FAIL",
+    "T9": "PASS",
+    "T10": "NOT_EVALUABLE (frozen S5 candidates are HALF-only; no STD/PPR fit) - blocks SHADOW_QUALIFIED"
+   },
+   "gate_verdict": "INSUFFICIENT_FINAL_SAMPLE",
+   "final_status": "INSUFFICIENT_FINAL_SAMPLE"
+  },
+  "TE.G2_vs_G1": {
+   "dMAE": -0.13176,
+   "lo95": -0.19993,
+   "hi95": -0.06406,
+   "p_one_sided": 1
+  },
+  "TE.G2_vs_RL": {
+   "dMAE": -0.15172,
+   "lo95": -0.25007,
+   "hi95": -0.05928,
+   "p_one_sided": 0.9995
+  }
+ },
+ "holm_adjusted": {
+  "last_VAL_retained": {
+   "vs_B1p": {
+    "WR": 0,
+    "TE": 0,
+    "RB": 0.029,
+    "QB": 0.858
+   },
+   "vs_C2": {
+    "TE": 0.038,
+    "RB": 0.57,
+    "WR": 0.57,
+    "QB": 0.9525
+   },
+   "steps": {
+    "QB": "G1",
+    "RB": "RL",
+    "WR": "RL",
+    "TE": "RL"
+   }
+  },
+  "G2": {
+   "vs_B1p": {
+    "WR": 0,
+    "TE": 0.021,
+    "RB": 0.077,
+    "QB": 0.935
+   },
+   "vs_C2": {
+    "RB": 1,
+    "TE": 1,
+    "WR": 1,
+    "QB": 1
+   },
+   "steps": {
+    "QB": "G2",
+    "RB": "G2",
+    "WR": "G2",
+    "TE": "G2"
+   }
+  }
+ }
+}

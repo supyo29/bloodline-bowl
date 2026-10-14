@@ -1,0 +1,20 @@
+{
+  "player_asof_poison": {
+    "passed": 150,
+    "total": 150,
+    "failures": []
+  },
+  "team_asof_poison": {
+    "passed": 684,
+    "total": 684
+  },
+  "tier_b_prior_season_only": {
+    "passed": 100,
+    "total": 100
+  },
+  "structural": {
+    "max_feature_season_vs_target": "every as-of function reads rows strictly earlier than the target (poison above)",
+    "seasons_loaded": [2022, 2023, 2024, 2025, 2026],
+    "season_2026_loaded": true
+  }
+}
