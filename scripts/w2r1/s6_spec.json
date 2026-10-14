@@ -1,0 +1,48 @@
+{
+  "spec_version": "w2r1-s6-spec-1",
+  "extends": "scripts/w2r1/prereg.json (unchanged, sha256 6caf1f70ad2a926b368927c521d799311f09191963bf17c957c6959701cb521d): breakout labels, models M0/M1/M2 and gates B1-B6 are the preregistered ones; this file only FIXES the remaining design constants. No threshold, label or split is loosened.",
+  "declared_before": "any S6 model fit, any S6 validation scoring, any look at 2026 outcomes. S4 (K/DST expected points) and S5 (tactical layers) are closed and are not re-opened here.",
+  "objective": "Decide, per position, whether point-in-time pregame evidence identifies MATERIALLY ELEVATED upside probability relative to a tier-conditional base rate. NO RELIABLE BREAKOUT SIGNAL / INSUFFICIENT SAMPLE are acceptable and preferred over an overfit probability. No hand-weighted hype score exists.",
+  "splits": {"FIT": "2022-2024 weeks 3-18 targets", "VAL": "2025 weeks 3-17 (VAL-contaminated weeks 14-17 are used for validation only)", "FINAL": "2026 weeks 1-5: NOT loaded, NOT scored; S7 only after FROZEN.json", "time_split_only": "random train/test splits are forbidden; model selection uses time order only; VAL-LATE = constants chosen on VAL weeks 3-9 and scored on weeks 10-17"},
+  "population": {
+    "rule": "point-in-time pregame population: a player whose most recent PLAYED game was for the target team within that team's previous 3 games, with as-of B0p(HALF) >= 3 (prereg relevance floor) and a headline designation NONE / QUESTIONABLE / DOUBTFUL (OUT is excluded from the label population: it is Wave-1 availability, not breakout). The target game's played flag is an OUTCOME: a player who does not play stays in the population with label 0 (this removes the survivor bias of conditioning on playing).",
+    "availability": "W1 owns availability: S6 neither models injury nor re-discounts; designation states are carried as covariates (NONE/Q/D) only; bye weeks are not targets (no game); unknown designation = NONE with the reconstruction flag (RECONSTRUCTED_FINAL_DESIGNATION, symmetric across candidates).",
+    "positions": ["QB", "RB", "WR", "TE", "K", "DST"], "no_pooling": "every position (and every label) is fitted, calibrated and judged separately; K/DST use SPIKE internally"
+  },
+  "labels": {
+    "rank_population": "all players at the position with a stat line that week (the rank is among everyone who played, not only the study population)",
+    "PRIMARY": {"QB": "weekly top-12", "RB": "weekly top-12", "WR": "weekly top-12", "TE": "weekly top-6", "K": "weekly top-6 (spike)", "DST": "weekly top-6 (spike)"},
+    "tie_rule": "label = actual HALF points >= the value of the N-th ranked player that week (ties included)",
+    "SECONDARY_reported_only": {"top6": "QB/RB/WR top-6", "TE_top12": "TE top-12", "residual": "actual - B0p >= 1.5 x SD(actual - B0p) estimated on FIT played rows of the position", "relative": "actual >= 2.0 x B0p AND >= 15 points"},
+    "rule": "only PRIMARY drives model choice and verdicts; SECONDARY labels may not be substituted after results are seen. Base rates are reported for every label."
+  },
+  "base_rates": {"M0": "tier-conditional empirical base rate: tier by as-of B0p(HALF): STARTER >= 12, FLEX 6 to < 12, FRINGE 3 to < 6; rate estimated on FIT per position and tier (Laplace-smoothed: (events+1)/(n+2))", "position_base_rate": "FIT rate over the whole position population (reported beside every comparable-situation statement)"},
+  "feature_families": {
+    "TIER": "B0p tier (cohort baseline; always in every candidate through M0)",
+    "TREND": ["snap_trend", "target_trend", "carry_trend", "rz_trend (red-zone touches)"],
+    "TREND_definition": "mean of the last 3 PLAYED games minus mean of the 3 before them (needs >= 6 played games; otherwise UNKNOWN, never 0)",
+    "LEVEL": ["as-of usage levels (S5 Role-lite: rl_*)", "b0"],
+    "CONTEXT": ["implied_team_total", "team_spread", "opp_implied_total", "team_pace_asof", "dome"],
+    "SHIFT": ["so_missing_target_share", "so_missing_rush_share", "so_ol_out", "so_front_out"],
+    "EXPERIENCE": ["years_exp (0 = rookie)", "career_played_games_prior", "team_changed_recent (team 3 played games ago differs)", "weeks_since_out (1-8, 9 = none within 8 weeks)"],
+    "S5_DIAG": "S5 opponent-response / tendency ratios (MULTI mode) used ONLY as diagnostic covariates in the last candidate; S5 found no validated signal in them and S6 does not treat them as validated",
+    "unavailable_documented": ["route participation trend (participation data absent 2026; Tier B)", "depth-chart promotion (snapshots begin 2026-08-25)", "offensive-line changes beyond designation-based so_ol_out", "snap trend before 2022"]
+  },
+  "candidate_ladder": {
+    "M0": "tier base rate (control)",
+    "M1a": "TIER + TREND", "M1b": "M1a + LEVEL + CONTEXT", "M1c": "M1b + SHIFT + EXPERIENCE", "M1d": "M1c + S5_DIAG (diagnostic covariates)",
+    "M1": "L2-regularised logistic regression on standardized features, intercept unpenalized; penalty lambda = 1/C, C in [0.01, 0.1, 1, 10] chosen on VAL log loss (ties -> smaller C); rows with unknown features get the neutral M0 probability FLAGGED (never zero)",
+    "M2": "calibrated gradient-boosted trees ONLY if M1 beats M0 on VAL AND the position has >= 300 positive events in FIT+VAL; otherwise NOT fitted. Preference: M0 over M1 over M2 unless the gate below is met.",
+    "inclusion_rule": "a step is retained if its VAL log loss improves on the previous retained step by >= 0.002 AND its Brier 95% team-week bootstrap lower bound vs that step is > 0 (B=2000, seed 20261014); the verdict is judged on the last retained candidate vs M0."
+  },
+  "calibration": {"method": "NO post-hoc recalibration: M1 probabilities are used as fitted (a recalibrated score would be a second model); calibration is MEASURED: reliability slope (logit regression of the label on logit p), ECE with 10 equal-mass bins (bins with < 10 rows merged), tail stability, tiny-top-decile warnings", "display": "probabilities are shown only for a position whose gates pass; otherwise `NO RELIABLE BREAKOUT SIGNAL`; probabilities are banded (Low / Typical / Elevated / High) and rounded to whole percent; a raw classifier score is never shown as a probability"},
+  "alerts": {"ELEVATED": "p >= 1.5 x position base rate", "HIGH": "p >= 2.0 x position base rate", "note": "thresholds fixed here; precision / recall / lift reported at both; altering them after validation is forbidden"},
+  "missing_data": {"small_sample_weight": "p_shown = w * p_model + (1 - w) * tier_base_rate with w = 1 (>= 4 prior played games), 0.6 (2-3), 0 (< 2): missing history lowers confidence toward the BASE RATE, never to 0 and never to a confident extreme", "rookies_and_role_changes": "evaluated as explicit subgroups (years_exp 0, < 4 prior games, recent team change, injury return, large trend shifts) with their own base rate and calibration", "unknown": "unknown feature = unknown (flag), not 0"},
+  "metrics": ["n", "events", "base rate", "Brier", "Brier skill vs M0 (relative, with bootstrap CI)", "log loss", "reliability slope", "ECE", "reliability bins", "top-decile lift and events", "precision / recall at ELEVATED and HIGH", "VAL-LATE repeat"],
+  "gates": {"B1": "VAL positive events >= 40 else INSUFFICIENT SAMPLE (the same >= 40 applies to FINAL at S7)", "B2": "Brier skill vs M0 >= 2% relative with bootstrap lower bound > 0", "B3": "log loss improves vs M0", "B4": "reliability slope in [0.8, 1.2] AND ECE <= 0.03", "B5": "top-decile lift >= 1.3 with >= 10 events in the top decile", "B6": "negative examples reported for every feature family (n positive / n negative / empirical rate / lift)",
+    "verdict_labels": {"VALIDATION CANDIDATE": "B1-B5 pass on VAL AND on VAL-LATE", "DIAGNOSTIC ONLY": "B2 passes but B4 or B5 fails (probabilities not displayable)", "NO RELIABLE BREAKOUT SIGNAL": "B2 or B3 fails", "INSUFFICIENT SAMPLE": "B1 fails"}},
+  "negative_examples": "for every feature family the study reports, in the VAL population: rows where the 'breakout-looking' condition (top-quintile of the family's standardized composite score computed on FIT constants, per position) held; n positive, n negative, empirical rate, lift over the position base rate. The composite is a DESCRIPTIVE cohort selector, never a model output.",
+  "K_DST_spike": "K and D/ST spike probability is evaluated with the S4 simulated component distribution (M_sim), the tercile base rate (M0) and a logistic M1 on [model expected points, model SD]; fitted on FIT, C chosen on VAL log loss. K/DST expected-points qualification (S4) and spike qualification are SEPARATE verdicts.",
+  "leakage_controls": {"poison": "recompute features for sampled VAL targets after replacing the target game and every later game of the player and team with absurd values: byte-identical", "label_isolation": "labels are computed from outcomes only after features; no feature column may be a function of the target-game outcome (poison + column audit)", "later_weeks_and_season_end": "covered by the poison test (all later rows replaced); no season aggregate columns exist", "postgame_depth_and_injury": "depth-chart data is not used at all; injury designation is the reconstructed final team-week designation used identically by M0 and M1; no postgame-only field is read", "oracle": "target-game actual usage (targets/carries/dropbacks) as features must beat M0 by a wide margin (>= 25% Brier improvement) proving the harness would expose leakage", "time_split": "a test asserts every FIT target precedes every VAL target in (season, week) order"},
+  "stop_point": "validation only; FROZEN.json not created; 2026 weeks 1-5 not loaded; prereg.json untouched."
+}
