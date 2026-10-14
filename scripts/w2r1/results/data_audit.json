@@ -1,0 +1,375 @@
+{
+  "player_stats": {
+    "2020": {
+      "rows": 17602,
+      "cols": 150,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 18969,
+      "cols": 150,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 18831,
+      "cols": 150,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 18643,
+      "cols": 150,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 18983,
+      "cols": 150,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 19422,
+      "cols": 150,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 5506,
+      "cols": 150,
+      "max_week": 5
+    }
+  },
+  "schedules": {
+    "2020": {
+      "rows": 269,
+      "cols": 46,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 285,
+      "cols": 46,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 284,
+      "cols": 46,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 285,
+      "cols": 46,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 285,
+      "cols": 46,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 285,
+      "cols": 46,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 272,
+      "cols": 46,
+      "max_week": 18
+    }
+  },
+  "injuries": {
+    "2020": {
+      "rows": 5661,
+      "cols": 16,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 5587,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 5682,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 5599,
+      "cols": 16,
+      "max_week": 19
+    },
+    "2024": {
+      "rows": 6215,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 6068,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 1428,
+      "cols": 16,
+      "max_week": 6
+    }
+  },
+  "depth_charts": {
+    "2020": {
+      "rows": 36168,
+      "cols": 15,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 37487,
+      "cols": 15,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 37780,
+      "cols": 15,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 37327,
+      "cols": 15,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 37312,
+      "cols": 15,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 554215,
+      "cols": 12,
+      "max_week": null
+    },
+    "2026": {
+      "rows": 650071,
+      "cols": 12,
+      "max_week": null
+    }
+  },
+  "snap_counts": {
+    "2020": {
+      "rows": 24999,
+      "cols": 16,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 26468,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 26381,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 26540,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 26615,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 26613,
+      "cols": 16,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 7370,
+      "cols": 16,
+      "max_week": 5
+    }
+  },
+  "participation": {
+    "2020": {
+      "rows": 48513,
+      "cols": 20,
+      "max_week": null
+    },
+    "2021": {
+      "rows": 50714,
+      "cols": 20,
+      "max_week": null
+    },
+    "2022": {
+      "rows": 50150,
+      "cols": 20,
+      "max_week": null
+    },
+    "2023": {
+      "rows": 46168,
+      "cols": 26,
+      "max_week": null
+    },
+    "2024": {
+      "rows": 45919,
+      "cols": 26,
+      "max_week": null
+    },
+    "2025": {
+      "rows": 45184,
+      "cols": 26,
+      "max_week": null
+    },
+    "2026": {
+      "rows": 0,
+      "cols": 0,
+      "max_week": null
+    }
+  },
+  "ftn_charting": {
+    "2020": {
+      "rows": 0,
+      "error": "seasons >= 2022 is not TRUE"
+    },
+    "2021": {
+      "rows": 0,
+      "error": "seasons >= 2022 is not TRUE"
+    },
+    "2022": {
+      "rows": 41643,
+      "cols": 29,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 48225,
+      "cols": 29,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 48031,
+      "cols": 29,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 47316,
+      "cols": 29,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 13438,
+      "cols": 29,
+      "max_week": 5
+    }
+  },
+  "nextgen_pass": {
+    "2020": {
+      "rows": 581,
+      "cols": 29,
+      "max_week": 22
+    },
+    "2021": {
+      "rows": 608,
+      "cols": 29,
+      "max_week": 23
+    },
+    "2022": {
+      "rows": 603,
+      "cols": 29,
+      "max_week": 23
+    },
+    "2023": {
+      "rows": 620,
+      "cols": 29,
+      "max_week": 23
+    },
+    "2024": {
+      "rows": 614,
+      "cols": 29,
+      "max_week": 23
+    },
+    "2025": {
+      "rows": 605,
+      "cols": 29,
+      "max_week": 23
+    },
+    "2026": {
+      "rows": 198,
+      "cols": 29,
+      "max_week": 5
+    }
+  },
+  "team_stats": {
+    "2020": {
+      "rows": 538,
+      "cols": 138,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 570,
+      "cols": 138,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 568,
+      "cols": 138,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 570,
+      "cols": 138,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 570,
+      "cols": 138,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 570,
+      "cols": 138,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 158,
+      "cols": 138,
+      "max_week": 5
+    }
+  },
+  "pbp": {
+    "2020": {
+      "rows": 47705,
+      "cols": 372,
+      "max_week": 21
+    },
+    "2021": {
+      "rows": 49922,
+      "cols": 372,
+      "max_week": 22
+    },
+    "2022": {
+      "rows": 49434,
+      "cols": 372,
+      "max_week": 22
+    },
+    "2023": {
+      "rows": 49665,
+      "cols": 372,
+      "max_week": 22
+    },
+    "2024": {
+      "rows": 49492,
+      "cols": 372,
+      "max_week": 22
+    },
+    "2025": {
+      "rows": 48771,
+      "cols": 372,
+      "max_week": 22
+    },
+    "2026": {
+      "rows": 13842,
+      "cols": 372,
+      "max_week": 5
+    }
+  },
+  "pbp_fields_2025": {
+    "present": ["pass_location", "air_yards", "qb_scramble", "run_gap", "run_location", "wp", "vegas_wp", "spread_line", "total_line", "roof", "surface", "temp", "wind", "field_goal_result", "kick_distance", "fumble_forced", "sack", "interception", "safety", "penalty", "drive", "xpass", "pass_oe", "cp", "epa", "shotgun"],
+    "absent": ["offense_formation", "offense_personnel", "defenders_in_box", "defense_personnel", "number_of_pass_rushers", "was_pressure", "play_action", "route", "defense_man_zone_type", "defense_coverage_type", "time_to_throw", "n_offense_backfield", "ngs_air_yards", "was_no_huddle"],
+    "rows": 48771
+  }
+}
