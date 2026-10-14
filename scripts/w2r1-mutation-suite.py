@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -57,6 +57,19 @@ MUT = [
  ("W53", "S5: the game-plan layer is imported by a production module (influences production)", "lib/weekly/waivers.ts", [('import { buildOptimalLineup', 'import "@/lib/w2r1/gameplan";\nimport { buildOptimalLineup')]),
  ("W54", "S5: Tier-B features enter the primary G2 candidate", "scripts/w2r1/s5_run.ts", [('case "G2": return g2;', 'case "G2": return [...g2, ...TIERB];')]),
  ("W55", "S5: wording claims certainty about an unpublished game plan", "lib/w2r1/gameplan.ts", [("tendency is ${level}", "will be ${level}")]),
+ ("W56", "S6: the TARGET game leaks into a feature (as-of window includes the target week)", "scripts/w2r1/s6_build.R", [("return(NULL); idx <- which(h$season < s | (h$season == s & h$week < w))", "return(NULL); idx <- which(h$season < s | (h$season == s & h$week <= w))")]),
+ ("W57", "S6: later games leak backward into the as-of window", "scripts/w2r1/s6_build.R", [("return(NULL); idx <- which(h$season < s | (h$season == s & h$week < w))", "return(NULL); idx <- which(h$season <= 2025)")]),
+ ("W58", "S6: negative examples are dropped from cohort statistics", "lib/w2r1/breakout.ts", [("negatives: n - positives, rate, baseRate", "negatives: 0, rate, baseRate")]),
+ ("W59", "S6: the base rate is omitted from the comparable-situation display", "lib/w2r1/breakout.ts", [("(about ${pct}% vs position base rate ${baseP}%)", "(about ${pct}%)")]),
+ ("W60", "S6: a random split is accepted in place of the time split", "lib/w2r1/breakout.ts", [("if (!(maxFit < minVal)) throw", "if (false as boolean) throw")]),
+ ("W61", "S6: position labels are pooled (TE judged on the top-12 label)", "lib/w2r1/breakout.ts", [("TE: 6, K: 6, DST: 6 }", "TE: 12, K: 6, DST: 6 }")]),
+ ("W62", "S6: an unknown model output becomes probability 0", "lib/w2r1/breakout.ts", [("if (pModel == null || !Number.isFinite(pModel)) return baseRate;", "if (pModel == null || !Number.isFinite(pModel)) return 0;")]),
+ ("W63", "S6: a player with no history is treated as high confidence", "lib/w2r1/breakout.ts", [("const w = confidenceWeight(priorGames, priorGames);", "const w = 1;")]),
+ ("W64", "S6: a raw / uncalibrated score is displayed as a probability", "lib/w2r1/breakout.ts", [('if (verdict !== "VALIDATION CANDIDATE") return', 'if (false as boolean) return')]),
+ ("W65", "S6: the high-upside alert threshold is altered after validation", "lib/w2r1/breakout.ts", [("export const ALERT_HIGH = 2.0;", "export const ALERT_HIGH = 1.2;")]),
+ ("W66", "S6: the calibration gate (slope / ECE) is dropped", "lib/w2r1/breakout.ts", [("return b4 && b5 && late ? ", "return b5 && late ? ")]),
+ ("W67", "S6: the breakout layer is imported by a production module (influences production)", "lib/weekly/waivers.ts", [('import { buildOptimalLineup', 'import "@/lib/w2r1/breakout";\nimport { buildOptimalLineup')]),
+ ("W68", "S6: the minimum-events gate (INSUFFICIENT SAMPLE) is removed", "lib/w2r1/breakout.ts", [("if (g.events < 40) return", "if (false as boolean) return")]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),

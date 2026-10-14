@@ -148,3 +148,38 @@ Ladder (ΔMAE vs previous retained step, 95 % team-week bootstrap lower bound): 
 **Mutants / tests:** `lib/w2r1/gameplan.ts` primitives (strictly-earlier window, EB rate, continuity, confidence weight, evidence states, Tier-B carryover, interaction term, proportional teammate redistribution, availability-once, layer inclusion, probabilistic wording) with 14 tests; mutants W42–W55 (target-game leakage, future-game leakage, Tier-B as current truth, continuity ignored, missing evidence as certainty, interaction retained without gain, double injury discount, matchup without usage, direct-backup-only, no-evidence as OK, stale ignored, production import, Tier-B in the primary candidate, certain wording) all killed.
 
 **Layers surviving into the frozen S7 candidate:** none of the tactical layers. Role-lite (TE) and Role-lite + context (QB) beat B1p and C2 on VAL but fail the cap-hit gate as built; they are not game-plan evidence and are carried to S7 only if the cap/bias situation is addressed by a pre-declared, non-tactical design change (exploratory until declared). **Verdicts:** QB `DIAGNOSTIC ONLY` (context), RB `NO RELIABLE INCREMENTAL SIGNAL` (Role C2 stronger), WR `NO RELIABLE INCREMENTAL SIGNAL`, TE `DIAGNOSTIC ONLY` (Role-lite beats C2 but cap fail).
+
+## 10. S6 — empirical breakout / upside study (stage report; validation only — FINAL untouched)
+
+**Frozen before fitting:** `scripts/w2r1/s6_spec.json` (sha256 `0ec02582f4a55e88a213570435aade197a6e20a469d551b2891852fb80e9599a`, commit `21f1dcd`); `prereg.json` unchanged. No `FROZEN.json`; 2026 not loaded.
+
+**Population / splits.** Pregame population: a player whose latest PLAYED game was for the team within its previous 3 team games, as-of B0p ≥ 3, designation NONE/QUESTIONABLE/DOUBTFUL (OUT is Wave-1 availability, excluded). A player who does not play stays in with label 0 (no conditioning on playing). FIT 2022–2024 = 11,174 rows, VAL 2025 wk 3–17 = 3,416 rows; time split only (asserted FIT < VAL). VAL-LATE = constants chosen on weeks 3–9, scored on 10–17.
+
+**Labels (PRIMARY, preregistered) and VAL base rates / events:** QB top-12 33.1 % (173 events), RB top-12 20.0 % (174), WR top-12 12.2 % (169), TE top-6 12.4 % (79). Secondary (reported only): top-6 QB 16.8 % / RB 10.2 % / WR 6.4 %; TE top-12 24.1 %; residual 6–8 %; relative 4.5–7.9 %. Tier base rates (FIT) range from 4–7 % (FRINGE) to 23–41 % (STARTER).
+
+**Model ladder (VAL; M0 = tier base rate; retained step must improve log loss ≥ 0.002 and Brier lower bound > 0)**
+| Pos | M1a tier+trends | M1b +usage level+context | M1c +shift/experience | M1d +S5 diagnostics |
+|---|---|---|---|---|
+| QB | +0.3 % skill (not retained) | **+8.3 %** [lo +0.0074], LL +0.037, late +7.0 % — retained | +8.2 % (no gain) | +6.5 % (no gain) |
+| RB | −0.4 % | **+6.5 %** [lo +0.0042], LL +0.024, late +6.9 % — retained | +6.9 % (no gain) | +6.7 % (no gain) |
+| WR | +0.1 % | +2.2 % [lo −0.0001] — NOT retained | +1.8 % | +1.5 % |
+| TE | +0.4 % | **+6.6 %** [lo +0.0026], LL +0.025, late +6.4 % — retained | +4.9 % | +4.9 % |
+M2 (calibrated trees) is not fitted at any position (gate not met / no boosted-tree package installed; a single rpart tree is not a calibrated candidate).
+
+**Calibration of the last retained candidate (gates B4/B5):** QB slope 0.71 / ECE 0.060 (over-confident), top-decile lift 1.88 (33 events); RB slope 1.06 / ECE 0.037, lift 2.64 (46 events); WR n/a; TE slope 1.12 / ECE 0.021, lift 3.03 (24 events).
+**Alerts (ELEVATED p ≥ 1.5 × base, HIGH ≥ 2.0 × base; precision / recall):** QB 0.52 / 0.46 and 0.71 / 0.14; RB 0.39 / 0.55 and 0.53 / 0.40; TE 0.26 / 0.49 and 0.35 / 0.33; WR no HIGH alerts.
+
+**Verdicts (VAL):** QB `DIAGNOSTIC ONLY` (over-confident, ECE 0.060); RB `DIAGNOSTIC ONLY` (ECE 0.037 > 0.03); WR `NO RELIABLE BREAKOUT SIGNAL`; TE `VALIDATION CANDIDATE` (B1–B5 and VAL-LATE pass, 79 events).
+**What the signal actually is (honest reading).** The "breakout-looking" TREND family adds nothing (EXPLORATORY ablation, non-binding: trends over tier +0.3 % / −0.4 % / +0.1 % / +0.4 %). The gain over the 3-tier base rate comes from the continuous usage LEVEL and from game CONTEXT (QB: implied team total alone +5.7 %). So S6 found a better expected-top-N probability, not a detector of players who break out of their own pattern.
+
+**Negative examples / empirical rates (VAL, descriptive top-quintile cohorts; lift vs tier-expected):** TREND cohorts: QB 38 + / 67 − (rate 36 %, lift 1.01), RB 34 / 119 (22 %, 0.96), WR 26 / 214 (11 %, 0.88), TE 22 / 115 (16 %, 0.91): the trend signals did not lift the rate beyond what the tier already implies. LEVEL cohorts lift 1.4–2.2× vs the position base rate but only 1.0–1.4× vs tier-expected. SHIFT (teammate absence) 1.06–1.25.
+
+**Rookies / small samples (VAL; shown probability = w·p + (1−w)·base, w = 1 / 0.6 / 0 for ≥ 4 / 2–3 / < 2 prior games — never 0):** rookies are calibrated at QB/RB/TE (observed/tier-expected 1.13 / 1.06 / 0.91) and over-predicted at WR (0.64); low-history (< 4 games) n = 13–41 per position, too small to certify; recent team change n = 18–50; **injury returns are over-predicted for RB (observed 2.9 % vs shown 14.4 %, 1 event in 35) — flagged**; large snap-trend shifts under-predict at TE (19.7 % vs 10.4 %, n = 61).
+
+**Leakage controls:** poison tests pass (player as-of 150/150, team as-of 702/702, Tier-B prior-season-only 100/100; builder structure test: the as-of window is strictly earlier in all 3 places and labels are computed after, and independently of, every feature). ORACLE (target-game actual usage): QB 17 %, RB 22 %, WR 19 %, TE 26 % Brier improvement over M0 — **the frozen 25 % criterion is met only at TE**; the harness-sensitivity check is therefore partially met (a supplementary oracle using the target-game fantasy points improves Brier 75–85 %, proving a real leak would be glaring). Reported, not relaxed.
+
+**K / D-ST spike (separate from S4 expected points; VAL, FIT-trained; best of simulated-component model and logistic M1 on [expected points, SD] by VAL Brier):** K — Bloodline `NO RELIABLE` (skill +2.1 %, lower bound −0.0001), Devoted/Sporty's/Maclin `DIAGNOSTIC ONLY` (skill +3.4–4.0 %, under-confident slope 2.1–2.3, ECE 0.056–0.058). D/ST — all `DIAGNOSTIC ONLY`: M1 skill +3.2 % to +6.2 % (Rogers Park the best: slope 0.96, ECE 0.031, lift 1.98, late +5.8 %, just over the ECE gate), Devoted/Sporty's lift only 1.09. No K/D-ST spike probability is displayable.
+
+**Tests / mutants:** `lib/w2r1/breakout.ts` (labels, time-split assertion, shrinkage to base rate, gates, banding/alerts, display discipline, negative-example cohort stats) with 16 tests golden-linked to the recorded results; mutants W56–W68 (target-game leak, later-game leak, negatives dropped, base rate omitted, random split, pooled labels, unknown→0, no-history high confidence, raw score displayed, alert threshold altered, calibration gate dropped, production import, minimum-events gate) all killed.
+
+**Surviving into the frozen S7 candidate:** TE M1b (tier + trends + usage level + context) is the only `VALIDATION CANDIDATE`. QB M1b and RB M1b may be carried as DIAGNOSTIC candidates (they will be judged on the frozen final set; QB is over-confident). WR, K and D/ST spike models are not carried. No S6 output is displayed in the live preview.
