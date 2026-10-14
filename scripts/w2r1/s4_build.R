@@ -1,7 +1,7 @@
 # W2.R1 S4 builder: team-game K and D/ST ACTUAL components (from nflverse pbp) + as-of features. Output cached under scripts/w2r1/cache (not committed).
 # POINT-IN-TIME: every feature for game g uses only games strictly before g (schedule order); schedule lines/weather are pregame information.
 suppressMessages({ library(nflreadr); library(data.table) })
-seasons <- 2022:2026
+seasons <- 2022:2025   # FINAL GUARD: 2026 is never loaded by the research builders (S7 loads it only after FROZEN.json)
 pbp <- rbindlist(lapply(seasons, function(s) as.data.table(load_pbp(s))), fill = TRUE)[season_type == "REG"]
 sch <- as.data.table(load_schedules(seasons))[game_type == "REG"]
 pbp <- pbp[!is.na(posteam) | play_type %in% c("kickoff")]
@@ -24,13 +24,17 @@ parts <- list(
   agg(pbp, quote(fumble_recovery_1_team), quote(ifelse(fl == 1 & st == 0, 1, 0)), "fumrec_def"),
   agg(pbp, quote(fumble_recovery_1_team), quote(ifelse(fl == 1 & st == 1, 1, 0)), "fumrec_st"),
   agg(pbp, quote(fumble_recovery_1_team), quote(ifelse(fl == 1, replace(fumble_recovery_1_yards, is.na(fumble_recovery_1_yards), 0), 0)), "fum_ret_yd"),
-  agg(pbp, quote(ifelse(st == 0, defteam, posteam)), quote(ff1), "ff_def"),
+  agg(pbp, quote(ifelse(!is.na(fumbled_1_team) & fumbled_1_team == posteam, defteam, posteam)), quote(ifelse(st == 0, ff1, 0)), "ff_def"),
+  agg(pbp, quote(ifelse(!is.na(fumbled_1_team) & fumbled_1_team == posteam, defteam, posteam)), quote(ifelse(st == 1, ff1, 0)), "ff_st"),
+  agg(pbp, quote(defteam), quote(ifelse(!is.na(play_type) & play_type == "punt", 1, 0)), "forced_punts"),
+  agg(pbp, quote(defteam), quote(ifelse(one(punt_attempt) == 1, 1, 0)), "forced_punts_pa"),
+  agg(pbp, quote(return_team), quote(ifelse((one(punt_blocked) == 1 | (!is.na(field_goal_result) & field_goal_result == "blocked") | (!is.na(extra_point_result) & extra_point_result == "blocked")) & !is.na(return_yards), return_yards, 0)), "blk_ret_yd"),
+  agg(pbp, quote(return_team), quote(ifelse(!is.na(field_goal_result) & field_goal_result %in% c("missed", "blocked") & !is.na(return_yards), return_yards, 0)), "fg_ret_yd"),
   agg(pbp, quote(defteam), quote(ifelse(td == 1 & !is.na(td_team) & td_team == defteam & st == 0 & (ic == 1 | fl == 1), 1, 0)), "def_td"),
-  agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team) & td_team != posteam, 1, 0)), "st_td"),
+  agg(pbp, quote(td_team), quote(ifelse(td == 1 & st == 1 & !is.na(td_team), 1, 0)), "st_td"),
   agg(pbp, quote(defteam), quote(one(safety)), "safeties"),
   agg(pbp, quote(defteam), quote(ifelse(one(punt_blocked) == 1 | (!is.na(field_goal_result) & field_goal_result == "blocked") | (!is.na(extra_point_result) & extra_point_result == "blocked"), 1, 0)), "blk"),
   agg(pbp, quote(defteam), quote(one(fourth_down_failed)), "stops4"),
-  agg(pbp, quote(defteam), quote(ifelse(!is.na(play_type) & play_type == "punt", 1, 0)), "forced_punts"),
   agg(pbp, quote(return_team), quote(ifelse(!is.na(play_type) & play_type == "kickoff", replace(return_yards, is.na(return_yards), 0), 0)), "kr_yd"),
   agg(pbp, quote(return_team), quote(ifelse(!is.na(play_type) & play_type == "punt", replace(return_yards, is.na(return_yards), 0), 0)), "pr_yd"),
   agg(pbp, quote(defteam), quote(ifelse(one(two_point_attempt) == 1 & one(defensive_two_point_conv) == 1, 1, 0)), "def2pt"),
