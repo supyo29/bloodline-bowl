@@ -282,17 +282,22 @@ export class MemoryPublicationAuditStore implements PublicationAuditStore {
     this.rows.push({ ...audit, id });
     return { status: "READY" as PersistenceStatus, id };
   }
+  /**
+   * Newest attempt first. `attempted_at` has MILLISECOND resolution, so two attempts for one league/season (a cron and an API publish, or a retry) can share it. A stable sort on the
+   * timestamp alone then returns the OLDER row as "latest" (found by the test-failure audit: ~1 in 6 loaded runs of bridge-refresh). Ties are broken by RECORDING ORDER (later wins).
+   */
+  private newestFirst(league_slug: string, season: number): PublicationAudit[] {
+    return this.rows
+      .map((row, seq) => ({ row, seq }))
+      .filter(({ row }) => row.league_slug === league_slug && row.season === season)
+      .sort((a, b) => b.row.attempted_at.localeCompare(a.row.attempted_at) || b.seq - a.seq)
+      .map(({ row }) => row);
+  }
   async latest(league_slug: string, season: number): Promise<PublicationAudit | null> {
-    const rows = this.rows
-      .filter((r) => r.league_slug === league_slug && r.season === season)
-      .sort((a, b) => b.attempted_at.localeCompare(a.attempted_at));
-    return rows[0] ?? null;
+    return this.newestFirst(league_slug, season)[0] ?? null;
   }
   async recent(league_slug: string, season: number, limit = 20): Promise<PublicationAudit[]> {
-    return this.rows
-      .filter((r) => r.league_slug === league_slug && r.season === season)
-      .sort((a, b) => b.attempted_at.localeCompare(a.attempted_at))
-      .slice(0, limit);
+    return this.newestFirst(league_slug, season).slice(0, limit);
   }
 }
 

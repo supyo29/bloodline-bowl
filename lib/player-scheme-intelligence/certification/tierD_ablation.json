@@ -1,0 +1,54 @@
+{
+  "ablation": "psi-tierD-ablation-2026.1",
+  "rows": [
+    {
+      "position": "QB",
+      "family": "qb_spatial",
+      "incremental_mae_gain_vs_b1": 0.0074,
+      "beats_naive_only": true,
+      "retained": false
+    },
+    {
+      "position": "QB",
+      "family": "qb_coverage",
+      "incremental_mae_gain_vs_b1": 0.0006,
+      "beats_naive_only": true,
+      "retained": false
+    },
+    {
+      "position": "QB",
+      "family": "qb_pressure",
+      "incremental_mae_gain_vs_b1": 0.0002,
+      "beats_naive_only": true,
+      "retained": false
+    },
+    {
+      "position": "WR",
+      "family": "wr_spatial",
+      "incremental_mae_gain_vs_b1": 0.0053,
+      "beats_naive_only": true,
+      "retained": false
+    },
+    {
+      "position": "TE",
+      "family": "te_spatial",
+      "incremental_mae_gain_vs_b1": -0.0033,
+      "beats_naive_only": false,
+      "retained": false
+    },
+    {
+      "position": "RB",
+      "family": "rb_direction",
+      "incremental_mae_gain_vs_b1": -0.0024,
+      "beats_naive_only": true,
+      "retained": false
+    },
+    {
+      "position": "RB",
+      "family": "rb_box",
+      "incremental_mae_gain_vs_b1": -0.0003,
+      "beats_naive_only": false,
+      "retained": false
+    }
+  ]
+}

@@ -22,7 +22,8 @@ import {
   buildRushingProfile,
 } from "@/lib/player-scheme-intelligence";
 
-const OUT = join(process.cwd(), "outputs", "player-scheme-intelligence-2026");
+/* tracked build-certification reports (were read from the gitignored outputs/ dir, so they only passed where the R build had been run) — see lib/player-scheme-intelligence/certification/README.md */
+const OUT = join(process.cwd(), "lib", "player-scheme-intelligence", "certification");
 
 test("tierB: manifest advertises tiers A+B and per-family provenance", () => {
   __resetPlayerSchemeCache();

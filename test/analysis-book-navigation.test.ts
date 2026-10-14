@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadPlayerDirectory } from "@/lib/analysis-book/directory";
 import { loadCapabilitySnapshot, type CapabilitySnapshot } from "@/lib/analysis-book/capability";
+import { FROZEN_CAPABILITY_ROOT } from "./helpers/frozen-capability-root";
 import { createBook } from "@/lib/analysis-book/contents";
 import { parseCommand, resolveSelector, nextChapters, isResearchable } from "@/lib/analysis-book/selection";
 import { interpret } from "@/lib/analysis-book/commands";
@@ -10,7 +11,7 @@ import { beginResearch, recordChapterResearch, recordSupport, goDeeper, stalenes
 import { contentsView, renderContentsText } from "@/lib/analysis-book/view";
 import type { AnalysisBookSession, EvidenceRef } from "@/lib/analysis-book/schema";
 
-const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(); const NOW = "2026-09-20T12:00:00.000Z";
+const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(FROZEN_CAPABILITY_ROOT); const NOW = "2026-09-20T12:00:00.000Z";
 const make = (q = "Analyze Rome Odunze this week"): AnalysisBookSession => { const r = createBook({ question: q, league: "bloodline-bowl", manager: "supyo29" }, dir, snap, NOW); assert.ok(r.ok); return r.session; };
 const num = (s: AnalysisBookSession, id: string) => s.contents.find((c) => c.chapter_id === id)!.display_number;
 const keys = (s: AnalysisBookSession, cmd: string) => { const c = parseCommand(cmd); assert.equal(c.kind, "select", cmd); if (c.kind !== "select") throw 0; const r = resolveSelector(s, c.selector); assert.ok(r.ok, `${cmd}: ${r.ok ? "" : r.message}`); return r.ok ? r.keys : []; };

@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { loadObservedRoleGames, loadRoleProfilesAsOf, loadPositionYields, loadInjuryReports, type ObservedRow, type ProfileRow, type InjuryRow } from "@/lib/role-calibration/data";
+import { loadObservedRoleGames, loadRoleProfilesAsOf, parseObservedCsv, parseProfileCsv, loadPositionYields, loadInjuryReports, type ObservedRow, type ProfileRow, type InjuryRow } from "@/lib/role-calibration/data";
 import { ewma, forecastTeamVolume, forecastQbVolume } from "@/lib/role-calibration/volume";
 import { buildRoleForecast, assertPointInTime, designationOf, P_ABSENT } from "@/lib/role-calibration/forecast";
 import { buildWeekForecasts } from "@/lib/role-calibration/forecast-week";
@@ -22,6 +22,15 @@ import { usageValueFor, fiIdsFromCanonical } from "@/lib/weekly/start-sit-fi/usa
 import { translateFiAdjustment } from "@/lib/weekly/start-sit-fi/translate";
 import type { NflGame } from "@/lib/calibration/types";
 
+/* The committed role inputs MOVE: the weekly refresh workflow replaces role_profile_asof.csv (it now holds only the newest target weeks). Tests that need "the target week" take the latest
+ * target week present rather than a frozen number, and build teeth with INJECTED poisoned outcomes for that week (the committed observed data has none at/after it yet). */
+const TW = Math.max(...loadRoleProfilesAsOf().map((p) => p.target_week));
+const poisonRow = (o: ObservedRow): ObservedRow => ({ ...o, snap_share: 1, target_share: 0.99, rush_share: 0.99, targets: 60, carries: 60, dropbacks: 200, team_pass_att: 500, team_rush_att: 500, team_rz_pass_att: 90, team_rz_rush_att: 90, rz_target_share: 0.99, rz_carry_share: 0.99 });
+/** the committed observed data with every outcome at/after the target week poisoned AND a poisoned copy of the latest observed week injected AS the target week */
+const poisonedFrom = (observed: ObservedRow[]): ObservedRow[] => {
+  const latest = Math.max(...observed.filter((o) => o.season === 2026).map((o) => o.week));
+  return [...observed.map((o) => (o.season === 2026 && o.week >= TW ? poisonRow(o) : o)), ...observed.filter((o) => o.season === 2026 && o.week === latest).map((o) => ({ ...poisonRow(o), week: TW, game_id: `poison-${o.game_id}` }))];
+};
 const PPR = { pass_yd: 0.04, pass_td: 4, pass_int: -2, rush_yd: 0.1, rush_td: 6, rec: 1, rec_yd: 0.1, rec_td: 6, fum_lost: -2 };
 const YIELDS = loadPositionYields(2025)!;
 const obs = (over: Partial<ObservedRow>): ObservedRow => ({ season: 2026, week: 1, game_id: "g", gsis_id: "g1", sleeper_id: "s1", full_name: "P", position: "WR", team: "AAA", opponent: "BBB", offensive_snaps: 50, team_offensive_plays: 65, snap_share: 0.77, route_participation: null, targets: 8, team_pass_att: 35, target_share: 0.229, receptions: 5, air_yards_share: 0.2, carries: null, team_rush_att: 25, rush_share: null, position_group_rush_share: null, position_group_target_share: null, dropbacks: null, qb_scrambles: null, designed_rushes: null, red_zone_targets: 1, red_zone_carries: null, inside_10_carries: null, goal_line_carries: null, end_zone_targets: 0, team_rz_pass_att: 5, team_rz_rush_att: 4, rz_target_share: 0.2, rz_carry_share: null, third_down_targets: 2, third_down_carries: null, two_minute_targets: 0, two_minute_carries: null, inside_10_carry_share: null, goal_line_carry_share: null, ...over });
@@ -49,23 +58,30 @@ describe("point-in-time integrity + adversarial leakage", () => {
     const qb = [obs({ week: 1, gsis_id: "q", position: "QB", dropbacks: 30, designed_rushes: 2, qb_scrambles: 1 }), obs({ week: 3, gsis_id: "q", position: "QB", dropbacks: 99 })];
     assert.equal(forecastQbVolume(qb, "q", 2026, 3).dropbacks, 30);
   });
-  test("ADVERSARIAL: Week 3 final stats cannot alter the Week 3 pregame forecast (real committed data, every player)", async () => {
+  test("ADVERSARIAL: target-week final stats cannot alter the target-week pregame forecast (real committed data, every player; poisoned outcomes are INJECTED so the test has teeth)", async () => {
     const observed = loadObservedRoleGames();
     const games: NflGame[] = [];
     const prior = new Map<string, string>();
-    for (const t of new Set(observed.filter((o) => o.season === 2026).map((o) => o.team))) { prior.set(`2026|1|${t}`, "2026-09-13T17:00:00.000Z"); prior.set(`2026|2|${t}`, "2026-09-20T17:00:00.000Z"); games.push({ nfl_game_id: `g-${t}`, season: 2026, week: 3, home_team: t, away_team: "ZZZ", kickoff_at: KICK, kickoff_source: "test", status: "complete", provenance: {} }); }
-    const a = await buildWeekForecasts({ season: 2026, week: 3, captureKind: "AS_OF_RECONSTRUCTION", games, priorKickoffs: prior, observed });
-    // poison every Week-3 outcome to absurd values and rebuild
-    const poisoned = observed.map((o) => (o.season === 2026 && o.week >= 3 ? { ...o, snap_share: 1, target_share: 0.99, rush_share: 0.99, targets: 60, carries: 60, dropbacks: 200, team_pass_att: 500, team_rush_att: 500, team_rz_pass_att: 90, team_rz_rush_att: 90, rz_target_share: 0.99, rz_carry_share: 0.99 } : o));
-    const b = await buildWeekForecasts({ season: 2026, week: 3, captureKind: "AS_OF_RECONSTRUCTION", games, priorKickoffs: prior, observed: poisoned });
-    assert.ok(a.forecasts.length > 500);
+    for (const t of new Set(observed.filter((o) => o.season === 2026).map((o) => o.team))) {
+      // earlier weeks' kickoffs: strictly before KICK, one day apart (only their ORDER relative to the target kickoff matters to the as-of cutoff)
+      for (let w = 1; w < TW; w++) prior.set(`2026|${w}|${t}`, new Date(Date.parse(KICK) - (TW - w) * 86_400_000).toISOString());
+      games.push({ nfl_game_id: `g-${t}`, season: 2026, week: TW, home_team: t, away_team: "ZZZ", kickoff_at: KICK, kickoff_source: "test", status: "complete", provenance: {} });
+    }
+    const a = await buildWeekForecasts({ season: 2026, week: TW, captureKind: "AS_OF_RECONSTRUCTION", games, priorKickoffs: prior, observed });
+    // poison every outcome at/after the target week to absurd values (injecting target-week rows the committed data does not have yet) and rebuild
+    const poisoned = poisonedFrom(observed);
+    assert.ok(poisoned.length > observed.length, "teeth: poisoned target-week outcomes were actually injected");
+    const b = await buildWeekForecasts({ season: 2026, week: TW, captureKind: "AS_OF_RECONSTRUCTION", games, priorKickoffs: prior, observed: poisoned });
+    assert.ok(a.forecasts.length > 400, `forecasts built for target week ${TW}: ${a.forecasts.length}`);
     assert.deepEqual(b.forecasts.map((f) => f.forecast_id), a.forecasts.map((f) => f.forecast_id));
     assert.deepEqual(b.forecasts.map((f) => f.opportunity), a.forecasts.map((f) => f.opportunity));
     assert.deepEqual(a.forecasts.flatMap((f) => assertPointInTime(f)), []);
   });
-  test("the committed role profiles are reproducible from strictly-earlier games ONLY (statistically: EWMA over weeks < target matches the R export; including the target week does not)", () => {
-    const observed = loadObservedRoleGames();
-    const profiles = loadRoleProfilesAsOf().filter((p) => p.target_week === 3 && p.position === "WR" && (p.metrics.target_share?.n_games ?? 0) >= 2);
+  test("the role profiles are reproducible from strictly-earlier games ONLY (statistically: EWMA over weeks < target matches the R export; including the target week does not) — FROZEN week-3 vintage", () => {
+    // The committed inputs MOVE every week (the refresh workflow replaces the profile file), so this check reads a frozen, hashed vintage (see the fixture README).
+    const dir = join("test", "fixtures", "role-calibration-vintage-w3");
+    const observed = parseObservedCsv(readFileSync(join(dir, "observed_role_game_wr.csv"), "utf8"));
+    const profiles = parseProfileCsv(readFileSync(join(dir, "role_profile_asof_w3_wr.csv"), "utf8")).filter((p) => p.target_week === 3 && p.position === "WR" && (p.metrics.target_share?.n_games ?? 0) >= 2);
     assert.ok(profiles.length >= 50);
     const before: number[] = [], withW3: number[] = []; let closer = 0, n = 0;
     for (const p of profiles) {

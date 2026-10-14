@@ -1,0 +1,28 @@
+{
+  "audit": "psi-tierB-box-sensitivity-2026.1",
+  "frozen_default": {
+    "grid": "a",
+    "light": "box < 6.5",
+    "neutral": "6.5-7.5",
+    "heavy": "box >= 7.5"
+  },
+  "alternatives": [
+    {
+      "grid": "b",
+      "light_hi": 6.5,
+      "heavy_lo": 8.5,
+      "n_rb": 27,
+      "spearman_heavy_minus_light": 0.7259,
+      "mean_abs_delta": 0.1566
+    },
+    {
+      "grid": "c",
+      "light_hi": 5.5,
+      "heavy_lo": 7.5,
+      "n_rb": 29,
+      "spearman_heavy_minus_light": 0.5783,
+      "mean_abs_delta": 0.1346
+    }
+  ],
+  "verdict": "CAVEAT: box-bucket rank-order is cut sensitive; expose raw mean_box_faced + per-bucket carries so a consumer can re-bucket."
+}

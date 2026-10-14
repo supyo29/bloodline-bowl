@@ -49,7 +49,23 @@ describe("live: full weekly engine for the three primary managers", () => {
       const lu = i.lineup;
       const used = lu.slots.map((s) => s.recommended_player_id).filter(Boolean);
       assert.equal(new Set(used).size, used.length, "no player started twice");
-      assert.equal(lu.illegal_situations.length, 0, `optimal lineup must be legal: ${lu.illegal_situations.join("; ")}`);
+      // `illegal_situations` is the legality of the manager's CURRENT lineup (lib/weekly/lineup.ts: "Legality of the CURRENT lineup") — a REPORTED fact, non-empty when e.g. a QB is on bye.
+      // The invariant on the RECOMMENDED lineup (header: "no bye/IR starter chosen when an alternative exists"): a verified-bye starter is recommended ONLY when the roster has no
+      // slot-eligible, non-IR, non-bye player left over — and it is always surfaced in `bye_problems`. (Live data: a manager whose only two QBs share a bye has no alternative.)
+      const { buildWeeklyTeamContext } = await import("../lib/weekly/context");
+      const ctx = (await buildWeeklyTeamContext(league, manager, {})).context!;
+      const isBye = (id: string) => ctx.projections.by_player.get(id)?.projection_status === "bye";
+      const recommended = new Set(lu.slots.map((x) => x.recommended_player_id).filter(Boolean) as string[]);
+      for (const bp of lu.bye_problems) {
+        const slotDef = lu.slots.find((x) => x.slot === bp.slot && x.recommended_player_id === bp.canonical_player_id)!;
+        assert.ok(slotDef, "a bye problem names a real recommended slot");
+        const eligible = ctx.all_rostered.filter((p) => (p.canonical_player_id !== bp.canonical_player_id) && !recommended.has(p.canonical_player_id) && !ctx.roster.ir.includes(p.canonical_player_id) && (p.position === bp.slot || p.eligible_positions.includes(bp.slot as never)));
+        const usable = eligible.filter((p) => !isBye(p.canonical_player_id));
+        assert.deepEqual(usable.map((p) => p.full_name), [], `a bye starter (${bp.canonical_player_id}) was recommended in ${bp.slot} although a non-bye alternative exists`);
+      }
+      for (const msg of lu.illegal_situations) {
+        assert.match(msg, /^(current starter .* is not eligible for slot|current starter in slot .* is on bye this week|player .* is started in \d+ slots simultaneously)/, `unexpected illegal-situation text: ${msg}`);
+      }
       for (const s of lu.slots) {
         if (!s.recommended_player_id) continue;
         const p = i.matchup.team_lineup.slots.find((x) => x.slot === s.slot);

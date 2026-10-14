@@ -22,6 +22,11 @@ import { buildWaiverContext } from "@/lib/waiver2/context";
 import { mkWaiverInput, stdMine, type WaiverFixture } from "./fixtures/waiver2";
 import observed from "@/lib/scoring/data/observed-provider-keys.json";
 
+import { beforeEach as __isolateBeforeEach } from "node:test";
+import { clearProjectionFeedCache as __clearFeedCache } from "@/lib/sleeper/client";
+/* The Sleeper projection feed cache is process-global (infra 8c6814a, 2026-09-26): a test that mocks fetch must not inherit rows cached by an earlier test. */
+__isolateBeforeEach(() => __clearFeedCache());
+
 const LIVE = observed.live_league_scoring as Record<string, Record<string, number>>;
 const pts = (stats: Record<string, number>, scoring: Record<string, number>, pos?: string) => calculateFantasyPoints(materializeScoringEvents(stats, { position: pos }).stats, scoring).fantasy_points;
 
@@ -200,7 +205,8 @@ test("architecture: calculateFantasyPoints stays the ONLY arithmetic authority (
 
 describe("trade/ROS inputs: rest-of-season points (a trade-value input) reflect a TE premium exactly, WR unaffected", () => {
   it("same season line, premium vs base league: TE ROS differs by 0.5 x receptions x weeks-left fraction; WR identical", async (t) => {
-    const rows = ["TE", "WR"].map((pos) => ({ player_id: pos, team: "KC", opponent: "LV", week: 3, stats: { rec: 80, rec_yd: 800, rec_td: 6 }, player: { first_name: pos, last_name: "P", position: pos, team: "KC" } }));
+    /* ids are numeric: a letters-only Sleeper id ("TE", "WR") is by contract a TEAM DEFENSE id (W1.R1 P1-3) and would never resolve as a player */
+    const rows = ["TE", "WR"].map((pos, i) => ({ player_id: String(4000 + i), team: "KC", opponent: "LV", week: 3, stats: { rec: 80, rec_yd: 800, rec_td: 6 }, player: { first_name: pos, last_name: "P", position: pos, team: "KC" } }));
     const go = async (raw_scoring: Record<string, number>) => { t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => rows }) as unknown as Response); const b = await new SleeperWeeklyProjectionProvider().getWeeklyProjections({ league: { league_slug: "l", season: 2026, raw_scoring, scoring_rules: [] }, week: 3, crosswalk: new PlayerCrosswalk(NoCrosswalk), canonical_player_ids: [], want_rest_of_season: true }); mock.restoreAll(); const by = (n: string) => [...b.by_player.values()].find((p) => p.position === n)!; return { te: by("TE").rest_of_season_points!, wr: by("WR").rest_of_season_points! }; };
     const base = { rec: 1, rec_yd: 0.1, rec_td: 6 }; const a = await go(base), b = await go({ ...base, bonus_rec_te: 0.5 });
     const frac = 15 / 17; /* REGULAR_SEASON_WEEKS = 17; week 3 -> (17 - 2) / 17 */ assert.ok(Math.abs((b.te - a.te) - 40 * frac) < 0.02, `TE ROS delta ${b.te - a.te} vs ${40 * frac}`); assert.equal(b.wr, a.wr); assert.equal(a.te, a.wr);

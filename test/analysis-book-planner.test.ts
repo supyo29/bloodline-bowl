@@ -4,12 +4,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadPlayerDirectory } from "@/lib/analysis-book/directory";
 import { loadCapabilitySnapshot } from "@/lib/analysis-book/capability";
+import { FROZEN_CAPABILITY_ROOT } from "./helpers/frozen-capability-root";
 import { createBook } from "@/lib/analysis-book/contents";
 import { CHAPTER_LIBRARY, TEMPLATES } from "@/lib/analysis-book/library";
 import type { AnalysisBookSession, BookType } from "@/lib/analysis-book/schema";
 import { getCapabilities } from "@/lib/book-ready/query";
 
-const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(); const NOW = "2026-09-20T12:00:00.000Z";
+const dir = loadPlayerDirectory(); const snap = loadCapabilitySnapshot(FROZEN_CAPABILITY_ROOT); const NOW = "2026-09-20T12:00:00.000Z";
 const book = (question: string, ctx: { league?: string; manager?: string } = {}): AnalysisBookSession => { const r = createBook({ question, ...ctx }, dir, snap, NOW); assert.ok(r.ok, `${question}: ${r.ok ? "" : r.note}`); return r.session; };
 const ch = (s: AnalysisBookSession, id: string) => s.contents.find((c) => c.chapter_id === id)!;
 const CTX = { league: "bloodline-bowl", manager: "supyo29" };
@@ -100,6 +101,7 @@ test("a chapter is READY only if every applicable required need is supported, an
   }
 });
 test("capability snapshot agrees with the live Book-Ready capabilities endpoint", () => {
+  const snap = loadCapabilitySnapshot(); // LIVE on purpose: this test is about agreement with the live endpoint (the other tests use the frozen vintage)
   const caps = getCapabilities() as { registry_version: string; refresh_status: Array<{ surface: string; through_week: number; refresh_lag_weeks: number }> };
   assert.equal(snap.registry_version, caps.registry_version);
   for (const r of caps.refresh_status) { assert.equal(snap.vintage[r.surface]!.through_week, r.through_week, r.surface); assert.equal(snap.vintage[r.surface]!.lag_weeks, r.refresh_lag_weeks, r.surface); }

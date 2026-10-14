@@ -1,0 +1,151 @@
+{
+  "registry": "psi-feature-registry-2026.1",
+  "tier": "B",
+  "updated_at": "2026-09-19 10:37:04",
+  "families": [
+    {
+      "feature": "qb_coverage",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2018,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 588,
+      "evidence_mix": {
+        "INSUFFICIENT": 25,
+        "MODERATE": 154,
+        "STRONG": 331,
+        "WEAK": 78
+      }
+    },
+    {
+      "feature": "qb_pressure",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2016,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 651,
+      "evidence_mix": {
+        "INSUFFICIENT": 30,
+        "MODERATE": 159,
+        "STRONG": 377,
+        "WEAK": 85
+      }
+    },
+    {
+      "feature": "qb_rusher_count",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2016,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 1292,
+      "evidence_mix": {
+        "INSUFFICIENT": 317,
+        "MODERATE": 267,
+        "STRONG": 438,
+        "WEAK": 270
+      }
+    },
+    {
+      "feature": "qb_formation",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2016,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 1534,
+      "evidence_mix": {
+        "INSUFFICIENT": 530,
+        "MODERATE": 251,
+        "STRONG": 503,
+        "WEAK": 250
+      }
+    },
+    {
+      "feature": "qb_concepts",
+      "built": true,
+      "source": "ftn",
+      "first_supported_season": 2022,
+      "availability": "DESCRIPTIVE_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": false,
+      "rows": 1764,
+      "evidence_mix": {
+        "INSUFFICIENT": 403,
+        "MODERATE": 491,
+        "STRONG": 480,
+        "WEAK": 390
+      }
+    },
+    {
+      "feature": "qb_progression",
+      "built": true,
+      "source": "ftn",
+      "first_supported_season": 2022,
+      "availability": "DESCRIPTIVE_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": false,
+      "rows": 1485,
+      "evidence_mix": {
+        "INSUFFICIENT": 233,
+        "MODERATE": 442,
+        "STRONG": 453,
+        "WEAK": 357
+      }
+    },
+    {
+      "feature": "receiver_route",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2018,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 18019,
+      "evidence_mix": {
+        "INSUFFICIENT": 9478,
+        "MODERATE": 2980,
+        "STRONG": 979,
+        "WEAK": 4582
+      }
+    },
+    {
+      "feature": "receiver_coverage",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2018,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 3236,
+      "evidence_mix": {
+        "INSUFFICIENT": 1134,
+        "MODERATE": 739,
+        "STRONG": 257,
+        "WEAK": 1106
+      }
+    },
+    {
+      "feature": "rb_box",
+      "built": true,
+      "source": "participation",
+      "first_supported_season": 2016,
+      "availability": "PRIOR_ONLY",
+      "current_season_status": "PRIOR_ONLY",
+      "predictive_eligible": "candidate_pending_tierD",
+      "rows": 2669,
+      "evidence_mix": {
+        "INSUFFICIENT": 713,
+        "MODERATE": 585,
+        "STRONG": 621,
+        "WEAK": 750
+      }
+    }
+  ]
+}

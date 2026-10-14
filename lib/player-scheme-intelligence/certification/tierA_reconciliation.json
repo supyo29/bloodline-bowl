@@ -1,0 +1,14 @@
+{
+  "reconciliation": "psi-tierA-reconciliation-2026.1",
+  "season": 2025,
+  "week": 18,
+  "qb_matrix_reconciles": true,
+  "qb_matrix_max_abs_gap": 0,
+  "qb_charted_plus_uncharted_eq_total": true,
+  "qb_lmr_sums_to_1_max_err": 1.1102e-16,
+  "qb_depth_sums_to_1_max_err": 2.2204e-16,
+  "def_pass_matrix_reconciles": true,
+  "no_uncharted_in_cells": true,
+  "served_content_sha256": "08123edd58c937e157e1e1abd06aafeccb135213ba37b84569202202c7fa763c",
+  "all_pass": true
+}

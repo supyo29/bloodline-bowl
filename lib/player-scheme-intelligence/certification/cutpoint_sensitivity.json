@@ -1,0 +1,37 @@
+{
+  "audit": "psi-tierA-cutpoint-2026.1",
+  "frozen_default": {
+    "grid": "a",
+    "behind_los": "air_yards < 0",
+    "short": "0-9",
+    "intermediate": "10-19",
+    "deep": "20+",
+    "rationale": "transparent, conventional, reproducible round-number bins"
+  },
+  "alternatives_tested": [
+    {
+      "grid": "b",
+      "short_hi": 8,
+      "int_hi": 16,
+      "n_qb": 170,
+      "mean_abs_delta_deep_pct": 0.0648,
+      "max_abs_delta_deep_pct": 0.1161,
+      "mean_abs_delta_int_mid": 0.0073,
+      "spearman_int_mid": 0.8093,
+      "spearman_deep": 0.8748
+    },
+    {
+      "grid": "c",
+      "short_hi": 12,
+      "int_hi": 22,
+      "n_qb": 170,
+      "mean_abs_delta_deep_pct": 0.0233,
+      "max_abs_delta_deep_pct": 0.0594,
+      "mean_abs_delta_int_mid": 0.012,
+      "spearman_int_mid": 0.9211,
+      "spearman_deep": 0.9333
+    }
+  ],
+  "verdict": "FREEZE default bins (0/10/20). Nearest conventional alternative (12/22) preserves QB rank-order (Spearman deep=0.93, int-mid=0.92). CAVEAT (P3): an aggressive 8/16 redefinition reshuffles deep% rank-order (Spearman=0.87) — level shares are cut-point sensitive; the served raw matrix + per-cell air_yards mean let a consumer re-bin.",
+  "note": "Shares shift in level (expected) but player rank-order — what a matchup read depends on — is what must be stable."
+}

@@ -18,11 +18,17 @@ const sha = (f: string) => createHash("sha256").update(readFileSync(f)).digest("
 const NOW = "2026-09-20T12:00:00.000Z"; const CTX = { league: "bloodline-bowl", manager: "supyo29" };
 
 test("DEPLOYMENT SAFETY: the production waiver RANKING/SCORING model is byte-identical to the pre-Phase-4 main; only its readiness-gate wiring (context.ts) legitimately changed for the waiver-readiness-contract fix", () => {
-  // RE-PINNED (Yahoo Market State): these pins were already STALE on the W2.P1 tip (Wave 1 changed waivers/lineup/intelligence/context without updating them:
-  // the test was red before this work). Re-baselined to the current content. This work's changes to the pinned files are additive and Sleeper-neutral:
-  //   replacement.ts  `ownership === "waiver"` also counts toward the acquirable pool (no provider produced that state before; Sleeper output is identical)
-  //   waivers.ts      optional `acquisition` on a candidate + optional `market_pool` on the result (absent for Sleeper)
-  //   context.ts      axes / market_pool summary / relabeled availability ONLY when the certified market is provider-evidence (Yahoo)
+  // PIN LEDGER (test-failure audit). This test was RED on the W2.P1 tip (`86e8190`): Wave 1 changed four of the six pinned files without updating the pins. Each re-baseline below is justified by
+  // the exact commits that changed the file since the pin was last true (verified by hashing every historical revision of the file):
+  //   decision-score.ts        UNCHANGED since the original pin (c0b1a5e)  -> the RANKING / SCORING weights are still byte-identical to the pre-Phase-4 model: the guard's purpose holds.
+  //   start_sit_model.json     UNCHANGED (frozen model sha asserted below).
+  //   waivers.ts   (true at 9f13949) <- 3ecbb1d explicit readiness contract; 89e22ad W1.P3 bye-aware asset preservation; abe494f W1.R1 remediation; 57a6606 W1.R2 canonical asset value;
+  //                                     af72022 Yahoo Market State (optional `acquisition` / `market_pool` output fields; absent for Sleeper)
+  //   replacement.ts (c0b1a5e)  <- af72022: `ownership === "waiver"` also counts toward the acquirable pool (no provider produced that state before; Sleeper output identical)
+  //   lineup.ts      (c0b1a5e)  <- 68fc482 W1.P2 injury-aware expected value; 89e22ad W1.P3 bye-aware preservation
+  //   intelligence.ts (726da33) <- b893c6d orthogonal readiness axes; 68fc482 W1.P2; abe494f W1.R1
+  //   context.ts     (0771277)  <- 12 commits: readiness composer (ad860a9..a86e4d9, 31fdd0a), W1.P1/P2/P3/P4/R1/R2 (ab7dce3, 68fc482, 89e22ad, 65a04f4, abe494f, 57a6606), af72022 Yahoo Market State
+  // Every one is a reviewed, separately-tested, certified change (see docs/DECISION_MODEL_CONVERGENCE_W1_*.md). A NEW change to any of these files still fails here until it is added to this ledger.
   const pins: Record<string, string> = {
     "lib/weekly/waivers.ts": "c8be1cbf0ff9545bec7e21fb365a29b3b796a019c4d603aa3d64f8639c341bae", "lib/weekly/decision-score.ts": "519999456302880802fee93374b8b93962fc5b296c71b0f454313c08db09b114",
     "lib/weekly/replacement.ts": "feab998c610735b3c3a6baa6893dd806988f2faa5a1b07b3eb371425a1b56846", "lib/weekly/lineup.ts": "64741d969faada6051b325ac8d580911a3fd87d7cfee8ab0d027a18ba904d574",

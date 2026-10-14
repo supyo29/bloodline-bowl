@@ -1,0 +1,494 @@
+[
+ {
+  "file": "test/analysis-book-isolation.test.ts",
+  "name": "REGISTRY-CONSTRAINED: the planner infers capability from the surface registry \u2014 changing the registry changes researchability",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-navigation.test.ts",
+  "name": "stale detection compares STORED evidence identity with CURRENT source identity \u2014 never wall-clock time",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-navigation.test.ts",
+  "name": "Contents redisplay is pure: it never changes state or re-runs research; re-selecting a researched chapter RECALLS it",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-planner.test.ts",
+  "name": "researchability reflects the REAL 3.5C capability limits (never advertises what does not exist)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-synthesis.test.ts",
+  "name": "claim strength: STRONG only for a fresh, fully researched, single-vintage, non-conditional finding; everything else is TENTATIVE with reasons",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-synthesis.test.ts",
+  "name": "MIXED VINTAGE: FI week 2 (partial), Role week 1, Player-Scheme 2025 and OPP-on-Role-week-1 are never called one current week",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-synthesis.test.ts",
+  "name": "stale research is retained and flagged: findings downgrade, the report lists it, original state is untouched",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/analysis-book-synthesis.test.ts",
+  "name": "cross-player comparison: incompatible SCALES are rejected, different comparison POPULATIONS force TENTATIVE (never a silent comparison)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/book-ready-evidence.test.ts",
+  "name": "history reads EACH snapshot's own content (never the latest file for every week) and keeps points in time order",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/book-ready-history-store.test.ts",
+  "name": "retention policy: COMPLETE_WEEK surfaces store only COMPLETE states; only genuinely published states are present",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-capabilities.test.ts",
+  "name": "unresolved id NOT on any surface -> benign, integrity CERTIFIED, player_identity DEGRADED",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-capabilities.test.ts",
+  "name": "HISTORY_PERSISTENCE_UNAVAILABLE -> CERTIFIED, history DEGRADED only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-capabilities.test.ts",
+  "name": "free_agent_pool_not_materialized -> CERTIFIED, free_agent_pool UNAVAILABLE (never HEALTHY)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-capabilities.test.ts",
+  "name": "week_transactions_unavailable -> CERTIFIED, transactions DEGRADED, does not imply []",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-capabilities.test.ts",
+  "name": "a clean snapshot -> CERTIFIED, every capability HEALTHY except pool (needs materialization)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-freshness-envelope.test.ts",
+  "name": "certified snapshot + stale published pointer -> integrity CERTIFIED, freshness STALE, source AVAILABLE",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-freshness-envelope.test.ts",
+  "name": "fresh published pointer + degraded capability -> freshness FRESH, free_agent_pool UNAVAILABLE",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-freshness-envelope.test.ts",
+  "name": "source unavailable + pointer present -> freshness SOURCE_UNAVAILABLE, pointer still inspectable, no 'corrupt' signal",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "delegates to the legacy live path; provenance FLAG_OFF, no fallback_reason",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "serves the exact certified published snapshot; state_source PUBLISHED_SNAPSHOT",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "wave gating: wave3 flag does not serve a wave-1 read as published unless covered",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "TARGET_MISSING \u2014 pointer names a snapshot the store cannot return",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "ID_MISMATCH \u2014 pointer content_hash disagrees with the stored snapshot",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "TOO_STALE \u2014 published snapshot is older than the serving policy",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "UNSUPPORTED_SCHEMA \u2014 stored snapshot is a future schema version",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "MALFORMED \u2014 stored snapshot has no teams",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "on fallback, pointer_snapshot_id stays the pointer target, not the live id",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-published-read.test.ts",
+  "name": "a read concurrent with an advance sees a whole old OR whole new snapshot, never a mix",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-refresh.test.ts",
+  "name": "first publish advances the pointer, http 200, audit CERTIFIED/created",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-refresh.test.ts",
+  "name": "republishing identical content -> unchanged, pointer does not move, http 200",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-refresh.test.ts",
+  "name": "retry after a transient failure is safe (same content -> unchanged)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-refresh.test.ts",
+  "name": "a self-contradictory candidate is rejected -> http 422, pointer untouched",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/bridge-refresh.test.ts",
+  "name": "two concurrent publishes with different content -> one advances, one races; pointer monotonic",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/discovery-route-coverage.test.ts",
+  "name": "every /api route is advertised by AI discovery or explicitly allowlisted with a reason",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/draft-sportys-alumni.test.ts",
+  "name": "once in_season it publishes normally",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/foundation-live.test.ts",
+  "name": "maclin (Yahoo) reports AUTH_REQUIRED rather than serving fabricated transactions",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "ADVERSARIAL: poisoning every Week-3 outcome leaves the simulated distributions byte-identical",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "script scenario probabilities sum to 1 per team and every probability is valid",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "QB scrambles are a sampled dropback outcome (the substrate's scramble count is always 0): a QB with 0 forecast designed rushes still rushes",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "latestForecastPerPlayer: one forecast per player, the latest frozen strictly before that player's kickoff",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "simulation is reproducible: same inputs + seed -> identical; a different game id -> a different stream",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "the SAME simulated stat line scores differently under different league fingerprints (TE premium, PPR, interception value)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "models A/B/C/D: A = production normal, B/D keep the baseline/candidate mean, C = simulated mean; scores are internally consistent; SHADOW_ONLY",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "injury-contaminated and DNP cases: contaminated rows leave the primary population (counted, not silently dropped); DNP stays a real outcome",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "football dedupe: the same player under the same scoring fingerprint counts once; Yahoo is not pooled",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "env / player-distribution / analysis / weather writes are idempotent (second identical write inserts nothing) and key on the primary id",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/game-distribution.test.ts",
+  "name": "deterministic ids; changed inputs create a NEW id (a new revision), never a rewrite",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/league-manager-routing-live.test.ts",
+  "name": "GET /api/leagues -> discovery lists the registered leagues with canonical URLs",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-read.test.ts",
+  "name": "psi: reconciliation artifact reports all_pass",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-read.test.ts",
+  "name": "psi: identical inputs -> identical served content hash (determinism)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierb.test.ts",
+  "name": "tierB reconciliation artifact reports all_pass and no fabricated 2026",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierb.test.ts",
+  "name": "tierB: box-bucket sensitivity audit artifact present with a verdict",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierb.test.ts",
+  "name": "tierB: feature registry status artifact records built families + availability",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierc.test.ts",
+  "name": "tierC \u00a721/\u00a722: archetype numeric vectors ship; labels withheld when unstable",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierc.test.ts",
+  "name": "tierC reconciliation artifact all_pass, 32 teams both sides, FI untouched",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierd.test.ts",
+  "name": "tierD \u00a724: research finding recorded (anti-double-counting decision is vs the production-like baseline)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/player-scheme-tierd.test.ts",
+  "name": "tierD: synthetic-sanity artifact families present (ablation + calibration)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/role-calibration.test.ts",
+  "name": "ADVERSARIAL: Week 3 final stats cannot alter the Week 3 pregame forecast (real committed data, every player)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/role-calibration.test.ts",
+  "name": "the committed role profiles are reproducible from strictly-earlier games ONLY (statistically: EWMA over weeks < target matches the R export; including the target week does not)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/scoring-contract-adversarial.test.ts",
+  "name": "K / D-ST: standard points are NOT summed with league event scoring (fallback is used alone, and flagged)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract-adversarial.test.ts",
+  "name": "yardage-bonus league gets an info-level batch warning naming the rules; a league without such rules gets none; status is unaffected",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract.test.ts",
+  "name": "league scoring BOTH kr_yd and def_kr_yd (Bloodline): the returner's 80 yards are priced once, and the season-model enrichment does not stack",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract.test.ts",
+  "name": "league scoring ONLY kr_yd: the provider's own per-game number is used (not the season-model substitute)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract.test.ts",
+  "name": "league scoring ONLY the team-defense rule def_kr_yd: an individual offensive player earns nothing from it",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract.test.ts",
+  "name": "return-disabled league: identical line, no return points (return scoring is the ONLY difference)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract.test.ts",
+  "name": "TE without a provider premium key is derived; WR with the identical line is not; provider-supplied key is not doubled",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-contract.test.ts",
+  "name": "same season line, premium vs base league: TE ROS differs by 0.5 x receptions x weeks-left fraction; WR identical",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=def_kr_yd_only enrichment=absent league=kr_only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=def_kr_yd_only enrichment=absent league=both_rules",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=def_kr_yd_only enrichment=present league=kr_only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=def_kr_yd_only enrichment=present league=both_rules",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=kr_yd_only enrichment=absent league=kr_only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=kr_yd_only enrichment=absent league=both_rules",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=kr_yd_only enrichment=present league=kr_only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=kr_yd_only enrichment=present league=both_rules",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=both_fields enrichment=absent league=kr_only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=both_fields enrichment=absent league=both_rules",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=both_fields enrichment=present league=kr_only",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/scoring-return-invariant.test.ts",
+  "name": "return invariant: provider=both_fields enrichment=present league=both_rules",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/weekly-hardening.test.ts",
+  "name": "offensive rows carrying ONLY Sleeper precomputed pts_* totals are 'unavailable', not projected/0 (Codex round 7)",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": true
+ },
+ {
+  "file": "test/weekly-intelligence-live.test.ts",
+  "name": "bloodline-bowl/BijiMac produces a legal, plausible weekly plan",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ },
+ {
+  "file": "test/weekly-intelligence-live.test.ts",
+  "name": "devoted-to-the-game/DarthMarker produces a legal, plausible weekly plan",
+  "fails_when_file_runs_alone": true,
+  "passes_when_test_runs_alone": false
+ }
+]

@@ -1,0 +1,285 @@
+{
+  "calibration": "psi-tierD-calibration-2026.1",
+  "rows": [
+    {
+      "q": 1,
+      "mean_ix": -0.2879,
+      "mean_resid_b1": -1.0281,
+      "n": 455,
+      "position": "QB",
+      "family": "qb_spatial"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.1005,
+      "mean_resid_b1": -0.3746,
+      "n": 455,
+      "position": "QB",
+      "family": "qb_spatial"
+    },
+    {
+      "q": 3,
+      "mean_ix": 0.019,
+      "mean_resid_b1": -0.6578,
+      "n": 454,
+      "position": "QB",
+      "family": "qb_spatial"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.1078,
+      "mean_resid_b1": -0.4671,
+      "n": 454,
+      "position": "QB",
+      "family": "qb_spatial"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.275,
+      "mean_resid_b1": 0.0092,
+      "n": 454,
+      "position": "QB",
+      "family": "qb_spatial"
+    },
+    {
+      "q": 1,
+      "mean_ix": -0.0263,
+      "mean_resid_b1": -0.7268,
+      "n": 462,
+      "position": "QB",
+      "family": "qb_coverage"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.0038,
+      "mean_resid_b1": -0.6256,
+      "n": 462,
+      "position": "QB",
+      "family": "qb_coverage"
+    },
+    {
+      "q": 3,
+      "mean_ix": 0.0019,
+      "mean_resid_b1": -0.229,
+      "n": 462,
+      "position": "QB",
+      "family": "qb_coverage"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.0081,
+      "mean_resid_b1": -0.274,
+      "n": 462,
+      "position": "QB",
+      "family": "qb_coverage"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.0303,
+      "mean_resid_b1": -0.712,
+      "n": 462,
+      "position": "QB",
+      "family": "qb_coverage"
+    },
+    {
+      "q": 1,
+      "mean_ix": -0.0267,
+      "mean_resid_b1": -0.3085,
+      "n": 464,
+      "position": "QB",
+      "family": "qb_pressure"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.0047,
+      "mean_resid_b1": -1.0496,
+      "n": 464,
+      "position": "QB",
+      "family": "qb_pressure"
+    },
+    {
+      "q": 3,
+      "mean_ix": -0.0005,
+      "mean_resid_b1": -0.7104,
+      "n": 463,
+      "position": "QB",
+      "family": "qb_pressure"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.0024,
+      "mean_resid_b1": 0.0438,
+      "n": 463,
+      "position": "QB",
+      "family": "qb_pressure"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.0255,
+      "mean_resid_b1": -0.4588,
+      "n": 463,
+      "position": "QB",
+      "family": "qb_pressure"
+    },
+    {
+      "q": 1,
+      "mean_ix": -0.3283,
+      "mean_resid_b1": -0.6942,
+      "n": 1220,
+      "position": "WR",
+      "family": "wr_spatial"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.1111,
+      "mean_resid_b1": -0.6803,
+      "n": 1220,
+      "position": "WR",
+      "family": "wr_spatial"
+    },
+    {
+      "q": 3,
+      "mean_ix": 0.0137,
+      "mean_resid_b1": -0.6337,
+      "n": 1219,
+      "position": "WR",
+      "family": "wr_spatial"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.1244,
+      "mean_resid_b1": -0.2887,
+      "n": 1219,
+      "position": "WR",
+      "family": "wr_spatial"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.3081,
+      "mean_resid_b1": -0.2324,
+      "n": 1219,
+      "position": "WR",
+      "family": "wr_spatial"
+    },
+    {
+      "q": 1,
+      "mean_ix": -0.2236,
+      "mean_resid_b1": -0.2282,
+      "n": 566,
+      "position": "TE",
+      "family": "te_spatial"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.0809,
+      "mean_resid_b1": -0.1,
+      "n": 566,
+      "position": "TE",
+      "family": "te_spatial"
+    },
+    {
+      "q": 3,
+      "mean_ix": 0.0158,
+      "mean_resid_b1": -0.2196,
+      "n": 566,
+      "position": "TE",
+      "family": "te_spatial"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.0919,
+      "mean_resid_b1": -0.216,
+      "n": 566,
+      "position": "TE",
+      "family": "te_spatial"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.2164,
+      "mean_resid_b1": 0.0044,
+      "n": 566,
+      "position": "TE",
+      "family": "te_spatial"
+    },
+    {
+      "q": 1,
+      "mean_ix": -0.2542,
+      "mean_resid_b1": -0.3611,
+      "n": 813,
+      "position": "RB",
+      "family": "rb_direction"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.1377,
+      "mean_resid_b1": -0.341,
+      "n": 813,
+      "position": "RB",
+      "family": "rb_direction"
+    },
+    {
+      "q": 3,
+      "mean_ix": -0.0139,
+      "mean_resid_b1": -0.3891,
+      "n": 813,
+      "position": "RB",
+      "family": "rb_direction"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.1203,
+      "mean_resid_b1": -0.1432,
+      "n": 813,
+      "position": "RB",
+      "family": "rb_direction"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.28,
+      "mean_resid_b1": -0.1473,
+      "n": 812,
+      "position": "RB",
+      "family": "rb_direction"
+    },
+    {
+      "q": 1,
+      "mean_ix": -0.0174,
+      "mean_resid_b1": -0.2847,
+      "n": 936,
+      "position": "RB",
+      "family": "rb_box"
+    },
+    {
+      "q": 2,
+      "mean_ix": -0.0026,
+      "mean_resid_b1": -0.4345,
+      "n": 936,
+      "position": "RB",
+      "family": "rb_box"
+    },
+    {
+      "q": 3,
+      "mean_ix": -0,
+      "mean_resid_b1": -0.2957,
+      "n": 935,
+      "position": "RB",
+      "family": "rb_box"
+    },
+    {
+      "q": 4,
+      "mean_ix": 0.0022,
+      "mean_resid_b1": -0.0835,
+      "n": 935,
+      "position": "RB",
+      "family": "rb_box"
+    },
+    {
+      "q": 5,
+      "mean_ix": 0.0167,
+      "mean_resid_b1": -0.0008,
+      "n": 935,
+      "position": "RB",
+      "family": "rb_box"
+    }
+  ]
+}

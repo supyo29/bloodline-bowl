@@ -73,7 +73,10 @@ export function makeCanonicalSnapshot(opts: MakeSnapshotOpts = {}): CanonicalLea
   }));
 
   const rosters = teamSpecs.map((t) => {
-    const ids = opts.rosterPlayerIdsByTeam?.[t.roster_id] ?? [];
+    // An in-season league with NO rostered players anywhere is rejected by the production integrity gate (d8fa055: fail closed on empty in-season rosters, the Rogers Park
+    // defect), so a realistic default fixture rosters one player per team. A test that wants empty rosters passes `rosterPlayerIdsByTeam` (even `{}`) or a non-in-season status.
+    const realisticDefault = !opts.rosterPlayerIdsByTeam && (opts.league_status ?? "in_season") === "in_season" ? [`player:sleeper:${9000 + Number(t.roster_id)}`] : [];
+    const ids = opts.rosterPlayerIdsByTeam?.[t.roster_id] ?? realisticDefault;
     return {
       canonical_roster_id: `roster:${L}:${t.roster_id}`,
       canonical_team_id: `team:${L}:${t.roster_id}`,
@@ -149,7 +152,7 @@ export function makeCanonicalSnapshot(opts: MakeSnapshotOpts = {}): CanonicalLea
     recent_transactions: [],
     draft_picks: [],
     waiver_state: null,
-    players: opts.players ?? [],
+    players: opts.players ?? teamSpecs.flatMap((t) => (!opts.rosterPlayerIdsByTeam && (opts.league_status ?? "in_season") === "in_season" ? [testPlayer(String(9000 + Number(t.roster_id)))] : [])),
     unresolved_players: [],
     live_provider_status: opts.live_provider_status ?? "READY",
     history_persistence_status: "READY",
