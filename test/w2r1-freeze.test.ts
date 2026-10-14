@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, cpSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, cpSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
@@ -25,6 +25,12 @@ describe("W2.R1 S7 freeze integrity (every artifact bound by FROZEN.json has its
     d = mk(); writeFileSync(join(d, "lib/w2r1/kdst.ts"), readFileSync("lib/w2r1/kdst.ts", "utf8") + "\n// tamper\n"); assert.ok(verifyFrozen(d).some((x) => x.includes("hash mismatch lib/w2r1/kdst.ts")));
     d = mk(); writeFileSync(join(d, "scripts/w2r1/FROZEN.json"), readFileSync("scripts/w2r1/FROZEN.json", "utf8").replace("UNOPENED", "OPENED")); assert.ok(verifyFrozen(d).some((x) => x.includes("FROZEN.sha256")));
     d = mk(); writeFileSync(join(d, "scripts/w2r1/prereg.json"), readFileSync("scripts/w2r1/prereg.json", "utf8") + " "); assert.ok(verifyFrozen(d).length > 0);
+    // a CONSISTENT re-freeze after editing the preregistration (FROZEN.json + FROZEN.sha256 regenerated) must still be rejected by the immutable-prereg pin
+    d = mk(); const pr = readFileSync("scripts/w2r1/prereg.json", "utf8") + " "; writeFileSync(join(d, "scripts/w2r1/prereg.json"), pr);
+    const fz = JSON.parse(readFileSync("scripts/w2r1/FROZEN.json", "utf8")); const h = createHash("sha256").update(pr).digest("hex"); fz.prereg_sha256 = h; fz.artifacts_sha256["scripts/w2r1/prereg.json"] = h;
+    writeFileSync(join(d, "scripts/w2r1/FROZEN.json"), JSON.stringify(fz, null, 1) + "\n"); writeFileSync(join(d, "scripts/w2r1/FROZEN.sha256"), createHash("sha256").update(readFileSync(join(d, "scripts/w2r1/FROZEN.json"))).digest("hex") + "\n");
+    assert.deepEqual(verifyFrozen(d), ["prereg.json is not the immutable preregistration"]);
+    d = mk(); rmSync(join(d, "lib/w2r1/gameplan.ts")); assert.ok(verifyFrozen(d).some((x) => x === "missing artifact lib/w2r1/gameplan.ts"));
     d = mk(); writeFileSync(join(d, "scripts/w2r1/s7_protocol_adjudication.json"), readFileSync("scripts/w2r1/s7_protocol_adjudication.json", "utf8") + " "); assert.ok(verifyFrozen(d).length > 0);
   });
   it("thresholds in FROZEN.json are byte-equal to the preregistration (no threshold changed)", () => {

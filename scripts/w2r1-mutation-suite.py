@@ -2,7 +2,7 @@
 """W2.R1 mutation suite. One source mutation at a time; KILLED when a test that passes on the unmutated tree fails; files are restored byte-for-byte
 (hash-checked). Do NOT edit files while this runs. Usage: python3 scripts/w2r1-mutation-suite.py [W1 W2 ...]"""
 import hashlib, subprocess, sys, json
-TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts"]
+TESTS = ["test/w2r1-vor.test.ts", "test/w2r1-isolation.test.ts", "test/w2r1-adapter.test.ts", "test/w2r1-kdst.test.ts", "test/w2r1-gameplan.test.ts", "test/w2r1-breakout.test.ts", "test/w2r1-freeze.test.ts"]
 V, R, E, W = "lib/w2r1/vor.ts", "lib/w2r1/roster.ts", "lib/w2r1/evidence.ts", "lib/weekly/waivers.ts"
 A, L, G = "lib/w2r1/adapter.ts", "lib/w2r1/live.ts", "lib/w2r1/guard.ts"
 MUT = [
@@ -77,6 +77,10 @@ MUT = [
  ("W73", "S7 semantics: Sleeper ST TDs use the individual-player st_td key instead of def_st_td", "lib/w2r1/kdst.ts", [('st_td: sl ? w(s, "def_st_td") : w(s, "st_td")', 'st_td: w(s, "st_td")')]),
  ("W74", "S7 semantics: the blocked-kick TD component is dropped from expected points", "lib/w2r1/kdst.ts", [("c.r_blk_td * d.blk_td +", "")]),
  ("W75", "S7 semantics: the provider is ignored (everything scored with Sleeper semantics)", "lib/w2r1/kdst.ts", [('const sl = provider === "sleeper";', "const sl = true;")]),
+ ("W76", "S7 freeze: the S5 harness discounts availability a second time", "scripts/w2r1/s5_run.ts", [("expected: inj(r, b0 + delta), delta, applicable: true", "expected: inj(r, inj(r, b0 + delta)), delta, applicable: true")]),
+ ("W77", "S7 freeze: the verifier ignores an artifact hash mismatch", "scripts/w2r1/s7_verify_frozen.ts", [("if (sha(at(p)) !== f.artifacts_sha256[p]) problems.push", "if (false as boolean) problems.push")]),
+ ("W78", "S7 freeze: the verifier no longer pins the immutable preregistration", "scripts/w2r1/s7_verify_frozen.ts", [("if (sha(at(\"scripts/w2r1/prereg.json\")) !== PREREG_IMMUTABLE_SHA256 || f.prereg_sha256 !== PREREG_IMMUTABLE_SHA256)", "if (false as boolean)")]),
+ ("W79", "S7 freeze: a missing artifact is silently skipped", "scripts/w2r1/s7_verify_frozen.ts", [("if (!existsSync(at(p))) { problems.push(`missing artifact ${p}`); continue; }", "if (!existsSync(at(p))) { continue; }")]),
  ("W22", "a production module imports W2.R1 (shadow leaks into production)", W, [('import { buildOptimalLineup', 'import "@/lib/w2r1/version";\nimport { buildOptimalLineup')]),
  ("W23", "game-lock availability ignored (a not-yet-acquirable candidate is used)", R, [("if (c.acquisition.available_from_week != null && c.acquisition.available_from_week > week) continue;", "")]),
  ("W24", "scarcity VOR uses the best alternative instead of the pool shape", V, [("const sw = weeks.map((w) => overLevel(w, \"lineup\", \"top5\"));", "const sw = weeks.map((w) => overLevel(w, \"lineup\", \"best\"));")]),
