@@ -61,3 +61,32 @@ Rows by season (nflverse): player stats, schedules, injuries, snap counts, play-
 No merge, no deploy, no production flag/cron/migration, no remote DB write, W2.P2 kickoff worktree and its scheduled jobs untouched. Any migration is written and tested locally only.
 
 *(Sections for results, position-specific qualification, K/D-ST, breakout, calibration, tests, mutations, limitations and the 29 final answers are appended by later stages.)*
+
+## 7. Early live shadow preview (S1–S3 + S8-minimal) — 2026-10-14
+
+**Not the final W2.R1 model and not the S10 exit gate.** Every response is labelled `W2.R1 EARLY SHADOW — DIAGNOSTIC`, lists layer availability (S1/S2/S3 AVAILABLE; S4/S5/S6 NOT YET QUALIFIED; S7 NOT YET RUN), carries the K/DST notice
+(*K/DST Dynamic VOR mechanics are live; K/DST forecast quality is not yet W2.R1-qualified*), exposes **no breakout/upside probability**, and states `production_influence: NONE`.
+
+**Surface (additive, protected, never served from a Vercel production deployment):** `GET /api/w2r1/manifest`; `GET /api/w2r1/{league}/{manager}/{roster|player|drop|add|kdst|compare}?week=&player=&limit=`.
+It builds the same canonical weekly context production uses (`runWithWeeklyContext`), adapts it (`lib/w2r1/adapter.ts`: Sleeper OR Yahoo, canonical forecasts only — Wave-1 `expected_points` verbatim, `conditional_active_points` as the underlying value, **no second availability discount**), and runs S1–S3.
+Future weeks are an explicit proxy (Wave-1 hold rate; ROS rate as cross-check, disagreement exposed; verified byes; long-term injury horizon; confidence LOW). Sleeper acquisition success is UNKNOWN (inferred pool) and is never counted in the expected VOR; a verified Yahoo FA is certain; a Yahoo waiver claim is unknown.
+
+**Live defects found by this run (treated as defects, not tuned away)**
+| # | Severity | Defect | Fix |
+|---|---|---|---|
+| 1 | **P1 (inherited from PR #44 integration)** | Yahoo roster players kept provider-scoped ids (`player:yahoo:*`): weekly/trades/roster-health built their own default crosswalk and passed it as `crosswalkOverride`, which made the state builder skip the Yahoo→Sleeper bridge. Production lineup/waiver for Yahoo leagues saw 3/17 (Maclin) and 5/15 (Rogers Park) roster players projected while the market pool was bridged. | `resolveLeagueCrosswalk` (lib/canonical/yahoo-bridge-source.ts) is the one crosswalk entry point for all three callers; tests + mutant W33; `waiver2-integration` pin ledger updated with the justification. **Needs to reach the parent W2 branch / main by a separate decision (it changes production Yahoo behaviour for the better).** |
+| 2 | P2 (W2.R1) | An acquisition could enter a full active roster; removing an IR player appeared to free an active spot. | adds limited to open active capacity (test + W34) |
+| 3 | P2 (W2.R1) | An IR-slot player with no known designation was assumed activatable now and entered every counterfactual lineup. | unknown designation ⇒ not returnable (test + W35) |
+| 4 | P2 (W2.R1) | The ROS-per-game future proxy was inconsistent with the current week (a starting QB: 17.2 this week, 2.1 per future week). | primary future proxy = Wave-1 hold rate, ROS rate as cross-check, disagreement flagged `FUTURE_PROXY_DISAGREES_WITH_ROS_RATE` |
+| 5 | P3 | Sleeper has no market-state summary: freshness was unknown with no observed time; compare view mapped production waiver recs wrongly. | observed time = league snapshot time (freshness state not asserted); mapping fixed |
+
+**Live validation (week 6, preview `il8bchcks`, code `f64ea5f`; evidence `docs/evidence/w2r1-early-shadow-live-2026-10-14.json`)**
+All 4 reachable registered leagues: Maclin (Yahoo, PRIORITY, 2QB), Rogers Park (Yahoo, FAAB, 2 W/R/T), Bloodline Bowl (Sleeper, 2 FLEX), Devoted (Sleeper, 3 FLEX, 2 IR). Sporty's Alumni (Sleeper) was not exercised (no manager registered for it).
+- W2.R1's re-optimized lineup equals production's in 4/4 leagues (totals 137.72 / 103.42 / 115.59 / 122.46; 0 starter-set differences).
+- Bye stars: weekly 0 with Hold/ROS preserved (Sleeper St. Brown; K on a bye in Devoted). Injured/OUT starter (Rogers Park TE): weekly negative = a verified FA TE fills the empty slot; FLEX cascades, deep bench, IR, empty slots and unknown-value players all exercised; unknown-probability waiver adds appear only as the optimistic bound.
+- **Production non-influence, live:** production `/waivers` and `/lineup` outputs for 3 leagues were byte-identical before and after W2.R1 calls.
+- Token lifecycle under load: automatic refresh on expired tokens, both connections HEALTHY, no reauthorization; no credential in any output/log.
+- Latency: server time cold/warm — Yahoo roster 10–17 s / 4–9 s (context + 140 provider reads dominate; the VOR compute itself is 1.0–1.6 s), Sleeper 3–4 s / 0.5–1 s. The prereg warm budget (1.5 s) is **not met for Yahoo**; context reuse across views is future work.
+- Secret scope: Vercel custom environments are unavailable (limit 0), so the only mechanism was preview-wide scope on the six Yahoo/Supabase variables, widened **only for the ~80 s of each redeploy** and restored to production-only immediately (6 windows); env values are baked into the deployment at build time. Superseded secret-bearing previews were deleted. Durable alternative (recommended before a long-lived test environment): a separate Vercel project/team-scoped env group for the shadow environment.
+
+**Known limitations of the early preview:** FAAB bids/competition are not modelled; future weeks are flat; K/DST forecasts are the inherited generic ones; no game-plan, breakout or calibration layers yet; a bench/non-lineup player's weekly VOR can be negative when a roster spot is better used on a verified add (explained per player in `negative_value_reason`).
