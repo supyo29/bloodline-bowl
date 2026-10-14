@@ -125,12 +125,20 @@ describe("content-addressed identity", () => {
     assert.notEqual(a.timing.captured_at, b.timing.captured_at);
   });
 
-  it("any change of evidence is a NEW record: projection, injury status, Role confidence, Role features, source observation, scoring, league", () => {
+  it("REGRESSION (found in local staging): a FRESH FETCH of an identical belief — new source-observation instant and new snapshot/observation/identity lineage ids, as after any restart or cold start — is the SAME record", () => {
+    const first = liveRecord({ observed_ms: NOW - 2 * HOUR });
+    const refetched = liveRecord({ observed_ms: NOW - 20 * MIN, composed_ms: NOW - 10 * MIN }, {}, { league_snapshot_id: "snap-OTHER", forecast_identity_id: "fcid:OTHER" });
+    assert.notEqual(first.timing.source_observed_at, refetched.timing.source_observed_at);
+    assert.notEqual(first.lineage.league_snapshot_id, refetched.lineage.league_snapshot_id);
+    assert.equal(first.capture_id, refetched.capture_id);
+  });
+
+  it("any change of the BELIEF is a NEW record: projection, injury status, Role confidence, Role features, scoring, league, injury practice evidence", () => {
     const base = liveRecord().capture_id;
     const variants = [
-      liveRecord({ points: 15.1 }), liveRecord({ injury_status: "Questionable" }), liveRecord({}, { confidence: "LOW" }),
+      liveRecord({ points: 15.1 }), liveRecord({ injury_status: "Questionable" }), liveRecord({ injury_status: "Questionable", practice: "DNP" }), liveRecord({}, { confidence: "LOW" }),
       liveRecord({}, { overrides: { opportunity: { carries: null, rz_carries: null, targets: 8.1, rz_targets: 0.9, dropbacks: null, designed_rushes: null, scrambles: null } } }),
-      liveRecord({ observed_ms: NOW - 2 * HOUR }), liveRecord({}, {}, { raw_scoring: { ...BB_SCORING, rec_yd: 0.2 } }), liveRecord({}, {}, { league_slug: "other-league" }),
+      liveRecord({}, {}, { raw_scoring: { ...BB_SCORING, rec_yd: 0.2 } }), liveRecord({}, {}, { league_slug: "other-league" }),
     ].map((r) => r.capture_id);
     assert.equal(new Set([base, ...variants]).size, variants.length + 1, "every variant must have a distinct id");
   });

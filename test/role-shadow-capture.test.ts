@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { ROLE_SHADOW_FLAG, roleShadowCaptureEnabled, runRoleShadowCapture, type LeagueLoadFailure, type LeagueWeekInput, type RoleForecastLike, type RunDeps } from "../lib/role-shadow/capture";
+import { ROLE_SHADOW_FLAG, roleShadowCaptureEnabled, runRoleShadowCapture, type LeagueLoad, type LeagueWeekInput, type RoleForecastLike, type RunDeps } from "../lib/role-shadow/capture";
 import { MemoryRoleShadowStore, type RoleShadowStore, type WriteResult } from "../lib/role-shadow/store";
 import { champion, leagueWeek, roleForecast, KICK, NOW, HOUR } from "./fixtures/role-shadow";
 
@@ -12,7 +12,7 @@ const deepFreeze = <T>(o: T): T => { if (o && typeof o === "object" && !Object.i
 const env = (o: Record<string, string | undefined>): NodeJS.ProcessEnv => o as unknown as NodeJS.ProcessEnv;
 const ON = env({ [ROLE_SHADOW_FLAG]: "1" });
 
-function deps(over: Partial<RunDeps> = {}, weeks?: Array<LeagueWeekInput | LeagueLoadFailure>, roles?: RoleForecastLike[]) {
+function deps(over: Partial<RunDeps> = {}, weeks?: LeagueLoad[], roles?: RoleForecastLike[]) {
   const calls = { weeks: 0, roles: 0 };
   const store = new MemoryRoleShadowStore(() => NOW);
   const d: RunDeps = {
@@ -134,6 +134,18 @@ describe("REGRESSION (real-source dry run): the league's rostered set is the lea
     const src = (await import("node:fs")).readFileSync("lib/persistence/supabase/role-shadow-runtime.ts", "utf8");
     assert.match(src, /leagueRosteredIds\(st\.snapshot\)/);
     assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ""), /ctx\.all_rostered/);
+  });
+});
+
+describe("every registered league is accounted for: captured, failed, or explicitly SKIPPED with a reason", () => {
+  it("skipped leagues appear in the summary with provider and reason, are not failures, and do not block the others", async () => {
+    const { d, store } = deps({}, [{ league_slug: "rogers-park", provider: "yahoo", skipped: "provider yahoo: not part of this evidence" }, leagueWeek([champion()])]);
+    const s = await runRoleShadowCapture(d);
+    assert.equal(s.status, "OK");
+    assert.equal(s.failures, 0);
+    assert.deepEqual(s.skipped, [{ league_slug: "rogers-park", provider: "yahoo", reason: "provider yahoo: not part of this evidence" }]);
+    assert.deepEqual(s.leagues.map((l) => l.league_slug), ["bloodline-bowl"]);
+    assert.equal((await store.list()).length, 1);
   });
 });
 

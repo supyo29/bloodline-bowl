@@ -15,8 +15,10 @@
  */
 
 import { contentHash } from "@/lib/bridge/hash";
-import challengerJson from "./frozen/role-opportunity-challenger-2026.0.json";
-import frozenJson from "./frozen/w2p1-frozen-models-half.json";
+// The frozen numbers are imported as TypeScript LITERALS, not JSON: Turbopack's JSON importer is not bit-exact for floats (see
+// scripts/w2p2/gen-frozen-ts.mjs). The byte-verified JSON copies remain beside them as the reviewable originals.
+import { CHALLENGER_SPEC_LITERAL as challengerJson } from "./frozen/challenger-spec";
+import { FROZEN_MODELS_HALF_LITERAL as frozenJson } from "./frozen/models-half";
 
 export const ROLE_SHADOW_MODULE_VERSION = "role-shadow-2026.1" as const;
 export const ROLE_SHADOW_RECORD_SCHEMA_VERSION = 1 as const;

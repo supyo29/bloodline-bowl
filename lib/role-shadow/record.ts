@@ -102,11 +102,17 @@ export interface RoleShadowRecord {
 
 export type RecordBody = Omit<RoleShadowRecord, "capture_id" | "content_hash">;
 
-/** Everything that defines the DECISION. Excludes times that vary run-to-run and provenance. */
+/**
+ * Everything that defines the DECISION = the BELIEF CONTENT: champion numbers, Role forecast content, scoring, model versions, player, game.
+ * EXCLUDES provenance, the capture/composition/Role-as-of times, the source observation INSTANT and every lineage id (snapshot / observation /
+ * forecast-identity): those change with every fresh fetch even when the belief is identical (found in local staging: after a server restart every
+ * record of an unchanged belief was minted again). A re-observation of an identical belief is therefore a no-op that keeps the EARLIEST valid
+ * observation on record; any change in the belief itself is a new record.
+ */
 function identityBody(b: RecordBody): unknown {
-  const { provenance: _p, ...rest } = b;
-  void _p;
-  return { ...rest, timing: { source_observed_at: b.timing.source_observed_at, role_data_cutoff_at: b.timing.role_data_cutoff_at } };
+  const { provenance: _p, lineage: _l, ...rest } = b;
+  void _p; void _l;
+  return { ...rest, timing: { role_data_cutoff_at: b.timing.role_data_cutoff_at } };
 }
 const deriveIds = (b: RecordBody) => {
   const content = contentHash(identityBody(b));

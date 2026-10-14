@@ -38,7 +38,11 @@ export interface LeagueWeekInput {
 }
 
 export interface LeagueLoadFailure { league_slug: string; failure: string }
-const isFailure = (x: LeagueWeekInput | LeagueLoadFailure): x is LeagueLoadFailure => "failure" in x;
+/** A registered league deliberately NOT captured (provider not supported by this evidence, or not ready). Reported, never silent. */
+export interface LeagueSkip { league_slug: string; provider: string; skipped: string }
+export type LeagueLoad = LeagueWeekInput | LeagueLoadFailure | LeagueSkip;
+const isFailure = (x: LeagueLoad): x is LeagueLoadFailure => "failure" in x;
+const isSkip = (x: LeagueLoad): x is LeagueSkip => "skipped" in x;
 
 export interface Counters {
   candidates: number; not_applicable_position: number; no_role_forecast: number; ambiguous_identity: number; identity_conflict: number;
@@ -145,6 +149,8 @@ export interface RunSummary {
   integrity?: { ok: boolean; mismatches: string[]; g3_prereg_ok: boolean };
   store?: { kind: string; durable: boolean } | null;
   leagues: Array<{ league_slug: string; ok: boolean; code?: string; counters?: Counters; by_status?: Partial<Record<WriteStatus, number>> }>;
+  /** registered leagues that were not captured, with the reason (e.g. Yahoo: not part of this evidence) */
+  skipped: Array<{ league_slug: string; provider: string; reason: string }>;
   totals: { counters: Counters; by_status: Partial<Record<WriteStatus, number>> };
   failures: number;
 }
@@ -154,7 +160,7 @@ export interface RunDeps {
   now?: () => number;
   /** null = persistence unavailable (reported NOT_CONFIGURED; nothing is written) */
   store: RoleShadowStore | null;
-  loadLeagueWeeks: () => Promise<Array<LeagueWeekInput | LeagueLoadFailure>>;
+  loadLeagueWeeks: () => Promise<LeagueLoad[]>;
   loadRoleForecasts: (season: number, week: number, nowMs: number) => Promise<RoleForecastLike[]>;
   dryRun?: boolean;
   /** test seams: default to the real frozen-integrity and G3 pre-registration checks */
@@ -168,7 +174,7 @@ const addCounters = (a: Counters, b: Counters): Counters => Object.fromEntries((
 export async function runRoleShadowCapture(deps: RunDeps): Promise<RunSummary> {
   const env = deps.env ?? process.env;
   const enabled = roleShadowCaptureEnabled(env);
-  const out: RunSummary = { status: "DISABLED", flag: { name: ROLE_SHADOW_FLAG, enabled }, dry_run: !!deps.dryRun, leagues: [], totals: { counters: emptyCounters(), by_status: {} }, failures: 0 };
+  const out: RunSummary = { status: "DISABLED", flag: { name: ROLE_SHADOW_FLAG, enabled }, dry_run: !!deps.dryRun, leagues: [], skipped: [], totals: { counters: emptyCounters(), by_status: {} }, failures: 0 };
   if (!enabled) return out;
   try {
     const integ = (deps.integrity ?? verifyFrozenIntegrity)();
@@ -182,6 +188,7 @@ export async function runRoleShadowCapture(deps: RunDeps): Promise<RunSummary> {
     const nowMs = (deps.now ?? Date.now)();
     const roleCache = new Map<string, RoleForecastLike[]>();
     for (const lw of weeks) {
+      if (isSkip(lw)) { out.skipped.push({ league_slug: lw.league_slug, provider: lw.provider, reason: lw.skipped }); continue; }
       if (isFailure(lw)) { out.leagues.push({ league_slug: lw.league_slug, ok: false, code: lw.failure.slice(0, 160) }); out.failures++; continue; }
       const leagueOut: RunSummary["leagues"][number] = { league_slug: lw.league_slug, ok: true };
       try {

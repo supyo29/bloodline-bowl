@@ -1,0 +1,252 @@
+{
+ "generated_at": "2026-10-13T22:50:36.787Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "R.1",
+   "area": "R",
+   "name": "table exists; PostgREST serves it (schema cache includes it) to the service key",
+   "status": "PASS",
+   "detail": {
+    "status": 200
+   }
+  },
+  {
+   "id": "R.2",
+   "area": "R",
+   "name": "RLS on; anon/authenticated hold NO privileges; PostgREST answers the anon key with 401/403 (never 200)",
+   "status": "PASS",
+   "detail": {
+    "rls": "t",
+    "any_priv": "f",
+    "anon_read": 401,
+    "anon_write": 401
+   }
+  },
+  {
+   "id": "R.3",
+   "area": "R",
+   "name": "exactly the two guard triggers (not-late, immutable) exist",
+   "status": "PASS",
+   "detail": [
+    "bridge_role_shadow_captures_immutable",
+    "bridge_role_shadow_captures_not_late"
+   ]
+  },
+  {
+   "id": "I.1",
+   "area": "I",
+   "name": "a valid pregame record is INSERTED over HTTP; the stored columns match the record and the jsonb equals it semantically (jsonb reorders keys, so compared canonically)",
+   "status": "PASS",
+   "detail": {
+    "status": "INSERTED"
+   }
+  },
+  {
+   "id": "I.2",
+   "area": "I",
+   "name": "ROUND TRIP: a record read back from Postgres jsonb through PostgREST RE-VALIDATES (content hash, point-in-time, arms replay) — the evaluator depends on this",
+   "status": "PASS",
+   "detail": {
+    "errors": []
+   }
+  },
+  {
+   "id": "I.3",
+   "area": "I",
+   "name": "re-recording the same decision is DUPLICATE_IDENTICAL and the stored row is byte-identical (checksum before == after)",
+   "status": "PASS",
+   "detail": {
+    "store_kind": "supabase",
+    "durable": true,
+    "status": "DUPLICATE_IDENTICAL"
+   }
+  },
+  {
+   "id": "I.4",
+   "area": "I",
+   "name": "25 CONCURRENT writers (25 independent stores over HTTP): exactly one INSERTED, 24 DUPLICATE_IDENTICAL, one row, zero errors",
+   "status": "PASS",
+   "detail": {
+    "INSERTED": 1,
+    "DUPLICATE_IDENTICAL": 24
+   }
+  },
+  {
+   "id": "M.1",
+   "area": "M",
+   "name": "PATCH through PostgREST is REFUSED and the row is unchanged",
+   "status": "PASS",
+   "detail": {
+    "status": 400,
+    "code": "P0001"
+   }
+  },
+  {
+   "id": "M.2",
+   "area": "M",
+   "name": "DELETE through PostgREST is REFUSED and no row disappears",
+   "status": "PASS",
+   "detail": {
+    "status": 400,
+    "code": "P0001"
+   }
+  },
+  {
+   "id": "M.3",
+   "area": "M",
+   "name": "the UPSERT bypass (POST with Prefer: resolution=merge-duplicates on an existing id) is REFUSED — an existing observation cannot be replaced via insert",
+   "status": "PASS",
+   "detail": {
+    "status": 400,
+    "code": "P0001"
+   }
+  },
+  {
+   "id": "M.4",
+   "area": "M",
+   "name": "TRUNCATE is not reachable through PostgREST (no such verb); the service role has no TRUNCATE-by-API path",
+   "status": "PASS",
+   "detail": {
+    "status": 400
+   }
+  },
+  {
+   "id": "L.1",
+   "area": "L",
+   "name": "the DATABASE refuses a pregame-composed record that ARRIVES after kickoff (trigger P0001 through PostgREST -> store REFUSED_LATE), even though the app clock still said 'pregame'",
+   "status": "PASS",
+   "detail": {
+    "store": {
+     "store_kind": "supabase",
+     "durable": true,
+     "status": "REFUSED_LATE",
+     "reason": "database clock is at/after kickoff"
+    },
+    "raw_status": 400,
+    "raw_code": "P0001"
+   }
+  },
+  {
+   "id": "L.2",
+   "area": "L",
+   "name": "the application-side refusal fires first when its own clock is past kickoff (REFUSED_LATE, no HTTP write attempted)",
+   "status": "PASS",
+   "detail": {
+    "store_kind": "supabase",
+    "durable": true,
+    "status": "REFUSED_LATE",
+    "reason": "store clock 2026-10-18T17:01:00.000Z is at/after kickoff 2026-10-18T17:00:00.000Z"
+   }
+  },
+  {
+   "id": "L.3",
+   "area": "L",
+   "name": "CHECK constraints hold over HTTP: reconstructed-and-eligible (23514), captured_at >= kickoff_at (23514), unknown class (23514), K position (23514)",
+   "status": "PASS",
+   "detail": [
+    [
+     400,
+     "23514"
+    ],
+    [
+     400,
+     "23514"
+    ],
+    [
+     400,
+     "23514"
+    ],
+    [
+     400,
+     "23514"
+    ]
+   ]
+  },
+  {
+   "id": "V.1",
+   "area": "V",
+   "name": "another model version cannot be stored through the store (REFUSED_INVALID) and cannot overwrite; a foreign-hash row written raw lands as a SEPARATE row and the frozen version's rows stay untouched",
+   "status": "PASS",
+   "detail": {
+    "via_store": "REFUSED_INVALID",
+    "raw_status": 201,
+    "frozen_rows": 2,
+    "alien_rows": 1,
+    "note": "the DATABASE does not validate config hashes; the guarantee is application validation + content-addressed ids + the evaluator never pooling versions"
+   }
+  },
+  {
+   "id": "P.1",
+   "area": "P",
+   "name": "listing 2,300 rows pages correctly against the REAL server row cap (no truncation, stable order, no duplicates)",
+   "status": "PASS",
+   "detail": {
+    "listed": 2303,
+    "in_db": 2303,
+    "unique": 2303,
+    "server_max_rows": "(default 1000)"
+   }
+  },
+  {
+   "id": "D.1",
+   "area": "D",
+   "name": "RESTART of the database and PostgREST containers: every row survives byte-for-byte; the store reads them back; re-recording changes nothing",
+   "status": "PASS",
+   "detail": {
+    "rows": 2303,
+    "status_after_restart": "DUPLICATE_IDENTICAL"
+   }
+  },
+  {
+   "id": "D.2",
+   "area": "D",
+   "name": "DATABASE OUTAGE is VISIBLE: with the database stopped, a record write returns ERROR (never throws); the runner reports PARTIAL with failures counted",
+   "status": "PASS",
+   "detail": {
+    "single": "ERROR",
+    "run": {
+     "status": "PARTIAL",
+     "failures": 1,
+     "by_status": {
+      "ERROR": 1
+     }
+    },
+    "recovered": true
+   }
+  },
+  {
+   "id": "D.3",
+   "area": "D",
+   "name": "RECOVERY: after the outage the very same capture succeeds exactly once on retry (no loss, no duplicate)",
+   "status": "PASS",
+   "detail": {
+    "first": {
+     "INSERTED": 1
+    },
+    "second": {
+     "DUPLICATE_IDENTICAL": 1
+    }
+   }
+  },
+  {
+   "id": "D.4",
+   "area": "D",
+   "name": "a WRONG service key (credential failure) is VISIBLE as ERROR, not silent",
+   "status": "PASS",
+   "detail": {
+    "store_kind": "supabase",
+    "durable": true,
+    "status": "ERROR",
+    "reason": "Supabase POST bridge_role_shadow_captures -> 401 [PGRST301]"
+   }
+  },
+  {
+   "id": "D.5",
+   "area": "D",
+   "name": "final row count in the local table",
+   "status": "INFO",
+   "detail": 2304
+  }
+ ]
+}

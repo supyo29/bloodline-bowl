@@ -1,0 +1,186 @@
+{
+ "generated_at": "2026-10-13T22:50:04.331Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "L1.1",
+   "area": "L1",
+   "name": "real capture run finished in 11.6s",
+   "status": "INFO",
+   "detail": {
+    "status": "PARTIAL",
+    "failures": 456,
+    "totals": {
+     "counters": {
+      "candidates": 618,
+      "not_applicable_position": 85,
+      "no_role_forecast": 74,
+      "ambiguous_identity": 0,
+      "identity_conflict": 3,
+      "rejected_late": 0,
+      "rejected_no_kickoff": 0,
+      "rejected_incoherent": 0,
+      "built": 456
+     },
+     "by_status": {
+      "ERROR": 456
+     }
+    },
+    "skipped": [
+     {
+      "league_slug": "maclin-on-chicks-xvi",
+      "provider": "yahoo",
+      "reason": "provider yahoo: weekly forecasts for this provider are not part of the Role Shadow evidence (frozen HALF fit is evaluated on Sleeper leagues only)"
+     },
+     {
+      "league_slug": "rogers-park",
+      "provider": "yahoo",
+      "reason": "provider yahoo: weekly forecasts for this provider are not part of the Role Shadow evidence (frozen HALF fit is evaluated on Sleeper leagues only)"
+     }
+    ],
+    "leagues": [
+     [
+      "bloodline-bowl",
+      true,
+      140,
+      {
+       "ERROR": 140
+      }
+     ],
+     [
+      "devoted-to-the-game",
+      true,
+      154,
+      {
+       "ERROR": 154
+      }
+     ],
+     [
+      "sportys-alumni",
+      true,
+      162,
+      {
+       "ERROR": 162
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "id": "L1.2",
+   "area": "L1",
+   "name": "CAPTURE-FAILURE VISIBILITY: with the table missing every write is reported as ERROR, the run is PARTIAL (not OK), and nothing threw",
+   "status": "PASS",
+   "detail": {
+    "built": 456,
+    "by_status": {
+     "ERROR": 456
+    },
+    "failures": 456,
+    "status": "PARTIAL"
+   }
+  },
+  {
+   "id": "L1.3",
+   "area": "L1",
+   "name": "FIVE-LEAGUE ACCOUNTING: 3 Sleeper leagues were built; both Yahoo leagues are reported as SKIPPED with a reason (not failed, not silent)",
+   "status": "PASS",
+   "detail": {
+    "built": [
+     "bloodline-bowl",
+     "devoted-to-the-game",
+     "sportys-alumni"
+    ],
+    "skipped": [
+     {
+      "league_slug": "maclin-on-chicks-xvi",
+      "provider": "yahoo",
+      "reason": "provider yahoo: weekly forecasts for this provider are not part of the Role Shadow evidence (frozen HALF fit is evaluated on Sleeper leagues only)"
+     },
+     {
+      "league_slug": "rogers-park",
+      "provider": "yahoo",
+      "reason": "provider yahoo: weekly forecasts for this provider are not part of the Role Shadow evidence (frozen HALF fit is evaluated on Sleeper leagues only)"
+     }
+    ]
+   }
+  },
+  {
+   "id": "W1.1",
+   "area": "W1",
+   "name": "LIVE final-pregame capture persisted real revisions + pointers for every Sleeper league via PostgREST",
+   "status": "PASS",
+   "detail": {
+    "revisions": 541,
+    "pointers": 541,
+    "by_league": [
+     "bloodline-bowl=165",
+     "devoted-to-the-game=181",
+     "sportys-alumni=195"
+    ]
+   }
+  },
+  {
+   "id": "W1.2",
+   "area": "W1",
+   "name": "every stored revision is pregame by the database's own arithmetic: observed <= composed < kickoff, for ALL rows",
+   "status": "PASS",
+   "detail": {
+    "violations": 0,
+    "rows": 541
+   }
+  },
+  {
+   "id": "W1.3",
+   "area": "W1",
+   "name": "pointer integrity: exactly one pointer per (league, season, week, player); each pointer references an existing revision of the SAME player-week",
+   "status": "PASS",
+   "detail": {
+    "duplicate_pointers": 0,
+    "dangling_pointers": 0
+   }
+  },
+  {
+   "id": "W1.4",
+   "area": "W1",
+   "name": "source observations are persisted through PostgREST (header + rows) and every header's row_count matches its stored rows",
+   "status": "PASS",
+   "detail": {
+    "headers": 1,
+    "row_count_mismatches": 0
+   }
+  },
+  {
+   "id": "W1.5",
+   "area": "W1",
+   "name": "other Wave 1 tables after the live run (row counts)",
+   "status": "INFO",
+   "detail": {
+    "bridge_projection_snapshots": 3,
+    "bridge_projection_snapshot_players": 9906,
+    "bridge_projection_latest": 3,
+    "bridge_intelligence_freshness_history": 0,
+    "bridge_projection_source_observations": 1,
+    "bridge_projection_source_observation_rows": 3302
+   }
+  },
+  {
+   "id": "W1.6",
+   "area": "W1",
+   "name": "a second live run adds no duplicate revisions for unchanged evidence (revisions only grow when the observed belief really changed); pointers stay one per player-week",
+   "status": "PASS",
+   "detail": {
+    "before": {
+     "rev": 541,
+     "ptr": 541
+    },
+    "after": {
+     "rev": 541,
+     "ptr": 541
+    },
+    "run2_failures": 456,
+    "duplicate_forecast_ids": 0
+   }
+  }
+ ]
+}

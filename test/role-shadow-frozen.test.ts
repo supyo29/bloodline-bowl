@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { contentHash } from "../lib/bridge/hash";
+import { CHALLENGER_SPEC_LITERAL } from "../lib/role-shadow/frozen/challenger-spec";
+import { FROZEN_MODELS_HALF_LITERAL } from "../lib/role-shadow/frozen/models-half";
 import { ROLE_SHADOW_CONF_WEIGHT, ROLE_SHADOW_CAP_FLOOR_POINTS, ROLE_SHADOW_CAP_FRACTION } from "../lib/role-calibration/shadow";
 import {
   C2_FULL_MODEL_ID, CHALLENGER_MODEL_ID, CONTROL_MODEL_ID, FROZEN_CAP_FLOOR_POINTS, FROZEN_CAP_FRACTION, FROZEN_CONF_WEIGHT, PINNED, SHADOW_POSITIONS,
@@ -56,8 +58,46 @@ describe("the shipped copies in lib/role-shadow/frozen are EXACTLY the W2.P1 ori
     for (const k of ["prereg_sha256", "harness_sha256", "driver_sha256"]) assert.equal(copy[k], orig[k], k);
   });
 
-  it("the frozen directory contains only the three reviewed files (nothing stray can be loaded)", () => {
-    assert.deepEqual(readdirSync(join(ROOT, "lib/role-shadow/frozen")).sort(), ["g3-prereg.json", "role-opportunity-challenger-2026.0.json", "w2p1-frozen-models-half.json"]);
+  it("the frozen directory contains only the reviewed files (JSON originals + the generated TS literals); nothing stray can be loaded", () => {
+    assert.deepEqual(readdirSync(join(ROOT, "lib/role-shadow/frozen")).sort(), ["challenger-spec.ts", "g3-prereg.json", "models-half.ts", "role-opportunity-challenger-2026.0.json", "w2p1-frozen-models-half.json"]);
+  });
+
+  /** every number compared with Object.is: bit-for-bit (distinguishes -0 and any 1-ULP drift), every string/array/key set identical */
+  const bitEqual = (a: unknown, b: unknown, path = "$"): string | null => {
+    if (typeof a === "number" || typeof b === "number") return typeof a === "number" && typeof b === "number" && Object.is(a, b) ? null : `${path}: ${String(a)} vs ${String(b)}`;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return `${path}: array shape`;
+      for (let i = 0; i < a.length; i++) { const d = bitEqual(a[i], b[i], `${path}[${i}]`); if (d) return d; }
+      return null;
+    }
+    if (a && b && typeof a === "object" && typeof b === "object") {
+      const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+      if (JSON.stringify(ka) !== JSON.stringify(kb)) return `${path}: keys`;
+      for (const k of ka) { const d = bitEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], `${path}.${k}`); if (d) return d; }
+      return null;
+    }
+    return a === b ? null : `${path}: ${String(a)} vs ${String(b)}`;
+  };
+
+  it("REGRESSION (found in staging): the runtime TS literals are BIT-FOR-BIT equal to the byte-verified JSON (Turbopack's JSON importer altered floats by 1 ULP in a production build)", () => {
+    assert.equal(bitEqual(CHALLENGER_SPEC_LITERAL, JSON.parse(readFileSync(join(ROOT, "lib/role-shadow/frozen/role-opportunity-challenger-2026.0.json"), "utf8"))), null);
+    const modelsJson = JSON.parse(readFileSync(join(ROOT, "lib/role-shadow/frozen/w2p1-frozen-models-half.json"), "utf8"));
+    delete modelsJson._note; delete modelsJson.source_file; // provenance prose lives in the reviewable JSON only
+    assert.equal(bitEqual(FROZEN_MODELS_HALF_LITERAL, modelsJson), null);
+    assert.equal(bitEqual(CHALLENGER_SPEC_LITERAL, JSON.parse(readFileSync(join(ROOT, "scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json"), "utf8"))), null, "…and equal to the W2.P1 original");
+  });
+
+  it("the bit-equality helper itself detects a 1-ULP change and a -0", () => {
+    const x = 0.9240314943585303;
+    assert.ok(bitEqual({ a: [x] }, { a: [x + 1e-16] }) !== null);
+    assert.ok(bitEqual({ a: 0 }, { a: -0 }) !== null);
+    assert.equal(bitEqual({ a: [x, "s"] }, { a: [x, "s"] }), null);
+  });
+
+  it("the generated TS files are exactly what the generator would write from the JSON (no hand edits)", () => {
+    const gen = (json: string) => { const o = JSON.parse(readFileSync(join(ROOT, "lib/role-shadow/frozen", json), "utf8")); delete o._note; delete o.source_file; return JSON.stringify(o, null, 1); };
+    assert.ok(readFileSync(join(ROOT, "lib/role-shadow/frozen/challenger-spec.ts"), "utf8").includes(`= ${gen("role-opportunity-challenger-2026.0.json")} as const;`));
+    assert.ok(readFileSync(join(ROOT, "lib/role-shadow/frozen/models-half.ts"), "utf8").includes(`= ${gen("w2p1-frozen-models-half.json")} as const;`));
   });
 
   it("production-side code references no W2.P1 research path in executable code (the existing W2.P1 boundary test also pins this)", () => {

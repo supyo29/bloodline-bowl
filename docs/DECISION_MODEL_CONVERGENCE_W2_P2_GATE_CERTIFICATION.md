@@ -2,6 +2,12 @@
 
 Date: 2026-10-13 · Branch `w2p2-role-shadow` (stacked on `intelligence-convergence-w2-p1-role-opportunity` @ `a9ac13c`) · **Not merged, not deployed, no migration applied, capture flag OFF.**
 
+
+> **AMENDMENT 2026-10-13 (after local staging — see `DECISION_MODEL_CONVERGENCE_W2_P2_LOCAL_STAGING_GO_NO_GO.md`).** Running the stack on a real local Supabase and a production Next build corrected two statements below:
+> 1. **Frozen configuration is imported as generated TypeScript literals, not JSON** (sections C, F). Turbopack's JSON importer altered floats by 1 ULP in a build and the integrity guard refused to run; the JSON copies remain as the byte-verified, reviewable originals and tests prove bit-for-bit equality (`scripts/w2p2/gen-frozen-ts.mjs`).
+> 2. **Record identity is the belief content** — it no longer includes the source-observation instant or any lineage id (sections D, E, "content-addressed identity"). Previously a fresh fetch (restart / cold start) re-minted every record of an unchanged belief.
+> The "Production isolation", "Storage durability" and "Capture pipeline" verdicts stand and are now additionally verified on the real HTTP/PostgREST path. **Production shadow capture: NO-GO today** (prerequisites outside W2.P2).
+
 ## Summary of verdicts (one per question — they are deliberately not compressed)
 
 | Question | Verdict |
