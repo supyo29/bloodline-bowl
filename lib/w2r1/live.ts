@@ -92,7 +92,10 @@ export function playerReport(ctx: WeeklyTeamContext, inp: EarlyInputs, id: strin
     return { on_roster: false, name: c.name, acquisition: c.acquisition, note: "Not on this roster: roster-specific VOR is not defined for a non-rostered player; see the add report for the marginal effect of adding him.", position: c.position, k_dst_notice: c.position === "K" || c.position === "DEF" ? K_DST_NOTICE : null };
   }
   const v = computeDynamicVor({ rules: inp.rules, roster: inp.roster, playerId: id, week: ctx.league.week, market: inp.market });
-  return { on_roster: true, ...simplify(v, a.name, a.status), weekly_detail: v.weekly_detail, horizon: v.horizon, k_dst_notice: a.position === "K" || a.position === "DEF" ? K_DST_NOTICE : null, missing_evidence: a.missing_evidence };
+  const wk = ctx.league.week;
+  const preview = (x: { weeks: Record<number, { state: string; lineup: number | null; underlying: number | null }> }) => Object.fromEntries(Array.from({ length: 6 }, (_, i) => wk + i).filter((w) => x.weeks[w]).map((w) => [w, { state: x.weeks[w]!.state, lineup: round(x.weeks[w]!.lineup), underlying: round(x.weeks[w]!.underlying) }]));
+  const alt = inp.market.candidates.filter((c) => c.position === a.position && weekValue(c, wk, "lineup") != null).sort((x, y) => (weekValue(y, wk, "lineup") as number) - (weekValue(x, wk, "lineup") as number)).slice(0, 3);
+  return { on_roster: true, ...simplify(v, a.name, a.status), evidence: { asset_weeks_preview: preview(a), confidence: a.confidence, provenance: a.provenance, best_verified_alternatives_same_position: alt.map((c) => ({ name: c.name, method: c.acquisition.method, success_probability: c.acquisition.success_probability, weeks_preview: preview(c) })) }, weekly_detail: v.weekly_detail, horizon: v.horizon, k_dst_notice: a.position === "K" || a.position === "DEF" ? K_DST_NOTICE : null, missing_evidence: a.missing_evidence };
 }
 
 export function dropReport(ctx: WeeklyTeamContext, inp: EarlyInputs, id: string) {
