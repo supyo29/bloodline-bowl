@@ -39,7 +39,8 @@ export function envelope(ctx: WeeklyTeamContext, inp: EarlyInputs, kind: string,
     league_rules: { slots: inp.rules.slots, bench_size: inp.rules.bench_size, ir_slots: inp.rules.ir_slots, last_week_considered: inp.rules.last_week },
     confidence: { current_week: "from Wave 1 forecast", future_weeks: "LOW (Wave-1 hold-rate proxy; no schedule/matchup/game-plan adjustment)", overall: "LOW-MEDIUM" },
     evidence: { context_generated_at: ctx.generated_at, projection_source: ctx.projections.source, projection_status: ctx.projections.status, context_status: ctx.status },
-    market: { provider: inp.market.provider, basis: mp?.basis ?? null, verified: inp.market.verified, freshness: inp.market.freshness, observed_at: inp.market.observed_at, age_ms: mp?.age_ms ?? (inp.market.observed_at ? Math.max(0, Date.now() - Date.parse(inp.market.observed_at)) : null), market_content_id: mp?.market_content_id ?? null, candidates: inp.market.candidates.length, readiness_axes: mp?.axes ?? null, pool_actionable: ctx.free_agent_pool_readiness.actionable },
+    market: { provider: inp.market.provider, basis: mp?.basis ?? null, verified: inp.market.verified, freshness: inp.market.freshness, observed_at: inp.market.observed_at, age_ms: mp?.age_ms ?? (inp.market.observed_at ? Math.max(0, Date.now() - Date.parse(inp.market.observed_at)) : null), market_content_id: mp?.market_content_id ?? null, candidates: inp.market.candidates.length, readiness_axes: mp?.axes ?? null, pool_actionable: ctx.free_agent_pool_readiness.actionable,
+      rules: mp?.rules ?? null, manager_acquisition: mp?.manager ?? null, pending_claims: mp?.pending_claims ?? null, k_dst_scoring_note: mp?.scoring?.note ?? null, fa_bid_amounts: "UNKNOWN — FAAB bids/competition are not modeled; waiver claims carry no success probability" },
     notes: inp.notes,
     data,
   };
@@ -53,6 +54,7 @@ export function simplify(v: DynamicVor, name: string, status: string) {
     player_id: v.player_id, name, roster_status: status,
     weekly_roster_vor: comp(v.weekly_roster_vor), ros_vor: comp(v.ros_vor), hold_vor: comp(v.hold_vor), streaming_adjusted_vor: comp(v.streaming_adjusted_vor),
     weekly_league_vor: comp(v.weekly_league_vor), league_vor: comp(v.league_vor), scarcity_vor: comp(v.scarcity_vor), market_value_input: comp(v.market_value_input),
+    negative_value_reason: v.weekly_roster_vor.value != null && v.weekly_roster_vor.value < 0 && v.weekly_detail?.chosen_add ? `negative: losing him frees a roster spot that a verified add (${v.weekly_detail.chosen_add.player_id}) uses better` : null,
     flags: v.flags,
   };
 }
