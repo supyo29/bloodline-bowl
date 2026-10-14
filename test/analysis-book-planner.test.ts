@@ -116,3 +116,12 @@ test("Contents is LIGHTWEIGHT and lazy: no network, no Book-Ready query layer, m
 test("book creation is deterministic: same inputs -> identical session and book_id", () => {
   const a = book("Analyze Rome Odunze this week"); const b = book("  analyze   rome odunze THIS week "); assert.equal(a.book_id, b.book_id); assert.deepEqual(a.contents, book("Analyze Rome Odunze this week").contents);
 });
+
+test("lag_weeks > 0 makes a lagging surface SOURCE_LAG with the lag stated; lag 0 / null never does (controlled snapshot)", () => {
+  const withLag = (lag: number | null) => ({ ...snap, vintage: { ...snap.vintage, "role-opportunity": { ...snap.vintage["role-opportunity"]!, lag_weeks: lag } } });
+  const st = (lag: number | null) => { const r = createBook({ question: "Analyze Rome Odunze this week" }, dir, withLag(lag), NOW); assert.ok(r.ok); return ch(r.session, "player.role.playing_time").researchability; };
+  const lagged = st(2);
+  assert.equal(lagged.state, "SOURCE_LAG"); assert.match(lagged.reasons.join(), /through week \d+ is 2 complete week\(s\) behind the FI frontier/);
+  assert.equal(st(1).state, "SOURCE_LAG"); assert.match(st(1).reasons.join(), /is 1 complete week\(s\) behind/);
+  for (const none of [0, null]) { const r = st(none); assert.doesNotMatch(r.reasons.join(), /behind the FI frontier/); assert.notEqual(r.state, "SOURCE_LAG"); }
+});
