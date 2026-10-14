@@ -56,6 +56,12 @@ export async function GET(request: Request): Promise<Response> {
       const { buildCanonicalLeagueState } = await import("@/lib/canonical/state"); const n = mark(); const st = (await buildCanonicalLeagueState(slug, { reportPersistence: false } as never)) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       const s = st.snapshot ?? st; return json({ step, keys: Object.keys(s).slice(0, 30), managers: (s.managers ?? []).map((m: any) => ({ id: m.canonical_manager_id, slug: m.manager_slug ?? m.slug ?? null, name: m.display_name ?? null })), teams: (s.teams ?? []).length, players: (s.players ?? []).length, enforcement: since(n) }); // eslint-disable-line @typescript-eslint/no-explicit-any
     }
+    if (step === "pages") {
+      const { defaultYahooMarketIO: io } = await import("@/lib/market-state/yahoo-load"); const o = await io.open(slug); if (!o.ok) return json({ error: o.code });
+      const out: Record<string, number[]> = {};
+      for (const code of ["T", "FA"]) { const arr: number[] = []; for (let i = 0; i < (code === "T" ? 10 : 45); i++) { const { data } = await o.handle.client.get(`/league/${o.handle.leagueKey}/players;status=${code};start=${i * 25};count=25;sort=OR/ownership`) as any; const pl = data?.fantasy_content?.league?.[1]?.players ?? {}; arr.push(Object.keys(pl).filter((k) => k !== "count").length); if (arr.length > 3 && arr.slice(-3).every((x) => x === 0)) break; } out[code] = arr; } // eslint-disable-line @typescript-eslint/no-explicit-any
+      return json({ step, slug, rows_per_page: out });
+    }
     if (step === "recon") {
       const { defaultYahooMarketIO: io } = await import("@/lib/market-state/yahoo-load");
       const o = await io.open(slug); if (!o.ok) return json({ error: o.code });
