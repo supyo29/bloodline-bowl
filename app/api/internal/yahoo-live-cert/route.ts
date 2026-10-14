@@ -78,6 +78,12 @@ export async function GET(request: Request): Promise<Response> {
       const out: Record<string, unknown> = {}; for (const code of ["T", "FA"]) for (const sort of ["OR", "NAME"]) { out[`${code}/${sort}`] = [await sweep(code, sort), await sweep(code, sort)]; }
       return json({ step, slug, out });
     }
+    if (step === "replacement") {
+      const manager = q.get("manager") ?? ""; const week = Number(q.get("week") ?? "0"); const { buildWeeklyTeamContext } = await import("@/lib/weekly/context"); const n = mark();
+      const res = (await buildWeeklyTeamContext(slug, manager, { week, enableMarketStatePool: true } as never)) as any; const ctx = res.context; // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (!ctx) return json({ error: "no context", code: res.code ?? null });
+      const rep = ctx.replacement?.by_position ?? {}; return json({ step, slug, replacement: Object.fromEntries(Object.entries(rep).map(([k, v]: [string, any]) => [k, { basis: v.basis, sample_size: v.sample_size }])), market_pool_axes: ctx.market_pool?.axes ?? null, enforcement: since(n) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
     if (step === "recon") {
       const { defaultYahooMarketIO: io } = await import("@/lib/market-state/yahoo-load");
       const o = await io.open(slug); if (!o.ok) return json({ error: o.code });
