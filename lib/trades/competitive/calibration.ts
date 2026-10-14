@@ -155,7 +155,9 @@ export function loadCompetitiveMarketCalibration(
     fileOverride ??
     path.join(process.cwd(), "lib", "trades", "data", "competitive_market_calibration.json");
   try {
-    const raw = JSON.parse(readFileSync(file, "utf8")) as Partial<CompetitiveMarketCalibration>;
+    // turbopackIgnore: the default path above is statically scoped to lib/trades/data (traced into the bundle); only the
+    // fileOverride (tests/CLI) is dynamic, and must not make Turbopack trace the whole project into every function.
+    const raw = JSON.parse(readFileSync(/*turbopackIgnore: true*/ file, "utf8")) as Partial<CompetitiveMarketCalibration>;
     if (!raw || typeof raw !== "object" || !raw.status || !raw.by_position_metric) {
       if (fileOverride === undefined) cached = null;
       return DEFAULT_COMPETITIVE_MARKET_CALIBRATION;

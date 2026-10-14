@@ -18,7 +18,7 @@ import { cacheHeader, errorResponse, handleOptions, jsonResponse } from "@/lib/h
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const CAPTURE_TYPES: CaptureType[] = ["PRE_WEEK", "MID_WEEK", "FINAL", "AD_HOC"];
 

@@ -33,3 +33,5 @@ export async function GET(
 export async function OPTIONS(): Promise<Response> {
   return handleOptions();
 }
+
+export const maxDuration = 60;

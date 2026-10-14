@@ -18,3 +18,5 @@ export async function GET(request: Request): Promise<Response> {
   return jsonResponse({ season, week: week ?? null, mode: SHADOW_MODE, analysis_version: ROLE_CALIBRATION_ANALYSIS_VERSION, production_influence: "NONE", report: roleReport(rows) }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function OPTIONS(): Promise<Response> { return handleOptions(); }
+
+export const maxDuration = 60;

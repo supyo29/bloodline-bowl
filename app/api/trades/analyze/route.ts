@@ -57,7 +57,7 @@ import { errorResponse, handleOptions, jsonResponse } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 300;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_PARTICIPANTS = 6;
