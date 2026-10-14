@@ -46,8 +46,8 @@ test("docs read at runtime are exceptions", () => {
 // Simulated git: `commits` maps sha -> files changed between that sha and HEAD(=head).
 function fakeGit(known: Record<string, string[]>) {
   return (a: string[]): string => {
-    if (a[0] === "cat-file") { const sha = a[2].replace("^{commit}", ""); if (!(sha in known)) throw new Error("bad object"); return ""; }
-    if (a[0] === "diff") { const [sha] = a[2].split(".."); if (!(sha in known)) throw new Error("bad revision"); return known[sha].join("\n") + "\n"; }
+    if (a[0] === "cat-file") { const sha = (a[2] ?? "").replace("^{commit}", ""); if (!(sha in known)) throw new Error("bad object"); return ""; }
+    if (a[0] === "diff") { const sha = (a[2] ?? "").split("..")[0] ?? ""; const files = known[sha]; if (!files) throw new Error("bad revision"); return files.join("\n") + "\n"; }
     throw new Error("unexpected git " + a.join(" "));
   };
 }
