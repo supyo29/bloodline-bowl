@@ -56,6 +56,16 @@ export async function GET(request: Request): Promise<Response> {
       const { buildCanonicalLeagueState } = await import("@/lib/canonical/state"); const n = mark(); const st = (await buildCanonicalLeagueState(slug, { reportPersistence: false } as never)) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       const s = st.snapshot ?? st; return json({ step, keys: Object.keys(s).slice(0, 30), managers: (s.managers ?? []).map((m: any) => ({ id: m.canonical_manager_id, slug: m.manager_slug ?? m.slug ?? null, name: m.display_name ?? null })), teams: (s.teams ?? []).length, players: (s.players ?? []).length, enforcement: since(n) }); // eslint-disable-line @typescript-eslint/no-explicit-any
     }
+    if (step === "recon") {
+      const { defaultYahooMarketIO: io } = await import("@/lib/market-state/yahoo-load");
+      const o = await io.open(slug); if (!o.ok) return json({ error: o.code });
+      const teams = await io.teams(o.handle); const rosterRows = new Map<string, { team: string; slot: string | null; name: string | null; pos: string | null; nfl: string | null; status: unknown }>();
+      for (const t of teams) { const r = (await io.roster(o.handle, t.team_key)) as any; const byKey = new Map<string, any>((r.players ?? []).map((p: any) => [p.player_key, p])); for (const sl of r.slots ?? []) { const pl = byKey.get(sl.player_key) ?? {}; rosterRows.set(sl.player_key, { team: t.team_key.split(".t.")[1] ?? "?", slot: sl.selected_position ?? null, name: pl.name ?? pl.full_name ?? null, pos: pl.position ?? pl.display_position ?? null, nfl: pl.team ?? pl.editorial_team_abbr ?? null, status: pl.status ?? pl.injury_status ?? null }); } } // eslint-disable-line @typescript-eslint/no-explicit-any
+      const T = await io.pool(o.handle, "T", Date.now() + 120_000); const tKeys = new Set(T.players.map((p: any) => p.player_key)); // eslint-disable-line @typescript-eslint/no-explicit-any
+      const only = [...rosterRows].filter(([k]) => !tKeys.has(k)).map(([k, v]) => ({ key: k, ...v }));
+      const slotDist: Record<string, number> = {}; for (const v of rosterRows.values()) slotDist[v.slot ?? "?"] = (slotDist[v.slot ?? "?"] ?? 0) + 1;
+      return json({ step, slug, roster_union: rosterRows.size, T_pool: T.players.length, T_complete: T.complete, roster_only: only, slot_distribution: slotDist });
+    }
     if (step === "market") {
       const { loadYahooMarketSnapshot, defaultYahooMarketIO, __clearYahooMarketMemo, yahooBindingFor } = await import("@/lib/market-state/yahoo-load");
       const { buildFreeAgentPool, acquirablePlayers } = await import("@/lib/market-state/pool");
