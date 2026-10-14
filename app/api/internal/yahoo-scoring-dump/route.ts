@@ -10,7 +10,7 @@ function walk(o: unknown, out: Array<{ name: string | null; team: string | null;
     const meta: J = {}; let stats: Record<string, string> = {};
     for (const part of j.player as unknown[]) {
       if (Array.isArray(part)) for (const m of part) if (m && typeof m === "object") Object.assign(meta, m);
-      else if (part && typeof part === "object" && (part as J).player_stats) { const st = ((part as J).player_stats as unknown as J).stats as unknown as unknown[]; for (const s of st ?? []) { const x = (s as J).stat as unknown as J | undefined; if (x) stats[String(x.stat_id)] = String(x.value); } }
+      else if (part && typeof part === "object") { const pj = part as unknown as J; if (pj.player_stats) { const st = ((pj.player_stats as unknown as J).stats as unknown) as unknown[]; for (const s of st ?? []) { const x = ((s as unknown as J).stat as unknown) as J | undefined; if (x) stats[String(x.stat_id)] = String(x.value); } } }
     }
     const nm = ((meta.name as unknown as J | undefined)?.full) as string | undefined; out.push({ name: nm ?? null, team: (meta.editorial_team_abbr as string | undefined) ?? null, stats }); return;
   }
