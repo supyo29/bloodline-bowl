@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { computeDynamicVor } from "@/lib/w2r1/vor";
 import { computeDynamicVor as fast } from "@/lib/w2r1/generated/vor-fast";
@@ -22,7 +24,7 @@ describe("S9 memoized Dynamic VOR is IDENTICAL to the frozen implementation", ()
   });
   it("the memo actually reuses work (hits > 0) and the generated file is exactly the generator's output (never hand-edited)", () => {
     const { rules, roster, market } = synth(12); const h0 = cacheStats.scenarioHits; for (const a of roster) fast({ rules, roster, playerId: a.player_id, week: 6, market }); assert.ok(cacheStats.scenarioHits > h0);
-    const on = readFileSync("lib/w2r1/generated/vor-fast.ts", "utf8"); execFileSync("python3", ["scripts/w2r1/perf/make_vor_fast.py"]); assert.equal(readFileSync("lib/w2r1/generated/vor-fast.ts", "utf8"), on);
+    const on = readFileSync("lib/w2r1/generated/vor-fast.ts", "utf8"); const tmp = join(mkdtempSync(join(tmpdir(), "vf-")), "vor-fast.ts"); execFileSync("python3", ["scripts/w2r1/perf/make_vor_fast.py", tmp]); assert.equal(readFileSync(tmp, "utf8"), on);
   });
   it("performance guard: a realistic 19-player roster / 160-candidate pool / 12-week horizon computes within a generous budget (profiled ~0.47 s vs 0.75 s frozen on the dev machine)", () => {
     const { rules, roster, market } = synth(1); const t0 = performance.now(); for (const a of roster) fast({ rules, roster, playerId: a.player_id, week: 6, market }); assert.ok(performance.now() - t0 < 3000);
