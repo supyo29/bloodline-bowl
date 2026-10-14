@@ -137,3 +137,33 @@ a CAS loser or an `invalid_grant` loser re-reads the store and ADOPTS the siblin
 `GET /api/yahoo/health` (credential-free; per connection) and `GET /api/cron/yahoo-health` (daily 10:00 UTC keep-alive; refreshes only inside a 30-min window, then one read-only probe).
 Tests: test/yahoo-token-lifecycle.test.ts (16), test/yahoo-health-job.test.ts (2); mutants Y37-Y47 all killed. No migration is required (`refresh_seq`, `last_refreshed_at`, `last_used_at` already exist).
 Known limitation: "last refresh failure" is per server instance (not persisted; no column exists and no migration was authorized).
+
+## Direct-live gate — Vercel preview of PR #44 (2026-10-14) — token-free evidence
+
+Run on a PREVIEW deployment of this branch (Vercel Authentication on; production Yahoo/Supabase config exposed to preview only for the run and reverted to production-only afterwards), through a temporary harness route
+(removed before merge). All Yahoo traffic GET-only; the only non-GET was the OAuth token endpoint. No fantasy transaction, no league change, no secret in any output.
+
+| Gate | maclin-on-chicks-xvi (`maclin`) | rogers-park (`primary`) |
+|---|---|---|
+| connection binding | `maclin` | `primary` |
+| natural expired-token refresh on first read | 1 token POST, 74 GETs | 1 token POST, 69 GETs |
+| rosters / ownership reconciliation (after fix) | 168 = 168, 0 roster-only, 0 pool-only | 155 = 155, 0 / 0 |
+| FA / W / T pagination (after fix) | 1016 / 12 / 168 complete | 975 / 10 / 155 complete |
+| availability axis | READY | READY |
+| K / D/ST | K 42 free + 3 waiver, 45/45 resolved; DEF 19/19 `defense:nfl:*` | league has no K slot (0 K); DEF 21/21 |
+| settings / FAAB-priority | PRIORITY, waiver rule `all`, priorities 1-10 | FAAB, rule `gametime`, balances 44-100 |
+| pending claims | AVAILABLE (1 owned team) | AVAILABLE (1 owned team) |
+| identity joins (acquirable) | 1013 / 1028 resolved; rostered 168/168 | 970 / 985; rostered 155/155 |
+| waiver engine (real route) | AVAILABLE, 491 considered, 3 recs (FREE_AGENT_ADD + WAIVER_CLAIM) | AVAILABLE, 461 considered |
+| replacement pool | `available_pool_marginal` QB/RB/WR/TE/K/DEF/FLEX | `available_pool_marginal` (no K slot) |
+| freshness / cache | FRESH; repeat call 0 extra requests | FRESH; 0 extra requests |
+
+**Defect found and fixed by this gate (P1, data completeness):** `sort=OR` paging was not stable across requests; the loader skipped and duplicated players
+(Rogers Park FA 947-961 unique of 975 real; rostered pool 137-149 of 155; availability was PARTIAL with a false OWNERSHIP_CONFLICT). `sort=NAME` is exact (975/975, 155/155, 0 duplicates).
+Fixed in `players.ts`; a duplicate across pages now marks the pool incomplete (`unstable_pagination`). Mutants Y48/Y49 killed.
+Safety was never at risk: a rostered player never appeared as free agent (`roster_only_present_in_FA_or_W = 0`; all 18 roster-only players were confirmed `T` by direct lookup).
+
+**Token lifecycle, live:** forced rotation (maclin) — seq +1, access token rotated and persisted equal to what was served, other connection untouched. 6 concurrent callers (primary) — exactly 1 token POST, seq +1.
+4 simulated instances (maclin, separate single-flights) — 4 token POSTs, exactly ONE persisted (CAS), the other 3 adopted the stored token, all returned the same token, seq +1.
+Yahoo returned the SAME refresh token on every refresh (it does not rotate refresh tokens today); strict-rotation handling is proven hermetically only.
+Keep-alive job: 0 refreshes (token fresh), 2 GET probes OK. `/api/yahoo/health`: both HEALTHY, rotation counts 3 / 2, credential-free.
