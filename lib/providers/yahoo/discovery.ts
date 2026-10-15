@@ -19,6 +19,7 @@ import {
   collectionEntries,
   fantasyContent,
   mergeLeadingObjects,
+  mergeYahooEntity,
   unwrap,
 } from "./parse";
 
@@ -257,7 +258,8 @@ export async function probeUserTeams(
       for (const g of collectionEntries((user as Record<string, unknown>).games)) {
         const game = mergeLeadingObjects(unwrap(g, "game"));
         for (const t of collectionEntries((game as Record<string, unknown>).teams)) {
-          const key = asString(mergeLeadingObjects(unwrap(t, "team")).team_key);
+          // Yahoo nests a team one array level deeper (`[[{team_key},...],{...}]`); `mergeYahooEntity` walks that, `mergeLeadingObjects` does not.
+          const key = asString(mergeYahooEntity(unwrap(t, "team")).team_key);
           if (key && key.startsWith(leagueKey)) teamKeys.push(key);
         }
       }

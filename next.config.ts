@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
       "./lib/opportunity-propagation-intelligence/data/**/*",
       "./lib/player-scheme-intelligence/data/**/*",
     ],
+    // W2.P2: the Role Shadow capture job reads the committed Role inputs (and the propagation model) by dynamic path.
+    "/api/cron/role-shadow-capture": ["./lib/role-calibration/data/**/*", "./lib/opportunity-propagation-intelligence/data/**/*"],
   },
 };
 

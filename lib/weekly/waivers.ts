@@ -16,6 +16,8 @@
 import { buildScore, type DecisionScore } from "./decision-score";
 import { weeklyVOR } from "./replacement";
 import { buildOptimalLineup } from "./lineup";
+import { holdHorizonWeeks, isVerifiedBye } from "./forecast/bye";
+import { canonicalAssetValue, holdWeeklyValue, type AssetBasis } from "./forecast/asset";
 import type { CanonicalRoster } from "@/lib/canonical/schema";
 import type {
   Confidence,
@@ -100,6 +102,47 @@ export interface WaiverCandidateEval {
   score: DecisionScore;
   reasons: string[];
   ros_signal: import("./schema").RosSignal | null;
+  /**
+   * Present only for a candidate certified by PROVIDER evidence (Yahoo): `FREE_AGENT_ADD` = addable now; `WAIVER_CLAIM` = claim-only (Yahoo's own `W`
+   * status, with its clear DATE when stated). Advisory only — Bloodline never submits a claim.
+   */
+  acquisition?: import("./schema").AvailablePlayer["acquisition"];
+  /**
+   * W1.P3: present only when at least one verified-bye player was a drop candidate for this add. Exposes the bye-neutral
+   * counterfactual so a bye can never silently drive (or silently block) a drop.
+   */
+  bye_diagnostics?: ByeDropDiagnostic[];
+  /**
+   * W1.R2: asset-value notes the user should see — never silent:
+   *   UNKNOWN_ASSET_VALUE   an active-roster player NOT offered as the drop because his asset value is unknown (a condition and no forward evidence)
+   *   LONG_TERM_FORWARD_EVIDENCE_UNVERIFIED  an active-roster player on a long-term list valued from ROS evidence that may not reflect his injury
+   *                         (Bloodline has no injury-timeline evidence; a season-ending absence is protected rather than dropped — review manually)
+   *   INJURED_DROP_VALUED_FROM_ROS  the RECOMMENDED drop is injured this week and valued from ROS (season-average) evidence — a breakout may be lost
+   */
+  asset_review_notes?: Array<{ player_id: string; name: string; kind: "UNKNOWN_ASSET_VALUE" | "LONG_TERM_FORWARD_EVIDENCE_UNVERIFIED" | "INJURED_DROP_VALUED_FROM_ROS"; condition: string; reason: string }>;
+}
+
+export interface ByeDropDiagnostic {
+  player_id: string;
+  name: string;
+  is_bye: true;
+  /** what he contributes THIS week (the verified-bye zero) */
+  current_week_points: number | null;
+  /** per-week hold value with the bye effect removed; null = unknown (never 0) */
+  hold_value_weekly: number | null;
+  hold_basis: AssetBasis;
+  /** drop preference among legal candidates for this add (1 = preferred drop) */
+  drop_rank_with_bye_zero: number | null;
+  drop_rank_bye_neutral: number | null;
+  /** the bye changed this player's drop ranking */
+  rank_changed_by_bye: boolean;
+  preferred_drop_with_bye_zero: string | null;
+  preferred_drop_bye_neutral: string | null;
+  /** he WOULD have been the preferred drop on the bye zero alone, and the bye-neutral view rejected that */
+  bye_guardrail_applied: boolean;
+  /** he is the recommended drop (so the bye did not protect him: his hold value is genuinely low) */
+  is_recommended_drop: boolean;
+  reason: string;
 }
 
 export interface WaiverResult {
@@ -136,6 +179,11 @@ export interface WaiverResult {
   warnings: WeeklyWarning[];
   /** Intelligence Modernization Phase 1: what produced this result and how fresh it is. Additive -- never affects `recommendations`/`considered`/`do_not_add`. */
   intelligence: WaiverIntelligenceProvenance;
+  /**
+   * Structured evidence of the verified acquirable pool (counts of verified free agents / waivers / unknown, projection coverage, readiness AXES, rules,
+   * pending-claim visibility, freshness, pool pagination evidence). Present only for provider-evidence markets (Yahoo). Clients read this, never prose.
+   */
+  market_pool?: import("./schema").MarketPoolSummary;
 }
 
 const BASE_POS = ["QB", "RB", "WR", "TE", "K", "DEF"];
@@ -202,7 +250,7 @@ export function buildWaiverRecommendations(
   const openActiveSpot = activeCap > 0 && activeIds.length < activeCap;
   const openReserveIr = ctx.league.roster_constraints.reserve_ir_capacity > ctx.roster.ir.length;
 
-  const weeksRemaining = Math.max(1, 18 - ctx.league.week);
+  const weeksRemaining = holdHorizonWeeks(ctx.league.week);
 
   // ---- Baseline optimal legal lineup — the source of truth for starter impact.
   const constraints = ctx.league.roster_constraints;
@@ -232,7 +280,14 @@ export function buildWaiverRecommendations(
    */
   const weeklyKnown = (id: string): boolean => {
     const p = proj(id);
-    return p != null && (p.projected_points != null || p.projection_status === "bye");
+    if (p == null) return false;
+    // W1.R1 (P1-4): a verified bye carries a KNOWN current-week zero, but that zero says nothing about what he is worth. He is an
+    // assessable drop only when his hold value (underlying asset value) is known — exactly the rule an unknown non-bye player already
+    // follows. UNKNOWN is never read as LOW: a bye player whose value cannot be established is not offered up as the cheap drop.
+    // W1.R2: the same rule for EVERY player. Two things must be known: (1) his CURRENT-WEEK value — the counterfactual lineup gain is computed
+    // from it (a verified bye is a known 0); (2) his ASSET (hold) value — the cost of giving him up. UNKNOWN is never read as LOW.
+    const currentKnown = isVerifiedBye(p) || p.projected_points != null;
+    return currentKnown && holdFor(id).points != null;
   };
   // Per-LABEL empty-slot counts (not a Set) so the legality check catches a
   // hypothetical that turns one "RB" hole into two.
@@ -301,20 +356,58 @@ export function buildWaiverRecommendations(
     ros == null ? null : clamp((ros - (rosReplacementAt[pos] ?? 0)) / weeksRemaining, -4, 4);
 
   // Value of every player I roster (for the drop side). "keep" = cost of dropping.
+  // Only a genuine PRE-BYE source projection from the canonical forecast is used as the underlying value; a ROS-derived proxy is derived by
+  // `holdWeeklyValue` itself (identical number, correctly labelled), so the explanation never overstates the evidence.
+  const preByeSource = (id: string): number | null => {
+    const wv = ctx.forecasts?.by_player.get(id)?.weekly_value;
+    return wv && wv.underlying_basis === "SOURCE_PROJECTION_PRE_BYE" ? wv.underlying_points_if_game_played : null;
+  };
+  const holdFor = (id: string) => holdWeeklyValue({ row: proj(id), underlying_points: preByeSource(id), week: ctx.league.week });
   const rosterValue = ctx.all_rostered.map((p) => {
     const wp = proj(p.canonical_player_id);
-    const v = weeklyVOR(p.canonical_player_id, p.position, wp?.projected_points ?? null, ctx.replacement);
+    // W1.P3 / W1.R2: the DROP side asks "what asset am I giving up?", not "what does he score this week?". A verified bye or a Doubtful / Out /
+    // long-term designation suppresses this week's number, so the hold value comes from the canonical asset substrate (pre-bye / forward
+    // evidence). Healthy and Questionable players keep their current-week projection as the hold basis, exactly as before.
+    const bye = isVerifiedBye(wp);
+    const hold = holdFor(p.canonical_player_id);
     const rosEdge = rosEdgePerWeek(p.position, wp?.rest_of_season_points ?? null) ?? 0;
     const isStarter = ctx.roster.starters.includes(p.canonical_player_id);
-    // A starter is protected only in proportion to how much better than the
-    // waiver line they actually are — a bad starter (below replacement) is not.
-    const starterProtection = isStarter ? Math.max(0, v.vor ?? -3) : 0;
-    // Raw (can be negative) so a below-replacement player has a lower keep than a
-    // playable one even when both have VOR <= 0.
-    const keep = (v.vor ?? -3) + Math.max(0, rosEdge) * 1.2 + starterProtection;
-    return { player: p, keep, isStarter, weekly: wp?.projected_points ?? null };
+    const keepFor = (weeklyPts: number | null): number => {
+      const v = weeklyVOR(p.canonical_player_id, p.position, weeklyPts, ctx.replacement);
+      // A starter is protected only in proportion to how much better than the
+      // waiver line they actually are — a bad starter (below replacement) is not.
+      const starterProtection = isStarter ? Math.max(0, v.vor ?? -3) : 0;
+      // Raw (can be negative) so a below-replacement player has a lower keep than a
+      // playable one even when both have VOR <= 0.
+      return (v.vor ?? -3) + Math.max(0, rosEdge) * 1.2 + starterProtection;
+    };
+    const keepLegacy = keepFor(wp?.projected_points ?? null);
+    // W1.R2: the cost of giving the player up is his CANONICAL ASSET value (temporary-state neutral: bye AND short-term injury), never this week's
+    // depressed number. For a player with no temporary condition the asset value IS the current projection, so those decisions do not move.
+    const keep = keepFor(hold.points);
+    return { player: p, keep, keepLegacy, isStarter, bye, hold, weekly: wp?.projected_points ?? null };
   });
-  const dropBoard = [...rosterValue].sort((a, b) => a.keep - b.keep); // worst first
+  const dropBoard = [...rosterValue].sort((a, b) => a.keep - b.keep); // worst first (bye-neutral)
+  // W1.R2: asset notes for active-roster players (IR / taxi slots are not drop candidates): unknown values held back, and long-term values whose
+  // forward evidence is unverified. Bye players have their own diagnostics.
+  const reserved = new Set([...(ctx.roster.ir ?? []), ...(ctx.roster.taxi ?? [])]);
+  const assetReviewNotes = rosterValue
+    .filter((r) => !r.bye && !reserved.has(r.player.canonical_player_id))
+    .flatMap((r): NonNullable<WaiverCandidateEval["asset_review_notes"]> => {
+      const row = proj(r.player.canonical_player_id);
+      if (!row) return [];
+      const av = canonicalAssetValue({ row, week: ctx.league.week });
+      if (r.hold.points == null && row.projected_points != null) {
+        return [{ player_id: r.player.canonical_player_id, name: nameOf(r.player), kind: "UNKNOWN_ASSET_VALUE" as const, condition: av.current_week.condition, reason: `${av.asset_value.explanation} He is not offered as the drop; review manually if you know he is out long-term.` }];
+      }
+      if (av.current_week.condition === "INJURY_LONG_TERM" && r.hold.points != null) {
+        return [{ player_id: r.player.canonical_player_id, name: nameOf(r.player), kind: "LONG_TERM_FORWARD_EVIDENCE_UNVERIFIED" as const, condition: av.current_week.condition, reason: `${av.asset_value.explanation} The rest-of-season evidence may not reflect his injury (no injury-timeline data): if he is out for the season, dropping him is reasonable — review manually.` }];
+      }
+      return [];
+    });
+  // Only used to explain what the bye zero WOULD have done; empty cost when no bye player exists.
+  const anyByeOnRoster = rosterValue.some((r) => r.bye);
+  const dropBoardLegacy = anyByeOnRoster ? [...rosterValue].sort((a, b) => a.keepLegacy - b.keepLegacy) : dropBoard;
 
   const injuredStarterPos = new Set<string>(
     ctx.roster.starters
@@ -384,25 +477,101 @@ export function buildWaiverRecommendations(
     // truncated shortlist that could miss the best legal pair.
     let dropChoice: (typeof dropBoard)[number] | null = null;
     let starterGainRaw: number | null = null;
+    let byeDiagnostics: ByeDropDiagnostic[] = [];
     if (openActiveSpot) {
       starterGainRaw = evalPair(fa.player, null).gain;
     } else {
-      const candidates = dropBoard.filter(
-        (d) =>
-          d.player.canonical_player_id !== fa.canonical_player_id &&
-          activeIds.includes(d.player.canonical_player_id) &&
-          weeklyKnown(d.player.canonical_player_id),
-      );
-      let bestScore = -Infinity;
-      for (const d of candidates) {
-        const { legal, gain } = evalPair(fa.player, d.player.canonical_player_id);
-        if (!legal) continue; // a drop that leaves a required slot unfillable is not a candidate
-        const pairScore = (gain ?? 0) - Math.max(0, d.keep);
-        if (pairScore > bestScore) {
-          bestScore = pairScore;
-          dropChoice = d;
-          starterGainRaw = gain;
+      const eligibleDrop = (d: (typeof dropBoard)[number]) =>
+        d.player.canonical_player_id !== fa.canonical_player_id &&
+        activeIds.includes(d.player.canonical_player_id) &&
+        weeklyKnown(d.player.canonical_player_id);
+      const pairCache = new Map<string, { legal: boolean; gain: number | null }>();
+      const pairOf = (dropId: string) => {
+        let r = pairCache.get(dropId);
+        if (!r) pairCache.set(dropId, (r = evalPair(fa.player, dropId)));
+        return r;
+      };
+      /** Same selection rule as always (best `gain - max(0, keep)`, first wins ties in board order), parameterised on the keep basis. */
+      const select = (board: typeof dropBoard, keepOf: (d: (typeof dropBoard)[number]) => number) => {
+        let best = -Infinity;
+        let choice: (typeof dropBoard)[number] | null = null;
+        let gainOf: number | null = null;
+        const scored: Array<{ d: (typeof dropBoard)[number]; score: number }> = [];
+        for (const d of board.filter(eligibleDrop)) {
+          const { legal, gain } = pairOf(d.player.canonical_player_id);
+          if (!legal) continue; // a drop that leaves a required slot unfillable is not a candidate
+          const pairScore = (gain ?? 0) - Math.max(0, keepOf(d));
+          scored.push({ d, score: pairScore });
+          if (pairScore > best) {
+            best = pairScore;
+            choice = d;
+            gainOf = gain;
+          }
         }
+        return { choice, gainOf, scored };
+      };
+      const neutral = select(dropBoard, (d) => d.keep);
+      dropChoice = neutral.choice;
+      starterGainRaw = neutral.gainOf;
+      if (anyByeOnRoster) {
+        const legacy = select(dropBoardLegacy, (d) => d.keepLegacy);
+        const rankIn = (sel: typeof neutral, id: string): number | null => {
+          const order = sel.scored.map((x, i) => ({ id: x.d.player.canonical_player_id, score: x.score, i })).sort((a, b) => b.score - a.score || a.i - b.i);
+          const at = order.findIndex((x) => x.id === id);
+          return at < 0 ? null : at + 1;
+        };
+        const legacyId = legacy.choice?.player.canonical_player_id ?? null;
+        const neutralId = neutral.choice?.player.canonical_player_id ?? null;
+        const diags: ByeDropDiagnostic[] = [];
+        for (const d of dropBoard.filter((x) => x.bye && eligibleDrop(x))) {
+          const id = d.player.canonical_player_id;
+          const rl = rankIn(legacy, id);
+          const rn = rankIn(neutral, id);
+          if (rl == null && rn == null) continue; // not a legal drop for this add
+          const guardrail = legacyId === id && neutralId !== id;
+          const recommended = neutralId === id;
+          const hv = d.hold.points == null ? "unknown" : `${d.hold.points.toFixed(1)}/wk (${d.hold.basis})`;
+          diags.push({
+            player_id: id,
+            name: nameOf(d.player),
+            is_bye: true,
+            current_week_points: d.weekly,
+            hold_value_weekly: d.hold.points,
+            hold_basis: d.hold.basis,
+            drop_rank_with_bye_zero: rl,
+            drop_rank_bye_neutral: rn,
+            rank_changed_by_bye: rl !== rn,
+            preferred_drop_with_bye_zero: legacyId,
+            preferred_drop_bye_neutral: neutralId,
+            bye_guardrail_applied: guardrail,
+            is_recommended_drop: recommended,
+            reason: guardrail
+              ? `${nameOf(d.player)} projects ${d.weekly ?? 0} this week because he is on a verified bye, but his hold value is intact (${hv}); the bye zero is not treated as evidence he should be dropped, so he is protected from this drop.`
+              : recommended
+                ? `${nameOf(d.player)} is on bye, but he is still the preferred drop: even with the bye removed his hold value (${hv}) is the weakest drop-adjusted asset on the roster (bye-neutral rank ${rn}).`
+                : `${nameOf(d.player)} is on bye (hold value ${hv}); the bye ${rl === rn ? "did not change" : "changed"} his drop ranking (with-bye rank ${rl ?? "n/a"}, bye-neutral rank ${rn ?? "n/a"}) and he is not the recommended drop.`,
+          });
+        }
+        // W1.R1: verified-bye players EXCLUDED from the drop board because their hold value is unknown. Reported, not silent.
+        for (const d of dropBoard.filter((x) => x.bye && x.hold.points == null && activeIds.includes(x.player.canonical_player_id) && x.player.canonical_player_id !== fa.canonical_player_id)) {
+          diags.push({
+            player_id: d.player.canonical_player_id,
+            name: nameOf(d.player),
+            is_bye: true,
+            current_week_points: d.weekly,
+            hold_value_weekly: null,
+            hold_basis: d.hold.basis,
+            drop_rank_with_bye_zero: null,
+            drop_rank_bye_neutral: null,
+            rank_changed_by_bye: false,
+            preferred_drop_with_bye_zero: legacyId,
+            preferred_drop_bye_neutral: neutralId,
+            bye_guardrail_applied: true,
+            is_recommended_drop: false,
+            reason: `${nameOf(d.player)} is on a verified bye and his underlying value is UNKNOWN (no pre-bye source projection and no rest-of-season value). Unknown is not low: he is not offered as the preferred drop unless independent evidence shows he is marginal.`,
+          });
+        }
+        byeDiagnostics = diags;
       }
     }
     // Roster is full and NO drop is both assessable and lineup-legal (e.g. the
@@ -445,7 +614,7 @@ export function buildWaiverRecommendations(
       { key: "injury_hedge", label: "Hedges an injured starter at this position", raw: hedgeRaw || null },
       { key: "rest_of_season_value", label: "Rest-of-season edge over replacement (pts/week, external)", raw: rosEdgePerWeek(pos, ros ?? null), note: `ROS confidence ${rosSig?.confidence ?? "n/a"}${riDisagrees ? `; RI ${rosSig?.disagreement_direction}` : ""}` },
       { key: "drop_cost", label: "Cost of the required drop", raw: drop_cost > 0 ? -drop_cost : null, note: dropChoice ? `drop ${nameOf(dropChoice.player)}` : noAssessableDrop ? "roster full — no assessable, lineup-legal drop" : "open active roster spot" },
-      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && wp.projection_status !== "bye") || weekly == null || riMaterialDisagree || starterGainUnresolved || noAssessableDrop ? -1.5 : null, note: noAssessableDrop ? "roster full and no active player has an assessable weekly value" : starterGainUnresolved ? "counterfactual lineup gain unresolved (projection gap)" : riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
+      { key: "uncertainty_penalty", label: "Low-confidence projection penalty", raw: (wp.projection_status !== "projected" && !isVerifiedBye(wp)) || weekly == null || riMaterialDisagree || starterGainUnresolved || noAssessableDrop ? -1.5 : null, note: noAssessableDrop ? "roster full and no active player has an assessable weekly value" : starterGainUnresolved ? "counterfactual lineup gain unresolved (projection gap)" : riMaterialDisagree ? "RI and external season models disagree materially" : undefined },
     ]);
 
     const net = score.total;
@@ -489,6 +658,7 @@ export function buildWaiverRecommendations(
     if (starterGain <= 0.25 && (vor.vor ?? 0) > 3) reasons.push(`+${vor.vor?.toFixed(1)} weekly VOR — playable depth, but not a starter upgrade in the optimal lineup.`);
     if (riDisagrees) reasons.push(`RI season model is ${rosSig!.disagreement_direction === "RI_ABOVE" ? "higher" : "lower"} than the external projection by ${Math.round(Math.abs(rosSig!.disagreement_pct ?? 0) * 100)}% (${rosSig!.warnings[0] ?? "see ros"}).`);
     if (priority === "DO_NOT_ADD" && !noAssessableDrop) reasons.push(`Net roster gain ${net.toFixed(1)} does not clear the drop cost (${drop_cost.toFixed(1)}).`);
+    for (const bd of byeDiagnostics) if (bd.bye_guardrail_applied || bd.is_recommended_drop) reasons.push(bd.reason);
     if (weekly == null) reasons.push("No weekly projection — rest-of-season stash only, low confidence.");
     if (noAssessableDrop) reasons.push("No legal drop preserves a fieldable starting roster (every assessable drop either can't be valued or would leave a required starter slot unfillable) — transaction not recommended.");
 
@@ -517,6 +687,22 @@ export function buildWaiverRecommendations(
       score,
       reasons,
       ros_signal: rosSig ?? null,
+      ...(fa.acquisition ? { acquisition: fa.acquisition } : {}),
+      ...(byeDiagnostics.length > 0 ? { bye_diagnostics: byeDiagnostics } : {}),
+      ...(() => {
+        if (openActiveSpot) return {};
+        const notes = assetReviewNotes.filter((u) => u.player_id !== fa.canonical_player_id);
+        // the recommended drop is injured THIS week and valued from ROS evidence (no unsuppressed current number exists): ROS tracks a season
+        // average, not current form — a breakout player can be undervalued. Say so on the recommendation itself.
+        if (dropChoice) {
+          const av = canonicalAssetValue({ row: proj(dropChoice.player.canonical_player_id), week: ctx.league.week });
+          const fromForward = av.asset_value.basis === "ROS_PER_WEEK_PROXY" || av.asset_value.basis === "RI_ROS_BENCHMARK";
+          if (av.current_week.condition === "INJURY_SHORT_TERM" && fromForward) {
+            notes.push({ player_id: dropChoice.player.canonical_player_id, name: nameOf(dropChoice.player), kind: "INJURED_DROP_VALUED_FROM_ROS", condition: av.current_week.condition, reason: `${nameOf(dropChoice.player)} is the suggested drop while ${proj(dropChoice.player.canonical_player_id)?.injury_status ?? "injured"} this week; his hold value (${av.asset_value.hold_points_per_week}/wk) comes from rest-of-season evidence, which tracks his season average, not his current role. If he has broken out, keep him — review before dropping.` });
+          }
+        }
+        return notes.length > 0 ? { asset_review_notes: notes } : {};
+      })(),
     });
   }
   void openReserveIr;
@@ -571,6 +757,7 @@ export function buildWaiverRecommendations(
     do_not_add,
     warnings,
     intelligence: buildWaiverIntelligenceProvenance(ctx),
+    ...(ctx.market_pool ? { market_pool: ctx.market_pool } : {}),
   };
 }
 

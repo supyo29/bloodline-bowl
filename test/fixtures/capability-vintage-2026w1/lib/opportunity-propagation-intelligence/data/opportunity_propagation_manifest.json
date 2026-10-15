@@ -1,0 +1,65 @@
+{
+  "model_tag": "opportunity-propagation-2026.1",
+  "opportunity_propagation_version": "opi:2026:w01:bef17990fe91",
+  "schema_version": "opportunity-propagation-served:v1",
+  "season": 2026,
+  "through_week": 1,
+  "generated_at": "2026-09-18T18:29:50+0000",
+  "role_opportunity_dependency": {
+    "role_opportunity_version": "roi:2026:w01:819dc3166607",
+    "role_opportunity_model_tag": "role-opportunity-2026.1",
+    "season": 2026,
+    "through_week": 1
+  },
+  "football_intelligence_dependency": null,
+  "training_window": {
+    "start_season": 2019,
+    "end_season": 2025,
+    "onset_single_absence_events": 252
+  },
+  "robustness_window": {
+    "start_season": 2012,
+    "end_season": 2018,
+    "note": "frozen-model diagnostic only; never used to tune"
+  },
+  "forward_diagnostic_window": {
+    "season": 2026,
+    "note": "frozen-model diagnostic only; never used to tune"
+  },
+  "model_method": "CANDIDATE_4_HIERARCHICAL",
+  "model_description": "Hierarchical role-vector allocator: pre-event Phase 2 role share, weighted by the candidate's own recent-vs-season trend and a trained same-position affinity multiplier, scaled by a team->position->league shrunk empirical inheritance rate.",
+  "historical_training_semantics": {
+    "event_definition": "QUALIFIED_FULL_GAME_NONPARTICIPATION",
+    "cause": "UNKNOWN",
+    "cause_note": "No source in this repository distinguishes injury from any other cause of nonparticipation. Historical training events are all-cause. A live scenario may be INSTANTIATED by a real injury, but the model itself is not injury-specific and never estimates medical probability or severity."
+  },
+  "supported_scenario_type": "FULL_GAME_NONPARTICIPATION",
+  "scenario_semantics": "CONDITIONAL (IF player X is unavailable for the full game) -- not probabilistic. Phase 3 does not estimate P(player X misses the game).",
+  "episode_semantics": "Calibrated against EPISODE_ONSET events only (a player's first qualified nonparticipation game after observed participation). No calibrated continuation-adjustment model exists; a supplied scenario is always evaluated as if onset.",
+  "supported_absent_positions": ["RB", "WR", "TE"],
+  "unsupported_absent_positions": {
+    "QB": "UNSUPPORTED_SCENARIO -- QB nonparticipation changes offensive structure globally rather than merely redistributing role; never routed through this model"
+  },
+  "single_absence_support": "CALIBRATED",
+  "multi_absence_support": "EXPERIMENTAL_MULTI_ABSENCE",
+  "multi_absence_support_note": "Checkpoint C found multi-absence performance materially weaker than single-absence on every metric, and a simple next-man-up baseline beat this model specifically on multi-absence top-beneficiary accuracy. Multi-absence scenarios are evaluated (never silently reduced to independent single-player summation) but must be treated as degraded/experimental, never calibrated.",
+  "confidence_semantics": {
+    "tiers_supported": ["LOW", "INSUFFICIENT_EVIDENCE"],
+    "tiers_not_supported": ["MEDIUM", "HIGH"],
+    "note": "Checkpoint C's primary calibration sample (252 onset single-absence episodes) never reached the MEDIUM threshold (>=500 training events) in any walk-forward fold. No HIGH tier was ever validated. Serving MEDIUM/HIGH here would be decorative, not calibrated -- Phase 2's own precedent (HIGH retired) is followed."
+  },
+  "uncertainty_ranges_supported": false,
+  "uncertainty_note": "No empirically calibrated interval was established in Checkpoint C at this sample size; only evidence_count (training sample size) and historical_error (backtest MAE) are served -- never a probability-like interval.",
+  "red_zone_support": "INSUFFICIENT_EVIDENCE_POSSIBLE",
+  "red_zone_note": "HIGH_VALUE domain (rz_carry_share/rz_target_share) is sparse; the manifest's dimension table marks it, and evidence_count/historical_error must be inspected per prediction rather than assuming confident goal-line redistribution.",
+  "routes": {
+    "historical_feature_capability": "UNRELIABLE_NON_ELIGIBLE_POSITION / source-lagged (Checkpoint B/C finding)",
+    "current_route_availability": "NOT REQUIRED",
+    "model_requires_routes": false
+  },
+  "returns_kept_separate": true,
+  "deployment_state": "SHADOW_ONLY",
+  "eligible_to_influence_production": false,
+  "production_numeric_influence": "PROHIBITED",
+  "known_limitations": ["historical training cause is UNKNOWN for 100% of events (no injury-specific source exists)", "v1 supports FULL_GAME_NONPARTICIPATION only, not LIMITED/QUESTIONABLE scenarios", "supported absent-player positions are RB/WR/TE only; QB returns an explicit UNSUPPORTED_SCENARIO result", "multi-absence scenarios are EXPERIMENTAL_MULTI_ABSENCE, not calibrated", "coaching continuity (OC/DC) is unavailable and not used; only season/team/player-team-change discontinuities are modeled", "route participation is not used and not required", "no player-availability probability is modeled or estimated anywhere in this product", "no fantasy-points, PPR, or scoring translation exists anywhere in this product"]
+}

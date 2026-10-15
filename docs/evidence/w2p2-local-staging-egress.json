@@ -1,0 +1,83 @@
+{
+ "generated_at": "2026-10-13T22:51:52.876Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "E.1",
+   "area": "E",
+   "name": "outbound requests during one real capture run (method host = count)",
+   "status": "INFO",
+   "detail": {
+    "GET http://127.0.0.1:54321": 30,
+    "GET https://api.sleeper.app": 58,
+    "GET https://site.api.espn.com": 7,
+    "POST http://127.0.0.1:54321": 456
+   }
+  },
+  {
+   "id": "E.2",
+   "area": "E",
+   "name": "the capture run itself succeeded (OK, 0 failures)",
+   "status": "PASS",
+   "detail": {
+    "status": "OK",
+    "by_status": {
+     "DUPLICATE_IDENTICAL": 456
+    }
+   }
+  },
+  {
+   "id": "E.3",
+   "area": "E",
+   "name": "NO FANTASY-PROVIDER MUTATION: every request to a non-local host is a GET",
+   "status": "PASS",
+   "detail": {
+    "non_get_external": [],
+    "external_hosts": [
+     "https://api.sleeper.app",
+     "https://site.api.espn.com"
+    ]
+   }
+  },
+  {
+   "id": "E.4",
+   "area": "E",
+   "name": "non-GET traffic goes ONLY to the local PostgREST (127.0.0.1:54321)",
+   "status": "PASS",
+   "detail": {
+    "non_get": [
+     [
+      "POST http://127.0.0.1:54321",
+      456
+     ]
+    ]
+   }
+  },
+  {
+   "id": "E.5",
+   "area": "E",
+   "name": "NOTHING reached a hosted Supabase or any *.supabase.co host",
+   "status": "PASS",
+   "detail": {
+    "hosts": [
+     "http://127.0.0.1:54321",
+     "https://api.sleeper.app",
+     "https://site.api.espn.com"
+    ]
+   }
+  },
+  {
+   "id": "E.6",
+   "area": "E",
+   "name": "no Yahoo endpoint was contacted (no OAuth exists locally; Yahoo leagues were skipped by design)",
+   "status": "PASS",
+   "detail": {
+    "hosts": [
+     "http://127.0.0.1:54321",
+     "https://api.sleeper.app",
+     "https://site.api.espn.com"
+    ]
+   }
+  }
+ ]
+}

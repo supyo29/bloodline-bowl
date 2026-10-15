@@ -14,6 +14,7 @@
  * analytics run entirely from canonical current-state.
  */
 
+import { planQualifiedDst } from "@/lib/w2r1/context-hook";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import {
   assessCapabilities,
@@ -22,7 +23,8 @@ import {
 } from "@/lib/canonical/capabilities";
 import { loadMarketSnapshot, type LoadMarketOptions, type MarketFetchers } from "@/lib/market-state/load";
 import type { MarketSnapshot } from "@/lib/market-state/contract";
-import { certifyFreeAgentPool } from "./market-pool-adapter";
+import { certifyFreeAgentPool, scoringCompatibility } from "./market-pool-adapter";
+import { managerAcquisitionContext } from "@/lib/market-state/pool";
 import { snapshotLineage } from "@/lib/canonical/snapshot-lineage";
 import { buildRecommendationLineage, type ProjectionLineageEntry } from "@/lib/canonical/lineage";
 import { resolveManager } from "@/lib/canonical/manager-context";
@@ -31,11 +33,20 @@ import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-sou
 import { getProvider } from "@/lib/providers/registry";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { getWeeklyProjectionProvider } from "./projections/registry";
+import { buildCanonicalForecastBatch } from "./forecast/build";
+import { isVerifiedBye, verifiedByeRow } from "./forecast/bye";
+import { buildForecastSetIdentity } from "./freshness/identity";
+import { FRESHNESS_POLICY_VERSION } from "./freshness/policy";
+import { gameForTeam } from "./freshness/kickoff";
+import { buildFinalPregameRecord, type FinalPregameRecord, type FinalPregameStore } from "./freshness/final-pregame";
+import { getFinalPregameStore } from "@/lib/persistence/supabase/projection-observations";
+import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import { getScheduleProvider } from "./schedule/registry";
 import type { ScheduleProvider } from "./schedule/types";
 import { RosterIntelSeasonSignalProvider, type RiSeasonSignalProvider } from "./projections-ri";
 import { RosterIntelReturnGameSeasonProvider, fetchRecentReturnAttempts, type ReturnGameSeasonSignal } from "./return-game-weekly";
-import { assembleRosSignals, type RosAssemblyResult } from "./ros";
+import { assembleRosSignals, rosFromSeasonPoints, type RosAssemblyResult } from "./ros";
+import type { RiSeasonSignalResult } from "./projections-ri";
 import { buildLeagueAvailability } from "./availability";
 import { computeWeeklyReplacement, type ReplacementFrontier } from "./replacement";
 import { composeWeeklyReadiness } from "./readiness";
@@ -57,6 +68,7 @@ import type {
 
 import { BASE_STARTING, FLEX_ELIGIBILITY, isFlexSlot, maxSlotMatching, slotEligiblePositions } from "./slots";
 import { buildOptimalLineup } from "./lineup";
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 
 export interface WeeklyContextResult {
   ok: boolean;
@@ -72,6 +84,12 @@ export interface BuildWeeklyContextOptions {
   crosswalkOverride?: PlayerCrosswalk;
   providerOverride?: ReturnType<typeof getProvider>;
   projectionProviderOverride?: ReturnType<typeof getWeeklyProjectionProvider>;
+  /** W1.P4: injected clock for forecast composition (tests). Default: the instant the projection provider resolved the batch. */
+  nowMs?: () => number;
+  /** W1.P4: where final-pregame candidates are recorded (default: Supabase when configured, otherwise nothing is persisted). */
+  finalPregameStoreOverride?: FinalPregameStore;
+  /** test seam: inject the W2.R1 qualified D/ST plan instead of loading the frozen capture */
+  w2r1DstPlanOverride?: import("@/lib/w2r1/context-hook").DstPlan;
   /** Phase 5 canonical projection persistence policy (default "prefer"). */
   projectionSnapshotPolicy?: "prefer" | "refresh" | "bypass";
   scheduleProviderOverride?: ScheduleProvider;
@@ -129,9 +147,9 @@ export async function buildWeeklyTeamContext(
   }
   const league = resolution.league;
 
-  const crosswalk =
-    options.crosswalkOverride ??
-    (defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk));
+  const crosswalk = await resolveLeagueCrosswalk(league.provider, options.crosswalkOverride, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
 
   const state = options.snapshotOverride
     ? { ok: true, status: 200, code: undefined as string | undefined, detail: undefined as string | undefined, snapshot: options.snapshotOverride }
@@ -308,6 +326,7 @@ export async function buildWeeklyTeamContext(
   // ---- Rest-of-season signal: external (Sleeper) absolute + Roster Intel ORDINAL.
   // Best-effort — weekly analytics run unchanged if RI is unavailable.
   let ros_meta: RosAssemblyResult | null = null;
+  let riSeasonSignal: RiSeasonSignalResult | null = null;
   if ((options.skipRiSeasonSignal ?? false) === false && projections.by_player.size > 0) {
     const riProvider =
       options.riSeasonProviderOverride === null
@@ -321,6 +340,7 @@ export async function buildWeeklyTeamContext(
           warning: "RI season signal threw",
         }))
       : { status: "UNAVAILABLE" as const, model_version: null, by_sleeper_id: new Map(), warning: null };
+    riSeasonSignal = ri as RiSeasonSignalResult;
     ros_meta = assembleRosSignals(projections, ri, week);
     for (const w of ros_meta.warnings) warnings.push({ code: "ros_signal", message: w, severity: "info" });
   }
@@ -332,6 +352,9 @@ export async function buildWeeklyTeamContext(
 
   const byeByPlayer: Record<string, number | null> = {};
   const startersOnBye: string[] = [];
+  // W1.P1: the pre-override source value for schedule-proven byes, so the canonical forecast can keep a bye's underlying value
+  // visible instead of letting the compat zero stand in for it. Read-only bookkeeping; does not touch the production batch.
+  const byeSourcePoints = new Map<string, number | null>();
 
   for (const p of lookup(allRosteredIds)) {
     const t = (p.nfl_team ?? "").toUpperCase();
@@ -341,36 +364,44 @@ export async function buildWeeklyTeamContext(
     byeByPlayer[p.canonical_player_id] = scheduleProvenBye ? week : null;
 
     if (scheduleProvenBye) {
+      byeSourcePoints.set(p.canonical_player_id, projected?.projected_points ?? null);
+      // W1.R1 (P1-4): a bye team is commonly ABSENT from the weekly feed, so there is no weekly row to carry ROS and the bye row used to be
+      // built with `rest_of_season_points: null` — erasing the evidence of the player's asset value. The RI season benchmark is keyed by
+      // player (not by weekly row), so a feed-absent bye player's remaining-season value is read from it with the SAME formula
+      // assembleRosSignals uses for projected rows. No evidence at all stays null (unknown), never a guessed number.
+      const riEntry = riSeasonSignal?.by_canonical_id?.get(p.canonical_player_id) ?? (p.identifiers?.sleeper_id ? riSeasonSignal?.by_sleeper_id.get(p.identifiers.sleeper_id) : null) ?? null;
+      const riRos = rosFromSeasonPoints(riEntry?.external_season_points, week);
+      const holdRos = projected?.rest_of_season_points ?? riRos;
       // A bye is a genuine 0 (the player will not play). Overrides any stale
       // feed entry.
-      projections.by_player.set(p.canonical_player_id, {
-        canonical_player_id: p.canonical_player_id,
-        week,
-        season: league.season,
-        position: p.position,
-        nfl_team: p.nfl_team,
-        opponent: null,
-        is_home: null,
-        projected_points: 0,
-        floor_points: 0,
-        ceiling_points: 0,
-        std_dev: 0,
-        projection_status: "bye",
-        expected_availability: 0,
-        is_bye: true,
-        injury_status: p.injury_status,
-        rest_of_season_points: projected?.rest_of_season_points ?? null,
-        ros: projected?.ros ?? null,
-        source: projections.source,
-        model_version: projections.model_version,
-        uncertainty_source: "none",
-        warnings: ["bye_verified_by_schedule"],
-      });
+      projections.by_player.set(
+        p.canonical_player_id,
+        verifiedByeRow({
+          canonical_player_id: p.canonical_player_id,
+          week,
+          season: league.season,
+          position: p.position,
+          nfl_team: p.nfl_team,
+          injury_status: p.injury_status,
+          rest_of_season_points: holdRos,
+          ros: projected?.ros ?? null,
+          source: projections.source,
+          model_version: projections.model_version,
+          warnings: [
+            "bye_verified_by_schedule",
+            ...(projected == null ? ["bye_player_absent_from_weekly_feed"] : []),
+            ...(projected?.rest_of_season_points == null && riRos != null ? ["bye_hold_ros_from_ri_season_benchmark"] : []),
+          ],
+          band: "ZERO",
+        }),
+      );
       if (roster.starters.includes(p.canonical_player_id)) startersOnBye.push(p.canonical_player_id);
     } else if (!projected || projected.projected_points == null) {
       // No projection AND not a proven bye -> UNKNOWN. Stays null / "unavailable".
       // We do NOT fabricate a 0 just because the team is absent from the feed.
-      if (projected && projected.projection_status !== "unavailable") {
+      // F1 (W1.P2): a source-reported "out" (gp = 0) is source truth and must survive; only a row that claims to be "projected" with no
+      // number is rewritten to "unavailable". Both leave projected_points null (unknown, never 0).
+      if (projected && projected.projection_status !== "unavailable" && projected.projection_status !== "out") {
         projections.by_player.set(p.canonical_player_id, { ...projected, projection_status: "unavailable" });
       }
     }
@@ -388,9 +419,123 @@ export async function buildWeeklyTeamContext(
   // Anything still without a usable projection after bye handling is genuinely
   // unknown — it stays null, never 0.
   const stillMissing = allRosteredIds.filter(
-    (id) => (projections.by_player.get(id)?.projected_points ?? null) == null && projections.by_player.get(id)?.projection_status !== "bye",
+    (id) => (projections.by_player.get(id)?.projected_points ?? null) == null && !isVerifiedBye(projections.by_player.get(id)),
   );
   projections.missing = stillMissing;
+
+  // W1.P1: the canonical weekly player forecast — ONE construction path (lib/weekly/forecast/build.ts). Built from the
+  // production-resolved batch AFTER bye handling, so `expected_points` is exactly what every consumer below already reads.
+  // W1.P4 freshness inputs come from the provider layer that owns the clock, the kickoff source and the invalidation ledger. When absent
+  // (fake providers) freshness is UNKNOWN rather than guessed. Kickoff is an absolute NFL instant per game — never league- or timezone-derived.
+  const fctx = projections.freshness_context ?? null;
+  // W1.R2 (P1-A): the composition instant is read HERE — after the league state, the projection batch and any live fetch it triggered are all in
+  // hand — from the clock of the provider that supplied the evidence. `fctx.now_ms` is when the provider STARTED resolving; a live observation is
+  // stamped when its response arrives, i.e. after it, so using the request start as the composition time made every live-fetch forecast claim to
+  // pre-date its own evidence (and be rejected). Never clamped or adjusted: the ordering observed <= composed now holds by construction.
+  const composedMs = options.nowMs ? options.nowMs() : projProvider.now ? projProvider.now() : fctx?.now_ms ?? null;
+  const gameClock = fctx?.game_clock?.games ?? null;
+  const composeForecasts = () => {
+  const forecasts = buildCanonicalForecastBatch({
+    batch: projections,
+    requested_player_ids: allRosteredIds,
+    players: playerById,
+    bye_source_points: byeSourcePoints,
+    freshness: {
+      now_ms: composedMs,
+      events: fctx?.events ?? [],
+      refresh: fctx?.refresh ?? null,
+      league_slug: league.league_slug,
+      provider: league.provider,
+      kickoffFor: (team) => {
+        const g = gameClock ? gameForTeam(gameClock, team) : null;
+        return { kickoff_at: g?.kickoff_at ?? null, game_id: g?.game_id ?? null };
+      },
+    },
+  });
+  forecasts.identity = buildForecastSetIdentity({
+    league_slug: league.league_slug,
+    provider: league.provider,
+    season: league.season,
+    week,
+    scoring_fingerprint: scoringFingerprint(snap.league.raw_scoring),
+    source_observation: {
+      provider: projections.source_observation?.provider ?? null,
+      observed_at: projections.source_observation?.observed_at ?? projections.canonical_snapshot?.source_observed_at ?? null,
+      observation_id: projections.source_observation?.observation_id ?? null,
+      content_hash: projections.source_observation?.content_hash ?? null,
+    },
+    snapshot_artifact_id: projections.canonical_snapshot?.artifact_id ?? null,
+    read_path: projections.canonical_snapshot?.read_path ?? null,
+    forecast_model_version: forecasts.model_version,
+    composed_at: composedMs == null ? null : new Date(composedMs).toISOString(),
+  });
+  return forecasts;
+  };
+  // The provider forecasts are what the W1 final-pregame calibration capture records (pure provider evidence); W2.R1 qualified values are applied AFTER it.
+  const providerForecasts = composeForecasts();
+  let forecasts = providerForecasts;
+
+  // W1.P4 final pregame capture: league-scoped, rostered players only, best-effort — it never blocks or fails a decision context, but (W1.R2) it is
+  // never silent either: the outcome and per-decision counts are reported on the context, and a failure or rejection becomes a warning.
+  let finalPregameCapture: NonNullable<WeeklyTeamContext["final_pregame_capture"]> = { status: "NO_COMPOSITION_CLOCK", candidates: 0, counts: null, error: null };
+  if (composedMs != null) {
+    let recs: FinalPregameRecord[] = [];
+    try {
+      recs = allRosteredIds
+        .map((id) => providerForecasts.by_player.get(id))
+        .filter((f): f is NonNullable<typeof f> => f != null)
+        .map((f) =>
+          buildFinalPregameRecord({
+            forecast: f,
+            league_slug: league.league_slug,
+            provider: league.provider,
+            scoring_fingerprint: providerForecasts.identity!.scoring_fingerprint,
+            source_observation_id: providerForecasts.identity!.source_observation.observation_id,
+            recorded_at: new Date(composedMs).toISOString(),
+          }),
+        )
+        .filter((r): r is NonNullable<typeof r> => r != null)
+        // W1.R1 (G2): a request composed at/after a player's kickoff can read the frozen record but never propose one. W1.R2: nor can evidence
+        // OBSERVED at/after kickoff (a fetch that began before kickoff but completed after it is not pregame evidence). The store enforces both.
+        .filter((r) => composedMs < Date.parse(r.kickoff_at) && Date.parse(r.source_observed_at) < Date.parse(r.kickoff_at));
+      if (recs.length === 0) {
+        finalPregameCapture = { status: "NOTHING_TO_CAPTURE", candidates: 0, counts: null, error: null };
+      } else {
+        const fpStore = options.finalPregameStoreOverride ?? getFinalPregameStore();
+        const counts = await fpStore.upsertMany(recs);
+        const nonZero = Object.fromEntries(Object.entries(counts).filter(([, v]) => v > 0)) as Partial<typeof counts>;
+        // a store that persists nothing (Supabase not configured) is not a capture (re-audit A-2)
+        finalPregameCapture = { status: fpStore.kind === "none" ? "STORE_NOT_CONFIGURED" : "CAPTURED", candidates: recs.length, counts: nonZero, error: null };
+        const rejected = Object.entries(nonZero).filter(([k]) => k.startsWith("REJECTED_")).reduce((n, [, v]) => n + (v ?? 0), 0);
+        if (rejected > 0) {
+          warnings.push({ code: "final_pregame_capture_rejected", message: `Final-pregame capture rejected ${rejected} of ${recs.length} candidate forecast(s): ${JSON.stringify(nonZero)}.`, severity: "info" });
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      finalPregameCapture = { status: "FAILED", candidates: recs.length, counts: null, error: message };
+      // the store's own errors carry method/table/status/code only (never the request body or credentials)
+      warnings.push({ code: "final_pregame_capture_failed", message: `Final-pregame capture failed (calibration evidence not persisted): ${message}`, severity: "warning" });
+      console.warn(JSON.stringify({ event: "final_pregame_capture_failed", league_slug: league.league_slug, week, candidates: recs.length, error: message }));
+    }
+  }
+
+  // W2.R1 current-intelligence hook: qualified D/ST component values (exact league scoring, frozen pregame capture) replace the generic D/ST projection for the
+  // CURRENT week only; every other component keeps its inherited value. Unqualified leagues / missing capture / byes leave the batch untouched (reported, never silent).
+  const dstPlan = options.w2r1DstPlanOverride ?? (await planQualifiedDst({ leagueSlug: league.league_slug, week }));
+  const dstReplaced: NonNullable<WeeklyTeamContext["w2r1"]>["dst"]["replaced"] = [];
+  if (dstPlan.capture_week != null) {
+    for (const [id, row] of projections.by_player) {
+      const p = projections.resolved_players.get(id) ?? playerById.get(id);
+      if (!p || p.position !== "DEF" || !p.nfl_team || row.is_bye) continue;
+      const v = dstPlan.forTeam(p.nfl_team); if (!v) continue;
+      projections.by_player.set(id, { ...row, projected_points: v.points, floor_points: v.floor, ceiling_points: v.ceiling, std_dev: v.sd, projection_status: "projected", expected_availability: 1, uncertainty_source: "source_distribution", source: "w2r1_dst_component_model", model_version: dstPlan.model_version,
+        warnings: [...row.warnings, "w2r1_dst_component_model_qualified", `w2r1_dst_replaced_provider_value:${row.projected_points ?? "null"}`] });
+      dstReplaced.push({ canonical_player_id: id, team: p.nfl_team, provider_value: row.projected_points, w2r1_value: v.points });
+    }
+    if (dstReplaced.length > 0) forecasts = composeForecasts();
+  } else if (dstPlan.state === "QUALIFIED_SHADOW" && dstPlan.reason) warnings.push({ code: "w2r1_dst_capture_missing", message: `W2.R1 D/ST component capture unavailable: ${dstPlan.reason}`, severity: "info" });
+  const w2r1Meta: NonNullable<WeeklyTeamContext["w2r1"]> = { dst: { state: dstPlan.state, applied: dstReplaced.length, capture_week: dstPlan.capture_week, reason: dstPlan.reason, replaced: dstReplaced } };
 
   // Availability — candidate universe is every player projected this week + rostered.
   const candidates: CanonicalPlayer[] = uniq([
@@ -422,6 +567,7 @@ export async function buildWeeklyTeamContext(
   const capabilityReport = assessCapabilities(snap);
   const ownershipCapability = capabilityReport.capabilities.ownership;
 
+  let marketPoolSummary: import("./schema").MarketPoolSummary | undefined;
   let free_agent_pool_readiness: FreeAgentPoolReadiness = assessFreeAgentPoolReadiness(snap);
   let market_readiness: WeeklyReadinessContract["market"] = {
     status: free_agent_pool_readiness.actionable ? "READY" : "NOT_READY",
@@ -449,9 +595,11 @@ export async function buildWeeklyTeamContext(
         reasons: certified.market_readiness.reasons.map((r) => `${r.code}: ${r.detail}`),
         blocking_reasons: [...certified.market_readiness.blocks],
         limitations: [...certified.market_readiness.limitations],
+        ...(certified.summary ? { axes: certified.summary.axes } : certified.market_readiness.axes ? { axes: certified.market_readiness.axes } : {}),
       };
       if (certified.free_agent_pool_readiness.actionable) {
-        availability = { ...availability, free_agents: certified.free_agents };
+        availability = { ...availability, free_agents: certified.free_agents, ...(certified.players ? { players: certified.players } : {}) };
+        if (certified.summary) marketPoolSummary = { ...certified.summary, manager: managerAcquisitionContext(market, team.canonical_team_id), scoring: scoringCompatibility(snap.league.scoring_fingerprint ?? null, projections.warnings.map((w) => w.code)) };
       }
     } catch (e) {
       // Fail closed exactly as the pre-Phase-4.5 legacy gate did: a Market
@@ -509,7 +657,7 @@ export async function buildWeeklyTeamContext(
   };
 
   const rosterProjected = roster.all_players.filter(
-    (id) => projections.by_player.get(id)?.projected_points != null || projections.by_player.get(id)?.projection_status === "bye",
+    (id) => projections.by_player.get(id)?.projected_points != null || isVerifiedBye(projections.by_player.get(id)),
   ).length;
 
   // Phase 4: orthogonal readiness axes. Never derive market availability from
@@ -590,7 +738,12 @@ export async function buildWeeklyTeamContext(
     generated_at: new Date().toISOString(),
     lineage: buildRecommendationLineage(
       snapLineage,
-      { weekly_engine: WEEKLY_ENGINE_VERSION },
+      {
+        weekly_engine: WEEKLY_ENGINE_VERSION,
+        canonical_weekly_forecast: forecasts.model_version,
+        freshness_policy: FRESHNESS_POLICY_VERSION,
+        ...(forecasts.identity ? { projection_forecast_identity: forecasts.identity.identity_id } : {}),
+      },
       projectionLineage,
     ),
     league: {
@@ -623,6 +776,10 @@ export async function buildWeeklyTeamContext(
         }
       : null,
     projections,
+    forecasts,
+    final_pregame_capture: finalPregameCapture,
+    w2r1: w2r1Meta,
+    ...(marketPoolSummary ? { market_pool: marketPoolSummary } : {}),
     replacement,
     availability,
     // Authoritative capability gate for every downstream waiver / pickup surface.

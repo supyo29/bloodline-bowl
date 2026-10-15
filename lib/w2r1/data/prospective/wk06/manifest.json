@@ -1,0 +1,14 @@
+{
+ "schema": "w2r1-prospective-capture-1",
+ "season": 2026,
+ "week": 6,
+ "frozen_at": "2026-10-14T20:05:52.597Z",
+ "first_kickoff_at": "2026-10-16T00:15:00Z",
+ "status": "FROZEN_PREGAME",
+ "files": {
+  "kdst_components.json": "37af8012406986c65d14ebf7de9cd2fd34850f3018c248a7cc44b97895c5782b",
+  "qualification.json": "d416db0ec23a319ed83ebd4ffa72f72f9661121e2f96729ac506def174b2b544",
+  "upside.json": "b5b68c1af51e6d189fffa65086ad44e572071f9d5046356ec79da40f1314562d"
+ },
+ "note": "belief frozen before kickoff; never rewrite; grade outcomes only afterwards"
+}

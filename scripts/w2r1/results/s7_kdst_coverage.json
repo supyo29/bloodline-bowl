@@ -1,0 +1,61 @@
+{
+  "rule": {
+    "material_mean_abs_pts_per_team_game": 0.05,
+    "immaterial_total_cap": 0.1,
+    "end_to_end_cap": 0.25
+  },
+  "bloodline-bowl": {
+    "provider": "sleeper",
+    "n_team_games_checked": 496,
+    "end_to_end_mean_abs_pts_error": 0.1034,
+    "end_to_end_bias": -0.0597,
+    "unreconstructable_keys_mean_abs_pts": {
+      "blk_kick_ret_yd": 0.01266,
+      "fg_ret_yd": 0.00306
+    },
+    "unreconstructable_total": 0.0157,
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL"
+  },
+  "devoted-to-the-game": {
+    "provider": "sleeper",
+    "n_team_games_checked": 496,
+    "end_to_end_mean_abs_pts_error": 0.0363,
+    "end_to_end_bias": 0,
+    "unreconstructable_keys_mean_abs_pts": {
+      "blk_kick_ret_yd": 0,
+      "fg_ret_yd": 0
+    },
+    "unreconstructable_total": 0,
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL"
+  },
+  "sportys-alumni": {
+    "provider": "sleeper",
+    "n_team_games_checked": 496,
+    "end_to_end_mean_abs_pts_error": 0.0363,
+    "end_to_end_bias": 0,
+    "unreconstructable_keys_mean_abs_pts": {
+      "blk_kick_ret_yd": 0,
+      "fg_ret_yd": 0
+    },
+    "unreconstructable_total": 0,
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL"
+  },
+  "maclin-on-chicks-xvi": {
+    "provider": "yahoo",
+    "n_team_games_checked": 512,
+    "end_to_end_mean_abs_pts_error": 0.0391,
+    "end_to_end_bias": -0.0312,
+    "unreconstructable_keys_mean_abs_pts": [],
+    "unreconstructable_total": 0,
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL"
+  },
+  "rogers-park": {
+    "provider": "yahoo",
+    "n_team_games_checked": 512,
+    "end_to_end_mean_abs_pts_error": 0.0332,
+    "end_to_end_bias": -0.0254,
+    "unreconstructable_keys_mean_abs_pts": [],
+    "unreconstructable_total": 0,
+    "status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL"
+  }
+}

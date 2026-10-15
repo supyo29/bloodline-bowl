@@ -11,6 +11,7 @@ import { scoreWeeklyLine, NON_SCORING_KEY } from "@/lib/weekly/scoring";
 import { getStatsProvider } from "@/lib/stats/provider";
 import { getWeeklyStats } from "@/lib/sleeper/client";
 import type { PlayerStatLine } from "@/lib/stats/types";
+import { sleeperIdFromCanonicalId } from "@/lib/canonical/team-defense";
 
 export type ActualPointsBasis = "LEAGUE_RESCORED" | "PROVIDER_STANDARD_POINTS_KDST" | "REAL_ZERO_NO_STATS" | "UNAVAILABLE";
 export interface ActualPoints { basis: ActualPointsBasis; points: number | null; warnings: string[] }
@@ -51,8 +52,8 @@ export function actualPointsFor(position: string, cleanStats: Record<string, num
 
 /** Extracts the Sleeper player id from a `player:sleeper:<id>` canonical id. Any other identity scheme returns null (never guessed). */
 export function sleeperIdFromCanonical(canonicalPlayerId: string): string | null {
-  const m = /^player:sleeper:(.+)$/.exec(canonicalPlayerId);
-  return m ? m[1]! : null;
+  // W1.R1: a team defense (`defense:nfl:<team>`) is keyed in Sleeper stat tables by its team code
+  return sleeperIdFromCanonicalId(canonicalPlayerId);
 }
 
 export interface WeekActuals { clean: ReadonlyMap<string, Record<string, number>>; raw: ReadonlyMap<string, Record<string, number>> }

@@ -16,6 +16,8 @@ import type { RawRoster, RawTransaction } from "@/lib/sleeper/types";
 import type { SourceReport } from "./contract";
 import { buildMarketSnapshot, type MarketBuildInput, type RosterInput, type ScheduleGameInput, type TransactionInput } from "./build";
 import type { UniversePlayer } from "./classify";
+import { fetchNflSchedule } from "./schedule";
+import { loadYahooMarketSnapshot } from "./yahoo-load";
 import type { MarketSnapshot } from "./contract";
 
 export const MARKET_MEMO_TTL_MS = 30_000;
@@ -35,13 +37,17 @@ export interface MarketFetchers {
 }
 const defaultFetchers: MarketFetchers = {
   league: getLeague, rosters: getLeagueRostersFresh, transactions: getLeagueTransactions, players: getPlayerIndex, playerAge: () => getPlayerCacheStatus().age_seconds,
-  schedule: async (season) => { const g = await fetchSleeper<ScheduleGameInput[]>(`/schedule/nfl/regular/${season}`, { baseUrl: SLEEPER_ROOT_URL, noStore: true, timeoutMs: 2000 }); if (!Array.isArray(g)) throw new Error("schedule shape"); return g; },
+  schedule: fetchNflSchedule,
 };
 
 const memo = new Map<string, { at: number; p: Promise<MarketSnapshot> }>();
 export const __clearMarketMemo = (): void => memo.clear();
 
 export function loadMarketSnapshot(leagueSlug: string, opts: LoadMarketOptions, fetchers: MarketFetchers = defaultFetchers): Promise<MarketSnapshot> {
+  // Provider dispatch: a registered Yahoo league is served by the Yahoo Market State loader (provider-evidence availability); everything else keeps the Sleeper path.
+  if (fetchers === defaultFetchers && findLeagueTarget(leagueSlug)?.provider === "yahoo") {
+    return loadYahooMarketSnapshot(leagueSlug, { week: opts.week, scoring_fingerprint: opts.scoring_fingerprint ?? null, source_snapshot_id: opts.source_snapshot_id ?? null, now: opts.now, noMemo: opts.noMemo });
+  }
   const nowMs = (opts.now ?? (() => new Date()))().getTime(); const key = `${leagueSlug}:${opts.week}`;
   const hit = memo.get(key);
   if (!opts.noMemo && hit && nowMs - hit.at < MARKET_MEMO_TTL_MS) return hit.p;

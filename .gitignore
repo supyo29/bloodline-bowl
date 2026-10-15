@@ -32,3 +32,4 @@ lib/projections/data/rookie-draft-2026.json
 /analysis/player_role/cache
 
 /analysis/opportunity_propagation/cache
+scripts/w2r1/cache/

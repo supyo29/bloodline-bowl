@@ -1,0 +1,59 @@
+{
+  "g3_prereg_version": "w2p2-g3-prereg-1",
+  "status": "RECONSTRUCTED — NOT a previously frozen specification",
+  "why_reconstructed": "No W2.P2 specification or handoff document exists in the repository, on any branch, in any local worktree, in git history/dangling objects, in any Claude session transcript on this machine, or in production Supabase (recovery inventory: docs/DECISION_MODEL_CONVERGENCE_W2_P2_GATE_CERTIFICATION.md section A). The closest authoritative source is docs/DECISION_MODEL_CONVERGENCE_W2_P1_ROLE_OPPORTUNITY.md section 20 plus the frozen offline thresholds in scripts/w2p1/prereg.json. Every value below is labeled with its provenance.",
+  "provenance_labels": {
+    "VERIFIED": "taken verbatim from an existing W2.P1 document or frozen file (source cited)",
+    "INFERRED": "follows from the architecture / from VERIFIED items by a stated, mechanical generalization",
+    "PROPOSED": "a new safeguard that requires human review before the decision it governs is relied on"
+  },
+  "frozen_before": "any prospective outcome existing: at the commit that adds this file the production store holds 0 LIVE_CAPTURED rows (the migration is not applied and ROLE_SHADOW_CAPTURE is off)",
+  "challenger_model_id": "role-opportunity-challenger-2026.0",
+  "unit_of_evidence": {
+    "value": "one decision per (gsis player, season, week, scoring fingerprint): the LATEST LIVE_CAPTURED, population-eligible record (greatest captured_at, then capture_id)",
+    "provenance": "PROPOSED",
+    "note": "Repeated captures of one decision window are correlated snapshots, never independent decisions (same principle as the Matchup 2.0 evidence gate). 'Latest valid pre-kickoff' mirrors the W1.R1 final-pregame rule (final = latest valid revision). The rule is outcome-blind."
+  },
+  "populations": {
+    "eligible": { "value": "LIVE_CAPTURED; QB/RB/WR/TE; scoring compatible with the frozen HALF fit on every modeled rule; conditional-on-active points >= 3.0; not a bye / no-game week; Role identity join proven; champion baseline present", "provenance": "INFERRED", "source": "scripts/w2p1/prereg.json population (relevance floor 3.0, bye exclusion, K/DST not applicable) + the spec statement that other scorings require their own frozen fit" },
+    "headline": { "value": "eligible AND not known-unavailable (OUT / IR / SUS)", "provenance": "VERIFIED", "source": "prereg.json population.headline_designations (OUT evaluated only to prove the contribution is exactly 0)" },
+    "covered": { "value": "headline-eligible AND every frozen Role feature present AND Role confidence != INSUFFICIENT_SAMPLE (all three arms share this gate)", "provenance": "INFERRED", "source": "harness `covered` + the brief's 'identical eligibility rules across control and challenger'" },
+    "tiers": { "value": "STARTER >= 12, FLEX 6 to < 12, FRINGE 3 to < 6 conditional-on-active points", "provenance": "VERIFIED", "source": "prereg.json population.tiers_by_B0p (applied to the real conditional-active baseline)" }
+  },
+  "outcomes": {
+    "source": "bridge_calibration_cases_current (Projection Calibration Phase 1 ledger): actual_fantasy_points in the league's own scoring",
+    "accepted": "evidence_status = CERTIFIED (LEAGUE_EXACT scoring) and a numeric actual; a DID_NOT_PLAY / INACTIVE row with a null actual scores 0 (a DNP is an outcome, not an exclusion — flagged and counted); every other state is excluded and counted as OUTCOME_NOT_EVALUABLE",
+    "provenance": "INFERRED",
+    "source": "prereg.json population.actual ('a player with no stat line scores 0')"
+  },
+  "sufficiency": {
+    "S1_min_completed_weeks_with_outcomes": { "value": 6, "provenance": "VERIFIED", "source": "W2.P1 report section 20: 'rerun this exact pre-registered protocol on >= 6 real completed weeks with the real source baseline'" },
+    "S2_min_covered_decisions_with_outcomes": { "value": { "QB": 120, "RB": 300, "WR": 300, "TE": 300 }, "provenance": "VERIFIED", "source": "prereg.json T1 (covered FINAL rows >= 300 RB/WR/TE, >= 120 QB), carried forward unchanged" },
+    "S2_min_coverage_fraction": { "value": 0.7, "provenance": "VERIFIED", "source": "prereg.json T1 (covered >= 70% of eligible)" },
+    "rule": "a position below S1 or S2 is reported G3_INSUFFICIENT_PROSPECTIVE_EVIDENCE (a valid scientific outcome, not a failure); no gate is evaluated for it"
+  },
+  "gates": {
+    "Q1_champion_vs_challenger": { "min_dMAE": 0.05, "ci_lower_gt": 0, "ci": "95% cluster bootstrap over team-weeks, 2000 reps, seed 20250914", "provenance": "VERIFIED", "source": "prereg.json T2" },
+    "Q2_control_vs_challenger": { "min_dMAE": 0.03, "ci_lower_gt": 0, "provenance": "VERIFIED (thresholds) / INFERRED (contrast)", "source": "prereg.json T2b; the contrast is the frozen Role-free control C0 versus the frozen SHADOW challenger spec", "caveat": "The challenger spec deliberately drops the intercept and baseline term while C0 contains them, so this contrast mixes the Role effect with C0's baseline-drift term. The diagnostic C2_FULL-vs-C0 contrast (the offline T2b definition) is reported alongside and is never a gate." },
+    "Q3_rmse": { "max_rmse_excess": 0.02, "provenance": "VERIFIED", "source": "prereg.json T3" },
+    "Q4_relative_bias": { "max_abs_bias_excess_over_champion": 0.15, "provenance": "VERIFIED (0.15) / PROPOSED (drop of the absolute 0.5 bound)", "source": "prereg.json T4 + W2.P1 section 20 ('re-specified ... relative bias'): the absolute bound measured the source's own bias, which no Role feature can fix, and failed for the champion and the control offline" },
+    "Q5_week_consistency": { "min_fraction_of_weeks_positive": 0.75, "provenance": "INFERRED", "source": "prereg.json T5 ('3 of the 4 FINAL weeks') generalized to the number of evaluated weeks; the VAL clause has no prospective analogue and is dropped" },
+    "Q6_decisions": { "min_decided_pairs": 100, "max_p_one_sided": 0.1, "second_wins_ge_first_wins": true, "below_min_is": "INSUFFICIENT_EVIDENCE (not FAIL)", "provenance": "VERIFIED (numbers) / PROPOSED (insufficient-not-fail handling)", "source": "prereg.json T6 + W2.P1 section 20 ('adequate pair counts')" },
+    "Q7_tiers": { "min_tier_n": 100, "min_tier_dMAE": -0.1, "provenance": "VERIFIED", "source": "prereg.json T7" },
+    "Q8_injury_and_cap": { "min_questionable_doubtful_dMAE": -0.05, "out_delta_exactly_zero": true, "max_cap_hit_rate": 0.1, "provenance": "VERIFIED", "source": "prereg.json T8" },
+    "Q9_leakage": { "all_records_pass_point_in_time": true, "permutation": { "shuffles": 20, "max_dMAE": 0.02, "scope": "Role feature vectors shuffled among headline rows within (week, position); seeded" }, "provenance": "VERIFIED (0.02) / PROPOSED (design)", "source": "prereg.json T9 + W2.P1 section 16 (the offline permutation control was mis-specified); the oracle control has no prospective analogue because every input is stored pre-kickoff" },
+    "Q10_robustness_std_ppr": { "status": "NOT_EVALUABLE_PROSPECTIVELY", "provenance": "INFERRED", "reason": "needs STD and PPR leagues scored with their own frozen fits; every registered league other than the Bloodline Bowl template is PPR with a -1 interception rule, i.e. not on the frozen fit. Reported as NOT_EVALUABLE, never as a pass." }
+  },
+  "look_policy": {
+    "interim": "any evaluation before sufficiency is DESCRIPTIVE_INTERIM: it reports estimates but evaluates no gate and may not be cited as qualification evidence",
+    "decision": "the first evaluation after S1 and S2 are met for a model config hash is the DECISION look; its report is logged and a second DECISION look for the same config hash is refused by the CLI unless explicitly acknowledged and then labeled REPEATED_LOOK",
+    "no_tuning": "the challenger and control may not be altered after any look; an altered candidate is a NEW model id and must be scored on weeks captured after its own freeze",
+    "provenance": "PROPOSED"
+  },
+  "verdicts": {
+    "G3_INSUFFICIENT_PROSPECTIVE_EVIDENCE": "sufficiency not met",
+    "G3_FAIL": "sufficiency met and at least one evaluable gate failed",
+    "G3_QUALIFIED_FOR_HUMAN_REVIEW": "sufficiency met and every evaluable gate passed; Q10 remains NOT_EVALUABLE; NEVER an automatic promotion",
+    "auto_promotion": false
+  }
+}

@@ -135,11 +135,54 @@ export interface WeeklyProjectionBatch {
    * values/source/model_version remain the model's own semantics.
    */
   canonical_snapshot?: {
-    read_path: "SUPABASE_HIT" | "LIVE_FALLBACK" | "LIVE_REFRESH" | "LIVE_BYPASS";
+    read_path:
+      | "SUPABASE_HIT"
+      | "LIVE_FALLBACK"
+      | "LIVE_REFRESH"
+      | "LIVE_BYPASS"
+      /** W1.P4: refresh failed; the last known snapshot is served and MUST be treated as stale */
+      | "SUPABASE_STALE_FALLBACK"
+      /** W1.P4: the same logical request already resolved this batch (request-scoped consistency) */
+      | "REQUEST_MEMO";
     artifact_id: string | null;
+    /** when this snapshot's pointer was last advanced (snapshot-creation/confirmation time — NOT source observation time) */
     observed_at: string | null;
     age_ms: number | null;
     durable: boolean;
+    /** W1.P4: when BLOODLINE observed the upstream source state this snapshot was built from. null = unknown (legacy pointer). */
+    source_observed_at?: string | null;
+  };
+
+  /**
+   * W1.P4 source observation identity (league-INDEPENDENT): one upstream fetch, shared by every league that rescored it.
+   * `observed_at` is Bloodline's fetch instant (oldest segment), never a snapshot time.
+   */
+  source_observation?: {
+    provider: string;
+    observed_at: string | null;
+    observation_id: string | null;
+    content_hash: string | null;
+    fetch_path: "LIVE_FETCH" | "PROCESS_CACHE" | "MIXED" | "SNAPSHOT";
+    by_segment?: Record<string, string>;
+  };
+
+  /**
+   * W1.P4 inputs the freshness authority needs, attached by the provider layer that owns the clock and the kickoff source.
+   * Absent (tests, fake providers) => freshness is computed as UNKNOWN rather than guessed.
+   */
+  freshness_context?: {
+    /**
+     * The instant the provider STARTED resolving this batch (batch freshness policy, kickoff tier, events in horizon). It is NOT the forecast's
+     * composition time: a live fetch completes — and its source observation is stamped — after it (W1.R2 / P1-A). Composition reads the
+     * provider clock when the forecast is actually composed.
+     */
+    now_ms: number | null;
+    /** W1.R2: explicit alias of `now_ms` (request start), so request time and composition time are never confused again. */
+    request_started_ms?: number | null;
+    game_clock: { games: Array<{ game_id: string; home_team: string; away_team: string; kickoff_at: string | null; status: string }>; source: string } | null;
+    events: import("./freshness/events").InvalidationEvent[];
+    refresh: import("./freshness/policy").RefreshOutcome | null;
+    batch_policy: { tier: string; required_max_age_ms: number } | null;
   };
 }
 
@@ -194,6 +237,60 @@ export interface AvailablePlayer {
   owned_by_team_id: string | null;
   /** Present only when identity could NOT be resolved to a stable id. */
   unresolved_note: string | null;
+  /**
+   * Present only for a player certified by PROVIDER evidence (Yahoo FA / W): how he can be acquired. `FREE_AGENT_ADD` = addable now,
+   * `WAIVER_CLAIM` = claim-only. Absent on Sleeper, whose availability is inferred.
+   */
+  acquisition?: { method: "FREE_AGENT_ADD" | "WAIVER_CLAIM"; provider_status: string; waiver_clears_on: string | null };
+}
+
+/**
+ * Readiness AXES, structurally identical to the Market State substrate's (kept local so the weekly schema never imports the substrate: only the one
+ * adapter does — see the production-isolation test).
+ */
+export type WeeklyAxisStatus = "READY" | "PARTIAL" | "NOT_READY" | "UNKNOWN";
+export interface WeeklyReadinessAxes { availability: WeeklyAxisStatus; valuation: WeeklyAxisStatus; transaction: WeeklyAxisStatus; recommendation: WeeklyAxisStatus }
+export interface WeeklyManagerAcquisition {
+  team_id: string; system: string; faab_remaining: number | null; waiver_priority: number | null; roster_size: number; roster_limit: number | null;
+  open_roster_slots: number | null; requires_drop: boolean | null; waiver_clear_days: number | null; status: string;
+}
+
+/** Structured evidence of the verified acquirable pool, exposed on the context and every waiver response (clients never parse prose). */
+export interface MarketPoolSummary {
+  provider: string;
+  /** PROVIDER_STATUS = the provider states each player's availability (Yahoo); INFERRED = derived from rosters + transactions (Sleeper). */
+  basis: "PROVIDER_STATUS" | "INFERRED";
+  market_content_id: string;
+  pool_id: string;
+  observed_at: string | null;
+  age_ms: number | null;
+  freshness: "FRESH" | "STALE" | "UNKNOWN";
+  verified_free_agents: number;
+  verified_waivers: number;
+  unknown_availability: number;
+  rostered: number;
+  /** verified acquirable players that have a weekly projection and are evaluated by the waiver engine */
+  evaluated_with_projection: number;
+  /** verified acquirable players with a resolved identity but NO projection: still in the pool, valuation unknown (never dropped as unavailable) */
+  verified_without_projection: number;
+  /** verified acquirable players with no canonical identity: availability verified, cannot be valued until identity resolves */
+  verified_identity_unresolved: number;
+  by_position: Record<string, { free_agents: number; waivers: number; with_projection: number }>;
+  axes: WeeklyReadinessAxes;
+  rules: { system: string; waiver_type: string | null; waiver_rule: string | null; waiver_time_days: number | null; add_limits: { season: number | null; weekly: number | null } | null };
+  pending_claims: { status: string; reason: string };
+  game_lock_semantics: string | null;
+  pool_evidence: Record<string, { returned: number; complete: boolean; pages_fetched: number; stopped_reason: string }> | null;
+  limitations: string[];
+  /** names of up to 25 verified acquirable players with NO weekly projection (still in the pool; valuation unknown) */
+  verified_without_projection_sample?: string[];
+  /**
+   * Scoring compatibility for the valuation of this pool: the league's exact scoring fingerprint, and an honest statement of how K / D-ST WEEKLY points are
+   * produced (the provider feed's standard precomputed points, NOT re-scored with the league's rules). Availability is unaffected by this limitation.
+   */
+  scoring?: { fingerprint: string | null; k_dst_weekly_projection: "APPROXIMATED_FROM_PROVIDER_STANDARD_POINTS" | "NOT_FLAGGED"; note: string };
+  /** This manager's acquisition context from the market (FAAB remaining / waiver priority / roster room); null when the team is not in the market's roster read. */
+  manager?: WeeklyManagerAcquisition | null;
 }
 
 export interface LeagueAvailability {
@@ -289,6 +386,8 @@ export interface WeeklyReadinessContract {
     reasons: string[];
     blocking_reasons: string[];
     limitations: string[];
+    /** Separate readiness axes (provider-evidence markets): availability / valuation / transaction / recommendation. */
+    axes?: WeeklyReadinessAxes;
   };
   weekly_projections: {
     status: "READY" | "PARTIAL" | "UNAVAILABLE";
@@ -355,8 +454,28 @@ export interface WeeklyTeamContext {
   } | null;
 
   projections: WeeklyProjectionBatch;
+  /**
+   * W1.P1 canonical weekly player forecast: the authoritative, provenance-carrying representation of each player's
+   * week. Additive and numerically identical to `projections` for `expected_points` (golden-tested). New decision code
+   * should read this; reading `projections` directly is the legacy path (see the architecture ratchet test).
+   */
+  forecasts?: import("./forecast/schema").CanonicalWeeklyForecastBatch;
+  /**
+   * W1.R2: the outcome of the final-pregame capture for this context — never silent. A store failure does not fail the analysis, but it is
+   * reported here (and as a context warning), with the per-decision counts (RECORDED / CONFIRMED / REJECTED_*).
+   */
+  /** W2.R1 current-intelligence metadata for this context (qualified D/ST application; per-component qualification lives in lib/w2r1/qualification.ts). */
+  w2r1?: { dst: { state: string; applied: number; capture_week: number | null; reason: string | null; replaced: Array<{ canonical_player_id: string; team: string; provider_value: number | null; w2r1_value: number }> } };
+  final_pregame_capture?: {
+    status: "CAPTURED" | "NOTHING_TO_CAPTURE" | "NO_COMPOSITION_CLOCK" | "STORE_NOT_CONFIGURED" | "FAILED";
+    candidates: number;
+    counts: Partial<Record<import("./freshness/final-pregame").FinalPregameWrite, number>> | null;
+    error: string | null;
+  };
   replacement: WeeklyReplacement;
   availability: LeagueAvailability;
+  /** Structured evidence of the certified acquirable pool (present when Market State enrichment ran and the pool was actionable). */
+  market_pool?: MarketPoolSummary;
 
   /**
    * Authoritative readiness of the league free-agent / waiver pool, derived from

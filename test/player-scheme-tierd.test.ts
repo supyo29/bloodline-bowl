@@ -17,7 +17,8 @@ import {
   buildMatchupAlignment,
 } from "@/lib/player-scheme-intelligence";
 
-const OUT = join(process.cwd(), "outputs", "player-scheme-intelligence-2026");
+/* tracked build-certification reports (were read from the gitignored outputs/ dir, so they only passed where the R build had been run) — see lib/player-scheme-intelligence/certification/README.md */
+const OUT = join(process.cwd(), "lib", "player-scheme-intelligence", "certification");
 const VALID = new Set(["PREDICTIVE_INCREMENTAL", "EXPLANATORY_ONLY", "UNSTABLE", "REJECTED", "INSUFFICIENT_DATA"]);
 
 test("tierD: manifest lists tier D as SHADOW_ONLY with the hard zero invariant", () => {

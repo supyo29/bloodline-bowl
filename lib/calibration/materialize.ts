@@ -17,6 +17,8 @@ import { scoringExactness } from "./outcome";
 import { readCaseHeads, writeCases, writeFootballOutcomes, writeGames, type WriteCounts } from "./store";
 import type { WeatherSnapshotRow } from "./weather";
 import type { NflGame, ProjectionCandidate } from "./types";
+import { sleeperIdFromCanonicalId } from "@/lib/canonical/team-defense";
+import { candidateFromFinalPregame, finalRevisionPerPlayer, identityFromFinalPregame, readFinalPregamePointers, readFinalPregameRevisions } from "./final-pregame-evidence";
 
 interface SnapshotMeta { artifact_id: string; content_hash: string; league_slug: string; scoring_fingerprint: string; request_fingerprint: string; source: string; model_version: string; recorded_at: string; warnings: string[] }
 interface SnapshotPlayer { canonical_player_id: string; projection: Record<string, unknown>; resolved_player: Record<string, unknown> | null }
@@ -152,11 +154,22 @@ export async function materializeCalibrationWeek(args: MaterializeArgs): Promise
         push(league.league_slug, p.canonical_player_id, candidateFromSnapshotRow(meta, p, league.raw_scoring));
       }
     }
+    // W1.R1 (G3): the FINAL canonical forecasts users actually received (immutable revisions), scored under THIS league's scoring
+    // W1.R2: the ledger grades exactly the revision the store's final POINTER names (DB-guarded, carries confirmations); only a player with no
+    // pointer falls back to the deterministic `selectFinalRevision`. One authority — the ledger and the store cannot disagree.
+    const pointers = await readFinalPregamePointers(rest, league.league_slug, args.season, args.week).catch(() => new Map<string, string>());
+    for (const rev of finalRevisionPerPlayer(await readFinalPregameRevisions(rest, league.league_slug, args.season, args.week).catch(() => []), pointers)) {
+      const cand = candidateFromFinalPregame(rev, league.raw_scoring);
+      if (!cand) continue;
+      if (!snapshotIdentities.has(rev.canonical_player_id)) snapshotIdentities.set(rev.canonical_player_id, identityFromFinalPregame(rev));
+      push(league.league_slug, rev.canonical_player_id, cand);
+      artifactsRead[`${league.league_slug}:final_pregame`] = (artifactsRead[`${league.league_slug}:final_pregame`] ?? 0) + 1;
+    }
     const caps = (await readStartSitCaptures(rest, args.season, args.week)).filter((r) => r.league_slug === league.league_slug) as unknown as Array<Parameters<typeof candidatesFromCapture>[0]>;
     capturesRead += caps.length;
     for (const cap of caps) for (const { canonical, c } of candidatesFromCapture(cap, league.raw_scoring)) {
       push(league.league_slug, canonical, c);
-      if (!captureIdentities.has(canonical)) captureIdentities.set(canonical, { canonical_player_id: canonical, sleeper_id: /^player:sleeper:(.+)$/.exec(canonical)?.[1]?.toUpperCase() ?? null, provider_ids: {}, name: null, position: c.position, nfl_team: c.nfl_team, resolved: true });
+      if (!captureIdentities.has(canonical)) captureIdentities.set(canonical, { canonical_player_id: canonical, sleeper_id: sleeperIdFromCanonicalId(canonical)?.toUpperCase() ?? null, provider_ids: {}, name: null, position: c.position, nfl_team: c.nfl_team, resolved: true });
     }
   }
 

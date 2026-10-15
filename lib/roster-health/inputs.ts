@@ -11,6 +11,7 @@
  * `computeWeeklyReplacement`) — no second projection or replacement model.
  */
 
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 import { buildCanonicalLeagueState } from "@/lib/canonical/state";
 import { resolveLeagueStrict } from "@/lib/leagues/resolve";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
@@ -21,6 +22,8 @@ import { RosterIntelSeasonSignalProvider } from "@/lib/weekly/projections-ri";
 import { assembleRosSignals } from "@/lib/weekly/ros";
 import { buildLeagueAvailability } from "@/lib/weekly/availability";
 import { computeWeeklyReplacement, DEFAULT_FRONTIER } from "@/lib/weekly/replacement";
+import { buildCanonicalForecastBatch } from "@/lib/weekly/forecast/build";
+import type { CanonicalWeeklyForecastBatch } from "@/lib/weekly/forecast/schema";
 import { isFlexSlot, FLEX_ELIGIBILITY } from "@/lib/weekly/slots";
 import type {
   CanonicalLeagueSnapshot,
@@ -48,6 +51,14 @@ export interface RosterHealthInputs {
   rosters: CanonicalRoster[];
   /** weekly projection batch — `wp.projected_points` weekly, `wp.ros.points` ROS. */
   weekly: WeeklyProjectionBatch;
+  /**
+   * W1.P2 / F5: canonical weekly forecasts for the same players, built by the single builder. Roster-health's own values stay on
+   * the SOURCE basis (`weekly`): they are compared against a source-based replacement pool and a ROS horizon, so injury-adjusting
+   * only one side would mix bases. `forecasts` is exposed so the injury/freshness truth for any player here is the canonical one.
+   */
+  forecasts?: CanonicalWeeklyForecastBatch;
+  /** Where `weekly` came from: an independent provider read, or a batch shared from an assembled weekly context. */
+  projection_source?: "PROVIDER_READ" | "SHARED_CONTEXT";
   weeklyReplacement: WeeklyReplacement;
   /** ROS points per canonical id (external season prorated; league-theoretical). */
   rosPointsByCid: Map<string, number | null>;
@@ -72,6 +83,12 @@ export interface RosterHealthInputOptions {
    * to re-enter canonical state assembly.
    */
   snapshotOverride?: CanonicalLeagueSnapshot;
+  /**
+   * F5 seam. Reuse an already-resolved weekly projection batch (typically `WeeklyTeamContext.projections` after the bye override
+   * and ROS assembly, with its `forecasts`) instead of making a second, independent provider read. When set: no provider call,
+   * and ROS is NOT re-assembled (the batch already carries it). One player, one weekly forecast truth per decision context.
+   */
+  projectionsOverride?: { batch: WeeklyProjectionBatch; forecasts?: CanonicalWeeklyForecastBatch | null };
 }
 
 export async function buildRosterHealthInputs(
@@ -81,9 +98,9 @@ export async function buildRosterHealthInputs(
   const resolution = resolveLeagueStrict(leagueSlug);
   if (!resolution.ok) throw new Error(`roster-health: ${resolution.code ?? "league_unresolved"}`);
   const league = resolution.league;
-  const crosswalk = defaultCrosswalkSource()
-    ? new PlayerCrosswalk(defaultCrosswalkSource()!)
-    : new PlayerCrosswalk(NoCrosswalk);
+  const crosswalk = await resolveLeagueCrosswalk(league.provider, undefined, () =>
+    defaultCrosswalkSource() ? new PlayerCrosswalk(defaultCrosswalkSource()!) : new PlayerCrosswalk(NoCrosswalk),
+  );
   const state = options.snapshotOverride
     ? { ok: true as const, snapshot: options.snapshotOverride, code: undefined as string | undefined }
     : await buildCanonicalLeagueState(leagueSlug, {
@@ -117,23 +134,31 @@ export async function buildRosterHealthInputs(
   const playerById = new Map(snap.players.map((p) => [p.canonical_player_id, p]));
   const allRosteredIds = uniq(snap.rosters.flatMap((r) => r.all_players));
 
-  const projProvider = options.projectionProviderOverride ?? getWeeklyProjectionProvider(league.provider);
-  const weekly = await projProvider.getWeeklyProjections({
-    league: {
-      league_slug: league.league_slug,
-      season,
-      raw_scoring: snap.league.raw_scoring,
-      scoring_rules: snap.league.scoring_rules,
-    },
-    week,
-    crosswalk,
-    canonical_player_ids: allRosteredIds,
-    want_rest_of_season: true,
-  });
+  let weekly: WeeklyProjectionBatch;
+  if (options.projectionsOverride) {
+    weekly = options.projectionsOverride.batch;
+  } else {
+    const projProvider = options.projectionProviderOverride ?? getWeeklyProjectionProvider(league.provider);
+    weekly = await projProvider.getWeeklyProjections({
+      league: {
+        league_slug: league.league_slug,
+        season,
+        raw_scoring: snap.league.raw_scoring,
+        scoring_rules: snap.league.scoring_rules,
+      },
+      week,
+      crosswalk,
+      canonical_player_ids: allRosteredIds,
+      want_rest_of_season: true,
+    });
+  }
 
   let ri_model_version: string | null = null;
   const weeksLeftFrac = Math.max(0, (REGULAR_SEASON_WEEKS - (week - 1)) / REGULAR_SEASON_WEEKS);
-  if (!options.skipRi && weekly.by_player.size > 0) {
+  if (options.projectionsOverride) {
+    // ROS already assembled on the shared batch; re-assembling would mutate it a second time.
+    warnings.push("weekly projections shared from an assembled context — ROS not re-assembled");
+  } else if (!options.skipRi && weekly.by_player.size > 0) {
     const ri = await new RosterIntelSeasonSignalProvider()
       .getSeasonSignal({ league_slug: league.league_slug, league_id: league.external_league_id })
       .catch(() => ({ status: "UNAVAILABLE" as const, model_version: null, by_sleeper_id: new Map(), warning: null }));
@@ -189,6 +214,8 @@ export async function buildRosterHealthInputs(
     playerById,
     rosters: snap.rosters,
     weekly,
+    forecasts: options.projectionsOverride?.forecasts ?? buildCanonicalForecastBatch({ batch: weekly, requested_player_ids: allRosteredIds, players: playerById }),
+    projection_source: options.projectionsOverride ? "SHARED_CONTEXT" : "PROVIDER_READ",
     weeklyReplacement,
     rosPointsByCid,
     rosReplacement,

@@ -1,0 +1,438 @@
+{
+ "league": "maclin-on-chicks-xvi",
+ "week": 6,
+ "league_key": "470.l.82713",
+ "read_through": "deployed bridge public GET endpoints (Yahoo-sourced); NOT the new direct Yahoo reads",
+ "elapsed_ms": 6508,
+ "readiness": {
+  "status": "PARTIAL",
+  "pool_actionable": true,
+  "axes": {
+   "availability": "READY",
+   "valuation": "UNKNOWN",
+   "transaction": "PARTIAL",
+   "recommendation": "PARTIAL"
+  },
+  "blocks": [],
+  "limitations": [
+   "GAME_LOCK_ADD_RULE_NOT_PUBLISHED",
+   "IDENTITY_UNRESOLVED_PLAYERS",
+   "PENDING_CLAIMS_UNAVAILABLE",
+   "WAIVER_CLEAR_TIME_NOT_EXPOSED",
+   "WAIVER_RULES_PARTIAL"
+  ]
+ },
+ "counts": {
+  "ROSTERED": 168,
+  "AVAILABLE_FREE_AGENT": 1010,
+  "ON_WAIVERS": 18,
+  "WAIVER_CLAIM_PENDING": 0,
+  "LOCKED": 0,
+  "INELIGIBLE": 0,
+  "UNKNOWN_AVAILABILITY": 0,
+  "SOURCE_UNAVAILABLE": 0
+ },
+ "ineligible_counts": {},
+ "claimable": 18,
+ "pool_evidence": {
+  "FA": {
+   "returned": 1010,
+   "complete": true,
+   "pages_fetched": 44,
+   "stopped_reason": "end_of_pool"
+  },
+  "W": {
+   "returned": 18,
+   "complete": true,
+   "pages_fetched": 4,
+   "stopped_reason": "end_of_pool"
+  },
+  "T": {
+   "returned": 168,
+   "complete": true,
+   "pages_fetched": 8,
+   "stopped_reason": "end_of_pool"
+  }
+ },
+ "freshness": {
+  "observed_at": "2026-10-14T03:44:25.109Z",
+  "evaluated_at": "2026-10-14T03:44:25.113Z",
+  "age_ms": 4,
+  "ttl_ms": 600000,
+  "state": "FRESH"
+ },
+ "ownership_reconciliation": {
+  "comparable": true,
+  "roster_union": 168,
+  "provider_rostered_pool": 168,
+  "in_both": 168,
+  "roster_only": 0,
+  "pool_only": 0,
+  "tolerance": 4
+ },
+ "integrity_violations": 0,
+ "duplicate_player_keys": 0,
+ "available_and_rostered": 0,
+ "rostered_vs_canonical_state": {
+  "market_rostered": 168,
+  "canonical_state_rostered": 196,
+  "market_not_in_state": 0,
+  "state_not_in_market": 28
+ },
+ "acquirable_by_position": {
+  "DEF": 20,
+  "QB": 108,
+  "WR": 414,
+  "TE": 221,
+  "RB": 220,
+  "K": 45
+ },
+ "free_agents_by_position": {
+  "DEF": 16,
+  "QB": 106,
+  "WR": 411,
+  "TE": 219,
+  "RB": 216,
+  "K": 42
+ },
+ "waivers_by_position": {
+  "DEF": 4,
+  "TE": 2,
+  "WR": 3,
+  "K": 3,
+  "QB": 2,
+  "RB": 4
+ },
+ "k_def": {
+  "free_agents": [
+   "DEF Falcons defense:nfl:atl",
+   "DEF Bills defense:nfl:buf",
+   "DEF Browns defense:nfl:cle",
+   "DEF Lions defense:nfl:det",
+   "DEF Packers defense:nfl:gb",
+   "DEF Titans defense:nfl:ten",
+   "DEF Raiders defense:nfl:lv",
+   "DEF Dolphins defense:nfl:mia",
+   "DEF Saints defense:nfl:no",
+   "DEF Giants defense:nfl:nyg",
+   "DEF Jets defense:nfl:nyj",
+   "DEF Eagles defense:nfl:phi",
+   "DEF Cardinals defense:nfl:ari",
+   "DEF Chargers defense:nfl:lac",
+   "DEF Buccaneers defense:nfl:tb",
+   "DEF Panthers defense:nfl:car",
+   "K Brandon McManus player:sleeper:1433",
+   "K Chris Boswell player:sleeper:1945",
+   "K Cairo Santos player:sleeper:2020",
+   "K Wil Lutz player:sleeper:3678",
+   "K Jake Elliott player:sleeper:4195",
+   "K Zane Gonzalez player:sleeper:4233",
+   "K Younghoe Koo player:sleeper:4666",
+   "K Daniel Carlson player:sleeper:5095",
+   "K Jason Sanders player:sleeper:5119",
+   "K Eddy Pineiro player:sleeper:5189",
+   "K Matt Gay player:sleeper:6083",
+   "K Joey Slye player:sleeper:6528",
+   "K Chase McLaughlin player:sleeper:6650",
+   "K Riley Patterson player:sleeper:7922",
+   "K Cade York player:sleeper:8258",
+   "K Lucas Havrisik player:sleeper:8932",
+   "K Jake Moody player:sleeper:10937",
+   "K Chad Ryland player:sleeper:10955",
+   "K Blake Grupe player:sleeper:11058",
+   "K B.T. Potter player:sleeper:11092",
+   "K Tanner Brown player:sleeper:11145",
+   "K Andre Szmyt player:sleeper:11261",
+   "K Charlie Smyth player:sleeper:11653",
+   "K Joshua Karty player:sleeper:11789",
+   "K Lenny Krieg player:sleeper:12548",
+   "K Andy Borregales player:sleeper:12713",
+   "K Maddux Trujillo player:sleeper:12824",
+   "K Ryan Fitzgerald player:sleeper:12961",
+   "K Ben Sauls player:sleeper:13066",
+   "K Trey Smack player:sleeper:13545",
+   "K Mason Shipley player:sleeper:13644",
+   "K Gabriel Plascencia player:sleeper:13710",
+   "K Luke Drzewiecki player:sleeper:13731",
+   "K Chris Freeman player:sleeper:13764",
+   "K Kansei Matsuzawa player:sleeper:13804",
+   "K Laith Marjan player:sleeper:13813",
+   "K Will Ferrin player:sleeper:13838",
+   "K Dominic Zvada player:sleeper:13833",
+   "K Ethan Sanchez player:sleeper:13842",
+   "K Drew Stevens player:sleeper:13968",
+   "K Paul Geelen player:sleeper:13990",
+   "K Matt Prater player:sleeper:17"
+  ],
+  "waivers": [
+   "DEF Bengals defense:nfl:cin clears 2026-10-15",
+   "DEF Cowboys defense:nfl:dal clears 2026-10-15",
+   "DEF Commanders defense:nfl:was clears 2026-10-15",
+   "DEF Jaguars defense:nfl:jax clears 2026-10-15",
+   "K Evan McPherson player:sleeper:7839 clears 2026-10-15",
+   "K Jake Bates player:sleeper:11539 clears 2026-10-15",
+   "K Harrison Mevis player:sleeper:12015 clears 2026-10-16"
+  ]
+ },
+ "identity": {
+  "acquirable": 1028,
+  "resolved": 1013,
+  "defenses": 20,
+  "defenses_resolved": 20,
+  "unresolved_samples": [
+   "Hollywood Brown WR PHI",
+   "Hakeem Butler WR DEN",
+   "Bam Knight RB ARI",
+   "Scott Matlock RB LAC",
+   "John Rhys Plumlee WR PIT",
+   "Jack Westover RB WAS",
+   "Qadir Ismail TE CHI",
+   "Garrett Greene WR TB"
+  ],
+  "rostered": 168,
+  "rostered_resolved_to_sleeper_or_gsis": 168
+ },
+ "acquisition": {
+  "system": "UNKNOWN",
+  "status": "PARTIAL",
+  "team_context": [
+   {
+    "team_id": "team:maclin-on-chicks-xvi:1",
+    "roster_id": 1,
+    "faab_remaining": null,
+    "waiver_priority": 9,
+    "roster_size": 16,
+    "roster_limit": 16
+   },
+   {
+    "team_id": "team:maclin-on-chicks-xvi:10",
+    "roster_id": 2,
+    "faab_remaining": null,
+    "waiver_priority": 3,
+    "roster_size": 16,
+    "roster_limit": 16
+   },
+   {
+    "team_id": "team:maclin-on-chicks-xvi:2",
+    "roster_id": 3,
+    "faab_remaining": null,
+    "waiver_priority": 2,
+    "roster_size": 16,
+    "roster_limit": 16
+   }
+  ]
+ },
+ "pending_claim_visibility": {
+  "status": "UNAVAILABLE",
+  "reason": "replay: the connected account's teams are not readable without its token"
+ },
+ "cross_check_vs_yahoo": {
+  "checked": 61,
+  "mismatches": 0,
+  "mismatch_detail": []
+ },
+ "waiver_analysis": {
+  "manager": "justin",
+  "bridged_roster_identities": 180,
+  "roster_players_projected": 14,
+  "roster_players_total": 17,
+  "availability_status": "AVAILABLE",
+  "readiness": {
+   "market": "PARTIAL",
+   "market_axes": {
+    "availability": "READY",
+    "valuation": "PARTIAL",
+    "transaction": "PARTIAL",
+    "recommendation": "PARTIAL"
+   },
+   "weekly_projections": "PARTIAL",
+   "waiver_recommendations": {
+    "status": "READY_WITH_LIMITATIONS",
+    "actionable": true,
+    "blocked_by": [],
+    "limitations": [
+     "market_partial",
+     "weekly_projections_partial",
+     "rest_of_season_partial",
+     "ri_season_signal_unavailable"
+    ]
+   }
+  },
+  "market_pool": {
+   "provider": "yahoo",
+   "basis": "PROVIDER_STATUS",
+   "market_content_id": "mkt:2026:w06:d0106d6b63a2fe9d",
+   "pool_id": "pool:88d20124db8c7259",
+   "observed_at": "2026-10-14T03:44:25.109Z",
+   "age_ms": 4,
+   "freshness": "FRESH",
+   "verified_free_agents": 1010,
+   "verified_waivers": 18,
+   "unknown_availability": 0,
+   "rostered": 168,
+   "evaluated_with_projection": 1010,
+   "verified_without_projection": 3,
+   "verified_identity_unresolved": 15,
+   "by_position": {
+    "DEF": {
+     "free_agents": 16,
+     "waivers": 4,
+     "with_projection": 17
+    },
+    "QB": {
+     "free_agents": 106,
+     "waivers": 2,
+     "with_projection": 108
+    },
+    "WR": {
+     "free_agents": 411,
+     "waivers": 3,
+     "with_projection": 406
+    },
+    "TE": {
+     "free_agents": 219,
+     "waivers": 2,
+     "with_projection": 218
+    },
+    "RB": {
+     "free_agents": 216,
+     "waivers": 4,
+     "with_projection": 216
+    },
+    "K": {
+     "free_agents": 42,
+     "waivers": 3,
+     "with_projection": 45
+    }
+   },
+   "axes": {
+    "availability": "READY",
+    "valuation": "PARTIAL",
+    "transaction": "PARTIAL",
+    "recommendation": "PARTIAL"
+   },
+   "verified_without_projection_sample": [
+    "Bengals (DEF, CIN)",
+    "Lions (DEF, DET)",
+    "Dolphins (DEF, MIA)"
+   ],
+   "rules": {
+    "system": "UNKNOWN",
+    "waiver_type": null,
+    "waiver_rule": null,
+    "waiver_time_days": null,
+    "add_limits": null
+   },
+   "pending_claims": {
+    "status": "UNAVAILABLE",
+    "reason": "replay: the connected account's teams are not readable without its token"
+   },
+   "game_lock_semantics": "Availability is Yahoo's own per-player status (FA = addable now, W = claim-only). Game state is reported per player as a fact (`lock`); the league's raw waiver rule is preserved verbatim; no additional lock is inferred.",
+   "pool_evidence": {
+    "FA": {
+     "returned": 1010,
+     "complete": true,
+     "pages_fetched": 44,
+     "stopped_reason": "end_of_pool"
+    },
+    "W": {
+     "returned": 18,
+     "complete": true,
+     "pages_fetched": 4,
+     "stopped_reason": "end_of_pool"
+    },
+    "T": {
+     "returned": 168,
+     "complete": true,
+     "pages_fetched": 8,
+     "stopped_reason": "end_of_pool"
+    }
+   },
+   "limitations": [
+    "Yahoo applies its own game-time waiver rule: its W status already reflects it (a started game moves a dropped player to waivers). The raw league rule is preserved in the acquisition rules; Bloodline reports each player's game state as a fact and does not add its own lock verdict.",
+    "Yahoo exposes pending waiver claims only for a team the authenticated account owns; other managers' claims are never visible, so competing pending claims are UNKNOWN. (replay: the connected account's teams are not readable without its token)",
+    "Yahoo exposes a waiver clear DATE (YYYY-MM-DD), not an instant; the exact processing time is unknown."
+   ],
+   "manager": {
+    "team_id": "team:maclin-on-chicks-xvi:5",
+    "system": "UNKNOWN",
+    "faab_remaining": null,
+    "waiver_priority": 1,
+    "roster_size": 16,
+    "roster_limit": 16,
+    "open_roster_slots": 0,
+    "requires_drop": true,
+    "waiver_clear_days": null,
+    "status": "PARTIAL"
+   },
+   "scoring": {
+    "fingerprint": "scoring:v1:4739a830ffa5c050fe95d536",
+    "k_dst_weekly_projection": "APPROXIMATED_FROM_PROVIDER_STANDARD_POINTS",
+    "note": "K and D/ST weekly projections use the provider's standard precomputed points, not the league's scoring rules (a dedicated K/DST forecast is a later phase). Offensive positions are scored with the league's exact rules. Availability of K / D/ST is unaffected."
+   }
+  },
+  "considered": 491,
+  "waiver_model": "unknown",
+  "faab": null,
+  "waiver_priority": null,
+  "replacement": {
+   "QB": {
+    "pts": 11.32,
+    "basis": "available_pool_marginal",
+    "n": 2
+   },
+   "RB": {
+    "pts": 8.24,
+    "basis": "available_pool_marginal",
+    "n": 60
+   },
+   "WR": {
+    "pts": 7.91,
+    "basis": "available_pool_marginal",
+    "n": 107
+   },
+   "TE": {
+    "pts": 6.67,
+    "basis": "available_pool_marginal",
+    "n": 74
+   },
+   "K": {
+    "pts": 8.76,
+    "basis": "available_pool_marginal",
+    "n": 18
+   },
+   "DEF": {
+    "pts": 7.71,
+    "basis": "available_pool_marginal",
+    "n": 17
+   },
+   "FLEX": {
+    "pts": 8.56,
+    "basis": "available_pool_marginal",
+    "n": 241
+   }
+  },
+  "top_recommendations": [
+   {
+    "add": "Wan'Dale Robinson",
+    "pos": "WR",
+    "method": "FREE_AGENT_ADD",
+    "clears_on": null,
+    "weekly": 9.07,
+    "vor": 1.16,
+    "drop": "Geno Smith",
+    "net": 1.58,
+    "priority": "LOW"
+   }
+  ],
+  "do_not_add": [
+   "Chris Godwin: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.",
+   "Jakobi Meyers: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.",
+   "Travis Hunter: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW.",
+   "De'Von Achane: Counterfactual starter impact is unresolved — a projection gap makes the baseline or post-move optimal lineup unavailable. No starter gain is claimed; confidence is capped LOW."
+  ],
+  "warnings": [
+   "waiver_projection_quality"
+  ]
+ }
+}

@@ -36,7 +36,7 @@ export function compactMarketSnapshot(s: MarketSnapshot): CompactMarketSnapshot 
     sources: Object.fromEntries(Object.entries(s.sources).map(([k, v]) => [k, { status: v.status, source_class: v.source_class }])),
     ownership: s.players.filter((p) => p.status === "ROSTERED").map((p) => [p.player_key, p.owner_team_id!, null]),
     available: s.players.filter((p) => p.status === "AVAILABLE_FREE_AGENT").map((p) => [p.player_key, p.position, p.team]),
-    waivers: s.players.filter((p) => p.status === "ON_WAIVERS").map((p) => [p.player_key, p.waiver_window!.dropped_at]),
+    waivers: s.players.filter((p) => p.status === "ON_WAIVERS").map((p) => [p.player_key, p.waiver_window?.dropped_at ?? p.waiver_clears_on ?? "provider_status"]),
     unknown: s.players.filter((p) => p.status === "UNKNOWN_AVAILABILITY" || p.status === "SOURCE_UNAVAILABLE").map((p) => [p.player_key, p.reason as string | null]),
     ineligible_counts: s.ineligible_counts, acquisition_teams: s.acquisition.teams.map((t) => [t.team_id, t.faab_remaining, t.waiver_priority, t.roster_size]),
   };

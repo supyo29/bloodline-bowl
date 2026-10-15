@@ -1,0 +1,30 @@
+{
+  "FIT": {
+    "rows": 14591,
+    "tierA_tactical_CUR": 1,
+    "tierA_player_fingerprint": 1,
+    "tierB_carryover": 1,
+    "prior_season_only": 0,
+    "stale": 0,
+    "low_continuity": 0.5751,
+    "mean_cont_off": 0.5777,
+    "hc_or_qb_changed_share": 0.6642
+  },
+  "VAL": {
+    "rows": 3900,
+    "tierA_tactical_CUR": 0.9697,
+    "tierA_player_fingerprint": 1,
+    "tierB_carryover": 0.9697,
+    "prior_season_only": 0,
+    "stale": 0,
+    "low_continuity": 0.3841,
+    "mean_cont_off": 0.7008,
+    "hc_or_qb_changed_share": 0.587
+  },
+  "notes": {
+    "oc_dc": "UNKNOWN (registry empty): no extra discount, flagged",
+    "personnel": "UNAVAILABLE",
+    "tier_b_source": "prior-season participation (season-1) only; 2026 participation not published",
+    "seasons_loaded": [2022, 2023, 2024, 2025]
+  }
+}

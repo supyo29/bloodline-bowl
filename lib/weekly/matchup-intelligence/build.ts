@@ -7,6 +7,7 @@
  * is used only to derive the opponent's ASSUMED_OPTIMAL view for a diagnostic.
  */
 
+import { isVerifiedBye } from "../forecast/bye";
 import { buildOptimalLineup, isEligible } from "../lineup";
 import type { WeeklyTeamContext } from "../schema";
 import { loadDistributionModel } from "./distributions";
@@ -90,13 +91,13 @@ function toSimPlayers(
     const wp = ctx.projections.by_player.get(id);
     const cp = allPlayers.get(id);
     const pos = cp?.position ? cp.position : baseOf(slots[i]!);
-    if (!wp || (wp.projected_points == null && wp.projection_status !== "bye")) {
+    if (!wp || (wp.projected_points == null && !isVerifiedBye(wp))) {
       unknown += 1;
       if (!wp) missing += 1;
       players.push({ canonical_player_id: id, position: pos, projection: null, questionable: false, is_qb: pos === "QB", side });
       continue;
     }
-    const proj = wp.projection_status === "bye" ? 0 : (wp.projected_points ?? 0);
+    const proj = isVerifiedBye(wp) ? 0 : (wp.projected_points ?? 0);
     const q = isQuestionable(wp.injury_status);
     if (q) questionable += 1;
     players.push({ canonical_player_id: id, position: pos, projection: proj, questionable: q, is_qb: pos === "QB", side });
@@ -119,7 +120,7 @@ function plausibleOpponentLineup(
   for (let i = 0; i < slots.length; i += 1) {
     const id = submitted[i];
     const wp = id ? ctx.projections.by_player.get(id) : undefined;
-    const isBad = !id || wp?.projection_status === "bye" || (wp?.expected_availability ?? 1) < 0.15;
+    const isBad = !id || isVerifiedBye(wp) || (wp?.expected_availability ?? 1) < 0.15;
     if (!isBad) {
       out.push(id!);
       continue;

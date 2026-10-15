@@ -14,9 +14,11 @@
  * thin to simulate defensibly. It is NOT a spread-to-probability conversion.
  */
 
+import { isVerifiedBye } from "./forecast/bye";
 import { buildOptimalLineup, type LineupResult } from "./lineup";
 import { mulberry32, sampleNormal } from "./uncertainty";
-import type { WeeklyTeamContext, WeeklyWarning } from "./schema";
+import { decisionProjectionRows } from "./forecast/view";
+import type { WeeklyProjection, WeeklyTeamContext, WeeklyWarning } from "./schema";
 import type { CanonicalPlayer } from "@/lib/canonical/schema";
 
 const SIM_TRIALS = 20000;
@@ -72,6 +74,10 @@ export interface MatchupResult {
 
 export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
   const warnings: WeeklyWarning[] = [];
+  // W1.P2: lineup values, swing notes, bench depth and the simulation read the canonical injury-aware decision rows (legacy rows if
+  // the context has no forecasts). Replacement-vulnerability stays on the SOURCE basis because its comparator (the free-agent
+  // replacement level) is source-based.
+  const decisionRows = decisionProjectionRows(ctx.projections, ctx.forecasts).rows;
   const players = new Map<string, CanonicalPlayer>(ctx.all_rostered.map((p) => [p.canonical_player_id, p]));
   for (const p of ctx.opponent?.all_rostered ?? []) players.set(p.canonical_player_id, p);
 
@@ -81,6 +87,7 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     constraints: ctx.league.roster_constraints,
     players,
     projections: ctx.projections,
+    forecasts: ctx.forecasts,
   });
 
   if (!ctx.opponent || !ctx.opponent.roster) {
@@ -117,6 +124,7 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
     constraints: ctx.league.roster_constraints,
     players,
     projections: ctx.projections,
+    forecasts: ctx.forecasts,
   });
 
   // Projected margin is only honest when BOTH optimal totals are fully supported
@@ -184,26 +192,38 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
   let win_probability_confidence: MatchupResult["win_probability_confidence"] = "UNAVAILABLE";
   if (coverage >= MIN_COVERAGE_FOR_PROB && bothComplete) {
     const rng = mulberry32(hashSeed(ctx.league.slug, ctx.fantasy_team.canonical_team_id, ctx.league.week));
+    const teamDraw = drawSpec(teamLineup, decisionRows);
+    const oppDraw = drawSpec(oppLineup, decisionRows);
+    // F2 (W1.P2): an UNKNOWN (null, non-bye) starter must never be simulated as a known 0. Fail closed.
+    const unknownStarters = [...teamDraw.unknown, ...oppDraw.unknown];
+    if (unknownStarters.length > 0) {
+      warnings.push({
+        code: "win_probability_unavailable_unknown_starter",
+        message: `Win probability not simulated — starter(s) with an unknown (null) projection cannot be treated as 0: ${unknownStarters.join(", ")}.`,
+        severity: "warning",
+      });
+    }
     let wins = 0;
-    const teamDraw = drawSpec(teamLineup, ctx);
-    const oppDraw = drawSpec(oppLineup, ctx);
-    for (let i = 0; i < SIM_TRIALS; i += 1) {
+    const simulate = unknownStarters.length === 0;
+    for (let i = 0; simulate && i < SIM_TRIALS; i += 1) {
       let t = 0;
       let o = 0;
-      for (const d of teamDraw) t += Math.max(0, sampleNormal(rng, d.mean, d.sd));
-      for (const d of oppDraw) o += Math.max(0, sampleNormal(rng, d.mean, d.sd));
+      for (const d of teamDraw.draws) t += Math.max(0, sampleNormal(rng, d.mean, d.sd));
+      for (const d of oppDraw.draws) o += Math.max(0, sampleNormal(rng, d.mean, d.sd));
       if (t > o) wins += 1;
       else if (t === o) wins += 0.5;
     }
-    win_probability = Math.round((wins / SIM_TRIALS) * 1000) / 1000;
-    win_probability_method = "independent_normal_monte_carlo(position_volatility_heuristic_sd)";
-    win_probability_confidence = "LOW";
-    warnings.push({
-      code: "win_probability_heuristic",
-      message:
-        "Win probability is a seeded Monte-Carlo over per-player Normal draws with heuristic SDs and independent outcomes — directional only, LOW confidence.",
-      severity: "info",
-    });
+    if (simulate) {
+      win_probability = Math.round((wins / SIM_TRIALS) * 1000) / 1000;
+      win_probability_method = "independent_normal_monte_carlo(position_volatility_heuristic_sd)";
+      win_probability_confidence = "LOW";
+      warnings.push({
+        code: "win_probability_heuristic",
+        message:
+          "Win probability is a seeded Monte-Carlo over per-player Normal draws with heuristic SDs and independent outcomes — directional only, LOW confidence.",
+        severity: "info",
+      });
+    }
   } else {
     warnings.push({
       code: "win_probability_unavailable",
@@ -240,7 +260,7 @@ export function buildMatchup(ctx: WeeklyTeamContext): MatchupResult {
   for (const [side, lineup] of [["team", teamLineup] as const, ["opponent", oppLineup] as const]) {
     for (const s of lineup.slots) {
       if (!s.recommended_player_id) continue;
-      const wp = ctx.projections.by_player.get(s.recommended_player_id);
+      const wp = decisionRows.get(s.recommended_player_id);
       if (wp && (wp.expected_availability < 0.9 || (wp.injury_status && wp.injury_status.toLowerCase() !== "active"))) {
         swing_players.push({
           canonical_player_id: s.recommended_player_id,
@@ -372,15 +392,25 @@ export function buildLeverage(matchup: MatchupResult): LeverageItem[] {
 
 /* ------------------------------------------------------------------ helpers */
 
-function drawSpec(lineup: LineupResult, ctx: WeeklyTeamContext): Array<{ mean: number; sd: number }> {
-  return lineup.slots
-    .filter((s) => s.recommended_player_id)
-    .map((s) => {
-      const wp = ctx.projections.by_player.get(s.recommended_player_id!);
-      const mean = wp?.projected_points ?? 0;
-      const sd = wp?.std_dev ?? Math.max(2, mean * 0.4);
-      return { mean, sd };
-    });
+/** @internal exported for tests */
+export function drawSpec(
+  lineup: LineupResult,
+  rows: ReadonlyMap<string, WeeklyProjection>,
+): { draws: Array<{ mean: number; sd: number }>; unknown: string[] } {
+  const draws: Array<{ mean: number; sd: number }> = [];
+  const unknown: string[] = [];
+  for (const s of lineup.slots) {
+    if (!s.recommended_player_id) continue;
+    const wp = rows.get(s.recommended_player_id);
+    // null (non-bye) is UNKNOWN, never a known 0. A verified bye / known-unavailable carries an explicit 0 and is a legitimate draw.
+    if (!wp || (wp.projected_points == null && !isVerifiedBye(wp))) {
+      unknown.push(s.recommended_player_id);
+      continue;
+    }
+    const mean = wp.projected_points ?? 0;
+    draws.push({ mean, sd: wp.std_dev ?? Math.max(2, mean * 0.4) });
+  }
+  return { draws, unknown };
 }
 
 function lineupCoverage(lineup: LineupResult): number {
@@ -414,7 +444,7 @@ function suspectBaseFamilies(
   for (const p of rostered) {
     if (reserve.has(p.canonical_player_id)) continue;
     const wp = ctx.projections.by_player.get(p.canonical_player_id);
-    const unknown = !wp || (wp.projected_points == null && wp.projection_status !== "bye");
+    const unknown = !wp || (wp.projected_points == null && !isVerifiedBye(wp));
     if (!unknown) continue;
     const positions = [p.position, ...p.eligible_positions];
     for (const pos of positions) s.add(baseOf(pos));
@@ -431,11 +461,12 @@ function baseOf(slot: string): string {
 /** top-3 bench projected points; UNKNOWN bench players are excluded, not 0-filled.
  *  `unknown` reports how many bench players had no projection. */
 function benchTop3(ctx: WeeklyTeamContext, bench: string[]): { total: number; unknown: number } {
+  const rows = decisionProjectionRows(ctx.projections, ctx.forecasts).rows;
   let unknown = 0;
   const pts = bench
     .map((id) => {
-      const wp = ctx.projections.by_player.get(id);
-      if (!wp || (wp.projected_points == null && wp.projection_status !== "bye")) {
+      const wp = rows.get(id);
+      if (!wp || (wp.projected_points == null && !isVerifiedBye(wp))) {
         unknown += 1;
         return null;
       }

@@ -21,10 +21,12 @@ test("retention policy: COMPLETE_WEEK surfaces store only COMPLETE states; only 
     assert.ok(["GIT_PUBLICATION", "LIVE_SNAPSHOT"].includes(e.provenance.kind));
     assert.notEqual((e.provenance as { kind: string }).kind, "RETROSPECTIVE_RECONSTRUCTION");
   }
-  // FI genuinely has week-1 COMPLETE published states, and no PARTIAL week-2 state was stored
+  // FI genuinely has COMPLETE published states, and the CURRENT week is never preserved while it is still PARTIAL. (The frontier moves every week as the bot refreshes FI,
+  // so the "in-progress week" is read from the live manifest rather than hard-coded.)
   const fi = listSnapshots("football-intelligence", ROOT);
   assert.ok(fi.length >= 1 && fi.every((e) => e.week_state === "COMPLETE"));
-  assert.ok(!fi.some((e) => e.through_week === 2), "week 2 is PARTIAL — must not be preserved as history");
+  const wc = (JSON.parse(readFileSync(join(ROOT, "lib/football-intel/data/football_intelligence_manifest.json"), "utf8")) as { week_completion: { latest_week: number; week_state: string } }).week_completion;
+  if (wc.week_state !== "COMPLETE") assert.ok(!fi.some((e) => e.through_week === wc.latest_week), `week ${wc.latest_week} is PARTIAL — must not be preserved as history`);
 });
 
 test("immutability: identity is content-derived; ANY change yields a new id and cannot mutate an earlier snapshot", () => {

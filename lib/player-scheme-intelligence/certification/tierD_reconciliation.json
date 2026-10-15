@@ -1,0 +1,17 @@
+{
+  "reconciliation": "psi-tierD-reconciliation-2026.1",
+  "numeric_fantasy_adjustment_all_zero": true,
+  "all_shadow_only": true,
+  "every_family_classified": true,
+  "fdr_method": "Benjamini-Hochberg",
+  "fdr_alpha": 0.1,
+  "chronology_note": "profiles for season S use seasons <= S-1; interaction coefficients train on seasons < S; week-S actuals target-only.",
+  "n_families": 7,
+  "n_predictive_incremental": 0,
+  "n_explanatory_only": 5,
+  "n_rejected": 2,
+  "n_unstable": 0,
+  "n_insufficient": 0,
+  "all_pass": true,
+  "served_content_sha256": "37bd7bc3770cb1ce88f4642c42e2bf727dadd9d3d4f105086d01caa112d74dea"
+}

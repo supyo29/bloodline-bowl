@@ -18,7 +18,7 @@ Hobby plans cap Function Storage (~10 GB). This document records what drives it,
 **300 s** (long-running only):
 | Route | Why |
 |---|---|
-| `api/cron/*` (9: calibration-materialize, capture, game-environment, matchup2-capture, projection-snapshot, publish, role-calibration, waiver2-capture, weekly-audit) | scheduled capture/materialization jobs; were already 300 |
+| `api/cron/*` (11: calibration-materialize, capture, game-environment, matchup2-capture, projection-snapshot, publish, role-calibration, role-shadow-capture, waiver2-capture, weekly-audit, yahoo-health) | scheduled capture/materialization jobs; were already 300 (yahoo-health, from the Yahoo Market State stack, was 60 and is raised to 300 as a cron; role-shadow-capture was already 300) |
 | `api/game-distribution/evaluate`, `api/role-calibration/evaluate` | offline-style evaluation harnesses; were already 300 |
 | `api/trades/analyze`, `api/trades/competitive` | trade analysis / beam search; were 90 s with ~80 s internal budgets |
 | `api/mcp` | wrapped trade tools run internal budgets up to 80 s; the platform limit must exceed them so `UPSTREAM_TIMEOUT` surfaces rather than a kill (was 120 s) |

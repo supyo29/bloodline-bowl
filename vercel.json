@@ -3,6 +3,10 @@
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
   "crons": [
     {
+      "path": "/api/cron/yahoo-health",
+      "schedule": "0 10 * * *"
+    },
+    {
       "path": "/api/cron/capture",
       "schedule": "0 12 * * *"
     },

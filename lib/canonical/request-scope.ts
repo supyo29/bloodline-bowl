@@ -32,13 +32,26 @@ type ScopeMap = Map<string, Promise<CanonicalStateResult>>;
 const storage = new AsyncLocalStorage<ScopeMap>();
 
 /**
+ * W1.P4: a second memo carried by the SAME scope lifetime, for projection-source consistency. One logical operation resolves each
+ * upstream projection fetch (and each identical league-scored batch) once, so lineup, matchup, waivers and roster-health cannot rest on
+ * different observations. Untyped values by design: keys are namespaced by the writer (`segments|...`, `batch|...`).
+ */
+type ProjectionScopeMap = Map<string, unknown>;
+const projectionStorage = new AsyncLocalStorage<ProjectionScopeMap>();
+
+/**
  * Run `fn` inside a canonical-league-state memo scope. If a scope is already
  * active (nested composition), the existing one is reused.
  */
 export function runInLeagueStateScope<T>(fn: () => Promise<T>): Promise<T> {
   const existing = storage.getStore();
   if (existing) return fn();
-  return storage.run(new Map(), fn);
+  return storage.run(new Map(), () => projectionStorage.run(new Map(), fn));
+}
+
+/** The active scope's projection memo, or `undefined` outside a scope (then every call reads fresh, exactly as before). */
+export function activeProjectionScope(): ProjectionScopeMap | undefined {
+  return projectionStorage.getStore();
 }
 
 /** The active scope's memo map, or `undefined` when no scope is active. */

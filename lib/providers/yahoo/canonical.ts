@@ -185,7 +185,9 @@ export function yahooBundleToCanonical(
     },
     waiver_settings: {
       type: L.uses_faab ? "faab" : L.waiver_type === "continual" ? "rolling" : "unknown",
-      faab_budget: L.uses_faab ? 100 : null,
+      // Yahoo's league settings do not state the starting FAAB budget in anything this adapter reads; a number here would be invented (it used to be a hard-coded 100).
+      // Per-team REMAINING balances are real (standings) and travel on each team; the budget stays null = unknown.
+      faab_budget: null,
       waiver_day: null,
     },
     provenance: prov(L.league_key, syncedAt),

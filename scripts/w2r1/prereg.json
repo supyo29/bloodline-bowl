@@ -1,0 +1,164 @@
+{
+  "prereg_version": "w2r1-prereg-1",
+  "phase": "W2.R1 Dynamic Player Value & Game-Plan Intelligence Foundation",
+  "base_sha": "24cadb8d1761652220af6284f2fc757ec2822e06",
+  "declared_before": "any model fit, ablation, feature-selection or scoring on any W2.R1 split; at commit time the only W2.R1 artifacts are the environment baseline, the architecture inventory and the data-availability audit (scripts/w2r1/results/data_audit.json, which counts rows and lists columns only)",
+  "status_rules": {
+    "SHADOW_ONLY": "Every W2.R1 output is SHADOW / RESEARCH. No W2.R1 number may enter a production recommendation, waiver, lineup, trade or drop path in this phase. Promotion is out of scope and requires a later, separately authorized phase.",
+    "qualification_labels": ["SHADOW_QUALIFIED", "SHADOW_UNPROVEN", "REJECTED", "NO_RELIABLE_SIGNAL", "INSUFFICIENT_FINAL_SAMPLE", "NOT_APPLICABLE"],
+    "meaning": "SHADOW_QUALIFIED = passes every gate below on FINAL for that position+layer+scoring regime and is eligible to be proposed for promotion in a LATER phase. It changes nothing in production now."
+  },
+  "data": {
+    "sources": {
+      "player_game_stats": "nflreadr::load_player_stats(summary_level=week), seasons 2022-2026",
+      "play_by_play": "nflreadr::load_pbp, 2022-2026 (wp, spread/total, epa, xpass, pass_oe, sack/int/fumble/penalty, field-goal result/distance, drive)",
+      "ftn_charting": "nflreadr::load_ftn_charting, 2022-2026 (motion, play action, screen, RPO, blitzers, pass rushers, box, no-huddle, out-of-pocket)",
+      "participation": "nflreadr::load_participation, 2020-2025 ONLY (formation, personnel, box, coverage, man/zone, routes). NOT published for 2026 (audit: 0 rows).",
+      "schedules": "nflreadr::load_schedules (lines, total, roof, surface, temp, wind, rest, QB, coach), 2022-2026",
+      "injuries": "nflreadr::load_injuries (FINAL team-week designation; no publication timestamp: evidence quality RECONSTRUCTED_FINAL_DESIGNATION, symmetric for champion and challenger)",
+      "snap_counts": "nflreadr::load_snap_counts 2022-2026",
+      "existing_repo_substrates": "lib/role-calibration/data, lib/game-distribution/data (2025), lib/player-scheme-intelligence/data, lib/football-intel/data — treated as pre-built point-in-time substrates and re-audited, never trusted blindly"
+    },
+    "tier_A_features": "derived from play_by_play + ftn_charting + schedules + player stats: identical definition in EVERY season 2022-2026. These alone may be used for any season including the 2026 FINAL and prospective weeks.",
+    "tier_B_features": "derived from participation (formation, personnel, box, man/zone, coverage shell, routes): available 2022-2025 only. For 2026 targets they may enter ONLY as prior-season carryover evidence discounted by organizational continuity (see continuity). A model fitted with tier-B features must be re-evaluated with the tier-B-carryover-only mask before any 2026 claim; a 2026 claim may not rely on same-season tier-B evidence (it does not exist).",
+    "unavailable_documented": ["2026 participation/route data", "2025 depth-chart snapshots (begin 2026-08-25)", "point-in-time historical fantasy rosters, waiver pools and FAAB balances for the registered leagues (none stored in the repo)", "historical stored Sleeper/RotoWire source projections (proxy baseline used, as in W2.P1)"],
+    "point_in_time_rule": "every feature for target game g (team T, kickoff k) may use only games with kickoff strictly < k, schedule/line/weather information published before k, and injury designations flagged as reconstructed. Pre-registered leakage defenses: structural as-of assertion on every row, poison test (target game and later weeks replaced by absurd values must leave features byte-identical), and an ORACLE control (target-game actual tactical outcome as features must beat every candidate by a wide margin, proving the harness is sensitive)."
+  },
+  "splits": {
+    "FIT": {"seasons_weeks": "2022 weeks 3-18, 2023 weeks 3-18, 2024 weeks 3-18", "use": "fit coefficients / priors; explore freely (labelled exploratory)"},
+    "VAL": {"seasons_weeks": "2025 weeks 3-17", "use": "choose among the DECLARED grids only; may be inspected repeatedly. Note: 2025 weeks 14-17 were the FINAL split of W2.P1 for the Role question; they are therefore treated as VAL-contaminated for any Role-adjacent comparison and are never used as FINAL here."},
+    "FINAL": {"seasons_weeks": "2026 weeks 1-5 (completed games only; 79 games at declaration time)", "use": "evaluated exactly once per frozen candidate after FROZEN.json is written; never used to choose anything. Weeks 1-2 rows use prior-season evidence only and are reported separately."},
+    "PROSPECTIVE": {"seasons_weeks": "2026 week >= 6, frozen before kickoff through the W2.P2 capture extension", "use": "second, fully prospective confirmation; not used for any gate in this phase"},
+    "EXCLUDED": "2022-2024 weeks 1-2 as targets (no as-of profile), playoffs, any row whose as-of assertion fails"
+  },
+  "scoring": {
+    "PRIMARY": "HALF (0.5 PPR, 4pt pass TD, -2 INT, -2 fumble lost, 2pt=2) — identical to W2.P1",
+    "ROBUSTNESS": ["STD", "PPR"],
+    "league_fingerprints": "Every output carries the league scoring fingerprint. A model qualified under a scoring regime is qualified ONLY for league fingerprints whose scoring-relevant fields (reception value, pass TD, INT, fumble-lost, bonus rules, K distance scoring, D/ST component scoring) are identical to that regime. Any other fingerprint is labelled DIAGNOSTIC_UNQUALIFIED; regimes are never pooled.",
+    "K_DST": "K and D/ST are evaluated from COMPONENTS reconstructed under the exact league scoring (FG made by distance bin, FG missed, PAT; sacks, INT, fumble recoveries, defensive/return TD, safeties, blocked kicks, points allowed bins, yards allowed bins where the league scores them). Generic provider 'standard points' are the CONTROL, never the final model."
+  },
+  "population": {
+    "positions": ["QB", "RB", "WR", "TE", "K", "DST"],
+    "relevance_floor": "B0p(HALF) >= 3.0 for QB/RB/WR/TE (as W2.P1); K: team has >= 1 FG attempt in prior 3 games; DST: all 32 teams",
+    "actual": "stat-line points under the scoring; a player with no stat line scores 0 (DNP is an outcome, not an exclusion)",
+    "tiers_by_B0p": {"STARTER": ">= 12", "FLEX": "6 to < 12", "FRINGE": "3 to < 6"},
+    "unknown_is_not_zero": "a row with an unknown projection, identity or tactical field is EXCLUDED from the metric it cannot support and counted in coverage; it is never scored as 0 or as neutral certainty"
+  },
+  "baselines": {
+    "B0p": "PROXY source projection: mean fantasy points over the previous up to 4 games (strictly earlier, same season; prior-season tail for weeks 1-3). No stored history of the real source projections exists.",
+    "B1p": "Wave 1 canonical-like champion: production evaluateInjuryModel applied to B0p with the historical designation (as W2.P1). The injury discount is applied exactly ONCE, by this layer; every challenger layer predicts a CONDITIONAL-ON-ACTIVE delta and receives availability only through the same call.",
+    "B2p": "W2.P1 Role challenger C2 exactly as frozen in scripts/w2p1/FROZEN.json (the incumbent shadow Role candidate); required comparator for every game-plan layer ('does it add over Role?')",
+    "K_control": "prior-4-game mean K points under exact scoring (generic projection control)",
+    "DST_control": "prior-4-game mean D/ST points under exact scoring (generic projection control)",
+    "caveat": "A proxy baseline knows less than the real source. Gains over B1p are an UPPER BOUND on gains over the real canonical forecast."
+  },
+  "candidates": {
+    "ridge_grid": [1, 10, 100, 1000],
+    "ridge_choice": "lowest VAL MAE per position and scoring, ties -> larger lambda; the grid is fixed here and never extended",
+    "shrinkage": "delta = confidence_weight * clamp(prediction, -cap, +cap); cap = max(1.0, 0.25 * B0p) (as W2.P1); confidence_weight from the declared evidence-sample table (HIGH 1.0 / MEDIUM 1.0 / LOW 0.6 / INSUFFICIENT 0)",
+    "ablation_order_fixed": ["R (= B2p, Role)", "R+OFF", "R+OFF+DEF", "R+OFF+DEF+INT", "R+OFF+DEF+INT+SECOND", "R+OFF+DEF+INT+SECOND+PROP"],
+    "layer_inclusion_rule": "a layer is retained only if, on VAL, it improves MAE vs the previous step by >= 0.03 points with a 95% cluster-bootstrap lower bound > 0 for that position; otherwise it is dropped for that position (reported REJECTED / NO_RELIABLE_SIGNAL) and later layers are evaluated without it. Exploratory feature discovery inside a layer happens on FIT only.",
+    "OFF": "offensive game-plan scenario features: neutral-situation pass rate, pass-rate-over-expected, pace, play-action, motion, screen, RPO, no-huddle, early-down pass rate, red-zone/goal-line run rate, fourth-down aggressiveness, deep/short target mix, game-script sensitivity (all tier A); personnel/formation shares (tier B, carryover only for 2026)",
+    "DEF": "defensive response features: blitz rate, pressure proxies, box counts, man/zone and shell (tier B carryover), explosive suppression, position-allowed rates after opponent adjustment, defensive injury absences, CONDITIONAL splits (e.g. vs heavy personnel) where cell n >= 30 plays else unconditional with a 'conditional not supported' flag",
+    "INT": "player-vs-scheme interaction: player usage archetype fingerprint x opponent response of the matching archetype (WR slot/outside/vertical/underneath, RB gap/zone/receiving/screen, TE inline/slot, QB pocket/scramble/blitz-answer/play-action)",
+    "SECOND": "second-order counters, FIXED hypothesis list declared here: (1) opponent blitz rate high -> RB/TE short-target share; (2) opponent two-high rate high -> underneath target share (slot/TE/RB); (3) heavy box -> play-action/vertical share; (4) WR1 absent -> WR2 route/target share and TE/RB redistribution. Any other counter discovered later is EXPLORATORY.",
+    "PROP": "injury/personnel propagation graph features: teammate absences (WR1/WR2/TE/RB1/QB) and OL starter absences propagated to team pass volume, pressure/sack rate, RB checkdown share, opponent D/ST and K opportunity; the direct-backup-only rule is the CONTROL",
+    "continuity_weights": "FIXED constants (not tuned): prior-season evidence weight = 0.5^(seasons_ago) x (HC same ? 1.0 : 0.4) x (OC same ? 1.0 : 0.6) x (QB same ? 1.0 : 0.6) where defensive evidence uses (HC, DC, front-seven continuity); evidence older than 2 seasons is not used. Sensitivity to these constants is EXPLORATORY only."
+  },
+  "gates_forecast_G2": {
+    "applies_to": "each of QB, RB, WR, TE separately (and each retained layer) on FINAL, headline designations (NONE/QUESTIONABLE/DOUBTFUL), primary scoring HALF, vs champion B1p AND vs B2p",
+    "T1_coverage_and_n": "covered rows >= 70% of eligible rows AND covered FINAL rows >= 250 (RB/WR/TE) or >= 100 (QB); otherwise INSUFFICIENT_FINAL_SAMPLE (never a pass)",
+    "T2_mae": "delta_MAE(B1p - challenger) >= 0.05 points AND 95% cluster-bootstrap lower bound > 0 (clusters = team-week, B=2000, seed 20261014)",
+    "T2b_over_role": "delta_MAE(B2p - challenger) >= 0.03 points with lower bound > 0 (the layer must add over Role)",
+    "T3_rmse": "RMSE(challenger) <= RMSE(B1p) + 0.02",
+    "T4_bias": "|bias| <= 0.5 AND |bias| <= |bias(B1p)| + 0.15",
+    "T5_consistency": "delta_MAE > 0 in at least 3 of the 5 FINAL weeks AND delta_MAE(VAL) > 0",
+    "T6_decisions": "among decided disagreement pairs (|actual difference| >= 1 point): N >= 100 AND challenger wins >= champion wins AND one-sided binomial p < 0.10; fewer than 100 decided pairs => T6 INSUFFICIENT, which blocks SHADOW_QUALIFIED",
+    "T7_tiers": "no tier with N >= 100 has delta_MAE < -0.10",
+    "T8_injury_and_cap": "delta_MAE on QUESTIONABLE+DOUBTFUL rows >= -0.05; contribution on OUT rows exactly 0; MAX CAP-HIT RATE <= 10% (a cap-hit rate above 10% is a hard fail: the model is saturating the clamp, not forecasting)",
+    "T9_leakage": "as-of assertions pass on every row; poison test byte-identical; ORACLE control beats every candidate by >= 25% of the champion MAE (harness sensitive)",
+    "T10_robustness": "delta_MAE vs B1p > 0 under BOTH STD and PPR",
+    "multiplicity": "Holm correction across the 4 positions for the lower-bound/p-value tests at family alpha 0.05; positions are reported independently and one position never rescues another",
+    "known_weaknesses_to_address_not_hide": ["RB/TE historical cap-hit rates (W2.P1)", "TE weak case", "QB weak incremental signal", "HALF-only fit limitation", "control-model (C0) mismatch", "sparse historical Role evidence"]
+  },
+  "breakout": {
+    "principle": "empirical, out-of-time, position-specific, base-rate-relative. If a position shows no reliable discrimination the label is NO_RELIABLE_SIGNAL and no probability is emitted for that position.",
+    "labels_declared": {
+      "PRIMARY": {"QB": "weekly top-12 finish among QBs", "RB": "weekly top-12 among RBs", "WR": "weekly top-12 among WRs", "TE": "weekly top-6 among TEs", "K": "weekly top-6 among Ks (spike)", "DST": "weekly top-6 among D/STs (spike)"},
+      "SECONDARY_reported_only": ["top-6 finish (QB/RB/WR/TE)", "residual breakout: actual - pregame expectation >= 1.5 x position residual SD estimated on FIT", "relative: >= 2.0 x own baseline AND >= 15 points"],
+      "rule": "the PRIMARY definition is the only one used for gates and model choice; SECONDARY definitions may not be substituted after results are seen"
+    },
+    "population": "relevance-floor rows (so negative examples are all players who met the same pregame bar and did NOT break out); base rates are computed within pregame tier",
+    "models": {
+      "M0": "tier-conditional empirical base rate (cohort model)",
+      "M1": "L2-regularized logistic regression on the declared features, C grid [0.01, 0.1, 1, 10] chosen on VAL log loss",
+      "M2": "calibrated gradient-boosted trees ONLY if M1 beats M0 on VAL AND position has >= 300 positive events in FIT+VAL; otherwise M2 is not fit",
+      "features": "Role trend (snap/route/target/carry/red-zone share trends), teammate absence, depth promotion, rookie ramp, injury-return progression, matchup archetype fit, expected team scoring/pace/implied total, OL changes, GP-layer outputs; tier-B only as carryover"
+    },
+    "gates_B": {
+      "B1_n": "FINAL positive events >= 40 (else INSUFFICIENT_FINAL_SAMPLE)",
+      "B2_brier": "Brier skill vs M0 (tier base rate) >= 2% relative with 95% bootstrap lower bound > 0",
+      "B3_logloss": "log loss improves vs M0",
+      "B4_calibration": "reliability slope in [0.8, 1.2] and expected calibration error <= 0.03 (10 equal-mass bins; bins with < 10 rows merged)",
+      "B5_lift": "top-decile lift >= 1.3 x base rate with N_events in top decile >= 10",
+      "B6_negative_examples": "report, for each driver, how often the same signal occurred WITHOUT a breakout (hit rate, not just conditional frequency among breakouts)",
+      "fail": "any failed gate => NO_RELIABLE_SIGNAL for that position; no probability, no 'Elevated' label"
+    },
+    "display_contract": "banded labels only (Low / Typical / Elevated / High) with the historical base rate, the comparable-situation rate and its sample size; no decimal precision beyond whole percent"
+  },
+  "k_dst": {
+    "K": {"components": ["expected team drives", "scoring-range entries", "red-zone stall rate", "opponent red-zone defense", "coach 4th-down aggressiveness", "FG attempt distribution", "distance distribution", "accuracy by distance bin (empirical-Bayes shrinkage to league)", "roof/wind/temp", "implied team total / spread"], "unavailable_flagged": ["field condition", "kicker-specific wind splits (sparse)"]},
+    "DST": {"components": ["sacks", "interceptions", "fumble recoveries", "defensive TD", "return TD", "safeties", "blocked kicks", "points allowed", "yards allowed"], "inputs": ["own pressure/sack generation (tier A: sacks, FTN pass rushers/blitzers)", "opponent sack-allowed and turnover rate", "opponent pass volume / pace", "implied opponent points / spread", "home/road, weather", "defensive injuries (propagation)", "OL injury of opponent (propagation)"]},
+    "gates": "same T1-T10 form as G2 vs the generic-projection control, per position K and DST separately, with N >= 150 FINAL rows each (else INSUFFICIENT_FINAL_SAMPLE), plus spike-probability gates B1-B6. K and DST qualify independently of every other position.",
+    "streaming": "Streaming VOR is evaluated separately: does choosing the highest-forecast available K/DST each week beat last-week's-best (chasing) and the season-long hold, on FINAL"
+  },
+  "dynamic_vor": {
+    "definitions": {
+      "weekly_roster_vor": "optimal EXPECTED legal lineup WITH the player minus WITHOUT the player (full lineup re-optimization, not slot-local), replacement drawn from bench, IR returners, then the VERIFIED pool with acquisition realism",
+      "ros_vor": "sum over remaining usable weeks of weekly roster VOR with future byes, injury horizon and schedule",
+      "hold_vor": "cost of losing the asset irrespective of this week's lineup status (bye does NOT zero it)",
+      "streaming_adjusted_vor": "weekly VOR net of what the real market can recreate",
+      "scarcity_vor": "value from the actual shape of the league position pool",
+      "league_vor": "league-relative usefulness vs realistic league replacement",
+      "private_roster_vor": "value to this specific manager",
+      "market_value_input": "trade-market input from general scarcity; NEVER equated to private roster value"
+    },
+    "retrospective_roster_source": "No point-in-time historical rosters/pools exist in the repo. Retrospective validation uses SEEDED SYNTHETIC rosters (seed 20261014): for each season 2025 and 2026-completed weeks, 12 teams built by a snake draft on prior-season fantasy rank with seeded noise, using EACH registered league's real roster/slot structure; waiver pool = all players not rostered with a documented availability rule. Real roster evaluation is PROSPECTIVE only (W2.P2 capture extension).",
+    "comparators": ["static positional VOR (nth_best_available frontier, the existing lib/weekly/replacement.ts)", "no-bench replacement", "bye-as-zero hold (the known-bad control)"],
+    "metrics": ["Spearman(predicted weekly roster VOR, realized marginal lineup value with ACTUAL points)", "calibration slope of predicted vs realized", "decision regret = actual best legal option - recommended legal option", "bad-drop rate for players on bye (future-bye-aware vs not)", "week-to-week VOR volatility (rank stability) per component", "scarcity VOR incremental signal over league VOR"],
+    "gates_V": {
+      "V1": "roster-specific VOR has higher Spearman vs realized marginal lineup value than static positional VOR, with 95% bootstrap lower bound of the difference > 0, pooled over >= 400 roster-weeks",
+      "V2": "bench-aware replacement reduces mean decision regret vs no-bench",
+      "V3": "future-bye-aware hold reduces bad-drop rate vs bye-as-zero hold",
+      "V4": "a component is exposed in the SIMPLE view only if its week-to-week rank correlation >= 0.6 among players with unchanged role; otherwise deep view only",
+      "bye_invariants": "HARD: a bye sets current-week lineup contribution to 0 and NEVER sets Hold VOR or ROS VOR to 0 (property test over every position incl. K and D/ST)"
+    }
+  },
+  "missing_data_rules": {
+    "rookies": "no prior evidence -> confidence LOW, draft-capital prior only (rookie model = draft capital only), tactical layers neutral-with-flag",
+    "new_coach_or_coordinator": "prior-season tactical evidence weight x0.4 (HC) / x0.6 (OC/DC); current-season evidence only after n >= 3 games, else flagged",
+    "traded_or_changed_team_player": "team-dependent features reset to the new team; player-intrinsic usage retained with LOW confidence for 3 games",
+    "unknown_identity": "excluded from model metrics, counted in coverage, never defaulted",
+    "limited_route_or_coverage_data": "feature = NULL (unknown), layer contribution 0 WITH an explicit missing-evidence reason; never neutral certainty",
+    "stale_evidence": "evidence older than 21 days at observation time is flagged STALE and confidence capped LOW",
+    "missing_projection": "player stays in the market (verified available) with valuation UNKNOWN",
+    "missing_market_state": "replacement falls back to the roster-only chain and is flagged REPLACEMENT_MARKET_UNVERIFIED; no verified-pool claim"
+  },
+  "rollback_criteria": [
+    "any W2.R1 import appears under a production code path (source-scan test fails)",
+    "any production recommendation changes in the isolation diff (waiver/lineup/trade/start-sit surfaces byte-identical before/after)",
+    "the harness sensitivity control (ORACLE) fails to beat candidates",
+    "cap-hit rate > 10% on FINAL for a retained layer",
+    "a leakage assertion fails on any row"
+  ],
+  "exploratory_only": [
+    "feature discovery inside OFF/DEF/INT/SECOND/PROP on FIT",
+    "continuity-constant sensitivity",
+    "archetype clustering",
+    "propagation-graph edge discovery beyond the declared list",
+    "alternative breakout label definitions (SECONDARY)",
+    "any analysis on 2026 weeks 1-5 before a candidate is frozen (FINAL is not touched until freeze)"
+  ],
+  "performance_budget": {"cold_manager_analysis_ms_p95": 8000, "warm_manager_analysis_ms_p95": 1500, "league_wide_12_team_ms_p95": 20000, "max_provider_requests_per_analysis": "bounded by the existing certified market loader; no new provider fan-out", "note": "measured and reported, not tuned against correctness"},
+  "freeze_protocol": "after VAL choices, write scripts/w2r1/FROZEN.json (sha256 of this file, harness, driver, coefficients) BEFORE the first FINAL row is scored; FINAL is scored once; results are reported whatever they are"
+}

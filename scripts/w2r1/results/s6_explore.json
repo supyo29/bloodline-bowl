@@ -1,0 +1,125 @@
+{
+  "note": "EXPLORATORY ablation of the M1b gain (VAL, FIT-trained, lambda chosen per set on VAL log loss); non-binding",
+  "ablation": {
+    "QB": {
+      "tier_only_logit": {
+        "brier_skill_vs_M0": -0.0003,
+        "logloss": 0.6305
+      },
+      "tier_plus_LEVEL": {
+        "brier_skill_vs_M0": 0.0323,
+        "logloss": 0.6188
+      },
+      "plus_TREND": {
+        "brier_skill_vs_M0": 0.0395,
+        "logloss": 0.6129
+      },
+      "plus_CONTEXT": {
+        "brier_skill_vs_M0": 0.07,
+        "logloss": 0.6017
+      },
+      "M1b_all": {
+        "brier_skill_vs_M0": 0.0827,
+        "logloss": 0.5928
+      },
+      "TREND_only_over_tier": {
+        "brier_skill_vs_M0": 0.0035,
+        "logloss": 0.6292
+      },
+      "CONTEXT_only_over_tier": {
+        "brier_skill_vs_M0": 0.0567,
+        "logloss": 0.605
+      }
+    },
+    "RB": {
+      "tier_only_logit": {
+        "brier_skill_vs_M0": 0.0003,
+        "logloss": 0.4565
+      },
+      "tier_plus_LEVEL": {
+        "brier_skill_vs_M0": 0.05,
+        "logloss": 0.4367
+      },
+      "plus_TREND": {
+        "brier_skill_vs_M0": 0.0488,
+        "logloss": 0.4373
+      },
+      "plus_CONTEXT": {
+        "brier_skill_vs_M0": 0.064,
+        "logloss": 0.4333
+      },
+      "M1b_all": {
+        "brier_skill_vs_M0": 0.0652,
+        "logloss": 0.4332
+      },
+      "TREND_only_over_tier": {
+        "brier_skill_vs_M0": -0.0036,
+        "logloss": 0.4576
+      },
+      "CONTEXT_only_over_tier": {
+        "brier_skill_vs_M0": 0.0078,
+        "logloss": 0.4544
+      }
+    },
+    "WR": {
+      "tier_only_logit": {
+        "brier_skill_vs_M0": -0.0001,
+        "logloss": 0.3413
+      },
+      "tier_plus_LEVEL": {
+        "brier_skill_vs_M0": 0.0224,
+        "logloss": 0.3305
+      },
+      "plus_TREND": {
+        "brier_skill_vs_M0": 0.0199,
+        "logloss": 0.3325
+      },
+      "plus_CONTEXT": {
+        "brier_skill_vs_M0": 0.0251,
+        "logloss": 0.3295
+      },
+      "M1b_all": {
+        "brier_skill_vs_M0": 0.022,
+        "logloss": 0.3317
+      },
+      "TREND_only_over_tier": {
+        "brier_skill_vs_M0": 0.0013,
+        "logloss": 0.3409
+      },
+      "CONTEXT_only_over_tier": {
+        "brier_skill_vs_M0": 0.0025,
+        "logloss": 0.3401
+      }
+    },
+    "TE": {
+      "tier_only_logit": {
+        "brier_skill_vs_M0": 0.0014,
+        "logloss": 0.3545
+      },
+      "tier_plus_LEVEL": {
+        "brier_skill_vs_M0": 0.0499,
+        "logloss": 0.3358
+      },
+      "plus_TREND": {
+        "brier_skill_vs_M0": 0.0517,
+        "logloss": 0.3356
+      },
+      "plus_CONTEXT": {
+        "brier_skill_vs_M0": 0.0607,
+        "logloss": 0.3306
+      },
+      "M1b_all": {
+        "brier_skill_vs_M0": 0.0663,
+        "logloss": 0.3299
+      },
+      "TREND_only_over_tier": {
+        "brier_skill_vs_M0": 0.004,
+        "logloss": 0.3538
+      },
+      "CONTEXT_only_over_tier": {
+        "brier_skill_vs_M0": 0.0143,
+        "logloss": 0.3504
+      }
+    }
+  }
+}

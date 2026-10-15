@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "shadow:compare": "tsx scripts/bridge-shadow-compare.ts",
+    "test:live": "bash scripts/test-live-certification.sh",
+    "test:recertify:player-scheme": "bash scripts/player-scheme-recertify.sh",
     "storage:audit": "node scripts/function-storage-audit.mjs"
   },
   "dependencies": {

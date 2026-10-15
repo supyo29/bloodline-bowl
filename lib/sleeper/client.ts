@@ -364,6 +364,14 @@ export interface ProjectionFeedSegmentResult {
   status: ProjectionFeedSegmentStatus;
   rows: RawSleeperProjectionEntry[];
   error: string | null;
+  /**
+   * W1.P4: the instant BLOODLINE fetched this segment's source payload (ISO). When the process cache served it, this is the ORIGINAL
+   * fetch instant — not "now" — so a cached payload never looks newer than it is. null only when nothing was fetched (UNAVAILABLE).
+   * This is Bloodline's observation time; it is not a claim about when the upstream changed a value.
+   */
+  fetched_at: string | null;
+  /** true when the payload came from the process cache rather than a network fetch for this call */
+  cache_hit: boolean;
 }
 
 /**
@@ -416,19 +424,22 @@ function projectionSegmentsFor(positions: string[]): Array<{ segment_id: string;
 const projectionFeedCache = new Map<string, ProjectionFeedCacheEntry>();
 const inFlightProjectionFeedFetches = new Map<
   string,
-  Promise<RawSleeperProjectionEntry[]>
+  Promise<OversizedFeedResult>
 >();
 
-async function getOversizedProjectionFeed(
-  path: string,
-  ttlMs: number,
-): Promise<RawSleeperProjectionEntry[]> {
+interface OversizedFeedResult {
+  rows: RawSleeperProjectionEntry[];
+  fetchedAt: number;
+  cacheHit: boolean;
+}
+
+async function getOversizedProjectionFeed(path: string, ttlMs: number): Promise<OversizedFeedResult> {
   const now = Date.now();
   const cached = projectionFeedCache.get(path);
-  if (cached && now - cached.fetchedAt < ttlMs) return cached.rows;
+  if (cached && now - cached.fetchedAt < ttlMs) return { rows: cached.rows, fetchedAt: cached.fetchedAt, cacheHit: true };
 
   const existing = inFlightProjectionFeedFetches.get(path);
-  if (existing) return existing;
+  if (existing) return existing.then((r) => ({ ...r, cacheHit: true }));
 
   const pending = fetchSleeper<RawSleeperProjectionEntry[]>(path, {
     baseUrl: SLEEPER_ROOT_URL,
@@ -442,8 +453,9 @@ async function getOversizedProjectionFeed(
           502,
         );
       }
-      projectionFeedCache.set(path, { rows, fetchedAt: Date.now() });
-      return rows;
+      const fetchedAt = Date.now();
+      projectionFeedCache.set(path, { rows, fetchedAt });
+      return { rows, fetchedAt, cacheHit: false };
     })
     .finally(() => {
       inFlightProjectionFeedFetches.delete(path);
@@ -479,13 +491,15 @@ async function projectionSegmentResult(
   positions: string[],
 ): Promise<ProjectionFeedSegmentResult> {
   try {
-    const rows = await getOversizedProjectionFeed(path, ttlMs);
+    const { rows, fetchedAt, cacheHit } = await getOversizedProjectionFeed(path, ttlMs);
     return {
       segment_id,
       positions,
       status: rows.length > 0 ? "READY" : "EMPTY",
       rows,
       error: null,
+      fetched_at: new Date(fetchedAt).toISOString(),
+      cache_hit: cacheHit,
     };
   } catch (error) {
     return {
@@ -494,6 +508,8 @@ async function projectionSegmentResult(
       status: "UNAVAILABLE",
       rows: [],
       error: error instanceof Error ? error.message : String(error),
+      fetched_at: null,
+      cache_hit: false,
     };
   }
 }

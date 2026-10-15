@@ -20,6 +20,11 @@ export interface FreeAgentPool {
   /** AVAILABLE_FREE_AGENT members, deterministic order (player_key ascending). Empty when the market is not actionable. */
   members: PlayerMarketState[];
   by_position: Record<string, string[]>;
+  /**
+   * Waiver-claimable players that the PROVIDER states are on waivers (Yahoo `status=W`). Acquirable through a claim, not an immediate add. Empty on providers
+   * whose waiver state is only inferred (Sleeper): those stay in `on_waivers` as not-addable, exactly as before.
+   */
+  claimable: PlayerMarketState[];
   /** Not addable now, but listed so consumers can explain absences. */
   on_waivers: PlayerMarketState[];
   locked: PlayerMarketState[];
@@ -35,11 +40,15 @@ export function buildFreeAgentPool(s: MarketSnapshot): FreeAgentPool {
   return {
     market_content_id: s.identities.market_content_id, pool_id: `pool:${hashOf({ m: s.identities.market_content_id, k: members.map((x) => x.player_key) })}`, league_slug: s.league_slug, season: s.season, week: s.week,
     readiness: s.readiness, actionable, members, by_position,
+    claimable: actionable ? s.players.filter((p) => p.status === "ON_WAIVERS" && p.claimable === true && !!p.availability_evidence) : [],
     on_waivers: s.players.filter((p) => p.status === "ON_WAIVERS"), locked: s.players.filter((p) => p.status === "LOCKED"),
     unknown: s.players.filter((p) => p.status === "UNKNOWN_AVAILABILITY" || p.status === "SOURCE_UNAVAILABLE"),
     exclusions: { ineligible: s.ineligible_counts, on_waivers: s.counts.ON_WAIVERS, locked: s.counts.LOCKED, unknown: s.counts.UNKNOWN_AVAILABILITY + s.counts.SOURCE_UNAVAILABLE, rostered: s.counts.ROSTERED },
   };
 }
+
+/** Every player acquirable by add OR claim, deterministic order. Provider-neutral: the same call serves Sleeper (adds only) and Yahoo (adds + claims). */
+export const acquirablePlayers = (pool: FreeAgentPool): PlayerMarketState[] => [...pool.members, ...pool.claimable].sort((a, b) => (a.player_key < b.player_key ? -1 : 1));
 
 export const poolPositionView = (pool: FreeAgentPool, position: string): PlayerMarketState[] => { const keys = new Set(pool.by_position[position] ?? []); return pool.members.filter((m) => keys.has(m.player_key)); };
 /** Availability-only support for replacement-level queries: how many acquirable players exist at a position, and who they are (unranked). */

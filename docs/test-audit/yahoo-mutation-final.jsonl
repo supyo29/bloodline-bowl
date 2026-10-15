@@ -1,0 +1,39 @@
+{"baseline_failing": 0, "baseline_failing_names": []}
+{"id": "Y1", "mutation": "UNROSTERED => FREE AGENT: every pool row the provider did not mark FA is treated as FA (waiver / unverified players become addable)", "status": 
+{"id": "Y1b", "mutation": "UNROSTERED => FREE AGENT at the engine: a projected unrostered player Yahoo did not verify stays a free agent", "status": "KILLED", "newly_fail
+{"id": "Y2", "mutation": "only the FIRST page of the player pool is fetched (the reader stops after one wave)", "status": "KILLED", "newly_failing": 5, "killed_by": ["1 -
+{"id": "Y2b", "mutation": "the loader asks Yahoo for a single page (count: 25) instead of the whole pool", "status": "KILLED", "newly_failing": 3, "killed_by": ["1 - read
+{"id": "Y3", "mutation": "one team's roster is omitted from the league-wide ownership read", "status": "KILLED", "newly_failing": 6, "killed_by": ["1 - every team's roste
+{"id": "Y4", "mutation": "Yahoo connections swapped (and the binding check removed): Maclin reads with Rogers Park's token and vice versa", "status": "KILLED", "newly_fai
+{"id": "Y4b", "mutation": "the handle returned by the provider is trusted even when it used another connection", "status": "KILLED", "newly_failing": 4, "killed_by": ["1 
+{"id": "Y5", "mutation": "UNKNOWN => FREE AGENT: an ambiguous / unresolvable defense is offered as available", "status": "KILLED", "newly_failing": 2, "killed_by": ["3 - 
+{"id": "Y5b", "mutation": "UNKNOWN => FREE AGENT: a player rostered on one team but listed FA by Yahoo is no longer a conflict", "status": "KILLED", "newly_failing": 4, "
+{"id": "Y6", "mutation": "KICKERS are discarded (K is no longer a startable position)", "status": "KILLED", "newly_failing": 23, "killed_by": ["1 - counts verified free a
+{"id": "Y7", "mutation": "TEAM DEFENSES are discarded (DEF is no longer a startable position)", "status": "KILLED", "newly_failing": 23, "killed_by": ["1 - counts verifie
+{"id": "Y8", "mutation": "the Yahoo key is used AS the Sleeper id (provider ids cross)", "status": "KILLED", "newly_failing": 4, "killed_by": ["2 - WITH the bridge the Ya
+{"id": "Y8b", "mutation": "the weekly adapter matches Yahoo players on Sleeper id instead of canonical identity", "status": "KILLED", "newly_failing": 7, "killed_by": ["2
+{"id": "Y9", "mutation": "stale market state is ignored (nothing is blocked however old)", "status": "KILLED", "newly_failing": 2, "killed_by": ["32 - failures are visibl
+{"id": "Y9b", "mutation": "a cached read older than the staleness ceiling is re-stamped as live instead of re-read", "status": "KILLED", "newly_failing": 2, "killed_by": 
+{"id": "Y10", "mutation": "the pool is blocked because pending claims are unavailable", "status": "KILLED", "newly_failing": 43, "killed_by": ["1 - WR replacement level c
+{"id": "Y11", "mutation": "the FULL player pool (not the verified available pool) sets replacement level", "status": "KILLED", "newly_failing": 3, "killed_by": ["1 - WR r
+{"id": "Y12", "mutation": "a non-GET request is permitted to Yahoo (POST)", "status": "KILLED", "newly_failing": 11, "killed_by": ["1 - a full load issues GETs only, to l
+{"id": "Y13", "mutation": "the pool deadline is computed from the injected clock but enforced against the real one (the first-run defect)", "status": "KILLED", "newly_fai
+{"id": "Y14", "mutation": "a changed transaction feed no longer forces a re-read (cached raw reads re-stamped regardless)", "status": "KILLED", "newly_failing": 2, "kille
+{"id": "Y15", "mutation": "rows Yahoo returned in an FA/W query while its ownership said 'team' are not counted as conflicts", "status": "KILLED", "newly_failing": 4, "ki
+{"id": "Y16", "mutation": "two teams listing one player resolve to whichever came last (no conflict)", "status": "KILLED", "newly_failing": 2, "killed_by": ["28 - ownersh
+{"id": "Y17", "mutation": "the connected account's own pending claim is ignored (the same move is re-recommended)", "status": "KILLED", "newly_failing": 4, "killed_by": [
+{"id": "Y18", "mutation": "waiver-claim and free-agent acquisition methods are no longer distinguished", "status": "KILLED", "newly_failing": 2, "killed_by": ["3 - free a
+{"id": "Y19", "mutation": "an ambiguous Yahoo->Sleeper name match is accepted (first candidate wins)", "status": "KILLED", "newly_failing": 4, "killed_by": ["2 - two acti
+{"id": "Y20", "mutation": "probeUserTeams reads Yahoo's nested team shape with the one-level merge (the latent 'owns no team' false negative)", "status": "KILLED", "newly
+{"id": "Y21", "mutation": "a processed (non-pending) transaction is counted as a pending claim", "status": "KILLED", "newly_failing": 2, "killed_by": ["2 - parses only PE
+{"id": "Y22", "mutation": "Waiver 2.0 matches Yahoo players on Sleeper id again (verified Yahoo players never reach the engine)", "status": "KILLED", "newly_failing": 2, 
+{"id": "Y23", "mutation": "the integrity guard that forbids availability without provider evidence is removed", "status": "KILLED", "newly_failing": 2, "killed_by": ["27 
+{"id": "Y24", "mutation": "a waiver date is promoted to a fabricated instant", "status": "KILLED", "newly_failing": 46, "killed_by": ["1 - FA -> AVAILABLE_FREE_AGENT with
+{"id": "Y25", "mutation": "an incomplete pool is reported as complete (partial reads look like the whole pool)", "status": "KILLED", "newly_failing": 2, "killed_by": ["3 
+{"id": "Y26", "mutation": "a failed roster read is silently treated as an empty roster (no PARTIAL signal)", "status": "KILLED", "newly_failing": 2, "killed_by": ["3 - a 
+{"id": "Y28", "mutation": "the roster-union vs Yahoo rostered-pool reconciliation no longer raises a conflict", "status": "KILLED", "newly_failing": 2, "killed_by": ["2 -
+{"id": "Y29", "mutation": "the reconciliation compares against an INCOMPLETE rostered pool as if it were whole", "status": "KILLED", "newly_failing": 2, "killed_by": ["29
+{"id": "Y30", "mutation": "the null-team fallback ignores another same-name player who HAS a team (could be the player Yahoo means)", "status": "KILLED", "newly_failing":
+{"id": "Y31", "mutation": "the null-team fallback accepts several team-less same-name players (first wins)", "status": "KILLED", "newly_failing": 2, "killed_by": ["4 - tw
+{"id": "Y27", "mutation": "a rejected token / auth failure on the pool is swallowed as an empty pool that looks complete", "status": "KILLED", "newly_failing": 4, "killed
+{"restored_byte_for_byte": true, "killed": 37, "total": 37, "equivalent": [], "survived": []}

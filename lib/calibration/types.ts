@@ -4,7 +4,7 @@
  */
 export const CALIBRATION_LEDGER_VERSION = 1;
 
-export type ArtifactKind = "PROJECTION_SNAPSHOT" | "STARTSIT_CAPTURE";
+export type ArtifactKind = "PROJECTION_SNAPSHOT" | "STARTSIT_CAPTURE" | "FINAL_PREGAME_FORECAST";
 export type ScoringExactness = "LEAGUE_EXACT" | "PROVIDER_STANDARD_APPROXIMATION" | "LEAGUE_EXACT_WITH_UNMAPPED_STATS";
 export type ParticipationState =
   | "PLAYED_NORMAL" | "PLAYED_LOW_SNAP_SHARE" | "PLAYED_PARTIAL_EXIT" | "DID_NOT_PLAY" | "INACTIVE" | "GAME_POSTPONED_OR_CANCELLED" | "UNKNOWN";
@@ -13,18 +13,8 @@ export type EvidenceStatus =
   | "ACTUAL_SCORING_UNAVAILABLE" | "SCORING_FINGERPRINT_MISMATCH" | "GAME_NOT_PLAYED";
 export type RangeStatus = "BELOW_FLOOR" | "INSIDE_RANGE" | "ABOVE_CEILING" | "RANGE_UNAVAILABLE" | "NOT_EVALUATED";
 
-/** One authoritative NFL game: identity from the Sleeper schedule, kickoff instant from a dated authoritative source. */
-export interface NflGame {
-  nfl_game_id: string;
-  season: number;
-  week: number;
-  home_team: string;
-  away_team: string;
-  kickoff_at: string; // ISO instant
-  kickoff_source: string;
-  status: string; // provider status, lower-cased ("complete", "pre_game", "postponed", ...)
-  provenance: Record<string, unknown>;
-}
+/** One authoritative NFL game (defined in lib/nfl-schedule/games.ts). */
+export type { NflGame } from "@/lib/nfl-schedule/games";
 
 /** A projection that MAY be pre-kickoff evidence for one player under one league scoring fingerprint. */
 export interface ProjectionCandidate {

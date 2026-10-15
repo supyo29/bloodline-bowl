@@ -47,12 +47,31 @@ export class SupabaseRestError extends Error {
     message: string,
     readonly status: number,
     readonly table: string,
-    /** Postgres SQLSTATE from the PostgREST error body, when present (e.g. "23505"). */
+    /** Postgres SQLSTATE or PostgREST code from the error body, when present (e.g. "23505", "42703", "PGRST204"). */
     readonly code?: string,
+    /** HTTP method of the failed request (GET/POST/PATCH...). Optional for backwards compatibility with older constructors. */
+    readonly method?: string,
   ) {
     super(message);
     this.name = "SupabaseRestError";
   }
+}
+
+/**
+ * W1.R1: STRUCTURED schema-compatibility classification. Callers must NOT parse `error.message` (this wrapper deliberately never
+ * echoes the response body): they ask what the server said via `status` + `code`.
+ *
+ *   MISSING_COLUMN  Postgres 42703 (undefined_column, e.g. a SELECT/filter naming a column that does not exist) or PostgREST PGRST204
+ *                   (a write body names a column that is not in the schema cache)
+ *   MISSING_TABLE   Postgres 42P01 (undefined_table) or PostgREST PGRST205 (table not in the schema cache)
+ *   null            anything else — in particular an unrelated 400/404 with another code or no code is NEVER a schema mismatch.
+ */
+export type SchemaMismatch = "MISSING_COLUMN" | "MISSING_TABLE";
+export function classifySchemaMismatch(e: unknown): SchemaMismatch | null {
+  if (!(e instanceof SupabaseRestError)) return null;
+  if (e.code === "42703" || e.code === "PGRST204") return "MISSING_COLUMN";
+  if (e.code === "42P01" || e.code === "PGRST205") return "MISSING_TABLE";
+  return null;
 }
 
 /** Postgres unique-violation SQLSTATE. */
@@ -172,6 +191,7 @@ export class SupabaseRest {
           res.status,
           table,
           code,
+          method,
         );
       }
       return (text ? JSON.parse(text) : []) as T;

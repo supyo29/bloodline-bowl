@@ -1,0 +1,145 @@
+{
+ "generated_at": "2026-10-13T22:51:29.394Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "H.1",
+   "area": "H",
+   "name": "HTTP: the route rejects unauthenticated, wrong-secret and query-string-secret calls (401) and exposes no data",
+   "status": "PASS",
+   "detail": [
+    401,
+    401,
+    401
+   ]
+  },
+  {
+   "id": "H.2",
+   "area": "H",
+   "name": "HTTP: authorized call with the flag UNSET is a complete no-op: status DISABLED, no Supabase write, row count unchanged",
+   "status": "PASS",
+   "detail": {
+    "status": 200,
+    "body_status": "DISABLED"
+   }
+  },
+  {
+   "id": "H.3",
+   "area": "H",
+   "name": "HTTP: an anonymous cross-origin request gets 401 and an error body with NO data (note: the shared jsonResponse helper adds CORS * to every route's 401 too — a pre-existing pattern on all cron routes, P3, no data exposed)",
+   "status": "PASS",
+   "detail": {
+    "status": 401,
+    "acao": "*",
+    "body": "{\"ok\":false,\"code\":\"unauthorized\",\"detail\":\"Missing credentials. Send Authorization: Bearer <secret>.\"}"
+   }
+  },
+  {
+   "id": "H.4",
+   "area": "H",
+   "name": "HTTP: ROLE_SHADOW_CAPTURE='true' (not exactly '1') stays DISABLED — verified on the live server",
+   "status": "PASS",
+   "detail": "DISABLED"
+  },
+  {
+   "id": "H.5",
+   "area": "H",
+   "name": "HTTP ?dry_run=1 (flag on): real providers + real contexts build, records counted, NOTHING written to Supabase",
+   "status": "PASS",
+   "detail": {
+    "ms": 8107,
+    "built": 456,
+    "counters": {
+     "candidates": 618,
+     "not_applicable_position": 85,
+     "no_role_forecast": 74,
+     "ambiguous_identity": 0,
+     "identity_conflict": 3,
+     "rejected_late": 0,
+     "rejected_no_kickoff": 0,
+     "rejected_incoherent": 0,
+     "built": 456
+    }
+   }
+  },
+  {
+   "id": "H.6",
+   "area": "H",
+   "name": "HTTP real run #1: every built record is INSERTED through PostgREST; DB row count equals the INSERTED count; status OK; 0 failures",
+   "status": "PASS",
+   "detail": {
+    "ms": 3842,
+    "by_status": {
+     "INSERTED": 456
+    },
+    "built": 456,
+    "rows": 456
+   }
+  },
+  {
+   "id": "H.7",
+   "area": "H",
+   "name": "HTTP real run #2 (a second scheduled invocation): idempotent — no duplicates; any new rows are real evidence changes (a changed projection/injury), never a re-insert",
+   "status": "PASS",
+   "detail": {
+    "by_status": {
+     "DUPLICATE_IDENTICAL": 456
+    },
+    "rows": 456
+   }
+  },
+  {
+   "id": "H.8",
+   "area": "H",
+   "name": "HTTP after a full SERVER RESTART: durable dedupe (state lives in Postgres, not memory) — still no duplicate captures",
+   "status": "PASS",
+   "detail": {
+    "DUPLICATE_IDENTICAL": 456
+   }
+  },
+  {
+   "id": "S.1",
+   "area": "S",
+   "name": "every stored row is LIVE_CAPTURED and pregame by BOTH clocks: captured_at < kickoff_at AND the database's own insertion time recorded_at < kickoff_at",
+   "status": "PASS",
+   "detail": {
+    "rows": 456,
+    "violations": 0
+   }
+  },
+  {
+   "id": "S.2",
+   "area": "S",
+   "name": "stored rows by league | scoring compatibility | eligible",
+   "status": "INFO",
+   "detail": [
+    "bloodline-bowl|TEMPLATE_HALF_ON_MODELED_KEYS|false=13",
+    "bloodline-bowl|TEMPLATE_HALF_ON_MODELED_KEYS|true=127",
+    "devoted-to-the-game|NO_FROZEN_FIT|false=154",
+    "sportys-alumni|NO_FROZEN_FIT|false=162"
+   ]
+  },
+  {
+   "id": "S.3",
+   "area": "S",
+   "name": "NO SILENT POOLING: only Bloodline Bowl rows are ever eligible; Devoted and Sporty's rows are stored for coverage but ALL ineligible with scoring NO_FROZEN_FIT",
+   "status": "PASS",
+   "detail": {
+    "eligible_other_leagues": 0,
+    "eligible_with_non_template_scoring": 0,
+    "bloodline_bowl_eligible": 127,
+    "other_league_template_rows": 0
+   }
+  },
+  {
+   "id": "S.4",
+   "area": "S",
+   "name": "only QB/RB/WR/TE are stored; every row identifies its player by the sleeper-via-profile join (the known gsis crosswalk gap is visible, not hidden)",
+   "status": "PASS",
+   "detail": {
+    "positions": "QB,RB,TE,WR",
+    "joins": "SLEEPER_ID_VIA_PROFILE=456"
+   }
+  }
+ ]
+}

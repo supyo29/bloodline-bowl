@@ -8,6 +8,11 @@ import { scoringFingerprint } from "@/lib/canonical/scoring-fingerprint";
 import { SleeperWeeklyProjectionProvider } from "@/lib/weekly/projections/sleeper-weekly";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
 
+import { beforeEach as __isolateBeforeEach } from "node:test";
+import { clearProjectionFeedCache as __clearFeedCache } from "@/lib/sleeper/client";
+/* The Sleeper projection feed cache is process-global (infra 8c6814a, 2026-09-26): a test that mocks fetch must not inherit rows cached by an earlier test. */
+__isolateBeforeEach(() => __clearFeedCache());
+
 const CORE = { pass_yd: 0.04, pass_td: 4, pass_int: -1, rush_yd: 0.1, rush_td: 6, rec_yd: 0.1, rec_td: 6 };
 const FIXTURES: Record<string, Record<string, number>> = {
   NO_PPR: { ...CORE, rec: 0 }, FULL_PPR: { ...CORE, rec: 1 }, HALF_PPR: { ...CORE, rec: 0.5 }, TE_PREMIUM: { ...CORE, rec: 1, bonus_rec_te: 0.5 },

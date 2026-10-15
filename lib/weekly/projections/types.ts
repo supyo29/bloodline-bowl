@@ -39,6 +39,11 @@ export interface ProjectionRequest {
    * - bypass: force live and do not read/write the canonical snapshot
    */
   projection_snapshot_policy?: "prefer" | "refresh" | "bypass";
+  /**
+   * W1.P4: the maximum acceptable age (ms) of the UPSTREAM source observation for this request, decided by the freshness authority
+   * (`lib/weekly/freshness/policy.ts`). A live provider must not serve a cached payload older than this. Absent = provider default.
+   */
+  max_source_age_ms?: number;
 }
 
 export interface ProjectionProvider {
@@ -46,6 +51,11 @@ export interface ProjectionProvider {
   readonly model_version: string;
   /** Weekly projections for the requested players, in the league's scoring. */
   getWeeklyProjections(req: ProjectionRequest): Promise<WeeklyProjectionBatch>;
+  /**
+   * W1.R2: the provider's clock. A forecast composed from this provider's evidence is stamped by reading it AT COMPOSITION (after every input,
+   * including any live fetch, is in hand) — never the instant a request started. Optional: a provider without a clock yields no composition time.
+   */
+  now?(): number;
 }
 
 export type { WeeklyProjection, WeeklyProjectionBatch };

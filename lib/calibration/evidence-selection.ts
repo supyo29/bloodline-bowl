@@ -7,8 +7,9 @@
  */
 import type { EvidenceSelection, ProjectionCandidate } from "./types";
 
-export const SELECTION_RULE = "latest valid projection recorded strictly before this player's own game kickoff; ties: PROJECTION_SNAPSHOT before STARTSIT_CAPTURE, then artifact_id ascending";
-const KIND_RANK: Record<string, number> = { PROJECTION_SNAPSHOT: 0, STARTSIT_CAPTURE: 1 };
+export const SELECTION_RULE =
+  "evidence recorded strictly before this player's own game kickoff; the FINAL canonical forecast (FINAL_PREGAME_FORECAST — what Bloodline actually told users) is preferred when one exists, else the latest valid projection; ties: PROJECTION_SNAPSHOT before STARTSIT_CAPTURE, then artifact_id ascending";
+const KIND_RANK: Record<string, number> = { FINAL_PREGAME_FORECAST: 0, PROJECTION_SNAPSHOT: 1, STARTSIT_CAPTURE: 2 };
 
 /** A candidate is usable evidence only if it carries an actual projected number for this player. */
 export function isValidCandidate(c: ProjectionCandidate): boolean {
@@ -26,9 +27,13 @@ export function selectPregameEvidence(candidates: readonly ProjectionCandidate[]
     if (!isValidCandidate(c)) { invalid++; continue; }
     eligible.push({ c, t });
   }
-  eligible.sort((a, b) =>
+  // W1.R1: a valid final canonical forecast always outranks source-basis evidence recorded later (a snapshot written after the forecast was
+  // composed is the same source number the forecast already incorporated, not a newer belief about the decision)
+  const finals = eligible.filter((e) => e.c.kind === "FINAL_PREGAME_FORECAST");
+  const pool = finals.length > 0 ? finals : eligible;
+  pool.sort((a, b) =>
     b.t - a.t
     || (KIND_RANK[a.c.kind] ?? 9) - (KIND_RANK[b.c.kind] ?? 9)
     || (a.c.artifact_id < b.c.artifact_id ? -1 : a.c.artifact_id > b.c.artifact_id ? 1 : 0));
-  return { chosen: eligible[0]?.c ?? null, considered: candidates.length, rejected_not_before_kickoff: notBefore, rejected_invalid: invalid, rule: SELECTION_RULE };
+  return { chosen: pool[0]?.c ?? null, considered: candidates.length, rejected_not_before_kickoff: notBefore, rejected_invalid: invalid, rule: SELECTION_RULE };
 }

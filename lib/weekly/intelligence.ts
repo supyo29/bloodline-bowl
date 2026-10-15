@@ -8,9 +8,11 @@
  * matter this week — and a manager-facing `summary`.
  */
 
+import { qualificationSummary } from "@/lib/w2r1/qualification";
 import { buildWeeklyTeamContext, type BuildWeeklyContextOptions } from "./context";
 import { runInLeagueStateScope } from "@/lib/canonical/request-scope";
 import { buildOptimalLineup } from "./lineup";
+import { decisionProjectionRows } from "./forecast/view";
 import { buildMatchup, buildLeverage } from "./matchup";
 import { buildWaiverRecommendations } from "./waivers";
 import { compareStartSit, type StartSitComparison } from "./start-sit";
@@ -45,6 +47,8 @@ export interface WeeklyIntelligence {
   data_quality: WeeklyTeamContext["data_quality"];
   readiness: WeeklyTeamContext["readiness"];
   persistence_status: string;
+  /** W2.R1 current-intelligence metadata: qualified D/ST application for this context + per-component qualification states + where the Dynamic VOR / D/ST / upside detail lives. */
+  w2r1_intelligence?: { dst_integration: NonNullable<WeeklyTeamContext["w2r1"]>["dst"] | null; qualification: ReturnType<typeof qualificationSummary>; detail_routes: Record<string, string> };
   /** Traceable lineage: the canonical snapshot + projection models behind this result. */
   lineage: RecommendationLineage;
 
@@ -173,11 +177,10 @@ async function buildWeeklyIntelligenceInner(
   }
   const ctx = built.context;
 
-  const lineup = buildLineup(ctx);
+  const { lineup, start_sit } = lineupEndpointView(ctx);
   const matchup = buildMatchup(ctx);
   const matchup_leverage = buildLeverage(matchup);
   const waivers = buildWaiverRecommendations(ctx);
-  const start_sit = buildCloseCalls(ctx, lineup);
   // Phase 4 shadow path — non-fatal, never alters production output.
   let start_sit_shadow: StartSitShadowComparison | null = null;
   try {
@@ -238,6 +241,7 @@ async function buildWeeklyIntelligenceInner(
       data_quality: ctx.data_quality,
       readiness: ctx.readiness,
       persistence_status: ctx.persistence_status,
+      w2r1_intelligence: { dst_integration: ctx.w2r1?.dst ?? null, qualification: qualificationSummary(ctx.league.slug), detail_routes: { dynamic_vor_and_components: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/roster`, dst_k_components: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/dst`, upside_likelihood: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/upside`, qualification: `/api/w2r1/${ctx.league.slug}/${ctx.manager.manager_slug}/qualification` } },
       lineage: ctx.lineage,
       top_actions,
       summary,
@@ -254,6 +258,23 @@ async function buildWeeklyIntelligenceInner(
   };
 }
 
+/**
+ * W1.R1: the ONE headline lineup view. `/api/lineup` and `/api/intelligence` both call this, so the same league + manager + week + evidence
+ * can never yield two lineup recommendations (the audit found `/api/lineup` assembling its own optimizer input without canonical forecasts).
+ */
+export function lineupEndpointView(ctx: WeeklyTeamContext): {
+  lineup: LineupResult;
+  start_sit: StartSitComparison[];
+  roster_constraints: WeeklyTeamContext["league"]["roster_constraints"];
+  /** the forecast set the lineup rests on (same id as `lineage.projection_forecast_identity`): one analysis, one evidence set */
+  forecast_set_identity: string | null;
+} {
+  const lineup = buildLineup(ctx);
+  // Same start/sit derivation as the intelligence endpoint — paired entering/leaving sets, cross-position reshuffle legs excluded.
+  const start_sit = buildCloseCalls(ctx, lineup);
+  return { lineup, start_sit, roster_constraints: ctx.league.roster_constraints, forecast_set_identity: ctx.forecasts?.identity?.identity_id ?? null };
+}
+
 export function buildLineup(ctx: WeeklyTeamContext): LineupResult {
   const players = new Map(ctx.all_rostered.map((p) => [p.canonical_player_id, p]));
   return buildOptimalLineup({
@@ -262,6 +283,7 @@ export function buildLineup(ctx: WeeklyTeamContext): LineupResult {
     constraints: ctx.league.roster_constraints,
     players,
     projections: ctx.projections,
+    forecasts: ctx.forecasts,
   });
 }
 
@@ -276,7 +298,10 @@ export function buildLineup(ctx: WeeklyTeamContext): LineupResult {
  */
 export function buildCloseCalls(ctx: WeeklyTeamContext, lineup: LineupResult): StartSitComparison[] {
   const out: StartSitComparison[] = [];
-  const p = (id: string) => ctx.projections.by_player.get(id) ?? null;
+  // W1.R1: close calls explain the lineup's decision, so they read the lineup's decision basis (canonical expected_points and P(active)
+  // when forecasts exist). Reading raw source rows let one response carry an injury-aware lineup with a source-basis explanation.
+  const decisionRows = decisionProjectionRows(ctx.projections, ctx.forecasts).rows;
+  const p = (id: string) => decisionRows.get(id) ?? null;
   const pos = (id: string) => ctx.all_rostered.find((x) => x.canonical_player_id === id)?.position;
   for (const c of lineup.changes_recommended) {
     if (!c.out) continue; // entering a freed/open slot — no "start over X" call

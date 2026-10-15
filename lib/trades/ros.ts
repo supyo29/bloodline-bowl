@@ -24,6 +24,7 @@
  * Pure and deterministic.
  */
 
+import { verifiedByeRow } from "@/lib/weekly/forecast/bye";
 import type { CanonicalPlayer, CanonicalRoster } from "@/lib/canonical/schema";
 import type { WeeklyProjection, WeeklyProjectionBatch } from "@/lib/weekly/schema";
 import { buildOptimalLineup } from "@/lib/weekly/lineup";
@@ -140,6 +141,22 @@ function rosWeekProjection(
   week: number,
   season: number,
 ): WeeklyProjection {
+  if (onBye) {
+    return verifiedByeRow({
+      canonical_player_id: playerId,
+      week,
+      season,
+      position,
+      nfl_team: null,
+      injury_status: null,
+      rest_of_season_points: null,
+      ros: null,
+      source: "trade_ros_model",
+      model_version: "ri-trade-contextual-2026.2",
+      warnings: [],
+      band: "NONE",
+    });
+  }
   return {
     canonical_player_id: playerId,
     week,
@@ -148,13 +165,13 @@ function rosWeekProjection(
     nfl_team: null,
     opponent: null,
     is_home: null,
-    projected_points: onBye ? 0 : mean,
+    projected_points: mean,
     floor_points: null,
     ceiling_points: null,
     std_dev: null,
-    projection_status: onBye ? "bye" : "projected",
-    expected_availability: onBye ? 0 : 1,
-    is_bye: onBye,
+    projection_status: "projected",
+    expected_availability: 1,
+    is_bye: false,
     injury_status: null,
     rest_of_season_points: null,
     ros: null,

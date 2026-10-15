@@ -49,7 +49,7 @@ describe("MCP protocol — 2025-era Streamable HTTP", () => {
     const { message } = await rpc("tools/list");
     const tools = message.result.tools as Array<{ name: string; description: string; inputSchema: { type: string }; annotations: Record<string, unknown> }>;
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS.map((t) => t.name), "search", "fetch"].sort());
-    assert.equal(tools.length, 18);
+    assert.equal(tools.length, 19);
     for (const t of tools) {
       assert.match(t.name, /^(bloodline_[a-z_]+|search|fetch)$/);
       assert.equal(t.inputSchema.type, "object");
@@ -112,7 +112,7 @@ describe("MCP protocol — 2026-07-28 stateless requests", () => {
 
   it("tools/list and tools/call work per-request with no session", async () => {
     const list = await rpc("tools/list", {}, { modern: true });
-    assert.equal(list.message.result.tools.length, 18);
+    assert.equal(list.message.result.tools.length, 19);
     const call = await rpc("tools/call", { name: "bloodline_capabilities", arguments: {} }, { modern: true });
     assert.equal(call.message.result.structuredContent.tool, "bloodline_capabilities");
   });
@@ -121,7 +121,7 @@ describe("MCP protocol — 2026-07-28 stateless requests", () => {
     const results = await Promise.all(Array.from({ length: 8 }, (_, i) => rpc("tools/list", {}, { modern: i % 2 === 0, id: i + 1 })));
     for (const [i, r] of results.entries()) {
       assert.equal(r.message.id, i + 1);
-      assert.equal(r.message.result.tools.length, 18);
+      assert.equal(r.message.result.tools.length, 19);
     }
   });
 });

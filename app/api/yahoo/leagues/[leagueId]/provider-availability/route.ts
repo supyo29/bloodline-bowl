@@ -15,6 +15,7 @@
  *                                /players/available)
  */
 
+import { resolveLeagueCrosswalk } from "@/lib/canonical/yahoo-bridge-source";
 import { PlayerCrosswalk, NoCrosswalk } from "@/lib/canonical/players";
 import { findLeagueTarget } from "@/lib/leagues/registry";
 import { defaultCrosswalkSource } from "@/lib/persistence/supabase/crosswalk-source";
@@ -51,7 +52,7 @@ export async function GET(
     league_slug: target.key,
     external_league_id: target.external_league_id,
     season: target.season,
-    crosswalk: new PlayerCrosswalk(defaultCrosswalkSource() ?? NoCrosswalk),
+    crosswalk: await resolveLeagueCrosswalk("yahoo", undefined, () => new PlayerCrosswalk(defaultCrosswalkSource() ?? NoCrosswalk)),
   };
   const base = { ok: true, league: target.key, capabilities: provider.capabilities() };
 

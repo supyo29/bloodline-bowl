@@ -12,6 +12,7 @@
  * explicitly labelled `ROS_PROJECTION`. The two are never collapsed (spec §1).
  */
 
+import { deriveForwardRow, isVerifiedBye } from "@/lib/weekly/forecast/bye";
 import { buildOptimalLineup } from "@/lib/weekly/lineup";
 import { evaluateHorizon, rosterWithout, type RosterHealthInputs } from "@/lib/roster-health";
 import type { CanonicalRoster } from "@/lib/canonical/schema";
@@ -90,7 +91,7 @@ export function buildWeekTimeline(t: TimelineInput): WeekPlan[] {
       isCurrent ? inputs.weekly.by_player.get(id)?.projected_points ?? null : rosPerWeek(id);
 
     const missing = activeIds.filter(
-      (id) => ptsFor(id) == null && inputs.weekly.by_player.get(id)?.projection_status !== "bye",
+      (id) => ptsFor(id) == null && !isVerifiedBye(inputs.weekly.by_player.get(id)),
     );
     if (missing.length > 0) reasons.push("MISSING_PLAYER_PROJECTION");
     if (byeAbbrs == null && !weekIncomplete) {
@@ -228,7 +229,7 @@ function range(a: number, b: number): number[] {
 }
 
 /** clone the weekly batch with `projected_points` swapped to the per-week basis. */
-function synthBatch(
+export function synthBatch(
   base: WeeklyProjectionBatch,
   ids: string[],
   ptsFor: (id: string) => number | null,
@@ -237,15 +238,7 @@ function synthBatch(
   for (const id of ids) {
     const wp = base.by_player.get(id);
     if (!wp) continue;
-    const pts = ptsFor(id);
-    by_player.set(id, {
-      ...wp,
-      projected_points: pts,
-      floor_points: pts != null ? pts * 0.7 : null,
-      ceiling_points: pts != null ? pts * 1.3 : null,
-      std_dev: pts != null ? pts * 0.3 : null,
-      projection_status: pts != null ? "projected" : wp.projection_status,
-    });
+    by_player.set(id, deriveForwardRow(wp, ptsFor(id)));
   }
   return { ...base, by_player };
 }

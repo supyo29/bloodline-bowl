@@ -158,7 +158,9 @@ test("17: persistence failure/timeout never throws, is visible, and never change
 test("17b: the runtime capture block runs after production output and does not null the shadow on failure", () => {
   const src = readFileSync(join(process.cwd(), "lib", "weekly", "intelligence.ts"), "utf8");
   const iCap = src.indexOf("persistShadowDecision(start_sit_shadow");
-  assert.ok(src.indexOf("buildCloseCalls(ctx, lineup)") < iCap && src.indexOf("buildWaiverRecommendations(ctx)") < iCap);
+  // W1.R1: close calls are built inside lineupEndpointView (shared with /api/lineup); that call must still precede the capture block
+  assert.ok(src.indexOf("lineupEndpointView(ctx)") > -1 && src.indexOf("lineupEndpointView(ctx)") < iCap && src.indexOf("buildWaiverRecommendations(ctx)") < iCap);
+  assert.ok(/function lineupEndpointView[\s\S]*?buildCloseCalls\(ctx, lineup\)/.test(src), "lineupEndpointView must be what builds the close calls");
   const catchBlock = src.slice(iCap, src.indexOf("// Phase 5 shadow path"));
   assert.ok(!/start_sit_shadow\s*=\s*null/.test(catchBlock), "capture failure must not discard the shadow comparison");
   assert.ok(/console\.warn/.test(catchBlock), "capture failure must be logged, not swallowed");

@@ -180,7 +180,7 @@ Requirements: availability depends on plan and workspace policy and changes ofte
 3. Name: `Bloodline Bowl`. Description: `Fantasy football intelligence for my leagues`.
 4. Connection: **Public endpoint**, URL `https://bloodline-bowl-sleeper-bridge.vercel.app/mcp`.
 5. Authentication: **None**. Review the warning → **I understand and want to continue** → **Create**.
-6. Check that 18 tools are listed.
+6. Check that 19 tools are listed (18 original + bloodline_dynamic_vor).
 7. In a **new** chat, type `@` and pick Bloodline Bowl, then ask a question.
 8. After a server update that changes tools: open the connection → **Refresh**, then start a new chat.
 

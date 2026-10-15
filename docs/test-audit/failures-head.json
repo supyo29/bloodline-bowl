@@ -1,0 +1,740 @@
+[
+ {
+  "name": "REGISTRY-CONSTRAINED: the planner infers capability from the surface registry \u2014 changing the registry changes researchability",
+  "file": "test/analysis-book-isolation.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-isolation.test.ts:2:4738",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n    + actual - expected\n    \n    + 'SOURCE_LAG'\n    - 'HISTORY_LIMITED'\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-isolation.test.ts:44:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "stale detection compares STORED evidence identity with CURRENT source identity \u2014 never wall-clock time",
+  "file": "test/analysis-book-navigation.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-navigation.test.ts:2:12657",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n    + actual - expected\n    \n    + 'NEW_THROUGH_WEEK'\n    - 'WEEK_COMPLETED'\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-navigation.test.ts:96:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "Contents redisplay is pure: it never changes state or re-runs research; re-selecting a researched chapter RECALLS it",
+  "file": "test/analysis-book-navigation.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-navigation.test.ts:2:16806",
+  "failure_type": "testCodeFailure",
+  "error": "The input did not match the regular expression /HISTORY_LIMITED/. Input:\n    \n    'Analyze Rome Odunze this week  [PLAYER_ANALYSIS]\\n' +\n      '\\n' +\n      'PART I \u2014 PLAYER & ROLE\\n' +\n      '\\n' +\n      '     1. Player background                        SOURCE_LAG\\n' +\n      '     2. Playing time                             SOURCE_LAG\\n' +\n      '     3. Route participation                      SOURCE_LAG\\n' +\n      '     4. Target opportunity                       SOURCE_LAG\\n' +\n      '     5. High-value usage                         SOURCE_LAG\\n' +\n      '     6. Role trajectory                          SOURCE_LAG\\n' +\n      '     7. Scheme-specific usage profile            UNSUPPORTED\\n' +\n      '\\n' +\n      'PART II \u2014 TEAM ENVIRONMENT\\n' +\n      '\\n' +\n      '     8. Teammate competition                     SOURCE_LAG\\n' +\n      '     9. Offensive line                           READY\\n' +\n      '    10. Offensive scheme                         READY\\n' +\n      '    11. Coaching tendencies                      READY\\n' +\n      '    12. Game-script sensitivity                  UNSUPPORTED\\n' +\n      '    13. Team red-zone offense                    READY\\n' +\n      '    14. Quarterback interaction                  READY\\n' +\n      '\\n' +\n      'PART III \u2014 PERFORMANCE\\n' +\n      '\\n' +\n      '    15. Efficiency                               UNSUPPORTED\\n' +\n      '    16. Explosiveness                            UNSUPPORTED\\n' +\n      '    17. Expected vs actual production ",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-navigation.test.ts:120:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "researchability reflects the REAL 3.5C capability limits (never advertises what does not exist)",
+  "file": "test/analysis-book-planner.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-planner.test.ts:2:8695",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n    + actual - expected\n    \n    + 'SOURCE_LAG'\n    - 'HISTORY_LIMITED'\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-planner.test.ts:78:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "claim strength: STRONG only for a fresh, fully researched, single-vintage, non-conditional finding; everything else is TENTATIVE with reasons",
+  "file": "test/analysis-book-synthesis.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:2:7248",
+  "failure_type": "testCodeFailure",
+  "error": "'chapter 2 (Playing time) is SOURCE_LAG'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:56:166)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "MIXED VINTAGE: FI week 2 (partial), Role week 1, Player-Scheme 2025 and OPP-on-Role-week-1 are never called one current week",
+  "file": "test/analysis-book-synthesis.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:2:8739",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n    \n    4 !== 2\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:70:77)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "stale research is retained and flagged: findings downgrade, the report lists it, original state is untouched",
+  "file": "test/analysis-book-synthesis.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:2:14314",
+  "failure_type": "testCodeFailure",
+  "error": "The expression evaluated to a falsy value:\n    \n      assert.ok(f.ok && f.finding.claim_strength === \"STRONG\")\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:98:147)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "cross-player comparison: incompatible SCALES are rejected, different comparison POPULATIONS force TENTATIVE (never a silent comparison)",
+  "file": "test/analysis-book-synthesis.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:2:18233",
+  "failure_type": "testCodeFailure",
+  "error": "'same scale + same population -> a normal claim'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/analysis-book-synthesis.test.ts:125:94)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "history reads EACH snapshot's own content (never the latest file for every week) and keeps points in time order",
+  "file": "test/book-ready-evidence.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/book-ready-evidence.test.ts:2:17275",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly deep-equal:\n    + actual - expected\n    \n      [\n        1,\n        2,\n    +   3,\n    +   4\n      ]\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/book-ready-evidence.test.ts:181:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "retention policy: COMPLETE_WEEK surfaces store only COMPLETE states; only genuinely published states are present",
+  "file": "test/book-ready-history-store.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/book-ready-history-store.test.ts:2:1975",
+  "failure_type": "testCodeFailure",
+  "error": "'week 2 is PARTIAL \u2014 must not be preserved as history'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/book-ready-history-store.test.ts:27:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "indent": 0
+ },
+ {
+  "name": "unresolved id NOT on any surface -> benign, integrity CERTIFIED, player_identity DEGRADED",
+  "file": "test/bridge-capabilities.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:2:3899",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:141:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:141:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "indent": 4
+ },
+ {
+  "name": "HISTORY_PERSISTENCE_UNAVAILABLE -> CERTIFIED, history DEGRADED only",
+  "file": "test/bridge-capabilities.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:2:6157",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:197:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:197:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "indent": 4
+ },
+ {
+  "name": "free_agent_pool_not_materialized -> CERTIFIED, free_agent_pool UNAVAILABLE (never HEALTHY)",
+  "file": "test/bridge-capabilities.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:2:6682",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:207:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:207:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "week_transactions_unavailable -> CERTIFIED, transactions DEGRADED, does not imply []",
+  "file": "test/bridge-capabilities.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:2:7193",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:216:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:216:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "a clean snapshot -> CERTIFIED, every capability HEALTHY except pool (needs materialization)",
+  "file": "test/bridge-capabilities.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:2:8453",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:242:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-capabilities.test.ts:242:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "certified snapshot + stale published pointer -> integrity CERTIFIED, freshness STALE, source AVAILABLE",
+  "file": "test/bridge-freshness-envelope.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:2:4801",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:121:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:121:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "indent": 4
+ },
+ {
+  "name": "fresh published pointer + degraded capability -> freshness FRESH, free_agent_pool UNAVAILABLE",
+  "file": "test/bridge-freshness-envelope.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:2:5391",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:135:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:135:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "source unavailable + pointer present -> freshness SOURCE_UNAVAILABLE, pointer still inspectable, no 'corrupt' signal",
+  "file": "test/bridge-freshness-envelope.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:2:6080",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'REJECTED'\n        - 'CERTIFIED'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'CERTIFIED'\n      actual: 'REJECTED'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:152:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-freshness-envelope.test.ts:152:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Test.start (node:internal/test_runner/test:944:17)\n        node:internal/test_runner/test:1440:71\n        node:internal/per_context/primordials:466:82\n        new Promise (<anonymous>)\n        new SafePromise (node:internal/per_context/primordials:435:3)\n        node:internal/per_context/primordials:466:9\n        Array.map (<anonymous>)",
+  "indent": 4
+ },
+ {
+  "name": "delegates to the legacy live path; provenance FLAG_OFF, no fallback_reason",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:2003",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:45:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:45:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "indent": 4
+ },
+ {
+  "name": "serves the exact certified published snapshot; state_source PUBLISHED_SNAPSHOT",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:2551",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:56:25)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:56:25)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "wave gating: wave3 flag does not serve a wave-1 read as published unless covered",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:3309",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:70:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:70:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "TARGET_MISSING \u2014 pointer names a snapshot the store cannot return",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:4509",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:91:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:91:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "ID_MISMATCH \u2014 pointer content_hash disagrees with the stored snapshot",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:5228",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:106:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:106:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "TOO_STALE \u2014 published snapshot is older than the serving policy",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:5777",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:118:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:118:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "UNSUPPORTED_SCHEMA \u2014 stored snapshot is a future schema version",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:6905",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:136:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:136:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "MALFORMED \u2014 stored snapshot has no teams",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:7461",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:146:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:146:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "on fallback, pointer_snapshot_id stays the pointer target, not the live id",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:8064",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:158:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:158:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "a read concurrent with an advance sees a whole old OR whole new snapshot, never a mix",
+  "file": "test/bridge-published-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:2:8844",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:180:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "seedPointer (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:39:10)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-published-read.test.ts:180:19)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "first publish advances the pointer, http 200, audit CERTIFIED/created",
+  "file": "test/bridge-refresh.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:2:1405",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        \n        false !== true\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: true\n      actual: false\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:34:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:34:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "indent": 4
+ },
+ {
+  "name": "republishing identical content -> unchanged, pointer does not move, http 200",
+  "file": "test/bridge-refresh.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:2:2654",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:60:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:60:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "retry after a transient failure is safe (same content -> unchanged)",
+  "file": "test/bridge-refresh.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:2:3702",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:74:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:74:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "a self-contradictory candidate is rejected -> http 422, pointer untouched",
+  "file": "test/bridge-refresh.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:2:4684",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'rejected'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'rejected'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:91:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:91:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "two concurrent publishes with different content -> one advances, one races; pointer monotonic",
+  "file": "test/bridge-refresh.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:2:8881",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly deep-equal:\n        + actual - expected\n        \n          [\n        +   'uncertified',\n        +   'uncertified'\n        -   'published',\n        -   'raced'\n          ]\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected:\n        0: 'published'\n        1: 'raced'\n      actual:\n        0: 'uncertified'\n        1: 'uncertified'\n      operator: 'deepStrictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:167:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/bridge-refresh.test.ts:167:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "every /api route is advertised by AI discovery or explicitly allowlisted with a reason",
+  "file": "test/discovery-route-coverage.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/discovery-route-coverage.test.ts:2:6027",
+  "failure_type": "testCodeFailure",
+  "error": "routes neither advertised nor allowlisted: /api/cron/projection-snapshot, /api/yahoo/leagues/[leagueId]/players/available, /api/yahoo/leagues/[leagueId]/provider-availability\n    + actual - expected\n    \n    + [\n    +   '/api/cron/projection-snapshot',\n    +   '/api/yahoo/leagues/[leagueId]/players/available',\n    +   '/api/yahoo/leagues/[leagueId]/provider-availability'\n    + ]\n    - []\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/discovery-route-coverage.test.ts:55:10)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.start (node:internal/test_runner/test:944:17)\n    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)",
+  "indent": 0
+ },
+ {
+  "name": "once in_season it publishes normally",
+  "file": "test/draft-sportys-alumni.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/draft-sportys-alumni.test.ts:2:9798",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + 'uncertified'\n        - 'published'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 'published'\n      actual: 'uncertified'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/draft-sportys-alumni.test.ts:225:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/draft-sportys-alumni.test.ts:225:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "maclin (Yahoo) reports AUTH_REQUIRED rather than serving fabricated transactions",
+  "file": "test/foundation-live.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/foundation-live.test.ts:2:6287",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'length')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/foundation-live.test.ts:174:36)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "ADVERSARIAL: poisoning every Week-3 outcome leaves the simulated distributions byte-identical",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:3966",
+  "failure_type": "testCodeFailure",
+  "error": "The expression evaluated to a falsy value:\n        \n          assert.ok(ra.players.length > 20)\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: true\n      actual: false\n      operator: '=='\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:59:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:59:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "indent": 4
+ },
+ {
+  "name": "script scenario probabilities sum to 1 per team and every probability is valid",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:11760",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'teams')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:129:50)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "QB scrambles are a sampled dropback outcome (the substrate's scramble count is always 0): a QB with 0 forecast designed rushes still rushes",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:12432",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'nfl_team')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:133:21)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "latestForecastPerPlayer: one forecast per player, the latest frozen strictly before that player's kickoff",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:13226",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'nfl_team')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:138:82)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "simulation is reproducible: same inputs + seed -> identical; a different game id -> a different stream",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:13899",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'stats')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:149:47)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "the SAME simulated stat line scores differently under different league fingerprints (TE premium, PPR, interception value)",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:19933",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'nfl_team')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:202:236)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "models A/B/C/D: A = production normal, B/D keep the baseline/candidate mean, C = simulated mean; scores are internally consistent; SHADOW_ONLY",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:23232",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'forecast')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:215:49)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "injury-contaminated and DNP cases: contaminated rows leave the primary population (counted, not silently dropped); DNP stays a real outcome",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:24713",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'forecast')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:224:49)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "football dedupe: the same player under the same scoring fingerprint counts once; Yahoo is not pooled",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:25872",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'forecast')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:232:49)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "env / player-distribution / analysis / weather writes are idempotent (second identical write inserts nothing) and key on the primary id",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:28425",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'env_id')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:251:172)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "deterministic ids; changed inputs create a NEW id (a new revision), never a rewrite",
+  "file": "test/game-distribution.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:2:30408",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'env_id')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/game-distribution.test.ts:263:29)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "GET /api/leagues -> discovery lists the registered leagues with canonical URLs",
+  "file": "test/league-manager-routing-live.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/league-manager-routing-live.test.ts:2:9609",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly equal:\n        + actual - expected\n        \n        + undefined\n        - '/api/leagues/bloodline-bowl/draft'\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: '/api/leagues/bloodline-bowl/draft'\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/league-manager-routing-live.test.ts:301:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/league-manager-routing-live.test.ts:301:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "psi: reconciliation artifact reports all_pass",
+  "file": "test/player-scheme-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-read.test.ts:2:2059",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierA_reconciliation.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-read.test.ts:40:5)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)",
+  "indent": 0
+ },
+ {
+  "name": "psi: identical inputs -> identical served content hash (determinism)",
+  "file": "test/player-scheme-read.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-read.test.ts:2:7587",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierA_reconciliation.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-read.test.ts:154:5)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierB reconciliation artifact reports all_pass and no fabricated 2026",
+  "file": "test/player-scheme-tierb.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierb.test.ts:2:2499",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierB_reconciliation.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierb.test.ts:53:24)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierB: box-bucket sensitivity audit artifact present with a verdict",
+  "file": "test/player-scheme-tierb.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierb.test.ts:2:7073",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierB_box_sensitivity.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierb.test.ts:136:24)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierB: feature registry status artifact records built families + availability",
+  "file": "test/player-scheme-tierb.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierb.test.ts:2:7354",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/feature_registry_status.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierb.test.ts:141:24)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierC \u00a721/\u00a722: archetype numeric vectors ship; labels withheld when unstable",
+  "file": "test/player-scheme-tierc.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierc.test.ts:2:2945",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierC_archetype_stability.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierc.test.ts:61:27)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierC reconciliation artifact all_pass, 32 teams both sides, FI untouched",
+  "file": "test/player-scheme-tierc.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierc.test.ts:2:4258",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierC_reconciliation.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierc.test.ts:86:24)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierD \u00a724: research finding recorded (anti-double-counting decision is vs the production-like baseline)",
+  "file": "test/player-scheme-tierd.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierd.test.ts:2:2494",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierD_walkforward.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierd.test.ts:48:25)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "tierD: synthetic-sanity artifact families present (ablation + calibration)",
+  "file": "test/player-scheme-tierd.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierd.test.ts:2:4756",
+  "failure_type": "testCodeFailure",
+  "error": "\"ENOENT: no such file or directory, open '/Users/johnmcpherson/Fantasy Football/bb-audit/outputs/player-scheme-intelligence-2026/tierD_ablation.json'\"",
+  "stack": "readFileSync (node:fs:440:20)\n    TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/player-scheme-tierd.test.ts:90:26)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1047:25)\n    Test.processPendingSubtests (node:internal/test_runner/test:744:18)\n    Test.postRun (node:internal/test_runner/test:1173:19)\n    Test.run (node:internal/test_runner/test:1101:12)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "ADVERSARIAL: Week 3 final stats cannot alter the Week 3 pregame forecast (real committed data, every player)",
+  "file": "test/role-calibration.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/role-calibration.test.ts:2:5697",
+  "failure_type": "testCodeFailure",
+  "error": "The expression evaluated to a falsy value:\n        \n          assert.ok(a.forecasts.length > 500)\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: true\n      actual: false\n      operator: '=='\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/role-calibration.test.ts:61:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/role-calibration.test.ts:61:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "the committed role profiles are reproducible from strictly-earlier games ONLY (statistically: EWMA over weeks < target matches the R export; including the target week does not)",
+  "file": "test/role-calibration.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/role-calibration.test.ts:2:7191",
+  "failure_type": "testCodeFailure",
+  "error": "The expression evaluated to a falsy value:\n        \n          assert.ok(profiles.length >= 50)\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: true\n      actual: false\n      operator: '=='\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/role-calibration.test.ts:69:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/role-calibration.test.ts:69:12)\n        Test.runInAsyncScope (node:async_hooks:214:14)\n        Test.run (node:internal/test_runner/test:1047:25)\n        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)\n        Test.postRun (node:internal/test_runner/test:1173:19)\n        Test.run (node:internal/test_runner/test:1101:12)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "K / D-ST: standard points are NOT summed with league event scoring (fallback is used alone, and flagged)",
+  "file": "test/scoring-contract-adversarial.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract-adversarial.test.ts:2:8506",
+  "failure_type": "testCodeFailure",
+  "error": "Expected values to be strictly deep-equal:\n        + actual - expected\n        \n          [\n        +   0\n        -   7.25,\n        -   8.5\n          ]\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected:\n        0: 7.25\n        1: 8.5\n      actual:\n        0: 0\n      operator: 'deepStrictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract-adversarial.test.ts:68:89)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract-adversarial.test.ts:68:89)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "yardage-bonus league gets an info-level batch warning naming the rules; a league without such rules gets none; status is unaffected",
+  "file": "test/scoring-contract-adversarial.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract-adversarial.test.ts:2:10371",
+  "failure_type": "testCodeFailure",
+  "error": "no threshold bonus is invented on a projected 105-yard mean\n        \n        10 !== 15.5\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 15.5\n      actual: 10\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract-adversarial.test.ts:84:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract-adversarial.test.ts:84:12)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "league scoring BOTH kr_yd and def_kr_yd (Bloodline): the returner's 80 yards are priced once, and the season-model enrichment does not stack",
+  "file": "test/scoring-contract.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:2:8916",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'projected_points')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:94:78)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "league scoring ONLY kr_yd: the provider's own per-game number is used (not the season-model substitute)",
+  "file": "test/scoring-contract.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:2:9404",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'projected_points')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:98:103)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "league scoring ONLY the team-defense rule def_kr_yd: an individual offensive player earns nothing from it",
+  "file": "test/scoring-contract.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:2:9667",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'projected_points')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:101:107)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "return-disabled league: identical line, no return points (return scoring is the ONLY difference)",
+  "file": "test/scoring-contract.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:2:9951",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'projected_points')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:104:61)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "TE without a provider premium key is derived; WR with the identical line is not; provider-supplied key is not doubled",
+  "file": "test/scoring-contract.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:2:11104",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'projected_points')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:118:27)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "same season line, premium vs base league: TE ROS differs by 0.5 x receptions x weeks-left fraction; WR identical",
+  "file": "test/scoring-contract.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:2:21980",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'rest_of_season_points')\"",
+  "stack": "go (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:204:575)\n        async TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-contract.test.ts:205:64)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Promise.all (index 0)\n        async Suite.run (node:internal/test_runner/test:1442:7)\n        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "return invariant: provider=def_kr_yd_only enrichment=absent league=kr_only",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1 !== 4.2\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=def_kr_yd_only enrichment=absent league=both_rules",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1 !== 4.2\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=def_kr_yd_only enrichment=present league=kr_only",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1.8 !== 4.2\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=def_kr_yd_only enrichment=present league=both_rules",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1.8 !== 4.2\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=kr_yd_only enrichment=absent league=kr_only",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=kr_yd_only enrichment=absent league=both_rules",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=kr_yd_only enrichment=present league=kr_only",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1.8 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=kr_yd_only enrichment=present league=both_rules",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1.8 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=both_fields enrichment=absent league=kr_only",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=both_fields enrichment=absent league=both_rules",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=both_fields enrichment=present league=kr_only",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1.8 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "return invariant: provider=both_fields enrichment=present league=both_rules",
+  "file": "test/scoring-return-invariant.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:2:1798",
+  "failure_type": "testCodeFailure",
+  "error": "return yards are priced exactly once, at the individual (kr_yd) rate only; the team-defense def_kr_yd rule never prices an individual\n    \n    1.8 !== 3.4\n    \n  code: 'ERR_ASSERTION'",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/scoring-return-invariant.test.ts:21:12)\n    async Test.run (node:internal/test_runner/test:1054:7)\n    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 0
+ },
+ {
+  "name": "offensive rows carrying ONLY Sleeper precomputed pts_* totals are 'unavailable', not projected/0 (Codex round 7)",
+  "file": "test/weekly-hardening.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-hardening.test.ts:2:16516",
+  "failure_type": "testCodeFailure",
+  "error": "\"Cannot read properties of undefined (reading 'projected_points')\"",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-hardening.test.ts:459:26)\n        process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "bloodline-bowl/BijiMac produces a legal, plausible weekly plan",
+  "file": "test/weekly-intelligence-live.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-intelligence-live.test.ts:2:1367",
+  "failure_type": "testCodeFailure",
+  "error": "optimal lineup must be legal: current starter in slot QB is on bye this week.\n        \n        1 !== 0\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 0\n      actual: 1\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-intelligence-live.test.ts:52:14)\n        process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-intelligence-live.test.ts:52:14)\n        process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ },
+ {
+  "name": "devoted-to-the-game/DarthMarker produces a legal, plausible weekly plan",
+  "file": "test/weekly-intelligence-live.test.ts",
+  "location": "/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-intelligence-live.test.ts:2:1367",
+  "failure_type": "testCodeFailure",
+  "error": "optimal lineup must be legal: current starter in slot K is on bye this week.\n        \n        1 !== 0\n        \n      code: 'ERR_ASSERTION'\n      name: 'AssertionError'\n      expected: 0\n      actual: 1\n      operator: 'strictEqual'\n      stack: |-\n        TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-intelligence-live.test.ts:52:14)\n        process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "stack": "TestContext.<anonymous> (/Users/johnmcpherson/Fantasy Football/bb-audit/test/weekly-intelligence-live.test.ts:52:14)\n        process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n        async Test.run (node:internal/test_runner/test:1054:7)\n        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)",
+  "indent": 4
+ }
+]

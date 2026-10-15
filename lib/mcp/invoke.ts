@@ -24,6 +24,7 @@ import { GET as strategicContextGET } from "@/app/api/leagues/[leagueSlug]/manag
 import { GET as historyWeekGET } from "@/app/api/history/[league]/week/[week]/route";
 import { GET as leaguePlayerProjectionGET } from "@/app/api/leagues/[leagueSlug]/projections/[playerId]/route";
 import { GET as evidenceGET } from "@/app/api/evidence/route";
+import { GET as w2r1GET } from "@/app/api/w2r1/[league]/[manager]/[view]/route";
 import { POST as competitiveTradePOST } from "@/app/api/trades/competitive/route";
 import { byteLength } from "./json";
 
@@ -58,6 +59,7 @@ export const ROUTES = {
   history_week: { template: "/api/history/{league}/week/{week}", method: "GET", handler: asHandler(historyWeekGET) },
   player_projection: { template: "/api/leagues/{leagueSlug}/projections/{playerId}", method: "GET", handler: asHandler(leaguePlayerProjectionGET) },
   evidence: { template: "/api/evidence", method: "GET", handler: asHandler(evidenceGET) },
+  w2r1: { template: "/api/w2r1/{league}/{manager}/{view}", method: "GET", handler: asHandler(w2r1GET) },
   competitive_trade: { template: "/api/trades/competitive", method: "POST", handler: asHandler(competitiveTradePOST) },
 } as const satisfies Record<string, RouteSpec>;
 

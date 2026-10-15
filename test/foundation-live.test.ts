@@ -169,10 +169,20 @@ describe("smoke: GET /api/transactions/{league}", () => {
     assert.equal(body.league_slug, "bloodline-bowl");
   });
 
-  it("maclin (Yahoo) reports AUTH_REQUIRED rather than serving fabricated transactions", async () => {
-    const { body } = await callRoute<TxnBody>("../app/api/transactions/[league]/route", { league: "maclin-on-chicks-xvi" });
-    assert.equal(body.transactions.length, 0);
-    assert.ok(body.source === "unavailable" || body.status === "AUTH_REQUIRED");
+  /* Hermetic: the outcome depends on the Yahoo OAuth environment, so the test CONTROLS it instead of assuming the developer's shell. Either honest state refuses; neither serves transactions. */
+  interface Refusal { ok?: boolean; error?: string; status?: number | string; transactions?: unknown[]; source?: string }
+  const withYahooEnv = async <T>(env: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> => {
+    const keys = ["YAHOO_CLIENT_ID", "YAHOO_CLIENT_SECRET", "YAHOO_REDIRECT_URI", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]; const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    for (const k of keys) { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+    try { return await fn(); } finally { for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } }
+  };
+  it("maclin (Yahoo), OAuth NOT configured: an explicit yahoo_not_configured refusal — never fabricated transactions", async () => {
+    const { status, body } = await withYahooEnv({}, () => callRoute<Refusal>("../app/api/transactions/[league]/route", { league: "maclin-on-chicks-xvi" }));
+    assert.equal(status, 502); assert.equal(body.ok, false); assert.equal(body.error, "yahoo_not_configured"); assert.equal(body.transactions, undefined);
+  });
+  it("maclin (Yahoo), OAuth configured but the 'maclin' connection NOT authorized: an explicit yahoo_auth_required refusal naming that connection — never fabricated transactions", async () => {
+    const { status, body } = await withYahooEnv({ YAHOO_CLIENT_ID: "id", YAHOO_CLIENT_SECRET: "secret", YAHOO_REDIRECT_URI: "https://x/cb" }, () => callRoute<Refusal & { detail?: string }>("../app/api/transactions/[league]/route", { league: "maclin-on-chicks-xvi" }));
+    assert.equal(status, 502); assert.equal(body.ok, false); assert.equal(body.error, "yahoo_auth_required"); assert.match(body.detail ?? "", /"maclin"/); assert.equal(body.transactions, undefined);
   });
 });
 

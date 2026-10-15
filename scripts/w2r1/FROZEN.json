@@ -1,0 +1,425 @@
+{
+ "frozen_version": "w2r1-s7-frozen-1",
+ "frozen_at_stage": "S7_PRE_FINAL",
+ "final_set_status_at_freeze": "UNOPENED",
+ "source_commit": "3d95c8a002b92c7a65a0f24e3b47c647f5b85a67",
+ "source_branch": "intelligence-convergence-w2-r1-dynamic-value-gameplan",
+ "prereg_sha256": "6caf1f70ad2a926b368927c521d799311f09191963bf17c957c6959701cb521d",
+ "s4_spec_sha256": "e87ef2de586d8c961de224015fee524f7f58f8ff2fd4a14f403918ce7862179c",
+ "s5_spec_sha256": "fd9a199a8130b89045c64ed24caafbd28335840a0d15c7f2a609c4d42b76724c",
+ "s6_spec_sha256": "0ec02582f4a55e88a213570435aade197a6e20a469d551b2891852fb80e9599a",
+ "s7_adjudication_sha256": "d26cf4d633c050f75448941451b26655206c0e24ac13b584ade97de10f719ce1",
+ "artifacts_sha256": {
+  "scripts/w2r1/prereg.json": "6caf1f70ad2a926b368927c521d799311f09191963bf17c957c6959701cb521d",
+  "scripts/w2r1/s4_spec.json": "e87ef2de586d8c961de224015fee524f7f58f8ff2fd4a14f403918ce7862179c",
+  "scripts/w2r1/s5_spec.json": "fd9a199a8130b89045c64ed24caafbd28335840a0d15c7f2a609c4d42b76724c",
+  "scripts/w2r1/s6_spec.json": "0ec02582f4a55e88a213570435aade197a6e20a469d551b2891852fb80e9599a",
+  "scripts/w2r1/s7_protocol_adjudication.json": "d26cf4d633c050f75448941451b26655206c0e24ac13b584ade97de10f719ce1",
+  "scripts/w2r1/s4_regimes.json": "e4a1c305d5e4772e24803d5abb35b72f29e82cf322634c9574b1732ad4766414",
+  "scripts/w2r1/s4_weights.R": "a3fcc012e976b7c76d9880a7feefe8fefd2c02dbd3d42e9288509f4b17451e78",
+  "scripts/w2r1/s4_build.R": "82aae6e2b2cc0e0ac113033e7119638f744d54c9c90be3b96ea2283b64fcd828",
+  "scripts/w2r1/s4_fit_eval.R": "573e5131c826dae3a20989167b029141d74943b57abe5dcacb6a66f6be656c61",
+  "scripts/w2r1/s5_build.R": "a7a6c92328499a2713af09557cc64d2e203f39c544cfb00100ea90e1cbe65fea",
+  "scripts/w2r1/s5_run.ts": "d060b8225cad3f7687c1e2d51643bb51ef97da4460b00910870a22e47710af1d",
+  "scripts/w2r1/s6_build.R": "e78ca5060060c5f7ef11660753f9433a70f6422f174a544409674e6da79c1b63",
+  "scripts/w2r1/s6_fit_eval.R": "161257072c1e4af8e2e12f60e1fbe88fe5b2fcf0e25b22e83eefd9e84ff8cf38",
+  "scripts/w2r1/s6_kdst_spike.R": "deb8a23d28dc2a48a48b2a9a2df55d5275315e681b379e58e778d90dab549ffa",
+  "scripts/w2r1/s7_kdst_coverage.R": "0eaf65129b2742bc19291ef4ec1b3dc9e0ef1776f102ecd02ffae2d8967196ab",
+  "scripts/w2r1/s7_k_parity.R": "d82a89b88c7fa1a4fbc66cc2afc8468d4c75095d58c79710ab367fcc3cccfea8",
+  "scripts/w2r1/results/s4_val.json": "825866355356593b6b7c7e5159bc4df197d0a9d4d14cd72d167e634f4e16ad61",
+  "scripts/w2r1/results/s4_golden.json": "a49d4c7fb23b94b547f1698dee911a9739baf5e86591d5c8933538ca2265a5a8",
+  "scripts/w2r1/results/s5_val.json": "945781b01ec2807959bf6985e06c1e57c958343162b8da5bd288f2d243f8eb1c",
+  "scripts/w2r1/results/s6_val.json": "5b2230f2325e8102a4915a82ce998672226ed5f31e965f7dbda374fe0169ad8e",
+  "scripts/w2r1/results/s6_kdst_spike.json": "24b705802376b5ed4c618070d49b01b2c90a9ed6caab5b4d73e3aec7a1e81f3a",
+  "scripts/w2r1/results/s7_kdst_coverage.json": "d7fca91c5d9634dc48c1607fe4faeaaf5dab4d640c3fb2f383b298fee52cb163",
+  "scripts/w2r1/results/s7_k_parity.json": "261ca272c72cdaaebdd93506d60c6365b4f4b2577d83641af975b4d5e0ab9ec4",
+  "scripts/w2r1/results/s7_cap_bias_audit.json": "4e463c6dd345a92311ecf53de5588555c825ea37f7143a6102d5e930d146b8bc",
+  "lib/w2r1/kdst.ts": "0169104682b7e7e2a136bdc85ecc7d248a23c6e52660d30b7b7e95194210adbe",
+  "lib/w2r1/gameplan.ts": "c3590bf9618a8b69926da4410787b85aae894febc1d494bfcbb6e0b5da4b02a7",
+  "lib/w2r1/breakout.ts": "21077cb5aabc3a5977406cc37bf0bb5d1514fdd891d63a964d82cd7653982e31",
+  "lib/w2r1/vor.ts": "373a790d70d4dce610a0c185054a7eaf3927ae2ed855827f2f333e398ab96325",
+  "lib/w2r1/roster.ts": "a63570ee4f13f07ceb69c333216bfe05af0fa4161c0212bad762d5d41ff3f61b",
+  "lib/w2r1/evidence.ts": "0d29293e0873d4e0be0f7694f4b467ee01e3590cd264a8b612f9b3fe511c7b4e",
+  "lib/w2r1/adapter.ts": "9dea787b1bda106b7fe8fb00a85c3d2c18d9f970e55c9bdbf4a59cb5435ec9ef",
+  "lib/weekly/forecast/injury-model.ts": "00efe68af46cab68209243284836c4ed0544606a5de02dd80afd16a2a1632b06",
+  "lib/weekly/forecast/injury-priors.ts": "c297934aed489ffb5812e89d7ad4347b66800b50eb2615856bf524c9b2cb3d3d",
+  "scripts/w2p1/FROZEN.json": "ec313a8771120717da3bca0e3eda1e5375e510863b4f3eaa4b93d6ea8c908d3d",
+  "scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json": "696c2a51a6eb8598483107623c3c9b4b15df28966b997709819a9aa3704cd23b"
+ },
+ "availability": {
+  "authority": "lib/weekly/forecast/injury-model.ts :: evaluateInjuryModel",
+  "model_version": "injury-expected-value-2026.1",
+  "applied_exactly_once": true,
+  "source_semantics": "CONDITIONAL_ON_ACTIVE",
+  "proof": "scripts/w2r1/results/s7_cap_bias_audit.json (availability_once_proof) + test/w2r1-freeze.test.ts"
+ },
+ "role_candidate": {
+  "id": "W2.P1 role-opportunity-challenger-2026.0 (C2)",
+  "file": "scripts/w2p1/candidate/role-opportunity-challenger-2026.0.json",
+  "w2p1_frozen": "scripts/w2p1/FROZEN.json"
+ },
+ "splits": {
+  "FIT": "2022-2024",
+  "VAL": "2025 wk 3-17",
+  "FINAL": "2026 wk 1-5 (completed games), evaluated exactly once",
+  "PROSPECTIVE": "wk >= 6"
+ },
+ "ladder": {
+  "S5": [
+   "RL",
+   "G1",
+   "G2(CUR|MULTI|CONT)",
+   "G2b",
+   "G3",
+   "G4"
+  ],
+  "S6": [
+   "M0",
+   "M1a",
+   "M1b",
+   "M1c",
+   "M1d"
+  ],
+  "S4": [
+   "components -> exact league scoring"
+  ]
+ },
+ "thresholds": {
+  "source": "scripts/w2r1/prereg.json (UNCHANGED)",
+  "gates_forecast_G2": {
+   "applies_to": "each of QB, RB, WR, TE separately (and each retained layer) on FINAL, headline designations (NONE/QUESTIONABLE/DOUBTFUL), primary scoring HALF, vs champion B1p AND vs B2p",
+   "T1_coverage_and_n": "covered rows >= 70% of eligible rows AND covered FINAL rows >= 250 (RB/WR/TE) or >= 100 (QB); otherwise INSUFFICIENT_FINAL_SAMPLE (never a pass)",
+   "T2_mae": "delta_MAE(B1p - challenger) >= 0.05 points AND 95% cluster-bootstrap lower bound > 0 (clusters = team-week, B=2000, seed 20261014)",
+   "T2b_over_role": "delta_MAE(B2p - challenger) >= 0.03 points with lower bound > 0 (the layer must add over Role)",
+   "T3_rmse": "RMSE(challenger) <= RMSE(B1p) + 0.02",
+   "T4_bias": "|bias| <= 0.5 AND |bias| <= |bias(B1p)| + 0.15",
+   "T5_consistency": "delta_MAE > 0 in at least 3 of the 5 FINAL weeks AND delta_MAE(VAL) > 0",
+   "T6_decisions": "among decided disagreement pairs (|actual difference| >= 1 point): N >= 100 AND challenger wins >= champion wins AND one-sided binomial p < 0.10; fewer than 100 decided pairs => T6 INSUFFICIENT, which blocks SHADOW_QUALIFIED",
+   "T7_tiers": "no tier with N >= 100 has delta_MAE < -0.10",
+   "T8_injury_and_cap": "delta_MAE on QUESTIONABLE+DOUBTFUL rows >= -0.05; contribution on OUT rows exactly 0; MAX CAP-HIT RATE <= 10% (a cap-hit rate above 10% is a hard fail: the model is saturating the clamp, not forecasting)",
+   "T9_leakage": "as-of assertions pass on every row; poison test byte-identical; ORACLE control beats every candidate by >= 25% of the champion MAE (harness sensitive)",
+   "T10_robustness": "delta_MAE vs B1p > 0 under BOTH STD and PPR",
+   "multiplicity": "Holm correction across the 4 positions for the lower-bound/p-value tests at family alpha 0.05; positions are reported independently and one position never rescues another",
+   "known_weaknesses_to_address_not_hide": [
+    "RB/TE historical cap-hit rates (W2.P1)",
+    "TE weak case",
+    "QB weak incremental signal",
+    "HALF-only fit limitation",
+    "control-model (C0) mismatch",
+    "sparse historical Role evidence"
+   ]
+  },
+  "breakout_gates_B": {
+   "B1_n": "FINAL positive events >= 40 (else INSUFFICIENT_FINAL_SAMPLE)",
+   "B2_brier": "Brier skill vs M0 (tier base rate) >= 2% relative with 95% bootstrap lower bound > 0",
+   "B3_logloss": "log loss improves vs M0",
+   "B4_calibration": "reliability slope in [0.8, 1.2] and expected calibration error <= 0.03 (10 equal-mass bins; bins with < 10 rows merged)",
+   "B5_lift": "top-decile lift >= 1.3 x base rate with N_events in top decile >= 10",
+   "B6_negative_examples": "report, for each driver, how often the same signal occurred WITHOUT a breakout (hit rate, not just conditional frequency among breakouts)",
+   "fail": "any failed gate => NO_RELIABLE_SIGNAL for that position; no probability, no 'Elevated' label"
+  },
+  "k_dst_gates": "same T1-T10 form as G2 vs the generic-projection control, per position K and DST separately, with N >= 150 FINAL rows each (else INSUFFICIENT_FINAL_SAMPLE), plus spike-probability gates B1-B6. K and DST qualify independently of every other position.",
+  "cap_rule": "cap = max(1, 0.25*B0p); cap-hit gate <= 10% (NOT tuned)",
+  "thresholds_changed": false
+ },
+ "metric_labels": {
+  "original_confirmatory": "bias/MAE on ALL gate rows incl. actual==0 (preregistered T4)",
+  "pipeline_corrected_confirmatory": "NONE (not defensible)",
+  "conditional_on_play": "DIAGNOSTIC ONLY"
+ },
+ "candidates": [
+  {
+   "id": "S5.QB.RL",
+   "layer": "S5_forecast",
+   "position": "QB",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 1,
+   "val_cap_hit_rate": 0.18924,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.QB.G1",
+   "layer": "S5_forecast",
+   "position": "QB",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 10,
+   "val_cap_hit_rate": 0.28114,
+   "retained_on_VAL": true,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.QB.G2",
+   "layer": "S5_forecast",
+   "position": "QB",
+   "step": "G2",
+   "tactical_mode": "CONT",
+   "lambda": 10,
+   "val_cap_hit_rate": 0.32028,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.RB.RL",
+   "layer": "S5_forecast",
+   "position": "RB",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 100,
+   "val_cap_hit_rate": 0.21444,
+   "retained_on_VAL": true,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.RB.G1",
+   "layer": "S5_forecast",
+   "position": "RB",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 100,
+   "val_cap_hit_rate": 0.29476,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.RB.G2",
+   "layer": "S5_forecast",
+   "position": "RB",
+   "step": "G2",
+   "tactical_mode": "MULTI",
+   "lambda": 1,
+   "val_cap_hit_rate": 0.41266,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.WR.RL",
+   "layer": "S5_forecast",
+   "position": "WR",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 1000,
+   "val_cap_hit_rate": 0.14139,
+   "retained_on_VAL": true,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.WR.G1",
+   "layer": "S5_forecast",
+   "position": "WR",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 1000,
+   "val_cap_hit_rate": 0.15308,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.WR.G2",
+   "layer": "S5_forecast",
+   "position": "WR",
+   "step": "G2",
+   "tactical_mode": "MULTI",
+   "lambda": 1000,
+   "val_cap_hit_rate": 0.18143,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.TE.RL",
+   "layer": "S5_forecast",
+   "position": "TE",
+   "step": "RL",
+   "tactical_mode": "CUR",
+   "lambda": 10,
+   "val_cap_hit_rate": 0.33676,
+   "retained_on_VAL": true,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.TE.G1",
+   "layer": "S5_forecast",
+   "position": "TE",
+   "step": "G1",
+   "tactical_mode": "CUR",
+   "lambda": 1,
+   "val_cap_hit_rate": 0.3359,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S5.TE.G2",
+   "layer": "S5_forecast",
+   "position": "TE",
+   "step": "G2",
+   "tactical_mode": "MULTI",
+   "lambda": 1,
+   "val_cap_hit_rate": 0.40832,
+   "retained_on_VAL": false,
+   "final_status_ceiling": "DIAGNOSTIC_ONLY",
+   "reason": "preregistered cap gate (<=10%) already FAILED on VAL (14-44%); no bug found; REPORT-ONLY at final, cannot be SHADOW_QUALIFIED"
+  },
+  {
+   "id": "S6.QB.M1b",
+   "layer": "S6_upside_likelihood",
+   "position": "QB",
+   "model": "M1b",
+   "retained_chain": "M1b",
+   "val_verdict": "DIAGNOSTIC ONLY",
+   "final_status_ceiling": "DIAGNOSTIC_ONLY"
+  },
+  {
+   "id": "S6.RB.M1b",
+   "layer": "S6_upside_likelihood",
+   "position": "RB",
+   "model": "M1b",
+   "retained_chain": "M1b",
+   "val_verdict": "DIAGNOSTIC ONLY",
+   "final_status_ceiling": "DIAGNOSTIC_ONLY"
+  },
+  {
+   "id": "S6.WR.M0",
+   "layer": "S6_upside_likelihood",
+   "position": "WR",
+   "model": "M0",
+   "retained_chain": [],
+   "val_verdict": "NO RELIABLE BREAKOUT SIGNAL",
+   "final_status_ceiling": "NO_RELIABLE_SIGNAL (base rate reported)"
+  },
+  {
+   "id": "S6.TE.M1b",
+   "layer": "S6_upside_likelihood",
+   "position": "TE",
+   "model": "M1b",
+   "retained_chain": "M1b",
+   "val_verdict": "VALIDATION CANDIDATE",
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.bloodline-bowl.DST",
+   "layer": "S4_kdst",
+   "regime": "bloodline-bowl",
+   "provider": "sleeper",
+   "slot": "DST",
+   "scoring_status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+   "end_to_end_mean_abs_pts_error": 0.1034,
+   "unknown_keys_bounded": {
+    "blk_kick_ret_yd": 0.01266,
+    "fg_ret_yd": 0.00306
+   },
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.bloodline-bowl.K",
+   "layer": "S4_kdst",
+   "regime": "bloodline-bowl",
+   "provider": "sleeper",
+   "slot": "K",
+   "scoring_status": "KEY_COVERAGE_COMPLETE_AND_STATLINE_PARITY_VERIFIED_SLEEPER",
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.devoted-to-the-game.DST",
+   "layer": "S4_kdst",
+   "regime": "devoted-to-the-game",
+   "provider": "sleeper",
+   "slot": "DST",
+   "scoring_status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+   "end_to_end_mean_abs_pts_error": 0.0363,
+   "unknown_keys_bounded": {
+    "blk_kick_ret_yd": 0,
+    "fg_ret_yd": 0
+   },
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.devoted-to-the-game.K",
+   "layer": "S4_kdst",
+   "regime": "devoted-to-the-game",
+   "provider": "sleeper",
+   "slot": "K",
+   "scoring_status": "KEY_COVERAGE_COMPLETE_AND_STATLINE_PARITY_VERIFIED_SLEEPER",
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.sportys-alumni.DST",
+   "layer": "S4_kdst",
+   "regime": "sportys-alumni",
+   "provider": "sleeper",
+   "slot": "DST",
+   "scoring_status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+   "end_to_end_mean_abs_pts_error": 0.0363,
+   "unknown_keys_bounded": {
+    "blk_kick_ret_yd": 0,
+    "fg_ret_yd": 0
+   },
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.sportys-alumni.K",
+   "layer": "S4_kdst",
+   "regime": "sportys-alumni",
+   "provider": "sleeper",
+   "slot": "K",
+   "scoring_status": "KEY_COVERAGE_COMPLETE_AND_STATLINE_PARITY_VERIFIED_SLEEPER",
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.maclin-on-chicks-xvi.DST",
+   "layer": "S4_kdst",
+   "regime": "maclin-on-chicks-xvi",
+   "provider": "yahoo",
+   "slot": "DST",
+   "scoring_status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+   "end_to_end_mean_abs_pts_error": 0.0391,
+   "unknown_keys_bounded": [],
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  },
+  {
+   "id": "S4.maclin-on-chicks-xvi.K",
+   "layer": "S4_kdst",
+   "regime": "maclin-on-chicks-xvi",
+   "provider": "yahoo",
+   "slot": "K",
+   "scoring_status": "KEY_COVERAGE_COMPLETE_STATLINE_PARITY_UNVERIFIED_YAHOO",
+   "final_status_ceiling": "DIAGNOSTIC_ONLY"
+  },
+  {
+   "id": "S4.rogers-park.DST",
+   "layer": "S4_kdst",
+   "regime": "rogers-park",
+   "provider": "yahoo",
+   "slot": "DST",
+   "scoring_status": "EXACT_SCORING_QUALIFIED_BOUNDED_RESIDUAL",
+   "end_to_end_mean_abs_pts_error": 0.0332,
+   "unknown_keys_bounded": [],
+   "final_status_ceiling": "SHADOW_QUALIFIED_IF_ALL_PREREGISTERED_GATES_PASS_ON_FINAL"
+  }
+ ],
+ "eligibility_rules": {
+  "final_rows": "completed 2026 wk 1-5 games; weeks 1-2 use prior-season evidence only and are reported separately",
+  "min_rows": "per prereg T1 / B1_n / k_dst N>=150 else INSUFFICIENT_FINAL_SAMPLE",
+  "scoring_regimes": {
+   "bloodline-bowl": "sleeper",
+   "devoted-to-the-game": "sleeper",
+   "sportys-alumni": "sleeper",
+   "maclin-on-chicks-xvi": "yahoo",
+   "rogers-park": "yahoo"
+  }
+ },
+ "final_set_rules": "Opening any 2026 wk 1-5 outcome spends the final set: no refit / feature / threshold / cap / scoring-semantic change / candidate substitution. Post-open defects are reported, affected confirmatory results invalidated, reruns exploratory.",
+ "note_no_candidate_is_W2R1_qualified_before_S7": true
+}

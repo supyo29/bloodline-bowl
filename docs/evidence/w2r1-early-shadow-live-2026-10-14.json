@@ -1,0 +1,156 @@
+{
+ "stage": "W2.R1 EARLY SHADOW live validation",
+ "week": 6,
+ "deployment": "bloodline-bowl-sleeper-bridge-il8bchcks (protected preview, code f64ea5f)",
+ "note": "contains no credentials and no player names",
+ "leagues": {
+  "maclin-on-chicks-xvi": {
+   "provider": "yahoo",
+   "slots": [
+    "QB",
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "WR",
+    "TE",
+    "K",
+    "DEF"
+   ],
+   "bench": 6,
+   "ir": 1,
+   "waiver_system": "PRIORITY",
+   "market_verified": true,
+   "market_candidates": 1009,
+   "roster_size": 17,
+   "lineup_total_production_vs_w2r1": [
+    137.72,
+    137.72
+   ],
+   "starter_set_differences": 0,
+   "unknown_excluded_players": 1,
+   "bye_or_zero_stars_with_hold_gt_20": 0,
+   "kdst_view_ok": true,
+   "roster_server_ms": 17335,
+   "add_server_ms": 4360,
+   "compare_server_ms": 6769,
+   "drop_views_ok": {
+    "drop_top": true,
+    "drop_ir": true,
+    "drop_bench": true
+   }
+  },
+  "rogers-park": {
+   "provider": "yahoo",
+   "slots": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "TE",
+    "W/R/T",
+    "W/R/T",
+    "DEF"
+   ],
+   "bench": 6,
+   "ir": 1,
+   "waiver_system": "FAAB",
+   "market_verified": true,
+   "market_candidates": 966,
+   "roster_size": 15,
+   "lineup_total_production_vs_w2r1": [
+    103.42,
+    103.42
+   ],
+   "starter_set_differences": 0,
+   "unknown_excluded_players": 0,
+   "bye_or_zero_stars_with_hold_gt_20": 0,
+   "kdst_view_ok": true,
+   "roster_server_ms": 10539,
+   "add_server_ms": 3897,
+   "compare_server_ms": 6307,
+   "drop_views_ok": {
+    "drop_top": true,
+    "drop_bench": true
+   }
+  },
+  "bloodline-bowl": {
+   "provider": "sleeper",
+   "slots": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "K",
+    "DEF"
+   ],
+   "bench": 5,
+   "ir": 1,
+   "waiver_system": null,
+   "market_verified": true,
+   "market_candidates": 694,
+   "roster_size": 16,
+   "lineup_total_production_vs_w2r1": [
+    115.59,
+    115.59
+   ],
+   "starter_set_differences": 0,
+   "unknown_excluded_players": 0,
+   "bye_or_zero_stars_with_hold_gt_20": 1,
+   "kdst_view_ok": true,
+   "roster_server_ms": 3149,
+   "add_server_ms": 973,
+   "compare_server_ms": 3606,
+   "drop_views_ok": {
+    "drop_top": true,
+    "drop_bye_or_zero": true,
+    "drop_ir": true,
+    "drop_bench": true
+   }
+  },
+  "devoted-to-the-game": {
+   "provider": "sleeper",
+   "slots": [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "TE",
+    "FLEX",
+    "FLEX",
+    "FLEX",
+    "K",
+    "DEF"
+   ],
+   "bench": 5,
+   "ir": 2,
+   "waiver_system": null,
+   "market_verified": true,
+   "market_candidates": 686,
+   "roster_size": 16,
+   "lineup_total_production_vs_w2r1": [
+    122.46,
+    122.46
+   ],
+   "starter_set_differences": 0,
+   "unknown_excluded_players": 0,
+   "bye_or_zero_stars_with_hold_gt_20": 1,
+   "kdst_view_ok": true,
+   "roster_server_ms": 3350,
+   "add_server_ms": 931,
+   "compare_server_ms": 4046,
+   "drop_views_ok": {
+    "drop_top": true,
+    "drop_bye_or_zero": true,
+    "drop_bench": true
+   }
+  }
+ }
+}

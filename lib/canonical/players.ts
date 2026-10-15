@@ -16,6 +16,8 @@
  * (`lib/persistence/supabase/crosswalk-source.ts`) is used in production.
  */
 
+import type { YahooSleeperBridge } from "./yahoo-sleeper-bridge";
+import { resolveDefenseTeam, teamDefenseId } from "./team-defense";
 import { normalizeTeamCode } from "./team-codes";
 import {
   normalizeName,
@@ -127,6 +129,8 @@ export class PlayerCrosswalk {
   };
   private loaded = false;
   private rowCount = 0;
+  /** Opt-in: resolves a Yahoo player with no crosswalk row to a Sleeper identity ONLY on a unique name+position+team match. */
+  private yahooBridge: YahooSleeperBridge | null = null;
 
   constructor(private readonly source: CrosswalkSource = NoCrosswalk) {}
 
@@ -168,6 +172,11 @@ export class PlayerCrosswalk {
     this.loaded = true;
   }
 
+  useYahooSleeperBridge(bridge: YahooSleeperBridge | null): this {
+    this.yahooBridge = bridge;
+    return this;
+  }
+
   /** Establish (or fail to establish) a canonical identity for one observation. */
   resolve(observed: ObservedPlayer): ResolvedIdentity {
     const composed = [observed.first_name, observed.last_name]
@@ -188,6 +197,35 @@ export class PlayerCrosswalk {
       identifiers.yahoo_player_key = observed.provider_player_id;
     }
 
+    // W1.R1 / P1-3: a team defense is ONE canonical entity per NFL franchise, derived from team evidence only (never a person id, a provider
+    // numeric id or a crosswalk row). Evidence that disagrees or names several franchises is NOT mapped: it keeps the provider-scoped id,
+    // flagged low-confidence, so a defense can never be silently attached to the wrong team.
+    let defenseAmbiguity: string | null = null;
+    if (isDef) {
+      const t = resolveDefenseTeam({
+        nfl_team: observed.nfl_team,
+        provider_player_id: observed.provider_player_id,
+        full_name: name,
+        first_name: observed.first_name,
+        last_name: observed.last_name,
+      });
+      if (t.status === "RESOLVED") {
+        if (name) identifiers.name_key = playerNameKey(name, "DEF", t.team);
+        return {
+          player: buildPlayer(
+            teamDefenseId(t.team),
+            name ?? `${t.team} D/ST`,
+            { ...observed, nfl_team: t.team, position: "DEF" },
+            identifiers,
+            { method: "stable_id", confidence: "exact", note: `team_defense:${t.team} via ${t.via}` },
+            true,
+          ),
+          unresolved: null,
+        };
+      }
+      if (t.status === "AMBIGUOUS") defenseAmbiguity = t.reason;
+    }
+
     // 1. Cross-provider row via a stable provider id. GSIS is the strongest key
     //    (it is THE cross-provider nfl identity), so it is tried first when the
     //    caller already has one.
@@ -200,10 +238,27 @@ export class PlayerCrosswalk {
     // 2/3. Name-based fallback against the crosswalk.
     let method: PlayerResolution["method"] = "unresolved";
     let confidence: PlayerResolution["confidence"] = "none";
+    let bridgeNote: string | null = null;
 
-    if (row) {
+    // 1b. Yahoo has no cross-provider id: bridge to the Sleeper identity ONLY on a unique active name+position+team match (never a guess).
+    if (!row && observed.provider === "yahoo" && !isDef && this.yahooBridge) {
+      const b = this.yahooBridge.lookup({ name, position: canonicalPosition(observed.position), team: observed.nfl_team ?? null });
+      if (b.status === "MATCHED") {
+        identifiers.sleeper_id = b.sleeper_id;
+        row = this.index.bySleeper.get(b.sleeper_id);
+        method = b.team_unverified ? "name_position" : "name_position_team";
+        confidence = b.team_unverified ? "low" : "high";
+        bridgeNote = b.team_unverified ? "yahoo_sleeper_bridge: unique active name+position match (Sleeper carries no team for him: team_unverified)" : "yahoo_sleeper_bridge: unique active name+position+team match";
+      } else if (b.status === "AMBIGUOUS") {
+        bridgeNote = `yahoo_sleeper_bridge: ambiguous (${b.candidates.length} candidates); not mapped`;
+      }
+    }
+
+    if (row && method === "unresolved") {
       method = "stable_id";
       confidence = "exact";
+    } else if (method !== "unresolved") {
+      /* resolved by the Yahoo->Sleeper bridge above */
     } else if (name && this.index.byNameKey.size > 0) {
       const exact = this.index.byNameKey.get(
         playerNameKey(name, observed.position, observed.nfl_team),
@@ -254,7 +309,7 @@ export class PlayerCrosswalk {
         observed_team: observed.nfl_team,
         reason: !resolvedName
           ? "no usable name or stable id"
-          : "no stable id and name did not match a unique crosswalk row",
+          : `no stable id and name did not match a unique crosswalk row${bridgeNote ? `; ${bridgeNote}` : ""}`,
       };
       const canonicalId = playerId({
         gsisId: identifiers.gsis_id,
@@ -285,7 +340,9 @@ export class PlayerCrosswalk {
         resolvedName,
         observed,
         identifiers,
-        { method, confidence, note: null },
+        defenseAmbiguity
+          ? { method, confidence: "low", note: `team_defense_ambiguous: ${defenseAmbiguity}` }
+          : { method, confidence, note: bridgeNote },
         isDef,
         row,
       ),

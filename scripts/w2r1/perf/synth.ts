@@ -1,0 +1,15 @@
+/** Deterministic realistic-size synthetic league inputs for performance profiling and equivalence testing (NOT evidence: never used for any validation claim). */
+import type { LeagueRules, MarketCandidate, MarketPool, Pos, RosterAsset, WeekValue } from "../../../lib/w2r1/evidence";
+export function lcg(seed: number) { let s = seed >>> 0; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); }
+const POS_MIX: Pos[] = ["QB", "RB", "RB", "RB", "WR", "WR", "WR", "WR", "TE", "TE", "K", "DEF"];
+export function synth(seed: number, opts: { rosterSize?: number; pool?: number; lastWeek?: number; week?: number; verified?: boolean } = {}): { rules: LeagueRules; roster: RosterAsset[]; market: MarketPool } {
+  const rnd = lcg(seed); const week = opts.week ?? 6; const last = opts.lastWeek ?? 17; const fp = "fp-synth";
+  const rules = { league_id: "L", scoring_fingerprint: fp, slots: ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "FLEX", "K", "DEF"], bench_size: 7, ir_slots: 2, last_week: last } as unknown as LeagueRules;
+  const mk = (id: string, pos: Pos): { weeks: Record<number, WeekValue>; base: number } => { const base = { QB: 17, RB: 10, WR: 10, TE: 7, K: 8, DEF: 7 }[pos] * (0.4 + rnd() * 1.1); const weeks: Record<number, WeekValue> = {}; const bye = 7 + Math.floor(rnd() * 8);
+    for (let w = week; w <= last; w++) { if (w === bye) weeks[w] = { state: "BYE", lineup: 0, underlying: 0 }; else if (rnd() < 0.04) weeks[w] = { state: "UNKNOWN", lineup: null, underlying: null }; else { const u = base * (0.8 + rnd() * 0.4); weeks[w] = { state: "ACTIVE", lineup: u * (rnd() < 0.08 ? 0.5 : 1), underlying: u }; } } return { weeks, base }; };
+  const asset = (id: string, pos: Pos) => { const { weeks } = mk(id, pos); return { player_id: id, name: id, position: pos, eligible_positions: [pos], team: "AAA", scoring_fingerprint: fp, weeks, bye_week: null, confidence: "MEDIUM" as const, provenance: { source: "synth", observed_at: "2026-10-14T00:00:00Z", source_at: null, evidence_age_ms: null, version: "v" }, missing_evidence: [] as string[] }; };
+  const n = opts.rosterSize ?? 19; const roster: RosterAsset[] = [];
+  for (let i = 0; i < n; i++) { const pos = POS_MIX[i % POS_MIX.length]!; const a = asset(`R${i}`, pos); const st = i < 10 ? "STARTER" : i < n - 2 ? "BENCH" : "IR"; roster.push({ ...a, status: st as RosterAsset["status"], returns_in_week: st === "IR" ? week + 2 : null }); }
+  const candidates: MarketCandidate[] = []; for (let i = 0; i < (opts.pool ?? 160); i++) { const pos = POS_MIX[Math.floor(rnd() * POS_MIX.length)]!; const a = asset(`C${i}`, pos); candidates.push({ ...a, acquisition: { method: rnd() < 0.5 ? "FREE_AGENT_ADD" : "WAIVER_CLAIM", success_probability: rnd() < 0.5 ? 1 : rnd() < 0.5 ? null : 0.4, faab_cost: null, waiver_priority: null, available_from_week: rnd() < 0.1 ? week + 1 : null } }); }
+  return { rules, roster, market: { provider: "sleeper", verified: opts.verified ?? true, observed_at: "2026-10-14T00:00:00Z", freshness: "FRESH", candidates } };
+}
