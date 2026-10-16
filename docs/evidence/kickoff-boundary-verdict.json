@@ -1,0 +1,96 @@
+{
+ "generated_at": "2026-10-16T01:16:16.201Z",
+ "verdict": "FAIL",
+ "checks": [
+  {
+   "name": "samples exist on both sides of the real kickoff",
+   "ok": true,
+   "detail": {
+    "pre": 7,
+    "post": 3
+   }
+  },
+  {
+   "name": "a PRE sample within 30 min before kickoff and a POST sample within 60 min after (otherwise the crossing was not observed)",
+   "ok": true,
+   "detail": {
+    "last_pre_min_to_kick": 4.4,
+    "first_post_min_after": 12.43
+   }
+  },
+  {
+   "name": "the stored first kickoff equals the asserted real kickoff (the data and the boundary agree)",
+   "ok": false,
+   "detail": {
+    "stored": [
+     "",
+     "2026-10-16T00:15:00Z"
+    ],
+    "asserted": "2026-10-16T00:15:00Z"
+   }
+  },
+  {
+   "name": "PRE: revisions were actually RECORDED before kickoff (> 0 candidates submitted and revisions exist)",
+   "ok": true,
+   "detail": {
+    "candidates_per_pre_sample": [
+     541,
+     541,
+     548,
+     550,
+     550,
+     550,
+     550
+    ],
+    "recorded_per_pre_sample": [
+     541,
+     0,
+     548,
+     550,
+     550,
+     1,
+     0
+    ],
+    "revisions_at_kickoff": 186
+   }
+  },
+  {
+   "name": "POST: every post-kickoff request left the kickoff-game revisions AND pointers byte-identical (before==after within the request)",
+   "ok": true,
+   "detail": {
+    "post_samples": 3
+   }
+  },
+  {
+   "name": "ACROSS THE BOUNDARY: frozen state at the first post-kickoff sample equals the last pre-kickoff sample's final state (no write slipped in at the crossing)",
+   "ok": true,
+   "detail": {
+    "pre_after": "d3242423080a6f7ac9da5143cbf8030d",
+    "post_before": "d3242423080a6f7ac9da5143cbf8030d"
+   }
+  },
+  {
+   "name": "…and it never changes across ALL post-kickoff samples",
+   "ok": true,
+   "detail": {
+    "distinct_md5": 1
+   }
+  },
+  {
+   "name": "POST: candidates for the real mixed slate fall at the boundary while the rest of the slate is still served (> 0)",
+   "ok": true,
+   "detail": {
+    "last_pre": 550,
+    "first_post": 505
+   }
+  },
+  {
+   "name": "Role-shadow dry run builds fewer decisions after kickoff than before (per-player exclusion on the real clock) with 0 failures",
+   "ok": true,
+   "detail": {
+    "last_pre": 454,
+    "first_post": 421
+   }
+  }
+ ]
+}
