@@ -1,0 +1,83 @@
+{
+ "generated_at": "2026-10-14T02:46:04.808Z",
+ "target": "http://127.0.0.1:54321",
+ "results": [
+  {
+   "id": "D.1",
+   "area": "D",
+   "name": "Wave 1 tables present in the pre-Wave-1 schema",
+   "status": "INFO",
+   "detail": {
+    "tables": "(none)"
+   }
+  },
+  {
+   "id": "D.2",
+   "area": "D",
+   "name": "precondition: the Wave 1 tables are absent (production-equivalent schema)",
+   "status": "PASS",
+   "detail": ""
+  },
+  {
+   "id": "D.3",
+   "area": "D",
+   "name": "context build against the pre-Wave-1 schema",
+   "status": "INFO",
+   "detail": {
+    "ms": 2397,
+    "threw": null,
+    "forecasts": 3305,
+    "final_pregame_capture": {
+     "status": "FAILED",
+     "candidates": 165,
+     "counts": null,
+     "error": "Supabase GET bridge_final_pregame_forecasts -> 404 [PGRST205]"
+    },
+    "freshness": "identity present",
+    "warnings": [
+     "info:ros_signal",
+     "warning:final_pregame_capture_failed",
+     "warning:k_dst_weekly_approximated",
+     "info:unscored_stat_keys",
+     "warning:roster_projection_gap"
+    ]
+   }
+  },
+  {
+   "id": "D.4",
+   "area": "D",
+   "name": "the decision request still SUCCEEDS (forecasts served) with the Wave 1 tables missing",
+   "status": "PASS",
+   "detail": {
+    "threw": null,
+    "forecasts": 3305
+   }
+  },
+  {
+   "id": "D.5",
+   "area": "D",
+   "name": "the failure is VISIBLE, not silent: the final-pregame capture reports a failure/not-captured status and a warning",
+   "status": "PASS",
+   "detail": {
+    "status": "FAILED",
+    "error": "Supabase GET bridge_final_pregame_forecasts -> 404 [PGRST205]",
+    "codes": [
+     "ros_signal",
+     "final_pregame_capture_failed",
+     "k_dst_weekly_approximated",
+     "unscored_stat_keys",
+     "roster_projection_gap"
+    ]
+   }
+  },
+  {
+   "id": "D.6",
+   "area": "D",
+   "name": "waiver endpoint still fail-closed",
+   "status": "INFO",
+   "detail": {
+    "availability_status": "UNAVAILABLE"
+   }
+  }
+ ]
+}

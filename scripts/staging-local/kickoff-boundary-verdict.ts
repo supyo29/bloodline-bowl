@@ -1,0 +1,27 @@
+/** Judges docs/evidence/kickoff-boundary-samples.jsonl (written by kickoff-boundary-sample.ts). Pure file read: no DB, no network. exit 0 PASS / 1 FAIL / 3 INCONCLUSIVE */
+import { readFileSync, writeFileSync } from "node:fs";
+const FILE = "docs/evidence/kickoff-boundary-samples.jsonl";
+type S = { sampled_at: string; phase: "PRE" | "POST"; minutes_to_kickoff_at_compose: number; stored_min_kickoff: string; kickoff_iso: string; leagues: Record<string, { status?: string; candidates?: number; counts?: Record<string, number> | null; error?: string | null }>; before: { at_kickoff: { revisions: number; revisions_md5: string; pointers_md5: string } }; after: { at_kickoff: { revisions: number; revisions_md5: string; pointers_md5: string } }; role_shadow_dry_run: { built: number; failures: number } };
+const S_: S[] = readFileSync(FILE, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as S).sort((a, b) => a.sampled_at.localeCompare(b.sampled_at));
+const pre = S_.filter((s) => s.phase === "PRE"), post = S_.filter((s) => s.phase === "POST");
+const sumCand = (s: S) => Object.values(s.leagues).reduce((n, l) => n + (l.candidates ?? 0), 0);
+const recorded = (s: S) => Object.values(s.leagues).reduce((n, l) => n + Object.entries(l.counts ?? {}).filter(([k]) => /^(RECORDED|INSERTED|NEW|REVISED)/.test(k)).reduce((m, [, v]) => m + v, 0), 0);
+const checks: Array<{ name: string; ok: boolean | null; detail: unknown }> = [];
+const add = (name: string, ok: boolean | null, detail: unknown) => checks.push({ name, ok, detail });
+const lastPre = pre[pre.length - 1], firstPost = post[0];
+add("samples exist on both sides of the real kickoff", !!lastPre && !!firstPost, { pre: pre.length, post: post.length });
+add("a PRE sample within 30 min before kickoff and a POST sample within 60 min after (otherwise the crossing was not observed)", !!lastPre && !!firstPost && lastPre.minutes_to_kickoff_at_compose <= 30 && firstPost.minutes_to_kickoff_at_compose >= -60, { last_pre_min_to_kick: lastPre?.minutes_to_kickoff_at_compose, first_post_min_after: firstPost ? -firstPost.minutes_to_kickoff_at_compose : null });
+add("the stored first kickoff equals the asserted real kickoff (the data and the boundary agree)", S_.length > 0 && S_.every((s) => s.stored_min_kickoff === s.kickoff_iso), { stored: [...new Set(S_.map((s) => s.stored_min_kickoff))], asserted: S_[0]?.kickoff_iso });
+add("PRE: revisions were actually RECORDED before kickoff (> 0 candidates submitted and revisions exist)", pre.length > 0 && pre.some((s) => sumCand(s) > 0) && (lastPre?.after.at_kickoff.revisions ?? 0) > 0, { candidates_per_pre_sample: pre.map(sumCand), recorded_per_pre_sample: pre.map(recorded), revisions_at_kickoff: lastPre?.after.at_kickoff.revisions });
+add("POST: every post-kickoff request left the kickoff-game revisions AND pointers byte-identical (before==after within the request)", post.length > 0 && post.every((s) => s.before.at_kickoff.revisions_md5 === s.after.at_kickoff.revisions_md5 && s.before.at_kickoff.pointers_md5 === s.after.at_kickoff.pointers_md5), { post_samples: post.length });
+add("ACROSS THE BOUNDARY: frozen state at the first post-kickoff sample equals the last pre-kickoff sample's final state (no write slipped in at the crossing)", !!lastPre && !!firstPost && firstPost.before.at_kickoff.revisions_md5 === lastPre.after.at_kickoff.revisions_md5 && firstPost.before.at_kickoff.pointers_md5 === lastPre.after.at_kickoff.pointers_md5, { pre_after: lastPre?.after.at_kickoff.revisions_md5, post_before: firstPost?.before.at_kickoff.revisions_md5 });
+add("…and it never changes across ALL post-kickoff samples", post.length > 0 && new Set(post.map((s) => s.after.at_kickoff.revisions_md5)).size === 1 && new Set(post.map((s) => s.after.at_kickoff.pointers_md5)).size === 1, { distinct_md5: new Set(post.map((s) => s.after.at_kickoff.revisions_md5)).size });
+add("POST: candidates for the real mixed slate fall at the boundary while the rest of the slate is still served (> 0)", !!lastPre && !!firstPost && sumCand(firstPost) < sumCand(lastPre) && sumCand(firstPost) > 0, { last_pre: lastPre && sumCand(lastPre), first_post: firstPost && sumCand(firstPost) });
+add("Role-shadow dry run builds fewer decisions after kickoff than before (per-player exclusion on the real clock) with 0 failures", !!lastPre && !!firstPost && firstPost.role_shadow_dry_run.built < lastPre.role_shadow_dry_run.built && S_.every((s) => s.role_shadow_dry_run.failures === 0), { last_pre: lastPre?.role_shadow_dry_run.built, first_post: firstPost?.role_shadow_dry_run.built });
+const hard = checks.slice(0, 2).some((c) => c.ok === false);
+const failed = checks.filter((c) => c.ok === false);
+const verdict = failed.length === 0 ? "PASS" : hard ? "INCONCLUSIVE" : "FAIL";
+for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${c.name}  ${JSON.stringify(c.detail)}`);
+console.log(`\nKICKOFF BOUNDARY VERDICT: ${verdict} (samples=${S_.length}, pre=${pre.length}, post=${post.length})`);
+writeFileSync("docs/evidence/kickoff-boundary-verdict.json", JSON.stringify({ generated_at: new Date().toISOString(), verdict, checks }, null, 1));
+process.exit(verdict === "PASS" ? 0 : verdict === "INCONCLUSIVE" ? 3 : 1);
