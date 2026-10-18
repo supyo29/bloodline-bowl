@@ -1,8 +1,8 @@
 {
-  "football_intelligence_version": "fi:2026:w06:c89ee5f65cdd",
+  "football_intelligence_version": "fi:2026:w06:6b16224c9fb5",
   "model_tag": "ri-football-intel-2026.1",
   "feature_schema_version": 1,
-  "generated_at": "2026-10-17T16:06:41+0000",
+  "generated_at": "2026-10-18T16:17:49+0000",
   "season": 2026,
   "through_week": 6,
   "week_completion": {
@@ -18,8 +18,8 @@
     "ngs_receiving": 6,
     "ngs_rushing": 6,
     "pbp": 6,
-    "pfr_def": 5,
-    "pfr_pass": 5,
+    "pfr_def": 6,
+    "pfr_pass": 6,
     "snap_counts": 6
   },
   "seasons_used": {
